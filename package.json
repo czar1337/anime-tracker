@@ -1,0 +1,11 @@
+{
+  "name": "anime-tracker",
+  "version": "1.3.4",
+  "private": true,
+  "description": "Local-only anime tracker. No dependencies, no build step.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/run-all.js"
+  }
+}

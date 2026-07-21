@@ -1,0 +1,13 @@
+# Built binaries — regenerable via scripts/build-exe.js, large, don't belong in history.
+dist/
+
+# Legacy in-project data folder (pre-1.1.0 storage location) — this is real,
+# personal library data (backups, downloaded covers, cache), never source.
+# Current installs store data in the OS app-data folder instead; see datadir.js.
+data/
+
+node_modules/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db

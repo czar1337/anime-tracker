@@ -1,0 +1,350 @@
+// All network I/O: local server calls (library CRUD, backups, cover
+// downloads) and direct-to-AniList GraphQL search (AniList's endpoint sends
+// permissive CORS headers, so the browser can call it without a proxy).
+
+const ANILIST_URL = 'https://graphql.anilist.co';
+
+async function getLibrary() {
+  const res = await fetch('/api/library');
+  const body = await res.json();
+  if (!res.ok) {
+    const err = new Error(body.error || 'Failed to load library');
+    err.corrupt = res.status === 409 && !body.dataConflict && !body.tooNew;
+    err.dataConflict = Boolean(body.dataConflict);
+    err.oldDir = body.oldDir;
+    err.newDir = body.newDir;
+    err.tooNew = Boolean(body.tooNew);
+    err.dataVersion = body.dataVersion;
+    err.appVersion = body.appVersion;
+    err.detail = body.detail;
+    err.backups = body.backups;
+    throw err;
+  }
+  return body;
+}
+
+async function getVersionInfo() {
+  const res = await fetch('/api/version');
+  if (!res.ok) throw new Error('Failed to check version');
+  return res.json();
+}
+
+async function saveLibrary(data) {
+  const res = await fetch('/api/library', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    const err = new Error(body.error || 'Failed to save library');
+    err.corrupt = res.status === 409;
+    err.backups = body.backups;
+    throw err;
+  }
+  return body;
+}
+
+async function listBackups() {
+  const res = await fetch('/api/backups');
+  return res.json();
+}
+
+async function restoreBackup(file) {
+  const res = await fetch('/api/backups/restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || 'Restore failed');
+  return body;
+}
+
+async function getRecommendationsCache() {
+  const res = await fetch('/api/recommendations');
+  return res.json();
+}
+
+async function saveRecommendationsCache(data) {
+  const res = await fetch('/api/recommendations', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || 'Failed to save recommendations cache');
+  return body;
+}
+
+async function getAiringCache() {
+  const res = await fetch('/api/airing');
+  return res.json();
+}
+
+async function saveAiringCache(data) {
+  const res = await fetch('/api/airing', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || 'Failed to save airing cache');
+  return body;
+}
+
+async function downloadCover(anilistId, url) {
+  const res = await fetch('/api/covers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anilistId, url }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || 'Cover download failed');
+  return body.file;
+}
+
+// The set of anilistIds that actually have a cover file on disk right now —
+// not to be confused with which entries merely *have a coverFile field set*.
+async function getExistingCoverIds() {
+  const res = await fetch('/api/covers/existing');
+  if (!res.ok) throw new Error('Could not check which covers exist');
+  const body = await res.json();
+  return body.ids;
+}
+
+const RELATIONS_FIELD = `
+      relations {
+        edges {
+          relationType
+          node { id type }
+        }
+      }`;
+
+const SEARCH_QUERY = `
+query ($search: String) {
+  Page(page: 1, perPage: 20) {
+    media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+      id
+      idMal
+      title { romaji english }
+      coverImage { large }
+      episodes
+      duration
+      format
+      seasonYear
+      averageScore
+      genres
+      status
+      season
+      ${RELATIONS_FIELD}
+    }
+  }
+}`;
+
+const BATCH_BY_IDMAL_QUERY = `
+query ($idMalIn: [Int]) {
+  Page(page: 1, perPage: 50) {
+    media(idMal_in: $idMalIn, type: ANIME) {
+      id
+      idMal
+      title { romaji english }
+      coverImage { large }
+      episodes
+      duration
+      format
+      seasonYear
+      averageScore
+      genres
+      status
+      season
+      ${RELATIONS_FIELD}
+    }
+  }
+}`;
+
+// Relation types that represent "the same title" for grouping seasons/OVAs
+// together (excludes SOURCE material, ADAPTATION, SPIN_OFF, CHARACTER, etc.
+// which are meaningfully different works).
+const GROUPING_RELATIONS = new Set(['PREQUEL', 'SEQUEL', 'SIDE_STORY', 'PARENT']);
+
+function extractRelatedIds(media) {
+  const edges = media.relations?.edges || [];
+  return edges
+    .filter((e) => e.node.type === 'ANIME' && GROUPING_RELATIONS.has(e.relationType))
+    .map((e) => e.node.id);
+}
+
+class RateLimitError extends Error {
+  constructor(retryAfterSeconds) {
+    super('AniList rate limit reached — please wait a moment and try again.');
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+async function anilistRequest(query, variables) {
+  let res;
+  try {
+    res = await fetch(ANILIST_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    });
+  } catch (err) {
+    throw new Error('Could not reach AniList. Check your internet connection.');
+  }
+  if (res.status === 429) {
+    const retryAfter = Number(res.headers.get('Retry-After')) || 60;
+    throw new RateLimitError(retryAfter);
+  }
+  const body = await res.json();
+  if (!res.ok || body.errors) {
+    const message = body.errors?.[0]?.message || `AniList request failed (${res.status})`;
+    throw new Error(message);
+  }
+  return body.data;
+}
+
+async function searchAniList(search) {
+  if (!search || !search.trim()) return [];
+  const data = await anilistRequest(SEARCH_QUERY, { search });
+  return data.Page.media;
+}
+
+async function fetchAniListByMalIds(idMalIn) {
+  if (idMalIn.length === 0) return [];
+  const data = await anilistRequest(BATCH_BY_IDMAL_QUERY, { idMalIn });
+  return data.Page.media;
+}
+
+const AIRING_BATCH_QUERY = `
+query ($idIn: [Int]) {
+  Page(page: 1, perPage: 50) {
+    media(id_in: $idIn, type: ANIME) {
+      id
+      status
+      episodes
+      nextAiringEpisode { episode }
+    }
+  }
+}`;
+
+async function fetchAiringBatch(idIn) {
+  if (idIn.length === 0) return [];
+  const data = await anilistRequest(AIRING_BATCH_QUERY, { idIn });
+  return data.Page.media;
+}
+
+const COVERS_BATCH_QUERY = `
+query ($idIn: [Int]) {
+  Page(page: 1, perPage: 50) {
+    media(id_in: $idIn, type: ANIME) {
+      id
+      coverImage { large }
+    }
+  }
+}`;
+
+// Used to retry entries whose cover was never successfully saved to disk
+// (e.g. a large import that flooded the connection) — the original AniList
+// cover URL isn't persisted anywhere, so it has to be looked up again by id.
+async function fetchCoversBatch(idIn) {
+  if (idIn.length === 0) return [];
+  const data = await anilistRequest(COVERS_BATCH_QUERY, { idIn });
+  return data.Page.media;
+}
+
+// AniList's `recommendations` field only exists on a single Media, not on a
+// Page/media list query — so multiple seeds are batched into one request
+// using GraphQL aliases (m<id>: Media(id: <id>) {...}) instead of variables.
+// IDs are always our own numeric anilistId values (never user text), so
+// interpolating them into the query string is safe.
+function recommendationsBatchQuery(ids, perPage) {
+  const parts = ids.map(
+    (id) => `
+    m${id}: Media(id: ${id}, type: ANIME) {
+      id
+      recommendations(sort: RATING_DESC, perPage: ${perPage}) {
+        edges {
+          node {
+            rating
+            mediaRecommendation {
+              id
+              title { romaji english }
+              coverImage { large }
+              genres
+              averageScore
+              seasonYear
+              format
+              episodes
+              duration
+              ${RELATIONS_FIELD}
+            }
+          }
+        }
+      }
+    }`
+  );
+  return `query { ${parts.join('\n')} }`;
+}
+
+async function fetchRecommendationsBatch(ids, perPage = 15) {
+  const numericIds = ids.filter((id) => Number.isInteger(id));
+  if (numericIds.length === 0) return {};
+  const data = await anilistRequest(recommendationsBatchQuery(numericIds, perPage), {});
+  return data;
+}
+
+// asHtml:false is deliberate — AniList then returns the description as plain
+// text (its own lightweight markdown, not HTML), so there's no HTML to
+// sanitize before rendering it. It's escaped like any other API string.
+const DETAIL_QUERY = `
+query ($id: Int) {
+  Media(id: $id, type: ANIME) {
+    id
+    title { romaji english native }
+    description(asHtml: false)
+    coverImage { large }
+    bannerImage
+    genres
+    averageScore
+    popularity
+    favourites
+    format
+    status
+    episodes
+    duration
+    source
+    startDate { year month day }
+    endDate { year month day }
+    studios(isMain: true) { nodes { name } }
+  }
+}`;
+
+async function fetchAnimeDetail(anilistId) {
+  const data = await anilistRequest(DETAIL_QUERY, { id: anilistId });
+  if (!data.Media) throw new Error('Not found on AniList.');
+  return data.Media;
+}
+
+export const Api = {
+  getLibrary,
+  saveLibrary,
+  getVersionInfo,
+  listBackups,
+  restoreBackup,
+  downloadCover,
+  getExistingCoverIds,
+  searchAniList,
+  fetchAniListByMalIds,
+  fetchRecommendationsBatch,
+  getRecommendationsCache,
+  saveRecommendationsCache,
+  fetchAnimeDetail,
+  fetchAiringBatch,
+  fetchCoversBatch,
+  getAiringCache,
+  saveAiringCache,
+  extractRelatedIds,
+  RateLimitError,
+};

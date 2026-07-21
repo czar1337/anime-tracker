@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anime Tracker</title>
+<link rel="stylesheet" href="/fonts/inter.css">
+<link rel="stylesheet" href="/fonts/sora.css">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <header class="app-header">
+    <button id="brand-home" class="brand" title="Go to Home">Anime Tracker</button>
+
+    <nav class="tabs" role="tablist" aria-label="Lists">
+      <span id="tab-pill" class="tab-pill" aria-hidden="true"></span>
+      <button class="tab" data-tab="watching" role="tab" aria-selected="true">Watching <span class="tab-count" data-count="watching">0</span><span id="watching-unseen-badge" class="tab-unseen-badge" title="Series with unread episodes" hidden>0</span></button>
+      <button class="tab" data-tab="watchlist" role="tab" aria-selected="false">Watchlist <span class="tab-count" data-count="watchlist">0</span></button>
+      <button class="tab" data-tab="watched" role="tab" aria-selected="false">Watched <span class="tab-count" data-count="watched">0</span></button>
+      <button class="tab" data-tab="dropped" role="tab" aria-selected="false">Dropped <span class="tab-count" data-count="dropped">0</span></button>
+      <button class="tab" data-tab="discover" role="tab" aria-selected="false">Discover</button>
+      <button class="tab" data-tab="stats" role="tab" aria-selected="false">Statistics</button>
+    </nav>
+
+    <div class="header-actions">
+      <a id="update-banner" class="update-banner" href="#" target="_blank" rel="noopener" hidden></a>
+      <span id="app-version" class="app-version"></span>
+      <span id="save-indicator" class="save-indicator" data-state="saved">Saved</span>
+      <button id="theme-toggle" class="icon-btn" title="Toggle light/dark theme" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      </button>
+      <button id="add-trigger" class="add-trigger" title="Add a new anime">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Add Anime</span>
+      </button>
+      <button id="search-trigger" class="icon-btn" title="Search (press /)" aria-label="Search">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </button>
+      <button id="import-trigger" class="icon-btn" title="Import from MyAnimeList" aria-label="Import from MyAnimeList">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg>
+      </button>
+      <button id="backup-menu-trigger" class="icon-btn" title="Backup &amp; restore" aria-label="Backup and restore">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16"/></svg>
+      </button>
+      <button id="shortcuts-trigger" class="icon-btn" title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">?</button>
+    </div>
+  </header>
+
+  <div id="error-banner" class="error-banner" hidden></div>
+
+  <main class="app-main">
+    <div id="home-view" class="home-view" hidden></div>
+    <div id="stats-view" class="stats-view" hidden></div>
+    <div id="discover-view" class="discover-view" hidden></div>
+
+    <div id="list-view">
+    <div class="list-toolbar">
+      <div id="stats-header" class="stats-header" hidden></div>
+      <div id="airing-status" class="airing-status" hidden></div>
+
+      <div class="filter-bar">
+        <div class="search-filter-row">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="title-filter" class="title-filter-input" placeholder="Filter this list by title or notes…" aria-label="Filter by title or notes">
+        </div>
+        <div class="filter-group" id="genre-filter"></div>
+        <select id="format-filter" class="filter-select" aria-label="Filter by format">
+          <option value="">All formats</option>
+        </select>
+        <div class="year-range">
+          <input type="number" id="year-min" placeholder="Year from" class="year-input" aria-label="Year from">
+          <span>–</span>
+          <input type="number" id="year-max" placeholder="Year to" class="year-input" aria-label="Year to">
+        </div>
+        <div class="score-range">
+          <input type="number" id="myscore-min" min="1" max="10" placeholder="Rating from" class="year-input" aria-label="My rating from">
+          <span>–</span>
+          <input type="number" id="myscore-max" min="1" max="10" placeholder="Rating to" class="year-input" aria-label="My rating to">
+          <label class="unrated-toggle"><input type="checkbox" id="unrated-only"> Unrated only</label>
+        </div>
+        <select id="sort-select" class="filter-select" aria-label="Sort by"></select>
+        <button id="sort-dir" class="icon-btn small" title="Toggle sort direction" aria-label="Toggle sort direction">↓</button>
+        <button id="select-mode-toggle" class="icon-btn small" title="Select multiple" aria-label="Select multiple" aria-pressed="false">☑</button>
+      </div>
+      <div id="active-filter-chips" class="active-filter-chips"></div>
+      <div id="bulk-action-bar" class="bulk-action-bar" hidden></div>
+    </div>
+
+    <div id="grid" class="card-grid"></div>
+    <div id="empty-state" class="empty-state" hidden></div>
+    </div>
+  </main>
+
+  <!-- Anime detail overlay -->
+  <div id="detail-overlay" class="overlay" hidden>
+    <div class="overlay-panel detail-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <div id="detail-content"></div>
+    </div>
+  </div>
+
+  <!-- Search overlay -->
+  <div id="search-overlay" class="overlay" hidden>
+    <div class="overlay-panel search-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <div class="search-input-row">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="search-input" type="text" placeholder="Search anime on AniList…" autocomplete="off" aria-label="Search anime">
+      </div>
+      <div class="search-secondary-row">
+        <button id="screenshot-trigger" class="text-btn">📷 Or add from screenshot(s)</button>
+      </div>
+      <div id="search-status" class="search-status"></div>
+      <div id="search-results" class="search-results"></div>
+    </div>
+  </div>
+
+  <!-- Screenshot-to-add overlay (offline OCR) -->
+  <div id="screenshot-overlay" class="overlay" hidden>
+    <div class="overlay-panel screenshot-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Add anime from screenshot</h2>
+      <div id="screenshot-step-upload" class="import-step">
+        <p>Take a screenshot and press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste it in — or upload one or more image files below. Works with anything where anime titles appear as text (a list, app screen, website, etc). Recognition runs fully offline on this device.</p>
+        <input type="file" id="screenshot-file-input" accept="image/*" multiple>
+        <div id="screenshot-upload-status" class="search-status"></div>
+      </div>
+      <div id="screenshot-step-review" class="import-step" hidden>
+        <div class="import-summary" id="screenshot-summary"></div>
+        <div id="screenshot-review-list" class="import-review-list"></div>
+        <div class="import-actions">
+          <button id="screenshot-commit-btn" class="text-btn primary">Add selected</button>
+          <button id="screenshot-cancel-btn" class="text-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Discover: dismissed ("Not interested") items, with undo -->
+  <div id="dismissed-overlay" class="overlay" hidden>
+    <div class="overlay-panel import-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <div id="dismissed-content"></div>
+    </div>
+  </div>
+
+  <!-- Shortcuts cheat-sheet overlay -->
+  <div id="shortcuts-overlay" class="overlay" hidden>
+    <div class="overlay-panel shortcuts-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Keyboard shortcuts</h2>
+      <dl class="shortcuts-list">
+        <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
+        <div><dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Set status on focused card</dd></div>
+        <div><dt><kbd>+</kbd> / <kbd>-</kbd></dt><dd>Episode progress on focused card</dd></div>
+        <div><dt><kbd>Esc</kbd></dt><dd>Close overlays</dd></div>
+        <div><dt><kbd>?</kbd></dt><dd>Toggle this cheat-sheet</dd></div>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Backup & restore overlay -->
+  <div id="backup-overlay" class="overlay" hidden>
+    <div class="overlay-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Backup &amp; restore</h2>
+      <div class="backup-actions">
+        <button id="export-backup-btn" class="text-btn primary">Export backup (download JSON)</button>
+        <label class="text-btn" for="import-backup-file">Import backup (upload JSON)</label>
+        <input type="file" id="import-backup-file" accept="application/json" hidden>
+      </div>
+      <h3>Recent automatic backups</h3>
+      <ul id="backup-list" class="backup-list"></ul>
+    </div>
+  </div>
+
+  <!-- Corrupt-data recovery banner (shown instead of app if library.json unreadable) -->
+  <div id="recovery-overlay" class="overlay" hidden>
+    <div class="overlay-panel">
+      <h2>Your library file could not be read</h2>
+      <p id="recovery-detail" class="recovery-detail"></p>
+      <p>Nothing has been overwritten. Choose a backup to restore:</p>
+      <ul id="recovery-backup-list" class="backup-list"></ul>
+      <p id="recovery-status" class="recovery-detail" hidden></p>
+    </div>
+  </div>
+
+  <!-- Blocked-state overlay: shown instead of the app for situations with no
+       safe in-app remedy (two conflicting data folders, or a library saved
+       by a newer app version). Purely informational — no action buttons,
+       since guessing which data is "right" or auto-modifying files is
+       exactly what must not happen here. -->
+  <div id="blocked-overlay" class="overlay" hidden>
+    <div class="overlay-panel">
+      <h2 id="blocked-title"></h2>
+      <p id="blocked-detail" class="recovery-detail"></p>
+    </div>
+  </div>
+
+  <!-- MAL import overlay -->
+  <div id="import-overlay" class="overlay" hidden>
+    <div class="overlay-panel import-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Import from MyAnimeList</h2>
+      <div id="import-step-upload" class="import-step">
+        <p>Upload your MAL export file (<code>animelist_*.xml</code> or <code>.xml.gz</code>). Export it from your MAL profile → Export list.</p>
+        <input type="file" id="mal-file-input" accept=".xml,.gz">
+        <div id="import-upload-status" class="search-status"></div>
+      </div>
+      <div id="import-step-review" class="import-step" hidden>
+        <div class="import-summary" id="import-summary"></div>
+        <div id="import-review-list" class="import-review-list"></div>
+        <div class="import-actions">
+          <button id="import-commit-btn" class="text-btn primary">Import matched entries</button>
+          <button id="import-cancel-btn" class="text-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+</div>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

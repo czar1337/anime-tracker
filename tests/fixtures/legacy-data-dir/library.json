@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "entries": [
+    {
+      "anilistId": 1,
+      "titleRomaji": "Cowboy Bebop",
+      "titleEnglish": "Cowboy Bebop",
+      "coverFile": "covers/1.jpg",
+      "format": "TV",
+      "year": 1998,
+      "totalEpisodes": 26,
+      "duration": 24,
+      "genres": ["Action", "Sci-Fi"],
+      "averageScore": 86,
+      "listStatus": "watched",
+      "episodesWatched": 26,
+      "myScore": 10,
+      "notes": "",
+      "relatedIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "completedAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "preferences": {},
+  "dismissedIds": []
+}
