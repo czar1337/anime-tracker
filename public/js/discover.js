@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { pickSeeds, aggregateCandidates, filterOwned, shuffle } from './recommendLogic.js';
+import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle } from './recommendLogic.js';
 
 const SEED_BATCH_SIZE = 5;
 const RECS_PER_SEED = 25;
@@ -90,7 +90,8 @@ async function computeRecommendations(onProgress) {
   }
 
   const ownedIds = Store.getEntries().map((e) => e.anilistId);
-  const items = aggregateCandidates(seeds, batchResultsBySeedId, ownedIds, Store.getDismissedIds(), POOL_SIZE);
+  const genreProfile = buildGenreProfile(seeds);
+  const items = aggregateCandidates(seeds, batchResultsBySeedId, ownedIds, Store.getDismissedIds(), POOL_SIZE, genreProfile);
 
   return { status: 'ready', items, generatedAt: new Date().toISOString() };
 }

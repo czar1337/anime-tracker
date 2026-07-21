@@ -153,7 +153,59 @@ async function run() {
   // -------------------------------------------------------------------------
   console.log('recommendLogic.js');
   const recommendLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'recommendLogic.js').replace(/\\/g, '/');
-  const { aggregateCandidates, filterOwned, shuffle } = await import(recommendLogicUrl);
+  const { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle } = await import(recommendLogicUrl);
+
+  await test('pickSeeds caps at 30, highest-weight (best score) first', () => {
+    const allEntries = Array.from({ length: 50 }, (_, i) => ({
+      anilistId: i,
+      titleRomaji: `Show ${i}`,
+      myScore: 8 + (i % 3), // 8, 9, or 10 — all qualify as "highly rated" (>=8)
+      genres: [],
+    }));
+    const seeds = pickSeeds(allEntries, []);
+    assert.equal(seeds.length, 30, 'should cap at MAX_SEEDS even with 50+ qualifying entries');
+    for (let i = 1; i < seeds.length; i++) {
+      assert.ok(seeds[i - 1].weight >= seeds[i].weight, 'must be sorted highest-weight first');
+    }
+    assert.equal(seeds[0].weight, 10, 'the very top seed should be a score-10 entry');
+  });
+
+  await test('buildGenreProfile accumulates seed weight per genre', () => {
+    const seeds = [
+      { id: 1, title: 'A', weight: 10, genres: ['Action', 'Fantasy'] },
+      { id: 2, title: 'B', weight: 6, genres: ['Fantasy', 'Romance'] },
+    ];
+    const profile = buildGenreProfile(seeds);
+    assert.equal(profile.Action, 10);
+    assert.equal(profile.Fantasy, 16, 'Fantasy appears in both seeds, weights should sum');
+    assert.equal(profile.Romance, 6);
+    assert.equal(profile.Horror, undefined, 'unmentioned genres should not appear');
+  });
+
+  await test('aggregateCandidates: genre overlap with the taste profile breaks ties within equal breadth', () => {
+    const seeds = [{ id: 1, title: 'Seed A', weight: 9, genres: ['Fantasy'] }];
+    const batchResultsBySeedId = {
+      1: [
+        { node: { rating: 50, mediaRecommendation: { id: 100, title: { romaji: 'Fantasy Match' }, genres: ['Fantasy'] } } },
+        { node: { rating: 50, mediaRecommendation: { id: 200, title: { romaji: 'No Match' }, genres: ['Sports'] } } },
+      ],
+    };
+    const genreProfile = buildGenreProfile(seeds);
+    const items = aggregateCandidates(seeds, batchResultsBySeedId, [], [], 30, genreProfile);
+    // Both recommended by the same single seed with the same AniList rating —
+    // identical breadth and base score, so only the genre bonus can decide order.
+    assert.equal(items[0].media.id, 100, 'the genre-matching candidate should rank first when everything else is tied');
+  });
+
+  await test('aggregateCandidates: no genre profile (default) behaves exactly as before', () => {
+    const seeds = [{ id: 1, title: 'Seed A', weight: 9 }];
+    const batchResultsBySeedId = {
+      1: [{ node: { rating: 50, mediaRecommendation: { id: 100, title: { romaji: 'Show' }, genres: ['Fantasy'] } } }],
+    };
+    const items = aggregateCandidates(seeds, batchResultsBySeedId, [], [], 30);
+    assert.equal(items.length, 1);
+    assert.equal(items[0].media.id, 100);
+  });
 
   await test('recommendations exclude everything already in the library', () => {
     const seeds = [{ id: 1, title: 'Seed A', weight: 9 }];
