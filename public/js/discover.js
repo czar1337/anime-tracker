@@ -45,6 +45,20 @@ function renderNow() {
   if (container) Render.renderDiscoverPage(container, discoverState);
 }
 
+// A 429 gets one honored wait-and-retry (capped at 30s, in case AniList ever
+// sends something absurd) instead of being silently swallowed like any other
+// batch failure — the whole point of Retry-After is that the caller knows
+// exactly how long to back off, so ignoring it just wastes the retry.
+async function withRateLimitRetry(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!(err instanceof Api.RateLimitError)) throw err;
+    await sleep(Math.min(err.retryAfterSeconds, 30) * 1000);
+    return fn();
+  }
+}
+
 async function computeRecommendations(onProgress) {
   const seeds = pickSeeds(Store.getEntries(), Store.getEntriesByList('watched'));
   if (seeds.length === 0) {
@@ -58,14 +72,15 @@ async function computeRecommendations(onProgress) {
     onProgress?.(`Fetching recommendations… (${i + 1}/${batches.length})`);
     const batch = batches[i];
     try {
-      const data = await Api.fetchRecommendationsBatch(batch.map((s) => s.id), RECS_PER_SEED);
+      const data = await withRateLimitRetry(() => Api.fetchRecommendationsBatch(batch.map((s) => s.id), RECS_PER_SEED));
       anyBatchSucceeded = true;
       for (const seed of batch) {
         batchResultsBySeedId[seed.id] = data[`m${seed.id}`]?.recommendations?.edges || [];
       }
     } catch {
-      // One batch failing (rate limit, transient network blip) shouldn't
-      // abort the whole refresh — remaining batches still run.
+      // Still failed after the retry (rate limit persisted, or a plain
+      // network blip) — shouldn't abort the whole refresh, remaining
+      // batches still run.
     }
     if (i < batches.length - 1) await sleep(800);
   }

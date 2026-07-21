@@ -126,6 +126,19 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// A 429 gets one honored wait-and-retry (capped at 30s) instead of being
+// treated the same as any other failure — see the matching comment in
+// discover.js/airing.js.
+async function withRateLimitRetry(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!(err instanceof Api.RateLimitError)) throw err;
+    await sleep(Math.min(err.retryAfterSeconds, 30) * 1000);
+    return fn();
+  }
+}
+
 // Loads the real library before anything writable exists. A generic failure
 // (server not up yet, a network blip, ...) must never fall back to an empty
 // library and carry on — the moment persist() becomes reachable, an empty
@@ -189,7 +202,7 @@ async function retryMissingCovers() {
     const batch = missing.slice(i, i + COVER_RETRY_BATCH_SIZE);
     let media;
     try {
-      media = await Api.fetchCoversBatch(batch.map((e) => e.anilistId));
+      media = await withRateLimitRetry(() => Api.fetchCoversBatch(batch.map((e) => e.anilistId)));
     } catch {
       return; // offline / AniList unreachable — next launch tries again
     }

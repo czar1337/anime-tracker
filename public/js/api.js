@@ -182,16 +182,27 @@ class RateLimitError extends Error {
   }
 }
 
+const ANILIST_TIMEOUT_MS = 15000;
+
 async function anilistRequest(query, variables) {
   let res;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANILIST_TIMEOUT_MS);
   try {
     res = await fetch(ANILIST_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ query, variables }),
+      signal: controller.signal,
     });
   } catch (err) {
+    // Without this, a request AniList never responds to (rare, but not
+    // impossible) would hang forever — whatever awaited it, including a
+    // background boot-time refresh, would just never resolve.
+    if (err.name === 'AbortError') throw new Error('AniList took too long to respond. Try again.');
     throw new Error('Could not reach AniList. Check your internet connection.');
+  } finally {
+    clearTimeout(timeout);
   }
   if (res.status === 429) {
     const retryAfter = Number(res.headers.get('Retry-After')) || 60;

@@ -1,5 +1,18 @@
 'use strict';
 
+// Every request already runs inside its own try/catch (see the routing
+// handler below) that turns a failure into a clean 500 instead of crashing.
+// These two are the backstop for anything outside that path entirely — a
+// stray throw during startup init, a rejected promise nobody awaited — so a
+// single overlooked spot can never take the whole server down silently
+// while the user's tab just sits there looking broken with no way to know why.
+process.on('uncaughtException', (err) => {
+  console.error('[server] Uncaught exception (continuing):', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[server] Unhandled rejection (continuing):', err);
+});
+
 const http = require('node:http');
 const https = require('node:https');
 const fs = require('node:fs');
@@ -456,10 +469,12 @@ function serveAppAsset(req, res, urlPath) {
   res.end(Buffer.from(buf));
 }
 
+const DOWNLOAD_TIMEOUT_MS = 15000;
+
 function downloadImage(url, destPath, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
-    https
-      .get(url, (response) => {
+    const req = https
+      .get(url, { timeout: DOWNLOAD_TIMEOUT_MS }, (response) => {
         if (
           [301, 302, 303, 307, 308].includes(response.statusCode) &&
           response.headers.location &&
@@ -493,6 +508,12 @@ function downloadImage(url, destPath, redirectsLeft = 5) {
         });
       })
       .on('error', reject);
+    // The `timeout` option alone doesn't abort anything — it just fires this
+    // event once the socket's been idle that long. Without destroying the
+    // request here, a stalled connection to the cover CDN would hang the
+    // whole /api/covers request (and whatever awaited it client-side)
+    // forever instead of ever settling.
+    req.on('timeout', () => req.destroy(new Error('Cover download timed out')));
   });
 }
 

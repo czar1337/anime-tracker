@@ -53,16 +53,31 @@ function chunk(arr, size) {
   return out;
 }
 
+// A 429 gets one honored wait-and-retry (capped at 30s) instead of being
+// treated the same as any other failure — a big MAL list is exactly the
+// case most likely to actually hit AniList's rate limit, and silently
+// dropping a whole batch to "unmatched" here means real entries from the
+// user's real list go missing from the import with no indication why.
+async function withRateLimitRetry(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!(err instanceof Api.RateLimitError)) throw err;
+    await new Promise((r) => setTimeout(r, Math.min(err.retryAfterSeconds, 30) * 1000));
+    return fn();
+  }
+}
+
 async function matchAgainstAniList(malEntries, onProgress) {
   const byMalId = new Map();
   const batches = chunk(malEntries.map((e) => e.malId), 50);
   for (let i = 0; i < batches.length; i++) {
     try {
-      const media = await Api.fetchAniListByMalIds(batches[i]);
+      const media = await withRateLimitRetry(() => Api.fetchAniListByMalIds(batches[i]));
       for (const m of media) byMalId.set(m.idMal, m);
     } catch (err) {
-      // A single batch failing (e.g. transient rate limit) shouldn't abort
-      // the whole import — those entries simply fall through to unmatched.
+      // Still failed after the retry — shouldn't abort the whole import,
+      // those entries simply fall through to unmatched.
     }
     onProgress?.(i + 1, batches.length);
     if (i < batches.length - 1) await new Promise((r) => setTimeout(r, 800));

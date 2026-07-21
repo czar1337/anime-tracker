@@ -19,6 +19,19 @@ function chunk(arr, size) {
   return out;
 }
 
+// A 429 gets one honored wait-and-retry (capped at 30s) instead of being
+// silently swallowed like any other batch failure — see the matching
+// comment in discover.js.
+async function withRateLimitRetry(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!(err instanceof Api.RateLimitError)) throw err;
+    await sleep(Math.min(err.retryAfterSeconds, 30) * 1000);
+    return fn();
+  }
+}
+
 // Never guesses: an entry with no cache data yet (never fetched, or a batch
 // that failed) simply reports 0 unseen rather than a stale/wrong number.
 export function getUnseenCount(anilistId) {
@@ -63,7 +76,7 @@ export async function refreshNow() {
     let anySucceeded = batches.length === 0; // nothing to fetch is a trivial success, not a failure
     for (let i = 0; i < batches.length; i++) {
       try {
-        const media = await Api.fetchAiringBatch(batches[i]);
+        const media = await withRateLimitRetry(() => Api.fetchAiringBatch(batches[i]));
         anySucceeded = true;
         for (const m of media) {
           nextEntries[m.id] = { status: m.status, episodes: m.episodes, nextAiringEpisode: m.nextAiringEpisode || null };
