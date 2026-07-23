@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle } from './recommendLogic.js';
+import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion } from './recommendLogic.js';
 
 const SEED_BATCH_SIZE = 5;
 const RECS_PER_SEED = 25;
@@ -11,7 +11,7 @@ const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on man
 
 const discoverState = {
   status: 'idle', // idle | loading | ready | no-seeds | error
-  items: [], // the full ranked pool — render.js only shows the first `visibleCount`
+  pool: [], // the full ranked pool (owned/dismissed already excluded) — genre exclusion and visibleCount are applied on read, in getDiscoverState()
   visibleCount: PAGE_SIZE,
   generatedAt: null,
   offline: false,
@@ -42,7 +42,7 @@ function filterLiveItems(items) {
 
 function renderNow() {
   const container = document.getElementById('discover-view');
-  if (container) Render.renderDiscoverPage(container, discoverState);
+  if (container) Render.renderDiscoverPage(container, getDiscoverState());
 }
 
 // A 429 gets one honored wait-and-retry (capped at 30s, in case AniList ever
@@ -118,12 +118,12 @@ async function runRefresh({ shuffleResults = false } = {}) {
       if (myGeneration !== refreshGeneration) return;
       if (result.status === 'no-seeds') {
         discoverState.status = 'no-seeds';
-        discoverState.items = [];
+        discoverState.pool = [];
         discoverState.visibleCount = PAGE_SIZE;
       } else {
         discoverState.status = 'ready';
-        discoverState.items = shuffleResults ? shuffle(result.items) : result.items;
-        discoverState.visibleCount = Math.min(PAGE_SIZE, discoverState.items.length);
+        discoverState.pool = shuffleResults ? shuffle(result.items) : result.items;
+        discoverState.visibleCount = Math.min(PAGE_SIZE, discoverState.pool.length);
         discoverState.generatedAt = result.generatedAt;
         Api.saveRecommendationsCache({ generatedAt: result.generatedAt, items: result.items }).catch(() => {});
       }
@@ -132,7 +132,7 @@ async function runRefresh({ shuffleResults = false } = {}) {
       discoverState.offline = true;
       discoverState.progressText = err.message;
       // Keep whatever cached items were already showing — never blank the page on error.
-      discoverState.status = discoverState.items.length ? 'ready' : 'error';
+      discoverState.status = discoverState.pool.length ? 'ready' : 'error';
     } finally {
       if (myGeneration === refreshGeneration) renderNow();
       refreshInFlight = null;
@@ -144,8 +144,8 @@ async function runRefresh({ shuffleResults = false } = {}) {
 async function loadCacheFromServer() {
   try {
     const cache = await Api.getRecommendationsCache();
-    discoverState.items = filterLiveItems(cache.items || []);
-    discoverState.visibleCount = Math.min(PAGE_SIZE, discoverState.items.length);
+    discoverState.pool = filterLiveItems(cache.items || []);
+    discoverState.visibleCount = Math.min(PAGE_SIZE, discoverState.pool.length);
     discoverState.generatedAt = cache.generatedAt || null;
     discoverState.status = discoverState.generatedAt ? 'ready' : 'idle';
   } catch {
@@ -153,14 +153,20 @@ async function loadCacheFromServer() {
   }
 }
 
+function excludedGenres() {
+  return Store.state.preferences.discoverExcludedGenres || [];
+}
+
 export function getDiscoverState() {
-  discoverState.items = filterLiveItems(discoverState.items);
+  discoverState.pool = filterLiveItems(discoverState.pool);
+  const excluded = excludedGenres();
+  const items = applyGenreExclusion(discoverState.pool, excluded);
   // Never shrink visibleCount just because it now exceeds a page — that's
-  // the normal "Load more" state. Only clamp it down when the pool itself
-  // got smaller (an add/dismiss removed something), so the grid never tries
-  // to render past the end of the array.
-  discoverState.visibleCount = Math.min(discoverState.visibleCount || PAGE_SIZE, discoverState.items.length);
-  return discoverState;
+  // the normal "Load more" state. Only clamp it down when the visible set
+  // got smaller (an add/dismiss/exclude removed something), so the grid
+  // never tries to render past the end of the array.
+  discoverState.visibleCount = Math.min(discoverState.visibleCount || PAGE_SIZE, items.length);
+  return { ...discoverState, items, availableGenres: poolGenres(discoverState.pool), excludedGenres: excluded };
 }
 
 // Called every time the Discover tab is opened: always shows whatever it
@@ -185,7 +191,7 @@ export function initDiscover({ persistFn } = {}) {
     }
 
     if (e.target.closest('#discover-load-more-btn')) {
-      discoverState.visibleCount = Math.min(discoverState.visibleCount + PAGE_SIZE, discoverState.items.length);
+      discoverState.visibleCount += PAGE_SIZE;
       renderNow();
       return;
     }
@@ -197,10 +203,23 @@ export function initDiscover({ persistFn } = {}) {
       return;
     }
 
+    const genreChip = e.target.closest('.discover-genre-chip');
+    if (genreChip) {
+      const genre = genreChip.dataset.genre;
+      const current = Store.state.preferences.discoverExcludedGenres;
+      const idx = current.indexOf(genre);
+      if (idx === -1) current.push(genre);
+      else current.splice(idx, 1);
+      discoverState.visibleCount = PAGE_SIZE; // a narrower/wider result set starting from page one is less surprising than keeping an arbitrary large count
+      renderNow();
+      persist();
+      return;
+    }
+
     const card = e.target.closest('.discover-card');
     if (!card) return;
     const anilistId = Number(card.dataset.anilistId);
-    const item = discoverState.items.find((it) => it.media.id === anilistId);
+    const item = discoverState.pool.find((it) => it.media.id === anilistId);
     if (!item) return;
 
     if (e.target.closest('[data-action="discover-add"]')) {
@@ -219,7 +238,7 @@ export function initDiscover({ persistFn } = {}) {
         listStatus: 'watchlist',
         relatedIds: Api.extractRelatedIds(media),
       });
-      discoverState.items = discoverState.items.filter((it) => it.media.id !== anilistId);
+      discoverState.pool = discoverState.pool.filter((it) => it.media.id !== anilistId);
       renderNow();
       Render.renderTabCounts();
       persist();
@@ -233,7 +252,7 @@ export function initDiscover({ persistFn } = {}) {
         title: item.media.title.english || item.media.title.romaji,
         coverImage: item.media.coverImage?.large || null,
       });
-      discoverState.items = discoverState.items.filter((it) => it.media.id !== anilistId);
+      discoverState.pool = discoverState.pool.filter((it) => it.media.id !== anilistId);
       renderNow();
       persist();
     }

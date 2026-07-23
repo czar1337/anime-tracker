@@ -32,6 +32,9 @@
       <button id="theme-toggle" class="icon-btn" title="Toggle light/dark theme" aria-label="Toggle theme">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
       </button>
+      <button id="notifications-trigger" class="icon-btn" title="Episode notifications" aria-label="Episode notifications">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+      </button>
       <button id="add-trigger" class="add-trigger" title="Add a new anime">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
         <span>Add Anime</span>
@@ -144,6 +147,37 @@
     <div class="overlay-panel import-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <div id="dismissed-content"></div>
+    </div>
+  </div>
+
+  <!-- Statistics: shareable stats card overlay -->
+  <div id="stats-share-overlay" class="overlay" hidden>
+    <div class="overlay-panel stats-share-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Share your stats</h2>
+      <div class="stats-share-canvas-wrap">
+        <canvas id="stats-share-canvas"></canvas>
+      </div>
+      <div class="stats-share-actions">
+        <button id="stats-share-download-btn" class="text-btn primary">Download image</button>
+        <button id="stats-share-copy-image-btn" class="text-btn">Copy image</button>
+        <button id="stats-share-copy-text-btn" class="text-btn">Copy as text</button>
+      </div>
+      <p id="stats-share-status" class="notifications-status"></p>
+    </div>
+  </div>
+
+  <!-- Episode notifications settings overlay -->
+  <div id="notifications-overlay" class="overlay" hidden>
+    <div class="overlay-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Episode notifications</h2>
+      <p class="notifications-description">Get a browser notification when a series in your Watching list airs a new episode. Checked at most once a day (or via "Refresh episode data"), so this only works while Anime Tracker is open in a browser tab — it cannot notify you while the app is closed.</p>
+      <label class="unrated-toggle notifications-toggle-row">
+        <input type="checkbox" id="notifications-enabled-toggle">
+        Notify me about new episodes
+      </label>
+      <p id="notifications-status" class="notifications-status"></p>
     </div>
   </div>
 

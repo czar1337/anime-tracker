@@ -23,3 +23,22 @@ export function computeUnseenEpisodes(cacheEntry, progress) {
   const unseen = aired - (progress || 0);
   return unseen > 0 ? unseen : 0;
 }
+
+// Diffs an old and new airing cache for a set of watching entries, returning
+// only the ones whose unseen-episode count went *up* as a result of the
+// refresh — i.e. a genuinely new episode aired since the last check, not
+// just "this has unseen episodes" (which would also fire on every refresh
+// as long as any remain, or spam every entry the very first time a cache
+// exists at all — callers are expected to skip this entirely on that first
+// fetch instead of passing an empty `oldCache`).
+export function detectNewlyAired(oldCache, newCache, watchingEntries) {
+  const results = [];
+  for (const entry of watchingEntries) {
+    const before = computeUnseenEpisodes(oldCache[entry.anilistId], entry.episodesWatched);
+    const after = computeUnseenEpisodes(newCache[entry.anilistId], entry.episodesWatched);
+    if (after > before) {
+      results.push({ anilistId: entry.anilistId, title: entry.titleEnglish || entry.titleRomaji, unseen: after });
+    }
+  }
+  return results;
+}

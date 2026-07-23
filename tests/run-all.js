@@ -153,7 +153,7 @@ async function run() {
   // -------------------------------------------------------------------------
   console.log('recommendLogic.js');
   const recommendLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'recommendLogic.js').replace(/\\/g, '/');
-  const { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle } = await import(recommendLogicUrl);
+  const { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion } = await import(recommendLogicUrl);
 
   await test('pickSeeds caps at 30, highest-weight (best score) first', () => {
     const allEntries = Array.from({ length: 50 }, (_, i) => ({
@@ -270,6 +270,29 @@ async function run() {
     assert.equal(pooled.length, 50, 'a bigger maxResults returns everything available, not just the first page');
   });
 
+  await test('poolGenres returns the sorted union of genres across the pool', () => {
+    const items = [
+      { media: { id: 1, genres: ['Action', 'Fantasy'] } },
+      { media: { id: 2, genres: ['Romance'] } },
+      { media: { id: 3, genres: [] } },
+    ];
+    assert.deepEqual(poolGenres(items), ['Action', 'Fantasy', 'Romance']);
+  });
+
+  await test('applyGenreExclusion hides any candidate with at least one excluded genre', () => {
+    const items = [
+      { media: { id: 1, genres: ['Action', 'Horror'] } },
+      { media: { id: 2, genres: ['Romance'] } },
+      { media: { id: 3, genres: ['Horror'] } },
+    ];
+    assert.deepEqual(applyGenreExclusion(items, ['Horror']).map((i) => i.media.id), [2]);
+  });
+
+  await test('applyGenreExclusion with no excluded genres returns the same items', () => {
+    const items = [{ media: { id: 1, genres: ['Action'] } }];
+    assert.deepEqual(applyGenreExclusion(items, []), items);
+  });
+
   await test('shuffle returns a permutation of the same elements, never mutates the input', () => {
     const original = [1, 2, 3, 4, 5];
     const copy = [...original];
@@ -283,11 +306,54 @@ async function run() {
   });
 
   // -------------------------------------------------------------------------
+  // Library-wide stat computation (public/js/statsLogic.js) — pure, shared by
+  // the Statistics page and the shareable stats card.
+  // -------------------------------------------------------------------------
+  console.log('statsLogic.js');
+  const statsLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'statsLogic.js').replace(/\\/g, '/');
+  const { computeLibraryStats } = await import(statsLogicUrl);
+
+  await test('computeLibraryStats: episodes/minutes/days derive from episodesWatched * duration', () => {
+    const entries = [
+      { episodesWatched: 12, duration: 24, myScore: 8, genres: ['Action'] },
+      { episodesWatched: 10, duration: 24, myScore: 6, genres: ['Action', 'Comedy'] },
+    ];
+    const stats = computeLibraryStats(entries, { watched: 2, dropped: 0 }, new Date('2026-01-01'));
+    assert.equal(stats.totalEpisodes, 22);
+    assert.equal(stats.totalHours, Math.round((22 * 24) / 60));
+    assert.equal(stats.meanScore, 7);
+    assert.equal(stats.dropRate, 0);
+    assert.deepEqual(stats.topGenres, ['Action', 'Comedy']);
+  });
+
+  await test('computeLibraryStats: drop rate only counts watched+dropped, never watching/watchlist', () => {
+    const stats = computeLibraryStats([], { watching: 5, watchlist: 5, watched: 3, dropped: 1 }, new Date('2026-01-01'));
+    assert.equal(stats.dropRate, 25, '1 of (3 watched + 1 dropped) = 25%');
+  });
+
+  await test('computeLibraryStats: meanScore and topRatedTitle are null when nothing is scored', () => {
+    const entries = [{ episodesWatched: 1, duration: 20, titleRomaji: 'Unscored', genres: [] }];
+    const stats = computeLibraryStats(entries, { watched: 1, dropped: 0 }, new Date('2026-01-01'));
+    assert.equal(stats.meanScore, null);
+    assert.equal(stats.topRatedTitle, null);
+  });
+
+  await test('computeLibraryStats: completedThisYear only counts completions in the given year', () => {
+    const entries = [
+      { episodesWatched: 12, duration: 24, completedAt: '2026-03-01T00:00:00.000Z', genres: [] },
+      { episodesWatched: 12, duration: 24, completedAt: '2024-03-01T00:00:00.000Z', genres: [] },
+    ];
+    const stats = computeLibraryStats(entries, { watched: 2, dropped: 0 }, new Date('2026-06-01'));
+    assert.equal(stats.completedThisYear, 1);
+    assert.equal(stats.episodesThisYear, 12);
+  });
+
+  // -------------------------------------------------------------------------
   // Unseen-episode computation (public/js/airingLogic.js) — pure.
   // -------------------------------------------------------------------------
   console.log('airingLogic.js');
   const airingLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'airingLogic.js').replace(/\\/g, '/');
-  const { computeUnseenEpisodes } = await import(airingLogicUrl);
+  const { computeUnseenEpisodes, detectNewlyAired } = await import(airingLogicUrl);
 
   await test('RELEASING: nextAiring ep 9, progress 5 -> 3 unseen', () => {
     assert.equal(computeUnseenEpisodes({ status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 9 } }, 5), 3);
@@ -319,6 +385,38 @@ async function run() {
 
   await test('never goes negative when progress is ahead of aired count', () => {
     assert.equal(computeUnseenEpisodes({ status: 'FINISHED', episodes: 12, nextAiringEpisode: null }, 15), 0);
+  });
+
+  await test('detectNewlyAired: reports an entry whose unseen count increased', () => {
+    const watching = [{ anilistId: 1, titleRomaji: 'Show A', titleEnglish: '', episodesWatched: 5 }];
+    const oldCache = { 1: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 6 } } }; // aired 5, unseen 0
+    const newCache = { 1: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 7 } } }; // aired 6, unseen 1
+    const result = detectNewlyAired(oldCache, newCache, watching);
+    assert.deepEqual(result, [{ anilistId: 1, title: 'Show A', unseen: 1 }]);
+  });
+
+  await test('detectNewlyAired: does not report an entry whose unseen count is unchanged or lower', () => {
+    const watching = [
+      { anilistId: 1, titleRomaji: 'Unchanged', titleEnglish: '', episodesWatched: 5 },
+      { anilistId: 2, titleRomaji: 'CaughtUp', titleEnglish: '', episodesWatched: 6 },
+    ];
+    const oldCache = {
+      1: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 7 } }, // unseen 1
+      2: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 7 } }, // unseen 0 (progress 6)
+    };
+    const newCache = {
+      1: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 7 } }, // still unseen 1
+      2: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 7 } }, // still unseen 0
+    };
+    assert.deepEqual(detectNewlyAired(oldCache, newCache, watching), []);
+  });
+
+  await test('detectNewlyAired: an entry with no prior cache data is never reported (first-ever fetch is the caller\'s job to skip)', () => {
+    const watching = [{ anilistId: 1, titleRomaji: 'New', titleEnglish: '', episodesWatched: 0 }];
+    const newCache = { 1: { status: 'FINISHED', episodes: 12, nextAiringEpisode: null } };
+    assert.deepEqual(detectNewlyAired({}, newCache, watching), [
+      { anilistId: 1, title: 'New', unseen: 12 },
+    ], 'given an empty oldCache it still reports the diff — callers must pass {} only when that is actually desired');
   });
 
   // -------------------------------------------------------------------------

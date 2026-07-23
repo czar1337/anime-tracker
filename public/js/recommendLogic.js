@@ -97,6 +97,23 @@ export function filterOwned(items, ownedIds, dismissedIds) {
   return items.filter((it) => !owned.has(it.media.id) && !dismissed.has(it.media.id));
 }
 
+// Genres present anywhere in a pool of candidates — used to render the
+// exclude-genre chip bar on Discover. Deliberately computed from the whole
+// pool, not from an already genre-filtered view, so a genre stays visible
+// (and toggleable back on) even while it's the one currently hiding things.
+export function poolGenres(items) {
+  const set = new Set();
+  for (const it of items) for (const g of it.media.genres || []) set.add(g);
+  return [...set].sort();
+}
+
+// Hides any candidate that has at least one excluded genre.
+export function applyGenreExclusion(items, excludedGenres) {
+  if (!excludedGenres || excludedGenres.length === 0) return items;
+  const excluded = new Set(excludedGenres);
+  return items.filter((it) => !(it.media.genres || []).some((g) => excluded.has(g)));
+}
+
 // Fisher-Yates, returns a new array. `rng` is injectable so tests can pass a
 // fixed sequence instead of relying on Math.random.
 export function shuffle(arr, rng = Math.random) {

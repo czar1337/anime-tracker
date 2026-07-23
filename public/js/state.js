@@ -14,6 +14,8 @@ const DEFAULT_PREFERENCES = () => ({
     dropped: { genres: [], format: '', yearMin: null, yearMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
   },
   activeTab: 'watching',
+  discoverExcludedGenres: [],
+  notifyNewEpisodes: false,
 });
 
 const state = {
@@ -33,6 +35,8 @@ function ensurePreferenceShape() {
     state.preferences.filters[list] = { ...defaults.filters[list], ...(state.preferences.filters[list] || {}) };
   }
   state.preferences.activeTab = state.preferences.activeTab || 'watching';
+  state.preferences.discoverExcludedGenres = Array.isArray(state.preferences.discoverExcludedGenres) ? state.preferences.discoverExcludedGenres : [];
+  state.preferences.notifyNewEpisodes = Boolean(state.preferences.notifyNewEpisodes);
 }
 
 function setLibrary(data) {

@@ -1,6 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
-import { computeUnseenEpisodes } from './airingLogic.js';
+import { computeUnseenEpisodes, detectNewlyAired } from './airingLogic.js';
+import { Notifications } from './notifications.js';
 
 const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on manual refresh
 const BATCH_SIZE = 50;
@@ -70,6 +71,11 @@ async function persistCache() {
 export async function refreshNow() {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
+    // Only diff against prior data if there *was* prior data — on the very
+    // first-ever fetch (fresh install, or notifications just turned on) an
+    // empty oldCache would make every already-unseen episode look "newly
+    // aired" and fire a notification burst for the whole watching list.
+    const hadPriorCache = generatedAt != null;
     const ids = Store.getEntriesByList('watching').map((e) => e.anilistId);
     const batches = chunk(ids, BATCH_SIZE);
     const nextEntries = {};
@@ -91,10 +97,12 @@ export async function refreshNow() {
       if (i < batches.length - 1) await sleep(800);
     }
     if (anySucceeded) {
+      const newlyAired = hadPriorCache ? detectNewlyAired(cacheEntries, nextEntries, Store.getEntriesByList('watching')) : [];
       cacheEntries = nextEntries;
       generatedAt = new Date().toISOString();
       await persistCache();
       document.dispatchEvent(new CustomEvent('airing-updated'));
+      if (newlyAired.length) Notifications.notifyNewEpisodes(newlyAired);
     }
   })();
   try {

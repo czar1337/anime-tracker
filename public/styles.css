@@ -402,6 +402,17 @@ kbd {
 .score-range .year-input:disabled { opacity: 0.4; cursor: not-allowed; }
 .unrated-toggle { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); cursor: pointer; white-space: nowrap; margin-left: 2px; }
 .unrated-toggle input { cursor: pointer; accent-color: var(--accent); }
+.notifications-toggle-row { margin: 14px 0; font-size: 13px; white-space: normal; }
+.notifications-toggle-row input { width: 16px; height: 16px; }
+.notifications-description { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+.notifications-status { font-size: 12px; color: var(--amber); }
+.notifications-status:empty { display: none; }
+
+.stats-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.stats-share-panel { max-width: 640px; }
+.stats-share-canvas-wrap { border-radius: 12px; overflow: hidden; margin: 12px 0; background: var(--bg-card); }
+#stats-share-canvas { width: 100%; height: auto; display: block; }
+.stats-share-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .active-filter-chips {
   display: flex;
@@ -525,6 +536,10 @@ kbd {
 }
 .discover-controls { display: flex; align-items: center; gap: 14px; }
 .discover-age { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+.discover-genre-filter { margin: -12px 0 24px; align-items: center; }
+.discover-genre-filter-label { font-size: 12px; color: var(--text-faint); margin-right: 2px; }
+.discover-genre-chip.active { background: var(--red); border-color: var(--red); color: white; }
+.discover-genre-chip.active:hover { background: var(--red); border-color: var(--red); color: white; }
 .discover-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
 .discover-load-more-row { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 28px 0 8px; }
 .discover-count { font-size: 12px; color: var(--text-faint); }

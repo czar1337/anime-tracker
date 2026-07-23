@@ -556,9 +556,12 @@ function renderStatsPage(container) {
   const mostEpisodes = [...entries].sort((a, b) => (b.episodesWatched || 0) - (a.episodesWatched || 0)).slice(0, 10);
 
   container.innerHTML = `
-    <div class="home-hero">
-      <h2>Statistik</h2>
-      <p>Every number your library has to offer.</p>
+    <div class="home-hero stats-hero">
+      <div>
+        <h2>Statistik</h2>
+        <p>Every number your library has to offer.</p>
+      </div>
+      <button class="text-btn primary" id="stats-share-trigger">Share stats</button>
     </div>
 
     <div class="home-stats">
@@ -653,8 +656,19 @@ function discoverCardHtml(item, index = 0) {
   `;
 }
 
+function discoverGenreFilterHtml(availableGenres, excludedGenres) {
+  if (!availableGenres.length) return '';
+  return `
+    <div class="filter-group discover-genre-filter">
+      <span class="discover-genre-filter-label">Exclude:</span>
+      ${availableGenres
+        .map((g) => `<button class="genre-chip discover-genre-chip ${excludedGenres.includes(g) ? 'active' : ''}" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</button>`)
+        .join('')}
+    </div>`;
+}
+
 function renderDiscoverPage(container, viewState) {
-  const { status, items, visibleCount, generatedAt, offline, progressText } = viewState;
+  const { status, items, visibleCount, generatedAt, offline, progressText, availableGenres = [], excludedGenres = [] } = viewState;
   const age = relativeAgeText(generatedAt);
 
   const banner = `
@@ -669,6 +683,7 @@ function renderDiscoverPage(container, viewState) {
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'New suggestions'}</button>
       </div>
     </div>
+    ${discoverGenreFilterHtml(availableGenres, excludedGenres)}
   `;
 
   if (status === 'loading' && items.length === 0) {
@@ -681,6 +696,10 @@ function renderDiscoverPage(container, viewState) {
   }
   if (status === 'error' && items.length === 0) {
     container.innerHTML = `${banner}<div class="empty-state"><h2>Could not load suggestions</h2><p>${escapeHtml(progressText || 'Check your internet connection and try refreshing.')}</p></div>`;
+    return;
+  }
+  if (items.length === 0 && excludedGenres.length) {
+    container.innerHTML = `${banner}<div class="empty-state"><h2>Nothing left after excluding genres</h2><p>Every suggestion we found matches an excluded genre. Remove one above to see results again.</p></div>`;
     return;
   }
   if (items.length === 0) {

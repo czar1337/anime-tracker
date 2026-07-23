@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0
+
+- **Discover: exclude genres.** A new "Exclude" chip row on the Discover tab hides any suggestion matching a genre you toggle off — e.g. turn off "Ecchi" or "Horror" and every candidate with that tag disappears from the pool immediately, no refresh needed. Persisted per install, and a chip stays visible (so you can turn it back on) even while it's the one hiding everything.
+- **Episode notifications.** A new bell icon in the header lets you turn on a browser notification for when a series in your Watching list airs a new episode. Fires from the same once-a-day (or manual-refresh) episode check the "unseen episodes" badge already uses, so it only costs what that already costs — and only ever fires once per newly-aired episode, never as a backlog dump the first time you turn it on. Like the rest of the app, this only works while Anime Tracker is open in a browser tab; there's no push infrastructure to notify you while it's closed, and the settings panel says so.
+- **Statistics: shareable stats card.** "Share stats" on the Statistics page renders a downloadable, copyable image card (titles, episodes, days watched, mean score, top genres, top rated) — drawn locally with Canvas, no screenshot library involved. Download as PNG, copy the image straight to your clipboard, or copy a plain-text summary instead.
+
 ## 1.4.0
 
 - **Discover: smarter ranking.** Recommendations previously came entirely from AniList's community "recommendations" graph — two candidates equally recommended by the same number of your favorites had no way to be told apart except AniList's own rating. Added a genre-preference profile built from your own scores, used as a tiebreaker so candidates that actually match your taste (not just what's popular) rank higher.
