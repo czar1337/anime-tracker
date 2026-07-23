@@ -39,6 +39,11 @@ function truncateToWidth(ctx, text, maxWidth) {
   return `${out}…`;
 }
 
+// Scoped with save/restore so its center-aligned text doesn't leak into
+// whatever gets drawn after it (a bare `ctx.textAlign = 'center'` here
+// previously bled into every later section, silently center-aligning "Top
+// rated" too — invisible for short labels, but it clipped long titles off
+// the left edge of the card).
 function drawStatTile(ctx, x, y, w, h, value, label) {
   roundRect(ctx, x, y, w, h, 16);
   ctx.fillStyle = COLORS.tileBg;
@@ -47,6 +52,7 @@ function drawStatTile(ctx, x, y, w, h, value, label) {
   ctx.lineWidth = 1;
   ctx.stroke();
 
+  ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = COLORS.text;
@@ -56,6 +62,7 @@ function drawStatTile(ctx, x, y, w, h, value, label) {
   ctx.fillStyle = COLORS.textFaint;
   ctx.font = "600 13px Inter, sans-serif";
   ctx.fillText(label.toUpperCase(), x + w / 2, y + h / 2 + 30);
+  ctx.restore();
 }
 
 // Renders the card into `canvas` (resized to CARD_WIDTH x CARD_HEIGHT).
