@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0
+
+- **Discover: smarter ranking.** Recommendations previously came entirely from AniList's community "recommendations" graph — two candidates equally recommended by the same number of your favorites had no way to be told apart except AniList's own rating. Added a genre-preference profile built from your own scores, used as a tiebreaker so candidates that actually match your taste (not just what's popular) rank higher.
+- **Discover: faster, more rate-limit-safe refreshes.** The number of seed titles used to generate suggestions was previously unbounded — a large, generously-rated library meant more AniList requests than necessary on every refresh. Capped to your top 30 highest-rated.
+- **Reliability: AniList requests now honor rate limits properly.** Discover, Airing, cover-recovery, and MyAnimeList import batch requests previously treated a rate-limit response the same as any other failure and moved on, silently dropping data (a large MAL import is the most likely to actually hit this). They now wait the server-specified amount of time and retry once before giving up.
+- **Reliability: request timeouts.** Neither AniList API calls nor cover-image downloads had a timeout — a request that never got a response would hang forever with no way out. Both now time out after 15 seconds.
+- **Reliability: crash safety net.** Added a backstop for any error outside the already-handled per-request path, so a single overlooked edge case can never silently take the whole app down.
+
 ## 1.3.4
 
 - **Reliability: more backup history kept.** The automatic backup limit was 30 — a single unusually active session (a big import, a bulk cover-recovery run) could cycle through the entire safety net in a matter of hours, pruning away anything old enough to actually be useful for recovery. Raised to 150; these files are tiny, so the disk cost is negligible.
