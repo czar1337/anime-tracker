@@ -655,7 +655,7 @@ kbd {
 }
 
 /* Shared by the Watched-tab mini stats header, the Home dashboard, and the
-   Statistik page — every "big number + small label" stat uses this. */
+   Statistics page — every "big number + small label" stat uses this. */
 .stat { display: flex; flex-direction: column; gap: 4px; }
 .stat-value { font-size: 20px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1371,14 +1371,14 @@ kbd {
 
 .home-continue h3 { margin: 0 0 14px; font-size: 14px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
 
-/* ---------- Statistik page ---------- */
+/* ---------- Statistics page ---------- */
 .stats-view {
   display: flex;
   flex-direction: column;
   gap: 28px;
 }
 
-/* ---------- Upptäck (discover) page ---------- */
+/* ---------- Discover page ---------- */
 .discover-view {
   display: flex;
   flex-direction: column;

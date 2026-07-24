@@ -615,7 +615,7 @@ async function addFromSearchResult(anilistId, listStatus) {
   });
   Render.renderTabCounts();
   // Always refresh whatever's currently shown, not just when it matches
-  // listStatus exactly — Home and Statistik aggregate every list, so an add
+  // listStatus exactly — Home and Statistics aggregate every list, so an add
   // to *any* status should update them too, not just when their tab happens
   // to already be the one you're adding into.
   refreshView();

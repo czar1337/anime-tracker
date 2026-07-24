@@ -1,48 +1,48 @@
 # Anime Tracker
 
-En lokal anime-tracker som körs på din egen dator. Ingen molntjänst, inget konto, ingen internetanslutning krävs (förutom för sökning mot AniList och Upptäck-fliken).
+A local anime tracker that runs on your own computer. No cloud service, no account, no internet connection required (except for searching AniList and the Discover tab).
 
-## Installera
+## Install
 
-**Enklast — den fristående `.exe`-filen (Windows, kräver inget extra):**
+**Easiest — the standalone `.exe` (Windows, nothing else required):**
 
-1. Ladda ner `AnimeTracker.exe`.
-2. Dubbelklicka på den. Ett litet konsolfönster öppnas och webbläsaren startar automatiskt.
+1. Download `AnimeTracker.exe`.
+2. Double-click it. A small console window opens and your browser starts automatically.
 
-Det är allt — ingen installation, inget Node.js krävs.
+That's it — no installation, no Node.js required.
 
-**Alternativet — zip med `start.bat`/`start.sh` (kräver Node.js):**
+**Alternative — zip with `start.bat`/`start.sh` (requires Node.js):**
 
-1. Ladda ner och packa upp zip-filen någonstans på din dator.
-2. Windows: dubbelklicka på `start.bat`. Mac/Linux: kör `./start.sh` i en terminal.
-3. Om Node.js inte är installerat visas ett meddelande med en länk till nodejs.org — installera det och kör filen igen.
-4. Webbläsaren öppnas automatiskt på `http://localhost:4321`.
+1. Download and unzip the file anywhere on your computer.
+2. Windows: double-click `start.bat`. Mac/Linux: run `./start.sh` in a terminal.
+3. If Node.js isn't installed, a message with a link to nodejs.org is shown — install it and run the file again.
+4. Your browser opens automatically at `http://localhost:4321`.
 
-## Uppdatera
+## Updating
 
-Radera hela den gamla programmappen (eller den gamla `.exe`-filen) och packa upp/lägg dit den nya versionen. **Din data ligger på en annan plats och påverkas inte** — se nedan.
+Delete the entire old program folder (or the old `.exe`) and unzip/place the new version there instead. **Your data lives in a separate location and is not affected** — see below.
 
-Appen visar en diskret notis högst upp om det finns en nyare version tillgänglig, med en länk till GitHub-releasen. Appen laddar aldrig ner eller installerar något åt dig — det är alltid ett manuellt steg.
+The app shows a discreet banner at the top if a newer version is available, linking to the GitHub release. The app never downloads or installs anything on its own — updating is always a manual step.
 
-## Var din data bor
+## Where your data lives
 
-All data (ditt bibliotek, omslagsbilder, automatiska backuper, förslag från Upptäck-fliken) ligger **utanför** programmappen, i en OS-specifik mapp:
+All data (your library, cover images, automatic backups, Discover suggestions) lives **outside** the program folder, in an OS-specific directory:
 
 - **Windows:** `%APPDATA%\anime-tracker\`
 - **macOS:** `~/Library/Application Support/anime-tracker/`
-- **Linux:** `~/.local/share/anime-tracker/` (eller `$XDG_DATA_HOME/anime-tracker/` om den miljövariabeln är satt)
+- **Linux:** `~/.local/share/anime-tracker/` (or `$XDG_DATA_HOME/anime-tracker/` if that environment variable is set)
 
-Det betyder att du alltid kan radera hela programmappen och lägga dit en ny version utan att förlora något.
+This means you can always delete the entire program folder and drop in a new version without losing anything.
 
-Om du uppdaterar från en version äldre än denna flyttas din gamla data automatiskt **en gång**, första gången du startar den nya versionen. Den gamla mappen rörs aldrig eller raderas — du hittar en `MOVED.txt`-fil där som förklarar var datan tog vägen, ifall du vill dubbelkolla eller städa bort den manuellt själv senare.
+If you're updating from a version older than this one, your old data is automatically moved **once**, the first time you start the new version. The old folder is never touched or deleted — you'll find a `MOVED.txt` file there explaining where the data went, in case you want to double-check or clean it up manually later.
 
-## Manuell backup
+## Manual backup
 
-Appen tar automatiskt en backup vid varje sparning (de senaste 30 sparas i `backups/`-mappen inuti datamappen ovan). Vill du ta en egen backup:
+The app automatically takes a backup on every save (the last 150 are kept in the `backups/` folder inside the data directory above). To make your own backup:
 
-1. Gå till datamappen för din plattform (se ovan).
-2. Kopiera hela mappen någonstans säkert (t.ex. en extern disk eller molnlagring).
+1. Go to the data directory for your platform (see above).
+2. Copy the entire folder somewhere safe (e.g. an external drive or cloud storage).
 
-Det räcker för att återställa allt — biblioteket, omslagsbilder och inställningar.
+That's enough to restore everything — library, cover images, and settings.
 
-Du kan också exportera en enskild JSON-fil med hela biblioteket via knappen "Backup & restore" i appens header.
+You can also export a single JSON file with your entire library via the "Backup & restore" button in the app's header.

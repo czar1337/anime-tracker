@@ -248,7 +248,7 @@ async function boot() {
   retryMissingCovers().catch(() => {}); // background only — see the function's own comment
 
   document.addEventListener('library-imported', (e) => {
-    refreshCurrentView(); // whatever's on screen — Home/Statistik included, not just the list view
+    refreshCurrentView(); // whatever's on screen — Home/Statistics included, not just the list view
     persist();
     Render.showToast(`Imported ${e.detail.added} entries from MyAnimeList.`);
   });

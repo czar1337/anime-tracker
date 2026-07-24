@@ -292,7 +292,7 @@ function renderTabCounts() {
 }
 
 // The small "Titles / Episodes / Mean score" strip shown above the grid on
-// the Watched tab only — not to be confused with the full Statistik page.
+// the Watched tab only — not to be confused with the full Statistics page.
 function renderWatchedStatsHeader(list) {
   if (list !== 'watched') {
     statsHeader.hidden = true;
@@ -559,7 +559,7 @@ function renderStatsPage(container) {
   container.innerHTML = `
     <div class="home-hero stats-hero">
       <div>
-        <h2>Statistik</h2>
+        <h2>Statistics</h2>
         <p>Every number your library has to offer.</p>
       </div>
       <button class="text-btn primary" id="stats-share-trigger">Share stats</button>
