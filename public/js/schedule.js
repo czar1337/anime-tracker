@@ -125,6 +125,13 @@ export function initSchedule({ persistFn } = {}) {
     if (e.target.closest('#schedule-refresh-btn')) {
       refreshGeneration += 1;
       runRefresh().catch(() => {});
+      // "This week" comes from Airing's own cache, not the "Coming soon" pool
+      // runRefresh() above fetches — without this, the button only ever
+      // refreshed half of what's on the page, and a stale/pre-airingAt
+      // Airing cache had no other visible way to get unstuck from here.
+      // airing.js dispatches 'airing-updated' on success, which re-renders
+      // the whole page (see app.js) — nothing else to do here.
+      Airing.refreshNow().catch(() => {});
       return;
     }
 
