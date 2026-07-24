@@ -1541,12 +1541,39 @@ kbd {
 }
 .franchise-toggle-label { align-self: flex-start; font-size: 11px; padding: 0; }
 
+/* Compact vertical list instead of a grid of full-size duplicate cards —
+   each season is a .season-row (see cardHtml's seasonLabel param), not a
+   second copy of the primary-card visual language. opacity+animation here
+   is the same "replays because the box goes from display:none to rendered"
+   trick .overlay-panel already relies on, so expanding a group eases the
+   whole panel in instead of the old instant `hidden` snap; each row inside
+   still gets its own staggered fade-in from cardHtml's existing animation. */
 .franchise-seasons {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 0 16px 16px;
+  opacity: 0;
+  animation: cardEnter 0.35s ease-out both;
 }
+
+.season-row {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+  background: var(--bg-elevated);
+  backdrop-filter: none;
+  border-color: var(--border);
+  border-radius: var(--radius-sm);
+}
+.card.season-row:hover { transform: none; box-shadow: none; border-color: var(--border-light); }
+/* Nested corner brackets on every season row (already inside a bracketed
+   franchise-card) read as noise, not polish — suppressed here. */
+.season-row::before, .season-row::after { content: none; }
+.season-row .card-cover-wrap { width: 72px; flex-shrink: 0; border-radius: var(--radius-sm); }
+.season-row .card-body { padding: 0; gap: 6px; min-width: 0; }
+.card-format-badge.season-badge { background: var(--accent); color: var(--accent-contrast); }
 
 .card-cover-wrap {
   position: relative;

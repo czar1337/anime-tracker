@@ -147,6 +147,26 @@ async function run() {
     Store.setTitleFilter('watching', '');
   });
 
+  await test('seasonLabel: numbers TV-like entries sequentially, ignoring OVAs/movies', () => {
+    const group = [
+      { anilistId: 1, format: 'TV' },
+      { anilistId: 2, format: 'TV' },
+      { anilistId: 3, format: 'OVA' },
+      { anilistId: 4, format: 'TV' },
+    ];
+    assert.deepEqual(group.map((_, i) => Store.seasonLabel(group, i)), ['S1', 'S2', 'OVA', 'S3']);
+  });
+
+  await test('seasonLabel: a single movie in a group is just "Movie", not "Movie 1"', () => {
+    const group = [{ anilistId: 1, format: 'TV' }, { anilistId: 2, format: 'MOVIE' }];
+    assert.deepEqual(group.map((_, i) => Store.seasonLabel(group, i)), ['S1', 'Movie']);
+  });
+
+  await test('seasonLabel: multiple movies in the same group are numbered', () => {
+    const group = [{ anilistId: 1, format: 'TV' }, { anilistId: 2, format: 'MOVIE' }, { anilistId: 3, format: 'MOVIE' }];
+    assert.deepEqual(group.map((_, i) => Store.seasonLabel(group, i)), ['S1', 'Movie 1', 'Movie 2']);
+  });
+
   // -------------------------------------------------------------------------
   // Recommendations (public/js/recommendLogic.js) — pure, loaded via dynamic
   // import() since it's an ES module (this test file is CommonJS).

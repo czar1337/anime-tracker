@@ -225,6 +225,27 @@ function groupMyScore(group) {
   return scored.length ? scored.reduce((s, e) => s + e.myScore, 0) / scored.length : null;
 }
 
+// Human-readable label for one entry's position within its franchise group
+// (group is already sorted by year — see buildGroups) — "S1"/"S2"/... for
+// TV-like entries, "Movie"/"Movie 2"/... when a franchise has more than one
+// movie, and the format name as-is for OVA/ONA/Special/Music. Lets the
+// season list show which entry is which without the viewer having to parse
+// and compare full titles against each other.
+const MOVIE_FORMAT = 'MOVIE';
+const NAMED_FORMATS = { OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music' };
+function seasonLabel(group, index) {
+  const entry = group[index];
+  const fmt = entry.format;
+  if (fmt === MOVIE_FORMAT) {
+    const moviesSoFar = group.slice(0, index + 1).filter((e) => e.format === MOVIE_FORMAT).length;
+    const totalMovies = group.filter((e) => e.format === MOVIE_FORMAT).length;
+    return totalMovies > 1 ? `Movie ${moviesSoFar}` : 'Movie';
+  }
+  if (fmt && NAMED_FORMATS[fmt]) return NAMED_FORMATS[fmt];
+  const seasonsSoFar = group.slice(0, index + 1).filter((e) => e.format !== MOVIE_FORMAT && !NAMED_FORMATS[e.format]).length;
+  return `S${seasonsSoFar}`;
+}
+
 // Set at runtime by airing.js (Store.registerUnseenLookup), not imported
 // statically here — airing.js already depends on this module for Store, so
 // a static import in the other direction would be a cycle. Defaults to "no
@@ -342,6 +363,7 @@ export const Store = {
   restoreEntrySnapshot,
   setPreference,
   getGroupedFilteredSorted,
+  seasonLabel,
   setTitleFilter,
   getTitleFilter,
   allGenres,

@@ -197,15 +197,22 @@ function staggerDelayMs(index) {
   return Math.min(index, 12) * 45;
 }
 
-function cardHtml(entry, list, index = 0) {
+// seasonLabel is only passed when rendering inside an expanded franchise
+// group (see franchiseCardHtml) — it switches on the compact horizontal
+// .season-row layout and swaps the raw format badge ("TV") for the
+// sequence-aware one ("S2"), while every action (score, status, progress,
+// notes, delete...) stays wired exactly as on a standalone card.
+function cardHtml(entry, list, index = 0, seasonLabel = null) {
   const src = coverSrc(entry);
   const isSelected = selectedIds.has(entry.anilistId);
   return `
-    <article class="card ${isSelected ? 'selected' : ''}" data-id="${entry.anilistId}" tabindex="0" style="animation-delay:${staggerDelayMs(index)}ms">
+    <article class="card ${seasonLabel ? 'season-row' : ''} ${isSelected ? 'selected' : ''}" data-id="${entry.anilistId}" tabindex="0" style="animation-delay:${staggerDelayMs(index)}ms">
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
         ${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">` : ''}
-        ${entry.format ? `<span class="card-format-badge">${escapeHtml(entry.format)}</span>` : ''}
+        ${seasonLabel
+          ? `<span class="card-format-badge season-badge">${escapeHtml(seasonLabel)}</span>`
+          : entry.format ? `<span class="card-format-badge">${escapeHtml(entry.format)}</span>` : ''}
         ${selectMode
           ? `<label class="card-select-box" title="Select"><input type="checkbox" data-action="toggle-select" ${isSelected ? 'checked' : ''}></label>`
           : `<div class="card-corner-actions">
@@ -256,7 +263,7 @@ function franchiseCardHtml(group, list, index = 0) {
         </div>
       </div>
       <div class="franchise-seasons" ${expanded ? '' : 'hidden'}>
-        ${group.map((e, i) => cardHtml(e, list, i)).join('')}
+        ${group.map((e, i) => cardHtml(e, list, i, Store.seasonLabel(group, i))).join('')}
       </div>
     </div>
   `;
