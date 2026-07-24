@@ -5,6 +5,7 @@ import { Discover } from './discover.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 import { Notifications } from './notifications.js';
+import { Themes } from './themes.js';
 import { computeLibraryStats } from './statsLogic.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsExport.js';
 
@@ -907,16 +908,21 @@ function bindHome() {
   document.getElementById('stats-view').addEventListener('click', navClickHandler);
 }
 
-function bindThemeToggle() {
-  const btn = document.getElementById('theme-toggle');
-  btn.addEventListener('click', () => {
-    const html = document.documentElement;
-    const next = html.dataset.theme === 'light' ? 'dark' : 'light';
-    html.dataset.theme = next;
-    localStorage.setItem('anime-tracker-theme', next);
+// The bootstrap inline script in index.html already applies the saved (or
+// default) color theme before first paint — this only wires up the picker
+// overlay to change it afterward, same as the old light/dark toggle did.
+function bindThemePicker() {
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    openOverlay('theme-picker-overlay');
+    Render.renderThemePicker(document.getElementById('theme-picker-grid'), Themes.getCurrentThemeId());
   });
-  const saved = localStorage.getItem('anime-tracker-theme');
-  if (saved) document.documentElement.dataset.theme = saved;
+
+  document.getElementById('theme-picker-grid').addEventListener('click', (e) => {
+    const btn = e.target.closest('.theme-swatch');
+    if (!btn) return;
+    Themes.setColorTheme(btn.dataset.themeId);
+    Render.renderThemePicker(document.getElementById('theme-picker-grid'), Themes.getCurrentThemeId());
+  });
 }
 
 // For callers outside this module (app.js's import/airing-refresh listeners)
@@ -950,7 +956,7 @@ export function initEvents({ initialList, persistFn }) {
   bindStatsShareOverlay();
   bindKeyboardShortcuts();
   bindOverlayCloseButtons();
-  bindThemeToggle();
+  bindThemePicker();
   updateTabPill(); // positions it for the initial tab, set by app.js before this runs
   window.addEventListener('resize', updateTabPill);
   // Tab label widths can shift slightly once the real webfont swaps in

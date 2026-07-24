@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0
+
+- **15 color themes, chosen by you.** A new palette icon in the header opens a theme picker with 15 distinct themes — Clean Interface, Arcane Ward, Holo Deck, Verdant, Ember, Frost, Void, Aurora, Solar, Storm, Bloom, Obsidian, Tidal, Wraith, Sunflare. Each is a full color identity (background, text, borders, glow), not just an accent swap, built around a "status window" look inspired by isekai-anime game HUDs. This replaces the old light/dark toggle: every one of these themes is dark, since a glowing card border doesn't read on a white background. Defaults to Holo Deck; your choice is remembered between launches.
+- **Redesigned cards: glass panels and corner brackets.** Every card — Watching, Watchlist, Watched, Dropped, and Discover — now has a frosted-glass background with animated corner brackets that light up on hover, colored entirely from whichever theme is active. No new markup was needed for this: the whole app already read its colors from a small set of shared tokens, so restyling those tokens restyled everything at once.
+- **Fix: some themes had unreadable button text.** Several of the 15 use pale, bright accent colors (Frost's ice blue, Storm's yellow, Void's lime) — buttons like "+1" and "Add Anime" had hardcoded white text on top of that accent, which was nearly invisible on the lighter ones. Buttons now use a contrast color computed per theme so text stays legible no matter how light the accent is.
+
 ## 1.5.0
 
 - **Discover: exclude genres.** A new "Exclude" chip row on the Discover tab hides any suggestion matching a genre you toggle off — e.g. turn off "Ecchi" or "Horror" and every candidate with that tag disappears from the pool immediately, no refresh needed. Persisted per install, and a chip stays visible (so you can turn it back on) even while it's the one hiding everything.

@@ -1,5 +1,6 @@
 import { Store } from './state.js';
 import { Airing } from './airing.js';
+import { COLOR_THEMES } from './themes.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -874,6 +875,16 @@ function renderDetailOverlay(container, state) {
   `;
 }
 
+function renderThemePicker(container, currentId) {
+  container.innerHTML = COLOR_THEMES.map(
+    (t) => `
+    <button class="theme-swatch ${t.id === currentId ? 'active' : ''}" data-theme-id="${t.id}">
+      <span class="theme-swatch-dots"><span style="background:${t.accent1}"></span><span style="background:${t.accent2}"></span></span>
+      <span class="theme-swatch-name">${escapeHtml(t.name)}</span>
+    </button>`
+  ).join('');
+}
+
 export const Render = {
   renderAll,
   renderGrid,
@@ -893,6 +904,7 @@ export const Render = {
   toggleSelected,
   getSelectedIds,
   renderBulkActionBar,
+  renderThemePicker,
   showToast,
   showError,
   clearError,

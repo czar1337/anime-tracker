@@ -7,6 +7,13 @@
 <link rel="stylesheet" href="/fonts/inter.css">
 <link rel="stylesheet" href="/fonts/sora.css">
 <link rel="stylesheet" href="/styles.css">
+<script>
+  // Applied synchronously, before the stylesheet paints anything, so the
+  // page never flashes the fallback theme before switching to a saved one —
+  // same reasoning as the old light/dark toggle, just a bigger visual delta
+  // now that themes are full color identities instead of light vs dark.
+  document.documentElement.dataset.colorTheme = localStorage.getItem('anime-tracker-color-theme') || 'holo-deck';
+</script>
 </head>
 <body>
 
@@ -29,8 +36,8 @@
       <a id="update-banner" class="update-banner" href="#" target="_blank" rel="noopener" hidden></a>
       <span id="app-version" class="app-version"></span>
       <span id="save-indicator" class="save-indicator" data-state="saved">Saved</span>
-      <button id="theme-toggle" class="icon-btn" title="Toggle light/dark theme" aria-label="Toggle theme">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      <button id="theme-toggle" class="icon-btn" title="Choose a color theme" aria-label="Choose a color theme">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="17.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.2" fill="currentColor" stroke="none"/><path d="M12 2a10 10 0 1 0 8.02 16 2.5 2.5 0 0 0-1.36-4.5H16a3 3 0 0 1-3-3 3 3 0 0 1 1-2.24A2.5 2.5 0 0 0 12.5 2Z"/></svg>
       </button>
       <button id="notifications-trigger" class="icon-btn" title="Episode notifications" aria-label="Episode notifications">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
@@ -164,6 +171,15 @@
         <button id="stats-share-copy-text-btn" class="text-btn">Copy as text</button>
       </div>
       <p id="stats-share-status" class="notifications-status"></p>
+    </div>
+  </div>
+
+  <!-- Color theme picker overlay -->
+  <div id="theme-picker-overlay" class="overlay" hidden>
+    <div class="overlay-panel theme-picker-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Choose a theme</h2>
+      <div id="theme-picker-grid" class="theme-picker-grid"></div>
     </div>
   </div>
 
