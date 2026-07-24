@@ -24,6 +24,53 @@ export function computeUnseenEpisodes(cacheEntry, progress) {
   return unseen > 0 ? unseen : 0;
 }
 
+// Number of local calendar days from `from` to `to` (can be negative). Diffs
+// UTC-normalized midnights of each date's own local year/month/day, rather
+// than dividing the raw millisecond gap by 86400000 — the latter silently
+// misplaces entries by a day for anything airing near midnight on a
+// daylight-saving transition, where a "day" is actually 23 or 25 real hours.
+function calendarDaysBetween(from, to) {
+  const utcFrom = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+  const utcTo = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.round((utcTo - utcFrom) / 86400000);
+}
+
+// Buckets Watching-list entries into the next 7 calendar days (today first)
+// by their next episode's real-world air date, for the Schedule tab's
+// "This week" view. Pure function of the airing cache — no new AniList
+// calls. An entry with no known airingAt (FINISHED, hiatus, or not yet
+// fetched) is simply omitted from every day rather than guessed at, and an
+// entry airing outside the 7-day window (or in the past — a stale cache
+// entry that hasn't refreshed since airing) is left out too. `now` is
+// injectable so tests don't depend on the real clock.
+export function buildWeekSchedule(cacheEntries, watchingEntries, now = new Date()) {
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(todayStart);
+    date.setDate(date.getDate() + i);
+    return { date, items: [] };
+  });
+  const windowEnd = new Date(todayStart);
+  windowEnd.setDate(windowEnd.getDate() + 7);
+
+  for (const entry of watchingEntries) {
+    const nextEp = cacheEntries[entry.anilistId]?.nextAiringEpisode;
+    if (!nextEp || !Number.isInteger(nextEp.airingAt)) continue;
+    const airDate = new Date(nextEp.airingAt * 1000);
+    if (airDate < todayStart || airDate >= windowEnd) continue;
+    const dayIndex = calendarDaysBetween(todayStart, airDate);
+    if (dayIndex < 0 || dayIndex > 6) continue; // defensive — should be unreachable given the window check above
+    days[dayIndex].items.push({
+      anilistId: entry.anilistId,
+      title: entry.titleEnglish || entry.titleRomaji,
+      episode: nextEp.episode,
+      airingAt: nextEp.airingAt,
+    });
+  }
+  for (const day of days) day.items.sort((a, b) => a.airingAt - b.airingAt);
+  return days;
+}
+
 // Diffs an old and new airing cache for a set of watching entries, returning
 // only the ones whose unseen-episode count went *up* as a result of the
 // refresh — i.e. a genuinely new episode aired since the last check, not

@@ -2,6 +2,7 @@ import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
 import { Discover } from './discover.js';
+import { Schedule } from './schedule.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 import { Notifications } from './notifications.js';
@@ -39,6 +40,7 @@ function refreshView() {
   if (currentView === 'home') Render.renderHome(document.getElementById('home-view'));
   else if (currentView === 'stats') Render.renderStatsPage(document.getElementById('stats-view'));
   else if (currentView === 'discover') Render.renderDiscoverPage(document.getElementById('discover-view'), Discover.getDiscoverState());
+  else if (currentView === 'schedule') Render.renderSchedulePage(document.getElementById('schedule-view'), Schedule.getScheduleState());
   else Render.renderAll(currentView);
 }
 
@@ -46,6 +48,7 @@ function refreshGridOnly() {
   if (currentView === 'home') Render.renderHome(document.getElementById('home-view'));
   else if (currentView === 'stats') Render.renderStatsPage(document.getElementById('stats-view'));
   else if (currentView === 'discover') Render.renderDiscoverPage(document.getElementById('discover-view'), Discover.getDiscoverState());
+  else if (currentView === 'schedule') Render.renderSchedulePage(document.getElementById('schedule-view'), Schedule.getScheduleState());
   else Render.renderGrid(currentView);
 }
 
@@ -53,6 +56,7 @@ function hideAllViews() {
   document.getElementById('home-view').hidden = true;
   document.getElementById('stats-view').hidden = true;
   document.getElementById('discover-view').hidden = true;
+  document.getElementById('schedule-view').hidden = true;
   document.getElementById('list-view').hidden = true;
 }
 
@@ -113,6 +117,17 @@ function showDiscoverView() {
   updateTabPill();
   Render.renderDiscoverPage(document.getElementById('discover-view'), Discover.getDiscoverState());
   Discover.ensureFreshOnOpen();
+}
+
+function showScheduleView() {
+  Render.clearSelection();
+  currentView = 'schedule';
+  hideAllViews();
+  document.getElementById('schedule-view').hidden = false;
+  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'schedule')));
+  updateTabPill();
+  Render.renderSchedulePage(document.getElementById('schedule-view'), Schedule.getScheduleState());
+  Schedule.ensureFreshOnOpen();
 }
 
 // ---------------------------------------------------------------------------
@@ -893,6 +908,7 @@ function bindTabs() {
     tab.addEventListener('click', () => {
       if (tab.dataset.tab === 'stats') showStatsView();
       else if (tab.dataset.tab === 'discover') showDiscoverView();
+      else if (tab.dataset.tab === 'schedule') showScheduleView();
       else showListView(tab.dataset.tab);
     });
   });

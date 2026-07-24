@@ -44,6 +44,8 @@ const RECS_CACHE_FILE = path.join(DATA_DIR, 'recommendations-cache.json');
 const RECS_CACHE_TMP_FILE = path.join(DATA_DIR, 'recommendations-cache.json.tmp');
 const AIRING_CACHE_FILE = path.join(DATA_DIR, 'airing-cache.json');
 const AIRING_CACHE_TMP_FILE = path.join(DATA_DIR, 'airing-cache.json.tmp');
+const UPCOMING_CACHE_FILE = path.join(DATA_DIR, 'upcoming-cache.json');
+const UPCOMING_CACHE_TMP_FILE = path.join(DATA_DIR, 'upcoming-cache.json.tmp');
 const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
 // A single unusually active session (a big import, a bulk cover-recovery
 // run) can create dozens of backups in a few hours — at 30, that safety net
@@ -244,6 +246,30 @@ function readRecsCache() {
   if (!fs.existsSync(RECS_CACHE_FILE)) return { generatedAt: null, items: [] };
   try {
     return JSON.parse(fs.readFileSync(RECS_CACHE_FILE, 'utf8'));
+  } catch {
+    return { generatedAt: null, items: [] };
+  }
+}
+
+// Same reasoning as the recommendations cache: fully regenerable (a snapshot
+// of an AniList "not yet released" query), so atomic write for crash-safety
+// but no backup rotation and no corrupt-refusal.
+function writeUpcomingCacheAtomic(data) {
+  const json = JSON.stringify(data, null, 2);
+  const fd = fs.openSync(UPCOMING_CACHE_TMP_FILE, 'w');
+  try {
+    fs.writeSync(fd, json);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(UPCOMING_CACHE_TMP_FILE, UPCOMING_CACHE_FILE);
+}
+
+function readUpcomingCache() {
+  if (!fs.existsSync(UPCOMING_CACHE_FILE)) return { generatedAt: null, items: [] };
+  try {
+    return JSON.parse(fs.readFileSync(UPCOMING_CACHE_FILE, 'utf8'));
   } catch {
     return { generatedAt: null, items: [] };
   }
@@ -666,6 +692,22 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       writeAiringCacheAtomic({ generatedAt: body.generatedAt || new Date().toISOString(), entries: body.entries });
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (pathname === '/api/upcoming' && req.method === 'GET') {
+      sendJson(res, 200, readUpcomingCache());
+      return;
+    }
+
+    if (pathname === '/api/upcoming' && req.method === 'PUT') {
+      const body = await readJsonBody(req);
+      if (!body || !Array.isArray(body.items)) {
+        sendJson(res, 400, { error: 'Body must include an items array.' });
+        return;
+      }
+      writeUpcomingCacheAtomic({ generatedAt: body.generatedAt || new Date().toISOString(), items: body.items });
       sendJson(res, 200, { ok: true });
       return;
     }

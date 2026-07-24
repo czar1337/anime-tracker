@@ -5,6 +5,7 @@ import { initEvents, refreshCurrentView, repositionTabPill } from './events.js';
 import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './discover.js';
+import { Schedule } from './schedule.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 
@@ -239,6 +240,7 @@ async function boot() {
   initMalImport();
   initScreenshotImport();
   Discover.initDiscover({ persistFn: persist });
+  Schedule.initSchedule({ persistFn: persist });
   Detail.initDetail();
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
   Render.renderAll(initialList);

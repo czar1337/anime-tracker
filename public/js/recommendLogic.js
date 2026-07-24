@@ -46,8 +46,10 @@ export function buildGenreProfile(seeds) {
 
 // Average profile-weight across the candidate's own genres — averaged
 // (not summed) so a candidate with many genres isn't automatically favored
-// just for having more tags to potentially match.
-function genreSimilarity(candidateGenres, profile) {
+// just for having more tags to potentially match. Exported so other
+// taste-ranked lists (e.g. the Schedule tab's "Coming soon") can reuse the
+// exact same scoring instead of forking it.
+export function genreSimilarity(candidateGenres, profile) {
   if (!candidateGenres || candidateGenres.length === 0) return 0;
   const total = candidateGenres.reduce((sum, g) => sum + (profile[g] || 0), 0);
   return total / candidateGenres.length;

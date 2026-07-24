@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0
+
+- **New: Schedule tab.** Two things in one place: "This week" shows which of your Watching-list shows air a new episode on which of the next 7 days (built from the same episode-airing data the "unseen episodes" badges already use — no extra AniList calls), and "Coming soon" lists not-yet-released anime and movies ranked toward your taste using the same genre-profile scoring Discover already computes from your highly-rated titles. Release dates show only the precision AniList actually gives ("TBA", "2027", "Jan 2027", or a full date) rather than guessing. "Add to Watchlist" / "Not interested" work the same as Discover and share its dismissed list.
+
 ## 1.6.0
 
 - **15 color themes, chosen by you.** A new palette icon in the header opens a theme picker with 15 distinct themes — Clean Interface, Arcane Ward, Holo Deck, Verdant, Ember, Frost, Void, Aurora, Solar, Storm, Bloom, Obsidian, Tidal, Wraith, Sunflare. Each is a full color identity (background, text, borders, glow), not just an accent swap, built around a "status window" look inspired by isekai-anime game HUDs. This replaces the old light/dark toggle: every one of these themes is dark, since a glowing card border doesn't read on a white background. Defaults to Holo Deck; your choice is remembered between launches.

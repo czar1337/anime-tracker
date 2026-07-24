@@ -353,7 +353,7 @@ async function run() {
   // -------------------------------------------------------------------------
   console.log('airingLogic.js');
   const airingLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'airingLogic.js').replace(/\\/g, '/');
-  const { computeUnseenEpisodes, detectNewlyAired } = await import(airingLogicUrl);
+  const { computeUnseenEpisodes, detectNewlyAired, buildWeekSchedule } = await import(airingLogicUrl);
 
   await test('RELEASING: nextAiring ep 9, progress 5 -> 3 unseen', () => {
     assert.equal(computeUnseenEpisodes({ status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 9 } }, 5), 3);
@@ -417,6 +417,97 @@ async function run() {
     assert.deepEqual(detectNewlyAired({}, newCache, watching), [
       { anilistId: 1, title: 'New', unseen: 12 },
     ], 'given an empty oldCache it still reports the diff — callers must pass {} only when that is actually desired');
+  });
+
+  await test('buildWeekSchedule: places entries on the correct day, sorted by airing time within a day', () => {
+    const now = new Date(2026, 6, 24, 10, 0, 0); // fixed "today" for the test
+    const watching = [
+      { anilistId: 1, titleRomaji: 'Show A', titleEnglish: '', episodesWatched: 5 },
+      { anilistId: 2, titleRomaji: 'Show B', titleEnglish: '', episodesWatched: 5 },
+    ];
+    const earlier = new Date(2026, 6, 26, 9, 0, 0); // +2 days, 9am
+    const later = new Date(2026, 6, 26, 20, 0, 0); // +2 days, 8pm
+    const cache = {
+      1: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 5, airingAt: Math.floor(later.getTime() / 1000) } },
+      2: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 3, airingAt: Math.floor(earlier.getTime() / 1000) } },
+    };
+    const week = buildWeekSchedule(cache, watching, now);
+    assert.equal(week.length, 7);
+    assert.equal(week[0].items.length, 0, 'today has nothing airing in this fixture');
+    assert.equal(week[2].items.length, 2, 'both land on day index 2 (+2 days)');
+    assert.equal(week[2].items[0].anilistId, 2, 'earlier airing time (9am) sorts first');
+    assert.equal(week[2].items[1].anilistId, 1, 'later airing time (8pm) sorts second');
+  });
+
+  await test('buildWeekSchedule: airing right at a day boundary lands on the correct calendar day, not off-by-one', () => {
+    const now = new Date(2026, 6, 24, 15, 0, 0); // "today" mid-afternoon
+    const watching = [
+      { anilistId: 1, titleRomaji: 'Just before midnight, day 6', titleEnglish: '', episodesWatched: 0 },
+      { anilistId: 2, titleRomaji: 'Just after midnight, today', titleEnglish: '', episodesWatched: 0 },
+    ];
+    const lastMomentOfDay6 = new Date(2026, 6, 30, 23, 59, 59); // today+6, 23:59:59
+    const firstMomentOfToday = new Date(2026, 6, 24, 0, 0, 1); // today, 00:00:01
+    const cache = {
+      1: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 1, airingAt: Math.floor(lastMomentOfDay6.getTime() / 1000) } },
+      2: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 1, airingAt: Math.floor(firstMomentOfToday.getTime() / 1000) } },
+    };
+    const week = buildWeekSchedule(cache, watching, now);
+    assert.equal(week[6].items.length, 1, 'the 23:59:59 entry belongs on day index 6, not spilled into a phantom day 7');
+    assert.equal(week[6].items[0].anilistId, 1);
+    assert.equal(week[0].items.length, 1, 'the 00:00:01 entry belongs on today (day index 0)');
+    assert.equal(week[0].items[0].anilistId, 2);
+  });
+
+  await test('buildWeekSchedule: omits entries with no known airing time, or airing outside the 7-day window', () => {
+    const now = new Date(2026, 6, 24, 10, 0, 0);
+    const watching = [
+      { anilistId: 1, titleRomaji: 'No data', titleEnglish: '', episodesWatched: 0 },
+      { anilistId: 2, titleRomaji: 'Too far out', titleEnglish: '', episodesWatched: 0 },
+    ];
+    const tooFar = new Date(2026, 7, 15, 9, 0, 0); // three weeks out
+    const cache = {
+      1: { status: 'FINISHED', episodes: 12, nextAiringEpisode: null },
+      2: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 9, airingAt: Math.floor(tooFar.getTime() / 1000) } },
+    };
+    const week = buildWeekSchedule(cache, watching, now);
+    const totalItems = week.reduce((s, d) => s + d.items.length, 0);
+    assert.equal(totalItems, 0);
+  });
+
+  // -------------------------------------------------------------------------
+  // Coming-soon ranking (public/js/scheduleLogic.js) — pure.
+  // -------------------------------------------------------------------------
+  console.log('scheduleLogic.js');
+  const scheduleLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'scheduleLogic.js').replace(/\\/g, '/');
+  const { rankUpcoming, formatReleaseDate } = await import(scheduleLogicUrl);
+
+  await test('rankUpcoming: ranks by genre-profile match, excludes owned and dismissed', () => {
+    const candidates = [
+      { id: 1, genres: ['Action'], startDate: { year: 2027, month: 1, day: 1 } },
+      { id: 2, genres: ['Romance'], startDate: { year: 2027, month: 1, day: 1 } },
+      { id: 3, genres: ['Action'], startDate: { year: 2027, month: 1, day: 1 } }, // owned
+      { id: 4, genres: ['Action'], startDate: { year: 2027, month: 1, day: 1 } }, // dismissed
+    ];
+    const genreProfile = { Action: 10, Romance: 1 };
+    const result = rankUpcoming(candidates, genreProfile, [3], [4]);
+    assert.deepEqual(result.map((r) => r.media.id), [1, 2], 'owned (3) and dismissed (4) excluded; Action (10) ranks above Romance (1)');
+  });
+
+  await test('rankUpcoming: ties on score break toward whichever releases sooner', () => {
+    const candidates = [
+      { id: 1, genres: [], startDate: { year: 2027, month: 6, day: 1 } },
+      { id: 2, genres: [], startDate: { year: 2027, month: 1, day: 1 } },
+      { id: 3, genres: [], startDate: null }, // TBA sorts last
+    ];
+    const result = rankUpcoming(candidates, {}, [], []);
+    assert.deepEqual(result.map((r) => r.media.id), [2, 1, 3]);
+  });
+
+  await test('formatReleaseDate: shows only the precision AniList actually gave, never guesses', () => {
+    assert.equal(formatReleaseDate(null), 'TBA');
+    assert.equal(formatReleaseDate({ year: 2027, month: null, day: null }), '2027');
+    assert.equal(formatReleaseDate({ year: 2027, month: 1, day: null }), 'Jan 2027');
+    assert.equal(formatReleaseDate({ year: 2027, month: 1, day: 15 }), 'Jan 15, 2027');
   });
 
   // -------------------------------------------------------------------------

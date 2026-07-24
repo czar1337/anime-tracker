@@ -1384,6 +1384,68 @@ kbd {
   flex-direction: column;
 }
 
+/* ---------- Schedule page ---------- */
+.schedule-section { margin-bottom: 32px; }
+.schedule-section h3 { font-size: 15px; font-weight: 700; margin: 0 0 14px; color: var(--text); }
+.schedule-release-date { color: var(--text-faint); }
+
+.schedule-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.schedule-day {
+  background: var(--card-glass-bg);
+  border: 1px solid var(--card-glass-border);
+  backdrop-filter: blur(6px);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  min-height: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.schedule-day.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.schedule-day-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.schedule-day-name { font-size: 12px; font-weight: 700; color: var(--text); }
+.schedule-day.is-today .schedule-day-name { color: var(--accent); }
+.schedule-day-date { font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.schedule-day-items { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.schedule-item {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  text-align: left;
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.schedule-item:hover { border-color: var(--accent); transform: translateY(-1px); }
+.schedule-item-title {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.schedule-item-ep { font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.schedule-day-empty { font-size: 11px; color: var(--text-faint); margin: 0; }
+
 .stats-grid-2col {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

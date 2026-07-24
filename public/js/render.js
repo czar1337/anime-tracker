@@ -1,6 +1,7 @@
 import { Store } from './state.js';
 import { Airing } from './airing.js';
 import { COLOR_THEMES } from './themes.js';
+import { formatReleaseDate } from './scheduleLogic.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -717,6 +718,119 @@ function renderDiscoverPage(container, viewState) {
   container.innerHTML = `${banner}<div class="card-grid discover-grid">${visibleItems.map((item, i) => discoverCardHtml(item, i)).join('')}</div>${loadMore}`;
 }
 
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function isSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// Compact 7-day strip of what's airing next for your Watching list — pure
+// presentation over data airing.js/airingLogic.js already maintain for the
+// unseen-episode badges, so this can never disagree with them.
+function weekStripHtml(week) {
+  const today = new Date();
+  return `
+    <div class="schedule-week">
+      ${week
+        .map(({ date, items }) => `
+        <div class="schedule-day ${isSameDay(date, today) ? 'is-today' : ''}">
+          <div class="schedule-day-label">
+            <span class="schedule-day-name">${isSameDay(date, today) ? 'Today' : DAY_NAMES[date.getDay()]}</span>
+            <span class="schedule-day-date">${date.getMonth() + 1}/${date.getDate()}</span>
+          </div>
+          <div class="schedule-day-items">
+            ${items.length
+              ? items
+                  .map(
+                    (it) => `
+              <button class="schedule-item" data-action="show-detail" data-detail-id="${it.anilistId}" title="${escapeHtml(it.title)} — episode ${it.episode}">
+                <span class="schedule-item-title">${escapeHtml(it.title)}</span>
+                <span class="schedule-item-ep">Ep ${it.episode}</span>
+              </button>`
+                  )
+                  .join('')
+              : `<p class="schedule-day-empty">Nothing airing</p>`}
+          </div>
+        </div>`
+        )
+        .join('')}
+    </div>`;
+}
+
+function scheduleCardHtml(item, index = 0) {
+  const m = item.media;
+  return `
+    <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelayMs(index)}ms">
+      <div class="card-cover-wrap">
+        <div class="skeleton"></div>
+        <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">
+        ${m.format ? `<span class="card-format-badge">${escapeHtml(m.format)}</span>` : ''}
+      </div>
+      <div class="card-body">
+        ${titleBlockHtml(m.title.english, m.title.romaji, m.id)}
+        <div class="card-meta">
+          ${(m.genres || []).length ? `<span>${escapeHtml(m.genres.slice(0, 3).join(', '))}</span>` : ''}
+        </div>
+        <p class="discover-because schedule-release-date">Releases ${escapeHtml(formatReleaseDate(m.startDate))}</p>
+        <div class="discover-actions">
+          <button class="text-btn primary" data-action="schedule-add">Add to Watchlist</button>
+          <button class="text-btn" data-action="schedule-dismiss">Not interested</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderSchedulePage(container, viewState) {
+  const { status, items, visibleCount, generatedAt, offline, progressText, week } = viewState;
+  const age = relativeAgeText(generatedAt);
+
+  const banner = `
+    <div class="discover-hero">
+      <div class="home-hero">
+        <h2>Schedule</h2>
+        <p>When your shows air next, and what's coming up worth watching for.</p>
+      </div>
+      <div class="discover-controls">
+        ${age ? `<span class="discover-age">${escapeHtml(age)}${offline ? ' · offline, showing cached results' : ''}</span>` : ''}
+        <button class="text-btn primary" id="schedule-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh'}</button>
+      </div>
+    </div>`;
+
+  const thisWeekSection = `
+    <div class="schedule-section">
+      <h3>This week</h3>
+      ${weekStripHtml(week)}
+    </div>`;
+
+  let comingSoonBody;
+  if (status === 'loading' && items.length === 0) {
+    comingSoonBody = `<div class="empty-state"><h2>Finding what's coming up…</h2><p>Talking to AniList…</p></div>`;
+  } else if (status === 'error' && items.length === 0) {
+    comingSoonBody = `<div class="empty-state"><h2>Could not load upcoming releases</h2><p>${escapeHtml(progressText || 'Check your internet connection and try refreshing.')}</p></div>`;
+  } else if (items.length === 0) {
+    comingSoonBody = `<div class="empty-state"><h2>Nothing new to show right now</h2><p>You've already added or dismissed everything we found. Try refreshing later.</p></div>`;
+  } else {
+    const visibleItems = items.slice(0, visibleCount);
+    const loadMore = visibleCount < items.length
+      ? `<div class="discover-load-more-row">
+          <span class="discover-count">Showing ${visibleCount} of ${items.length}</span>
+          <button class="text-btn" id="schedule-load-more-btn">Load more</button>
+        </div>`
+      : '';
+    comingSoonBody = `<div class="card-grid discover-grid">${visibleItems.map((item, i) => scheduleCardHtml(item, i)).join('')}</div>${loadMore}`;
+  }
+
+  container.innerHTML = `
+    ${banner}
+    ${thisWeekSection}
+    <div class="schedule-section">
+      <h3>Coming soon</h3>
+      ${comingSoonBody}
+    </div>
+  `;
+}
+
 function renderDismissedOverlay(container) {
   const items = Store.getDismissedItems();
   if (items.length === 0) {
@@ -895,6 +1009,7 @@ export const Render = {
   renderHome,
   renderStatsPage,
   renderDiscoverPage,
+  renderSchedulePage,
   renderDismissedOverlay,
   renderDetailOverlay,
   toggleGroupExpanded,

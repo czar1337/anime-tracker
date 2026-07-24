@@ -93,6 +93,22 @@ async function saveAiringCache(data) {
   return body;
 }
 
+async function getUpcomingCache() {
+  const res = await fetch('/api/upcoming');
+  return res.json();
+}
+
+async function saveUpcomingCache(data) {
+  const res = await fetch('/api/upcoming', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || 'Failed to save upcoming cache');
+  return body;
+}
+
 async function downloadCover(anilistId, url) {
   const res = await fetch('/api/covers', {
     method: 'POST',
@@ -235,7 +251,7 @@ query ($idIn: [Int]) {
       id
       status
       episodes
-      nextAiringEpisode { episode }
+      nextAiringEpisode { episode airingAt }
     }
   }
 }`;
@@ -243,6 +259,34 @@ query ($idIn: [Int]) {
 async function fetchAiringBatch(idIn) {
   if (idIn.length === 0) return [];
   const data = await anilistRequest(AIRING_BATCH_QUERY, { idIn });
+  return data.Page.media;
+}
+
+// Sorted by popularity (not by date) so the pool is anticipated, known
+// titles rather than obscure not-yet-announced-in-detail entries — the
+// Schedule tab re-sorts this pool by taste + release date itself.
+const UPCOMING_QUERY = `
+query ($page: Int) {
+  Page(page: $page, perPage: 50) {
+    media(status: NOT_YET_RELEASED, type: ANIME, sort: POPULARITY_DESC) {
+      id
+      title { romaji english }
+      coverImage { large }
+      format
+      genres
+      seasonYear
+      startDate { year month day }
+      averageScore
+      popularity
+      episodes
+      duration
+      ${RELATIONS_FIELD}
+    }
+  }
+}`;
+
+async function fetchUpcomingMedia(page = 1) {
+  const data = await anilistRequest(UPCOMING_QUERY, { page });
   return data.Page.media;
 }
 
@@ -356,6 +400,9 @@ export const Api = {
   fetchCoversBatch,
   getAiringCache,
   saveAiringCache,
+  fetchUpcomingMedia,
+  getUpcomingCache,
+  saveUpcomingCache,
   extractRelatedIds,
   RateLimitError,
 };

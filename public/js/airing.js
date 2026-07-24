@@ -1,6 +1,6 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
-import { computeUnseenEpisodes, detectNewlyAired } from './airingLogic.js';
+import { computeUnseenEpisodes, detectNewlyAired, buildWeekSchedule } from './airingLogic.js';
 import { Notifications } from './notifications.js';
 
 const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on manual refresh
@@ -47,6 +47,12 @@ export function getUnseenSeriesCount() {
 
 export function getCacheState() {
   return { generatedAt };
+}
+
+// For the Schedule tab's "This week" view — always live off the same cache
+// the unseen-episode badges already use, so it can never disagree with them.
+export function getWeekSchedule() {
+  return buildWeekSchedule(cacheEntries, Store.getEntriesByList('watching'));
 }
 
 async function loadCacheFromServer() {
@@ -134,4 +140,5 @@ export const Airing = {
   getUnseenCount,
   getUnseenSeriesCount,
   getCacheState,
+  getWeekSchedule,
 };
