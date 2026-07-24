@@ -1759,6 +1759,7 @@ kbd {
   background: transparent;
   color: var(--text-faint);
   flex: 1;
+  min-width: 0;
   height: 20px;
   font-size: 10px;
   border-radius: 4px;
