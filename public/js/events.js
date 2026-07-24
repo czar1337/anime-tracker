@@ -444,6 +444,28 @@ function bindGridEvents() {
     },
     true
   );
+
+  // The compact <select> equivalents used inside .season-row (see
+  // scoreSelectHtml/statusSelectHtml in render.js) — a select's value change
+  // is a distinct interaction from the button-strip's click-to-toggle, so
+  // these set the value directly rather than reusing handleSetScore's
+  // click-again-to-unset behavior.
+  root.addEventListener('change', (e) => {
+    const card = e.target.closest('.card');
+    if (!card) return;
+    const id = Number(card.dataset.id);
+
+    const scoreSelect = e.target.closest('[data-action="set-score-select"]');
+    if (scoreSelect) {
+      Store.updateEntry(id, { myScore: scoreSelect.value ? Number(scoreSelect.value) : null });
+      refreshView();
+      persist();
+      return;
+    }
+
+    const statusSelect = e.target.closest('[data-action="set-status-select"]');
+    if (statusSelect) handleSetStatus(id, statusSelect.value);
+  });
 }
 
 // Regenerated on every render (innerHTML), so this delegates on its stable
@@ -959,8 +981,14 @@ function bindThemePicker() {
   document.getElementById('theme-picker-grid').addEventListener('click', (e) => {
     const btn = e.target.closest('.theme-swatch');
     if (!btn) return;
+    // Pass the clicked id directly rather than reading it back via
+    // Themes.getCurrentThemeId() — setColorTheme applies through
+    // document.startViewTransition when available, which runs its callback
+    // asynchronously, so reading the "current" theme back immediately after
+    // calling it would still see the *previous* theme and highlight the
+    // wrong swatch for one click (always one step behind).
     Themes.setColorTheme(btn.dataset.themeId);
-    Render.renderThemePicker(document.getElementById('theme-picker-grid'), Themes.getCurrentThemeId());
+    Render.renderThemePicker(document.getElementById('theme-picker-grid'), btn.dataset.themeId);
   });
 }
 

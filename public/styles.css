@@ -1571,9 +1571,29 @@ kbd {
 /* Nested corner brackets on every season row (already inside a bracketed
    franchise-card) read as noise, not polish — suppressed here. */
 .season-row::before, .season-row::after { content: none; }
-.season-row .card-cover-wrap { width: 72px; flex-shrink: 0; border-radius: var(--radius-sm); }
-.season-row .card-body { padding: 0; gap: 6px; min-width: 0; }
+.season-row .card-cover-wrap { width: 64px; flex-shrink: 0; border-radius: var(--radius-sm); }
+.season-row .card-corner-actions { top: 4px; right: 4px; gap: 3px; }
+.season-row .card-body { padding: 0; gap: 4px; min-width: 0; }
+/* -webkit-line-clamp:1 is unreliable (the box-orient/line-clamp hack is
+   meant for 2+ lines) — the plain single-line ellipsis technique is the
+   correct tool for exactly one line. */
+.season-row .card-title {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 0;
+}
+.season-row .card-title-sub { display: none; }
+.season-row .card-meta { margin-top: -2px; }
+.season-row .notes-toggle { font-size: 10px; padding: 0; }
 .card-format-badge.season-badge { background: var(--accent); color: var(--accent-contrast); }
+
+/* Two compact <select> controls side by side instead of a 10-button score
+   strip plus a 4-button status row — the single biggest source of season
+   rows feeling oversized. */
+.season-controls-row { display: flex; gap: 6px; }
+.season-select { flex: 1; min-width: 0; font-size: 11px; padding: 4px 6px; }
 
 .card-cover-wrap {
   position: relative;

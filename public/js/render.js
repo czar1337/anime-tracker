@@ -117,6 +117,28 @@ function statusRowHtml(entry) {
     </div>`;
 }
 
+// Compact single-control equivalents of scoreStripHtml/statusRowHtml — used
+// only inside .season-row (see cardBodyForList's isSeasonRow param), where a
+// 10-button score strip plus a 4-button status row was most of what made
+// the expanded franchise view feel oversized in the first place.
+function scoreSelectHtml(entry) {
+  const options = Array.from({ length: 10 }, (_, i) => i + 1)
+    .map((i) => `<option value="${i}" ${entry.myScore === i ? 'selected' : ''}>★ ${i}</option>`)
+    .join('');
+  return `
+    <select class="filter-select season-select" data-action="set-score-select" aria-label="Score">
+      <option value="" ${entry.myScore == null ? 'selected' : ''}>Not rated</option>
+      ${options}
+    </select>`;
+}
+
+function statusSelectHtml(entry) {
+  return `
+    <select class="filter-select season-select" data-action="set-status-select" aria-label="Move to list">
+      ${QUICK_MOVE_LISTS.map((l) => `<option value="${l.key}" ${entry.listStatus === l.key ? 'selected' : ''}>${l.label}</option>`).join('')}
+    </select>`;
+}
+
 const PENCIL_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const TRASH_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
 
@@ -134,7 +156,7 @@ function unseenPopClass(anilistId, unseen) {
   return prev !== undefined && unseen > prev ? ' pop' : '';
 }
 
-function cardBodyForList(entry, list) {
+function cardBodyForList(entry, list, isSeasonRow = false) {
   if (list === 'watching') {
     const total = entry.totalEpisodes;
     const pct = total ? Math.min(100, (entry.episodesWatched / total) * 100) : 0;
@@ -150,10 +172,10 @@ function cardBodyForList(entry, list) {
       ${showCompletionPrompt ? `
         <div class="completion-prompt">
           <span>Finished! Move to Watched?</span>
-          ${scoreStripHtml(entry)}
+          ${isSeasonRow ? scoreSelectHtml(entry) : scoreStripHtml(entry)}
           <button class="text-btn primary" data-action="complete" style="align-self:flex-start;padding:6px 12px;">Move to Watched</button>
         </div>` : ''}
-      ${statusRowHtml(entry)}
+      ${isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry)}
     `;
   }
   if (list === 'watched') {
@@ -162,17 +184,18 @@ function cardBodyForList(entry, list) {
         <span class="watched-progress-label-prefix">Episodes</span>
         <button class="progress-label" data-action="edit-episode" title="Click to correct the episode count">${entry.episodesWatched}${entry.totalEpisodes ? `/${entry.totalEpisodes}` : ''}</button>
       </div>
-      ${scoreStripHtml(entry)}
-      ${statusRowHtml(entry)}
+      ${isSeasonRow
+        ? `<div class="season-controls-row">${scoreSelectHtml(entry)}${statusSelectHtml(entry)}</div>`
+        : `${scoreStripHtml(entry)}${statusRowHtml(entry)}`}
     `;
   }
   if (list === 'watchlist') {
     return `
       <div class="card-meta"><span>${entry.averageScore ? `★ ${entry.averageScore}` : 'No score'}</span></div>
-      ${statusRowHtml(entry)}
+      ${isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry)}
     `;
   }
-  return statusRowHtml(entry);
+  return isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry);
 }
 
 // English title primary/large, Japanese romaji secondary/small/faded below —
@@ -226,7 +249,7 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
           ${entry.year ? `<span>${entry.year}</span>` : ''}
           ${entry.totalEpisodes ? `<span>${entry.totalEpisodes} ep</span>` : ''}
         </div>
-        ${cardBodyForList(entry, list)}
+        ${cardBodyForList(entry, list, Boolean(seasonLabel))}
         <button class="notes-toggle" data-action="toggle-notes">${entry.notes ? 'Edit note' : '+ Add note'}</button>
         <textarea class="notes-field" data-action="edit-notes" placeholder="Personal notes…" hidden>${escapeHtml(entry.notes)}</textarea>
       </div>
