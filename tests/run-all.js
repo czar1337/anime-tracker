@@ -531,6 +531,46 @@ async function run() {
   });
 
   // -------------------------------------------------------------------------
+  // Screenshot-import text cleaning/matching (public/js/screenshotLogic.js) —
+  // pure, split out from screenshotImport.js specifically so this is testable
+  // (screenshotImport.js imports render.js, which touches `document` at
+  // module scope and would crash under plain Node).
+  // -------------------------------------------------------------------------
+  console.log('screenshotLogic.js');
+  const screenshotLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'screenshotLogic.js').replace(/\\/g, '/');
+  const { cleanLines, titleSimilarity } = await import(screenshotLogicUrl);
+
+  await test('cleanLines: keeps real-looking titles from a list screenshot', () => {
+    const text = 'Attack on Titan\nDeath Note\nSteins;Gate\n11eyes';
+    assert.deepEqual(cleanLines(text), ['Attack on Titan', 'Death Note', 'Steins;Gate', '11eyes']);
+  });
+
+  await test('cleanLines: drops section headers and button chrome from a detail page', () => {
+    const text = '11eyes\nSYNOPSIS\nAdd to Collection\nRead More';
+    assert.deepEqual(cleanLines(text), ['11eyes']);
+  });
+
+  await test('cleanLines: drops a metadata row containing a pipe', () => {
+    const text = '11eyes\nTV | 12 | Action, Ecchi, Supernatural';
+    assert.deepEqual(cleanLines(text), ['11eyes']);
+  });
+
+  await test('cleanLines: drops synopsis-like sentences (high stopword density at length)', () => {
+    const text = '11eyes\nwhy they have been sent to this strange world, which is';
+    assert.deepEqual(cleanLines(text), ['11eyes']);
+  });
+
+  await test('cleanLines: de-dupes case-insensitively and drops too-short/too-long/numbers-only lines', () => {
+    const text = '11eyes\n11EYES\nOK\n12345\n' + 'x'.repeat(90);
+    assert.deepEqual(cleanLines(text), ['11eyes']);
+  });
+
+  await test('titleSimilarity: exact match scores 1, unrelated titles score low', () => {
+    assert.equal(titleSimilarity('11eyes', '11eyes'), 1);
+    assert.ok(titleSimilarity('11eyes', 'Fullmetal Alchemist') < 0.5);
+  });
+
+  // -------------------------------------------------------------------------
   // One-time data dir migration (datadir.js) — real filesystem, but only
   // ever against a temp copy of tests/fixtures/legacy-data-dir.
   // -------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
+import { cleanLines, titleSimilarity, MATCH_THRESHOLD } from './screenshotLogic.js';
 
 // Tesseract.js is vendored locally (public/vendor/tesseract) so OCR runs
 // fully offline — no CDN, no build step. Loaded lazily on first use only.
@@ -32,21 +33,6 @@ async function getWorker(onProgress) {
   return worker;
 }
 
-function cleanLines(text) {
-  const seen = new Set();
-  const lines = [];
-  for (let raw of text.split('\n')) {
-    const line = raw.replace(/[|_~^]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (line.length < 3 || line.length > 80) continue;
-    if (!/[a-zA-Z]{3,}/.test(line)) continue; // must contain a real word, not just noise/numbers
-    const norm = line.toLowerCase();
-    if (seen.has(norm)) continue;
-    seen.add(norm);
-    lines.push(line);
-  }
-  return lines;
-}
-
 async function recognizeImages(files, onProgress) {
   const w = await getWorker((m) => onProgress?.(`OCR: ${m.status} ${Math.round((m.progress || 0) * 100)}%`));
   const allLines = [];
@@ -59,29 +45,6 @@ async function recognizeImages(files, onProgress) {
 }
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-
-function normalize(s) {
-  return (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-// Same similarity heuristic used for the spreadsheet importer: guards
-// against OCR misreads confidently "matching" an unrelated AniList entry
-// just because AniList's fuzzy search always returns *something*.
-function titleSimilarity(query, candidate) {
-  const nq = normalize(query);
-  const nc = normalize(candidate);
-  if (!nq || !nc) return 0;
-  if (nq === nc) return 1;
-  if (nc.includes(nq) || nq.includes(nc)) return 0.85;
-  const setA = new Set(nq.split(' ').filter(Boolean));
-  const setB = new Set(nc.split(' ').filter(Boolean));
-  if (setA.size === 0 || setB.size === 0) return 0;
-  let inter = 0;
-  for (const w of setA) if (setB.has(w)) inter += 1;
-  return inter / new Set([...setA, ...setB]).size;
-}
-
-const MATCH_THRESHOLD = 0.5;
 
 async function matchLines(lines, onProgress) {
   const results = [];
