@@ -1,6 +1,6 @@
 {
   "name": "anime-tracker",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "description": "Local-only anime tracker. No dependencies, no build step.",
   "main": "server.js",
