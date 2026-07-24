@@ -15,6 +15,7 @@ const OUT_DIR = path.join(ROOT, 'dist');
 const CONFIG_PATH = path.join(OUT_DIR, 'sea-config.json');
 const BLOB_PATH = path.join(OUT_DIR, 'sea-prep.blob');
 const BUNDLED_MAIN_PATH = path.join(OUT_DIR, 'server.bundled.js');
+const ICON_PATH = path.join(__dirname, 'icon', 'anime-tracker.ico');
 const SENTINEL_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8')).version;
 const EXE_PATH = path.join(OUT_DIR, `AnimeTracker-${APP_VERSION}.exe`);
@@ -90,12 +91,39 @@ function main() {
   console.log('Copying node.exe...');
   fs.copyFileSync(process.execPath, EXE_PATH);
 
-  console.log('Injecting blob into executable (postject)...');
   // execFileSync's `shell: true` on Windows joins argv with plain spaces
   // before handing it to cmd.exe, which breaks any argument containing a
   // space (this repo's own path does: "...\\Claude projekt\\..."). Quote
   // every argument explicitly and run the whole thing as one command string.
   const q = (s) => `"${s}"`;
+
+  // Sets the .exe's icon (rcedit rewrites the PE resource section) — done
+  // BEFORE the SEA blob injection below, since postject's job is to be the
+  // last thing that touches the file. The `rcedit` npm package is a JS
+  // wrapper (no CLI bin of its own), fetched on demand like postject below
+  // rather than as a project dependency. It's installed straight into
+  // dist/node_modules (not via `npx -p`, whose PATH-based resolution a
+  // plain `require()` from an arbitrary script can't see) so the throwaway
+  // script sitting next to it in dist/ resolves it the normal Node way.
+  if (fs.existsSync(ICON_PATH)) {
+    console.log('Setting exe icon (rcedit)...');
+    execSync(`npm install --no-save --no-audit --no-fund --prefix ${q(OUT_DIR)} rcedit@latest`, { stdio: 'inherit', shell: true });
+    const rceditScriptPath = path.join(OUT_DIR, 'set-icon.js');
+    fs.writeFileSync(
+      rceditScriptPath,
+      // rcedit ships as an ESM-only package ("type": "module") exporting a
+      // named `rcedit` function (not default) — Node's require(esm) support
+      // returns the namespace object, so pull the named export off it.
+      `require('rcedit').rcedit(${JSON.stringify(EXE_PATH)}, { icon: ${JSON.stringify(ICON_PATH)} })\n` +
+        `.then(() => console.log('icon set'))\n` +
+        `.catch((e) => { console.error(e); process.exit(1); });\n`
+    );
+    execSync(`node ${q(rceditScriptPath)}`, { stdio: 'inherit', shell: true });
+  } else {
+    console.log('No icon found at scripts/icon/anime-tracker.ico, skipping (exe will use the default Node icon).');
+  }
+
+  console.log('Injecting blob into executable (postject)...');
   const cmd = ['npx', '-y', 'postject', q(EXE_PATH), 'NODE_SEA_BLOB', q(BLOB_PATH), '--sentinel-fuse', SENTINEL_FUSE, '--overwrite'].join(' ');
   execSync(cmd, { stdio: 'inherit', shell: true });
 
