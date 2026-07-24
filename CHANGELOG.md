@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.1
+
+- **Fix: Schedule's "Refresh" button only refreshed half the page.** "This week" is built from a separate episode-airing cache than the one the button actually re-fetched — if that cache predated `nextAiringEpisode`'s airing time being added to the data (an old cache saved before an earlier fix), "This week" could get stuck showing "Nothing airing" for every day with no visible way to fix it from the Schedule tab at all. Refresh now updates both.
+- **Fix: color theme picker highlighted the previous swatch for one click, always a step behind.** Reading back "the current theme" immediately after applying a new one raced against the crossfade transition's own (asynchronous) update.
+- **Multi-season view: further compacted.** Replaced the 10-button score strip and 4-button status row on each season with two small dropdowns, clamped the title to one line (the season badge already says which entry it is), and dropped the secondary romaji line — each row is meaningfully shorter without losing anything.
+- **Screenshot import: recognizes more kinds of screenshots.** Previously, a screenshot of a single anime's detail page (rather than a list) OCR'd into mostly noise — synopsis text, "Read More"/"Add to Collection" buttons, genre/format rows — all shown as unmatched clutter. Added conservative filtering for common non-title patterns (detail-page chrome phrases, metadata rows, sentence-like text) so fewer obviously-wrong lines make it to the review screen.
+- **Fix: score-rating buttons could overflow their card on narrow windows** instead of shrinking to fit.
+
 ## 1.8.0
 
 - **25 more color themes (15 → 40).** 23 new dark themes (Crimson Core, Nebula, Amethyst, Copper, Jade, Indigo Night, Blood Moon, Deep Sea, Wildfire, Static, Phantom, Radiant, Venom, Eclipse, Mystic, Rogue, Celestial, Inferno, Nightshade, Glacial Rift, Ashen, Cobalt, Viridian) plus two light ones (Daybreak, Parchment) for anyone who wants a light "Status Window" without losing the glass-card look. Same token-swap architecture as the original 15, so every existing feature picks up all 40 for free.
