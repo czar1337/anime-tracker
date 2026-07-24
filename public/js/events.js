@@ -60,6 +60,19 @@ function hideAllViews() {
   document.getElementById('list-view').hidden = true;
 }
 
+// Crossfades whichever view container just became visible (see .view-fade-in
+// in styles.css). The class has to be removed and reflow forced before
+// re-adding it because these containers are persistent DOM nodes (only
+// `hidden` toggles, they're never recreated) — without the reflow, switching
+// back to a view that already has the class from last time wouldn't replay
+// the animation at all.
+function playViewEnter(el) {
+  if (!el) return;
+  el.classList.remove('view-fade-in');
+  void el.offsetWidth;
+  el.classList.add('view-fade-in');
+}
+
 // Slides the tab-pill highlight to whichever tab is currently
 // aria-selected="true" (measured, not hardcoded, so it works regardless of
 // tab label width). No active tab (Home dashboard) collapses it to nothing.
@@ -80,7 +93,9 @@ function showListView(list) {
   currentView = list;
   activeList = list;
   hideAllViews();
-  document.getElementById('list-view').hidden = false;
+  const el = document.getElementById('list-view');
+  el.hidden = false;
+  playViewEnter(el);
   Store.setPreference(['activeTab'], list);
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === list)));
   updateTabPill();
@@ -92,30 +107,36 @@ function showHomeView() {
   Render.clearSelection();
   currentView = 'home';
   hideAllViews();
-  document.getElementById('home-view').hidden = false;
+  const el = document.getElementById('home-view');
+  el.hidden = false;
+  playViewEnter(el);
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', 'false'));
   updateTabPill();
-  Render.renderHome(document.getElementById('home-view'));
+  Render.renderHome(el);
 }
 
 function showStatsView() {
   Render.clearSelection();
   currentView = 'stats';
   hideAllViews();
-  document.getElementById('stats-view').hidden = false;
+  const el = document.getElementById('stats-view');
+  el.hidden = false;
+  playViewEnter(el);
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'stats')));
   updateTabPill();
-  Render.renderStatsPage(document.getElementById('stats-view'));
+  Render.renderStatsPage(el);
 }
 
 function showDiscoverView() {
   Render.clearSelection();
   currentView = 'discover';
   hideAllViews();
-  document.getElementById('discover-view').hidden = false;
+  const el = document.getElementById('discover-view');
+  el.hidden = false;
+  playViewEnter(el);
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'discover')));
   updateTabPill();
-  Render.renderDiscoverPage(document.getElementById('discover-view'), Discover.getDiscoverState());
+  Render.renderDiscoverPage(el, Discover.getDiscoverState());
   Discover.ensureFreshOnOpen();
 }
 
@@ -123,10 +144,12 @@ function showScheduleView() {
   Render.clearSelection();
   currentView = 'schedule';
   hideAllViews();
-  document.getElementById('schedule-view').hidden = false;
+  const el = document.getElementById('schedule-view');
+  el.hidden = false;
+  playViewEnter(el);
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'schedule')));
   updateTabPill();
-  Render.renderSchedulePage(document.getElementById('schedule-view'), Schedule.getScheduleState());
+  Render.renderSchedulePage(el, Schedule.getScheduleState());
   Schedule.ensureFreshOnOpen();
 }
 

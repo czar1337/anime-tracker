@@ -55,10 +55,23 @@ export function getCurrentThemeId() {
   return document.documentElement.dataset.colorTheme || DEFAULT_THEME_ID;
 }
 
+// Swapping 40 possible palettes used to be a hard snap — the View
+// Transitions API (when the browser supports it) turns that into a smooth
+// crossfade of the whole page for free, with no per-element CSS transition
+// work needed. Falls back to the old instant snap in unsupported browsers
+// or with reduced motion requested, so there's no regression either way.
 export function setColorTheme(id) {
   if (!COLOR_THEMES.some((t) => t.id === id)) return;
-  document.documentElement.dataset.colorTheme = id;
-  localStorage.setItem(STORAGE_KEY, id);
+  const apply = () => {
+    document.documentElement.dataset.colorTheme = id;
+    localStorage.setItem(STORAGE_KEY, id);
+  };
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (document.startViewTransition && !reduceMotion) {
+    document.startViewTransition(apply);
+  } else {
+    apply();
+  }
 }
 
 export const Themes = { COLOR_THEMES, STORAGE_KEY, DEFAULT_THEME_ID, getCurrentThemeId, setColorTheme };

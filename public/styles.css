@@ -979,6 +979,28 @@ kbd {
   top: 0;
   z-index: 30;
 }
+/* Ambient "Status Window" idle detail: a dim accent-colored line permanently
+   sweeping the header's bottom edge, so the chrome reads as a live HUD
+   rather than a static toolbar. Deliberately subdued (thin, low opacity) —
+   meant to be felt more than noticed. Recolors automatically with the
+   active theme since it's driven entirely by --accent. */
+.app-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
+  background-size: 200% 100%;
+  opacity: 0.5;
+  pointer-events: none;
+  animation: hudScan 6s linear infinite;
+}
+@keyframes hudScan {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 
 .brand {
   font-family: var(--font-heading);
@@ -1041,6 +1063,7 @@ kbd {
 }
 
 .tab-count {
+  display: inline-block;
   font-size: 11px;
   font-weight: 700;
   background: var(--border-light);
@@ -1059,6 +1082,7 @@ kbd {
 /* Distinct from .tab-count (total in the list): how many of those series
    have unwatched aired episodes right now — a call to action, not a tally. */
 .tab-unseen-badge {
+  display: inline-block;
   font-size: 10px;
   font-weight: 800;
   background: var(--amber);
@@ -1068,6 +1092,17 @@ kbd {
   min-width: 16px;
   text-align: center;
   margin-left: 2px;
+}
+
+/* Pop feedback when a badge's number actually changes value (not on every
+   unrelated re-render) — see setCountWithPop in render.js. `display:
+   inline-block` above is required for the transform to apply at all;
+   plain inline boxes silently ignore transforms. */
+.badge-pop { animation: badgePop 0.4s cubic-bezier(.34,1.56,.64,1); }
+@keyframes badgePop {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.25); }
+  100% { transform: scale(1); }
 }
 
 .header-actions {
@@ -1845,7 +1880,11 @@ kbd {
   font-size: 12px;
 }
 
-/* Subtle, not alarming — this is good news ("something to watch"), not a warning. */
+/* Subtle, not alarming — this is good news ("something to watch"), not a warning.
+   .pop is added only when the count just increased from what was already
+   shown for this title (tracked in render.js) — never on an unrelated
+   re-render where the number hasn't actually changed. */
+.unseen-badge.pop { animation: badgePop 0.4s cubic-bezier(.34,1.56,.64,1); }
 .unseen-badge {
   align-self: flex-start;
   font-size: 11px;
@@ -1958,6 +1997,8 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  opacity: 0;
+  animation: cardEnter 0.5s cubic-bezier(.16,1,.3,1) both;
 }
 .schedule-day.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .schedule-day-label {
@@ -2107,6 +2148,44 @@ kbd {
   animation: slideDown 0.18s ease;
 }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Detail panel gets the same corner-bracket + scale language as cards
+   instead of the generic slideDown every other overlay uses — it's the
+   panel people open the most, so it's worth a slightly different (not
+   generic) chrome. Brackets are pinned to the panel's own box, not the
+   scrolled content, so they read as a fixed window frame. */
+.detail-panel {
+  animation: detailPanelEnter 0.25s cubic-bezier(.16,1,.3,1);
+}
+.detail-panel::before, .detail-panel::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 3;
+}
+.detail-panel::before { top: 10px; left: 10px; border-top: 2px solid var(--card-corner-1); border-left: 2px solid var(--card-corner-1); }
+.detail-panel::after { bottom: 10px; right: 10px; border-bottom: 2px solid var(--card-corner-2); border-right: 2px solid var(--card-corner-2); }
+@keyframes detailPanelEnter {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* View-switch crossfade (Home/Watching/Discover/Schedule/Stats): played by
+   JS toggling this class on whichever view container just became visible
+   (see playViewEnter in events.js) rather than baking the animation into
+   the container's base rule, since these nodes persist across renders
+   (only `hidden` toggles) and need a forced restart each time. */
+.view-fade-in { animation: viewEnter 0.22s ease-out; }
+@keyframes viewEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Color theme picker: crossfades the whole page via the View Transitions
+   API when the browser supports it (see setColorTheme in themes.js) —
+   pinning the duration here keeps it consistent instead of relying on each
+   browser's own default. Unsupported browsers/engines simply never create
+   these pseudo-elements, so this rule is a no-op there. */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.25s; }
 
 .overlay-close {
   position: absolute;

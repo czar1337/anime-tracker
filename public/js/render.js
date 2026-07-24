@@ -120,6 +120,20 @@ function statusRowHtml(entry) {
 const PENCIL_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const TRASH_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
 
+// Cards are torn down and rebuilt (innerHTML) on every grid render, so this
+// module-level map — not the DOM — is what remembers "what unseen count did
+// this title last show" across renders, letting the badge only pop when the
+// number actually just increased (a new episode aired), never on an
+// unrelated re-render (sort change, editing a different card, etc.) and
+// never when it decreases (marking episodes watched is the user's own
+// action, not a "something happened" event worth a pop).
+const lastUnseenByCardId = new Map();
+function unseenPopClass(anilistId, unseen) {
+  const prev = lastUnseenByCardId.get(anilistId);
+  lastUnseenByCardId.set(anilistId, unseen);
+  return prev !== undefined && unseen > prev ? ' pop' : '';
+}
+
 function cardBodyForList(entry, list) {
   if (list === 'watching') {
     const total = entry.totalEpisodes;
@@ -132,7 +146,7 @@ function cardBodyForList(entry, list) {
         <button class="progress-label" data-action="edit-episode" title="Click to type an exact episode number">${entry.episodesWatched}${total ? `/${total}` : ''}</button>
         <button class="plus-one-btn" data-action="increment" aria-label="Add one episode">+1</button>
       </div>
-      ${unseen > 0 ? `<div class="unseen-badge" title="Aired but not marked watched yet">${unseen} new episode${unseen === 1 ? '' : 's'}</div>` : ''}
+      ${unseen > 0 ? `<div class="unseen-badge${unseenPopClass(entry.anilistId, unseen)}" title="Aired but not marked watched yet">${unseen} new episode${unseen === 1 ? '' : 's'}</div>` : ''}
       ${showCompletionPrompt ? `
         <div class="completion-prompt">
           <span>Finished! Move to Watched?</span>
@@ -248,15 +262,47 @@ function franchiseCardHtml(group, list, index = 0) {
   `;
 }
 
-// Progress bars are rendered at width:0 with the real value stashed in
+// Progress bars (episode progress on Watching cards, stat bars on the
+// Statistics page) are rendered at width:0 with the real value stashed in
 // data-target-width — flipping it to the target on the next frame (rather
 // than rendering it directly) is what makes the width transition actually
 // play on mount instead of the bar just appearing already full.
 function animateProgressBars(root = document) {
   requestAnimationFrame(() => {
-    root.querySelectorAll('.progress-fill[data-target-width]').forEach((el) => {
+    root.querySelectorAll('[data-target-width]').forEach((el) => {
       el.style.width = `${el.dataset.targetWidth}%`;
     });
+  });
+}
+
+// Counts up a .stat-value from 0 to its real value instead of just
+// appearing — data-count-target holds the exact final display string (may
+// have a decimal point and/or a trailing "%"), which also lets this bail
+// out cleanly for the non-numeric "—" (no scored entries yet) case.
+function animateCountUp(root = document) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    root.querySelectorAll('.stat-value[data-count-target]').forEach((el) => {
+      el.textContent = el.dataset.countTarget;
+    });
+    return;
+  }
+  const DURATION_MS = 600;
+  root.querySelectorAll('.stat-value[data-count-target]').forEach((el) => {
+    const target = el.dataset.countTarget;
+    const match = target.match(/^(-?\d+(?:\.\d+)?)(.*)$/);
+    if (!match) { el.textContent = target; return; }
+    const [, numStr, suffix] = match;
+    const end = parseFloat(numStr);
+    const decimals = (numStr.split('.')[1] || '').length;
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min((now - start) / DURATION_MS, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = (end * eased).toFixed(decimals) + suffix;
+      if (t < 1) requestAnimationFrame(tick);
+      else el.textContent = target; // exact final string, not a rounded approximation
+    }
+    requestAnimationFrame(tick);
   });
 }
 
@@ -276,18 +322,34 @@ function renderGrid(list) {
   animateProgressBars(grid);
 }
 
+// Only pops when the number shown actually changes — a plain re-render
+// with the same value (switching tabs, editing an unrelated entry, etc.)
+// stays silent. Skips the pop on an element's very first paint too, since
+// dataset.prevValue starting unset just means "nothing to compare against
+// yet", not "the count changed".
+function setCountWithPop(el, value, { onlyPopIfNonZero = false } = {}) {
+  const prev = el.dataset.prevValue;
+  el.textContent = value;
+  if (prev !== undefined && prev !== String(value) && (!onlyPopIfNonZero || value > 0)) {
+    el.classList.remove('badge-pop');
+    void el.offsetWidth; // force reflow so the animation restarts on repeat pops
+    el.classList.add('badge-pop');
+  }
+  el.dataset.prevValue = String(value);
+}
+
 function renderTabCounts() {
   const counts = Store.getCounts();
   for (const list of Store.LISTS) {
     const el = document.querySelector(`.tab-count[data-count="${list}"]`);
-    if (el) el.textContent = counts[list];
+    if (el) setCountWithPop(el, counts[list]);
   }
   // Distinct from the neutral total count above: how many Watching series
   // have aired episodes I haven't marked watched yet — not the same number.
   const unseenBadge = document.getElementById('watching-unseen-badge');
   if (unseenBadge) {
     const seriesCount = Airing.getUnseenSeriesCount();
-    unseenBadge.textContent = seriesCount;
+    setCountWithPop(unseenBadge, seriesCount, { onlyPopIfNonZero: true });
     unseenBadge.hidden = seriesCount === 0;
   }
 }
@@ -488,7 +550,7 @@ function barChartHtml(data, { formatValue = (v) => v } = {}) {
       (d) => `
     <div class="stat-bar-row">
       <span class="stat-bar-label" title="${escapeHtml(d.label)}">${escapeHtml(d.label)}</span>
-      <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${(d.value / max) * 100}%"></div></div>
+      <div class="stat-bar-track"><div class="stat-bar-fill" style="width:0%" data-target-width="${(d.value / max) * 100}"></div></div>
       <span class="stat-bar-value">${formatValue(d.value)}</span>
     </div>`
     )
@@ -567,14 +629,14 @@ function renderStatsPage(container) {
     </div>
 
     <div class="home-stats">
-      <div class="stat"><span class="stat-value">${entries.length}</span><span class="stat-label">Titles</span></div>
-      <div class="stat"><span class="stat-value">${totalEpisodes}</span><span class="stat-label">Episodes watched</span></div>
-      <div class="stat"><span class="stat-value">${totalDays}</span><span class="stat-label">Days watched (${totalHours} h)</span></div>
-      <div class="stat"><span class="stat-value">${meanScore}</span><span class="stat-label">Mean score</span></div>
-      <div class="stat"><span class="stat-value">${completedThisYear.length}</span><span class="stat-label">Completed in ${thisYear}</span></div>
-      <div class="stat"><span class="stat-value">${episodesThisYear}</span><span class="stat-label">Episodes in ${thisYear}</span></div>
-      <div class="stat"><span class="stat-value">${dropRate}%</span><span class="stat-label">Drop rate</span></div>
-      <div class="stat"><span class="stat-value">${Store.allGenres().length}</span><span class="stat-label">Genres explored</span></div>
+      <div class="stat"><span class="stat-value" data-count-target="${entries.length}">0</span><span class="stat-label">Titles</span></div>
+      <div class="stat"><span class="stat-value" data-count-target="${totalEpisodes}">0</span><span class="stat-label">Episodes watched</span></div>
+      <div class="stat"><span class="stat-value" data-count-target="${totalDays}">0</span><span class="stat-label">Days watched (${totalHours} h)</span></div>
+      <div class="stat"><span class="stat-value" data-count-target="${meanScore}">${meanScore === '—' ? '—' : '0.00'}</span><span class="stat-label">Mean score</span></div>
+      <div class="stat"><span class="stat-value" data-count-target="${completedThisYear.length}">0</span><span class="stat-label">Completed in ${thisYear}</span></div>
+      <div class="stat"><span class="stat-value" data-count-target="${episodesThisYear}">0</span><span class="stat-label">Episodes in ${thisYear}</span></div>
+      <div class="stat"><span class="stat-value" data-count-target="${dropRate}%">0%</span><span class="stat-label">Drop rate</span></div>
+      <div class="stat"><span class="stat-value" data-count-target="${Store.allGenres().length}">0</span><span class="stat-label">Genres explored</span></div>
     </div>
 
     <div class="home-tiles">
@@ -618,6 +680,8 @@ function renderStatsPage(container) {
       </div>
     </div>
   `;
+  animateProgressBars(container);
+  animateCountUp(container);
 }
 
 function relativeAgeText(generatedAt) {
@@ -732,8 +796,8 @@ function weekStripHtml(week) {
   return `
     <div class="schedule-week">
       ${week
-        .map(({ date, items }) => `
-        <div class="schedule-day ${isSameDay(date, today) ? 'is-today' : ''}">
+        .map(({ date, items }, i) => `
+        <div class="schedule-day ${isSameDay(date, today) ? 'is-today' : ''}" style="animation-delay:${staggerDelayMs(i)}ms">
           <div class="schedule-day-label">
             <span class="schedule-day-name">${isSameDay(date, today) ? 'Today' : DAY_NAMES[date.getDay()]}</span>
             <span class="schedule-day-date">${date.getMonth() + 1}/${date.getDate()}</span>
