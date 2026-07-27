@@ -42,6 +42,7 @@
   /* type families */
   --display:"Zen Old Mincho",Georgia,serif;
   --ui:"Schibsted Grotesk",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",monospace;
 
   /* user-controlled typography */
   --text-scale:1;
@@ -94,44 +95,13 @@
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
 
-/* ---------- Phase 1 compatibility bridge — TEMPORARY -----------------------
-   The component rules below this point (all of them, ~600 references)
-   were written against the old "Status Window" token names. This block
-   aliases each one to the nearest Moonlit Shrine token so nothing breaks
-   before Phase 2 rewrites those rules directly against the real names.
-   Delete this block as part of Phase 2 once no component rule below still
-   references an old name — grep for it, don't guess.
-
-   Two are NOT simple aliases because the old token mixed roles the new
-   system deliberately keeps separate:
-   - --red was used as both text colour AND fill/border. --accent is never
-     a text colour (hard rule), so every individual --red usage below was
-     edited directly instead of bridged — some now read --accent-lit
-     (text), some --accent or --accent-fill (fill/border). This block does
-     not define --red at all any more; if you find one, it's a leftover.
-   - --font-heading is deliberately left pointing at its old value (not
-     bridged to --display/Mincho) because two of its current consumers
-     (.card-title at 14.5px, .overlay-panel h2 at 16px) sit below Mincho's
-     17px floor — reassigning them is a Phase 2 decision, not a token swap. */
+/* The Phase 1 "Status Window" compatibility bridge that used to live here
+   has been fully removed — every component rule in this file now
+   references a real Moonlit Shrine token directly, so the alias layer had
+   nothing left pointing at it. --card-title and .disc-head h3 (both below
+   Mincho's 17px floor) keep an inline Sora/Inter fallback stack instead of
+   a token, since no Moonlit Shrine name covers that specific pairing. */
 :root{
-  --bg-card: var(--card);
-  --border: var(--line);
-  --border-light: var(--line-lit);
-  --text-dim: var(--dim);
-  --text-faint: var(--faint);
-  --accent-strong: var(--accent-lit);   /* every current usage is `color:`, same role as --accent-lit */
-  --accent-pink: var(--support);
-  --success: var(--positive);
-  --amber: var(--warning);
-  --amber-bg: color-mix(in srgb, var(--warning) 30%, transparent);
-  --shadow: var(--sh-2);
-  --shadow-glow: var(--sh-3), 0 0 24px var(--accent-soft);
-  --card-glass-bg: var(--card);
-  --card-glass-border: var(--line);
-  --card-corner-1: var(--accent);
-  --card-corner-2: var(--support);
-  --accent-gradient: linear-gradient(90deg, var(--accent), var(--accent-lit));
-  --font-heading: 'Sora', 'Inter', system-ui, sans-serif;
   font-synthesis: none;
 }
 
@@ -246,11 +216,11 @@ kbd {
   font-family: inherit;
   font-size: 11px;
   background: var(--bg-elevated);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--line-lit);
   border-bottom-width: 2px;
   border-radius: 5px;
   padding: 1px 6px;
-  color: var(--text-dim);
+  color: var(--dim);
 }
 
 /* ---------- Header ---------- */
@@ -260,7 +230,7 @@ kbd {
   gap: 28px;
   padding: 16px 28px;
   background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
   z-index: 30;
@@ -384,8 +354,8 @@ kbd {
   display: inline-block;
   font-size: 10px;
   font-weight: 800;
-  background: var(--amber);
-  color: #1a1400;
+  background: var(--warning);
+  color: var(--bg-deep);
   border-radius: 999px;
   padding: 1px 6px;
   min-width: 16px;
@@ -412,7 +382,7 @@ kbd {
 
 .app-version {
   font-size: 10px;
-  color: var(--text-faint);
+  color: var(--faint);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -584,8 +554,8 @@ kbd {
   display: flex;
   gap: 28px;
   padding: 16px 20px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 
@@ -593,7 +563,7 @@ kbd {
    Statistics page — every "big number + small label" stat uses this. */
 .stat { display: flex; flex-direction: column; gap: 4px; }
 .stat-value { font-size: 20px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.stat-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-label { font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---------- Filter bar ----------
    design/moonlit-shrine-design-system.md §8, §16: two rows plus an
@@ -720,13 +690,13 @@ kbd {
 .togg.on b { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
 .notifications-toggle-row { margin: 14px 0; font-size: 13px; white-space: normal; }
 .notifications-toggle-row input { width: 16px; height: 16px; }
-.notifications-description { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
-.notifications-status { font-size: 12px; color: var(--amber); }
+.notifications-description { font-size: 13px; color: var(--dim); line-height: 1.5; }
+.notifications-status { font-size: 12px; color: var(--warning); }
 .notifications-status:empty { display: none; }
 
 .stats-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .stats-share-panel { max-width: 640px; }
-.stats-share-canvas-wrap { border-radius: 12px; overflow: hidden; margin: 12px 0; background: var(--bg-card); }
+.stats-share-canvas-wrap { border-radius: 12px; overflow: hidden; margin: 12px 0; background: var(--card); }
 #stats-share-canvas { width: 100%; height: auto; display: block; }
 .stats-share-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
@@ -754,7 +724,7 @@ kbd {
   appearance: none;
   border: none;
   background: transparent;
-  color: var(--accent-strong);
+  color: var(--accent-lit);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -770,7 +740,7 @@ kbd {
   border-radius: var(--radius-sm);
   transition: background-color 0.15s ease;
 }
-.text-btn.primary:hover { background: var(--accent-strong); text-decoration: none; }
+.text-btn.primary:hover { background: var(--accent-lit); text-decoration: none; }
 
 /* ---------- Card grid ---------- */
 /* auto-fill recalculates how many columns fit against this minimum width,
@@ -871,30 +841,62 @@ kbd {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Discover cards share the card visual language but aren't part of the
-   library grid's click delegation (no data-id, no quick-move/score/etc.) */
+/* Discover cards: horizontal, not part of the library grid's click
+   delegation (no data-id, no quick-move/score/etc.) — design/moonlit-
+   shrine-design-system.md's own framing: "cards are horizontal, the cover
+   is small, and the largest text block is the reason the series is being
+   suggested." No per-seed grouping (design's .disc-head sections) since
+   the ranking here is one merged list, not grouped by seed — see
+   discover.js's discoverState.pool. */
 .discover-card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
   position: relative;
-  transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4), background var(--d-4);
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  padding: 14px;
+  transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4);
   opacity: 0;
   animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) both;
 }
 .discover-card:hover {
-  transform: translateY(-5px);
-  background: var(--card-hover);
+  transform: translateY(-4px);
   border-color: var(--line-lit);
-  box-shadow: var(--sh-3), 0 0 30px -18px color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--sh-3);
 }
-.discover-because { font-size: 11px; color: var(--faint); margin: 0; line-height: 1.4; }
-.discover-actions { display: flex; gap: 6px; margin-top: auto; }
-.discover-actions .text-btn { flex: 1; text-align: center; font-size: 11px; padding: 7px 6px; }
-.discover-actions .text-btn.primary { padding: 7px 6px; }
+.discover-card .cov {
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  filter: var(--cover-filter);
+  height: 122px;
+}
+.discover-card h4 { margin: 0 0 5px; font: var(--t-card); }
+.discover-card .m { font: var(--t-meta); color: var(--faint); margin-bottom: 9px; }
+.discover-card .why { font: var(--t-meta); color: var(--dim); line-height: 1.55; margin-bottom: 11px; padding-left: 9px; border-left: 1px solid var(--accent-deep); }
+.discover-card .why b { color: var(--accent-lit); font-weight: 500; }
+.discover-card .acts { display: flex; gap: 7px; }
+.discover-card .x {
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-deep) 70%, transparent);
+  color: var(--faint);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity var(--d-2), border-color var(--d-2), color var(--d-2);
+}
+.discover-card:hover .x, .discover-card:focus-within .x { opacity: 1; }
+.discover-card .x:hover { border-color: var(--accent); color: var(--accent-lit); }
+.discover-more-card { display: grid; place-items: center; text-align: center; grid-template-columns: 1fr; }
+.discover-more-card b { font: var(--t-card); color: var(--dim); display: block; margin-bottom: 6px; }
+.discover-more-card p { font: var(--t-meta); color: var(--faint); margin: 0 0 14px; max-width: 220px; }
 
 .discover-hero {
   display: flex;
@@ -905,14 +907,14 @@ kbd {
   margin-bottom: 24px;
 }
 .discover-controls { display: flex; align-items: center; gap: 14px; }
-.discover-age { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+.discover-age { font-size: 12px; color: var(--faint); white-space: nowrap; }
 .discover-genre-filter { margin: -12px 0 24px; align-items: center; }
-.discover-genre-filter-label { font-size: 12px; color: var(--text-faint); margin-right: 2px; }
+.discover-genre-filter-label { font-size: 12px; color: var(--faint); margin-right: 2px; }
 .discover-genre-chip.active { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
 .discover-genre-chip.active:hover { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
-.discover-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.discover-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .discover-load-more-row { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 28px 0 8px; }
-.discover-count { font-size: 12px; color: var(--text-faint); }
+.discover-count { font-size: 12px; color: var(--faint); }
 
 /* Franchise card: groups seasons/OVAs of the same title under one entry */
 .franchise-card {
@@ -976,10 +978,10 @@ kbd {
   padding: 10px;
   background: var(--bg-elevated);
   backdrop-filter: none;
-  border-color: var(--border);
+  border-color: var(--line);
   border-radius: var(--radius-sm);
 }
-.card.season-row:hover { transform: none; box-shadow: none; border-color: var(--border-light); }
+.card.season-row:hover { transform: none; box-shadow: none; border-color: var(--line-lit); }
 /* Nested corner brackets on every season row (already inside a bracketed
    franchise-card) read as noise, not polish — suppressed here. */
 .season-row::before, .season-row::after { content: none; }
@@ -1106,10 +1108,13 @@ kbd {
 }
 
 .card-title-block { cursor: pointer; }
-.card-title-block:hover .card-title { color: var(--accent-strong); }
+.card-title-block:hover .card-title { color: var(--accent-lit); }
 
 .card-title {
-  font-family: var(--font-heading);
+  /* Below Mincho's 17px floor — stays on the pre-redesign fallback stack
+     directly rather than through a token, since no Moonlit Shrine token
+     names this specific "not Mincho, not quite --ui either" pairing. */
+  font-family: 'Sora', 'Inter', system-ui, sans-serif;
   font-size: 14.5px;
   font-weight: 600;
   line-height: 1.35;
@@ -1139,7 +1144,7 @@ kbd {
 .card-title-sub {
   font-size: 10px;
   font-weight: 400;
-  color: var(--text-faint);
+  color: var(--faint);
   opacity: 0.8;
   white-space: nowrap;
   overflow: hidden;
@@ -1149,7 +1154,7 @@ kbd {
 
 .card-meta {
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--faint);
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
@@ -1164,14 +1169,14 @@ kbd {
 .progress-track {
   flex: 1;
   height: 6px;
-  background: var(--border);
+  background: var(--line);
   border-radius: 999px;
   overflow: hidden;
 }
 .progress-fill {
   position: relative;
   height: 100%;
-  background: var(--accent-gradient);
+  background: linear-gradient(90deg, var(--accent), var(--accent-lit));
   border-radius: 999px;
   overflow: hidden;
   /* Rendered at width:0 with the real value in data-target-width; render.js
@@ -1194,7 +1199,7 @@ kbd {
   100% { background-position: -50% 0; }
 }
 .watched-progress-row { justify-content: flex-start; }
-.watched-progress-label-prefix { font-size: 11px; color: var(--text-faint); }
+.watched-progress-label-prefix { font-size: 11px; color: var(--faint); }
 
 .progress-label {
   appearance: none;
@@ -1204,7 +1209,7 @@ kbd {
   border-radius: 4px;
   cursor: pointer;
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -1271,6 +1276,8 @@ kbd {
 }
 .tag.drop { border-color: var(--accent); color: var(--accent-lit); }
 .tag.info { border-color: color-mix(in srgb, var(--support) 45%, transparent); color: var(--support); }
+.tag.warn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); color: var(--warning); }
+.tag.air { border-color: color-mix(in srgb, var(--positive) 45%, transparent); color: var(--positive); }
 
 /* Finished: support-coloured progress, alongside the n/total text — never
    colour alone. Dropped: reduced opacity plus the .tag.drop above, same
@@ -1288,9 +1295,9 @@ kbd {
   position: relative;
   overflow: hidden;
   appearance: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   background: transparent;
-  color: var(--text-faint);
+  color: var(--faint);
   flex: 1;
   min-width: 0;
   height: 20px;
@@ -1299,8 +1306,8 @@ kbd {
   cursor: pointer;
   transition: all 0.1s ease;
 }
-.score-dot:hover { border-color: var(--amber); color: var(--amber); }
-.score-dot.filled { background: var(--amber); border-color: var(--amber); color: #1a1400; font-weight: 700; }
+.score-dot:hover { border-color: var(--warning); color: var(--warning); }
+.score-dot.filled { background: var(--warning); border-color: var(--warning); color: var(--bg-deep); font-weight: 700; }
 
 /* Quick-move: one-click list switching on card */
 .quick-move {
@@ -1311,9 +1318,9 @@ kbd {
   position: relative;
   overflow: hidden;
   appearance: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   background: var(--bg-elevated);
-  color: var(--text-faint);
+  color: var(--faint);
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1417,24 +1424,24 @@ kbd {
   padding: 3px 8px;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent-strong);
+  color: var(--accent-lit);
 }
 
 /* Notes */
 .notes-toggle {
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--faint);
   cursor: pointer;
   background: none;
   border: none;
   padding: 0;
   text-align: left;
 }
-.notes-toggle:hover { color: var(--text-dim); }
+.notes-toggle:hover { color: var(--dim); }
 .notes-field {
   width: 100%;
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
   font-size: 12px;
@@ -1464,8 +1471,8 @@ kbd {
   align-self: flex-start;
   font-size: 11px;
   font-weight: 700;
-  color: var(--amber);
-  background: var(--amber-bg);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 30%, transparent);
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 3px 10px;
@@ -1476,7 +1483,7 @@ kbd {
   align-items: center;
   gap: 10px;
   font-size: 12px;
-  color: var(--text-faint);
+  color: var(--faint);
 }
 .airing-age { white-space: nowrap; }
 .airing-status .text-btn { font-size: 12px; padding: 0; }
@@ -1487,22 +1494,22 @@ kbd {
   flex-direction: column;
   gap: 28px;
 }
-.home-hero h2 { margin: 0 0 4px; font-size: 22px; font-family: var(--font-heading); font-weight: 700; }
-.home-hero p { margin: 0; color: var(--text-dim); font-size: 14px; }
+.home-hero h2 { margin: 0 0 4px; font: 700 calc(22px * var(--text-scale))/1.2 var(--display); letter-spacing: var(--tr-display); }
+.home-hero p { margin: 0; color: var(--dim); font-size: 14px; }
 
 .home-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 22px 28px;
   padding: 22px 26px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 .home-stats .stat {
   position: relative;
   padding-left: 16px;
-  border-left: 2px solid var(--border-light);
+  border-left: 2px solid var(--line-lit);
 }
 .home-stats .stat-value { font-size: 24px; }
 
@@ -1513,9 +1520,9 @@ kbd {
 }
 .home-tile {
   appearance: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-top: 3px solid var(--tile-accent, var(--accent));
-  background: var(--bg-card);
+  background: var(--card);
   border-radius: var(--radius);
   padding: 20px;
   display: flex;
@@ -1525,17 +1532,17 @@ kbd {
   cursor: pointer;
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.home-tile:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
-.home-tile-icon { font-size: 20px; color: var(--tile-accent, var(--accent-strong)); }
+.home-tile:hover { transform: translateY(-3px); box-shadow: var(--sh-2); }
+.home-tile-icon { font-size: 20px; color: var(--tile-accent, var(--accent-lit)); }
 .home-tile-count { font-size: 26px; font-weight: 800; }
-.home-tile-label { font-size: 13px; color: var(--text-dim); }
+.home-tile-label { font-size: 13px; color: var(--dim); }
 
 .home-tile[data-nav="watching"] { --tile-accent: var(--accent); }
-.home-tile[data-nav="watchlist"] { --tile-accent: var(--amber); }
-.home-tile[data-nav="watched"] { --tile-accent: var(--success); }
-.home-tile[data-nav="dropped"] { --tile-accent: var(--text-faint); }
+.home-tile[data-nav="watchlist"] { --tile-accent: var(--warning); }
+.home-tile[data-nav="watched"] { --tile-accent: var(--positive); }
+.home-tile[data-nav="dropped"] { --tile-accent: var(--faint); }
 
-.home-continue h3 { margin: 0 0 14px; font-size: 14px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.home-continue h3 { margin: 0 0 14px; font-size: 14px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---------- Hero — both modes, both placements ----------
    design/moonlit-shrine-design-system.md §5, §12: 210px on Home, 268px on
@@ -1608,7 +1615,7 @@ kbd {
 .home-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 900px) { .home-cols { grid-template-columns: 1fr; } }
 .disc-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.disc-head h3 { margin: 0; font-size: 16px; font-family: var(--font-heading); font-weight: 600; }
+.disc-head h3 { margin: 0; font-size: 16px; font-family: 'Sora', 'Inter', system-ui, sans-serif; font-weight: 600; }
 .disc-head .rule { flex: 1; height: 1px; background: var(--line); }
 .home-pickup { grid-template-columns: repeat(2, 1fr); }
 @media (min-width: 500px) { .home-pickup { grid-template-columns: repeat(4, 1fr); } }
@@ -1646,7 +1653,7 @@ kbd {
 /* ---------- Schedule page ---------- */
 .schedule-section { margin-bottom: 32px; }
 .schedule-section h3 { font-size: 15px; font-weight: 700; margin: 0 0 14px; color: var(--text); }
-.schedule-release-date { color: var(--text-faint); }
+.schedule-release-date { color: var(--faint); }
 
 .schedule-week {
   display: grid;
@@ -1656,8 +1663,8 @@ kbd {
   padding-bottom: 4px;
 }
 .schedule-day {
-  background: var(--card-glass-bg);
-  border: 1px solid var(--card-glass-border);
+  background: var(--card);
+  border: 1px solid var(--line);
   backdrop-filter: blur(6px);
   border-radius: var(--radius-sm);
   padding: 10px;
@@ -1674,16 +1681,16 @@ kbd {
   flex-direction: column;
   gap: 2px;
   padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 .schedule-day-name { font-size: 12px; font-weight: 700; color: var(--text); }
 .schedule-day.is-today .schedule-day-name { color: var(--accent); }
-.schedule-day-date { font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.schedule-day-date { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .schedule-day-items { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .schedule-item {
   appearance: none;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  border: 1px solid var(--line);
+  background: var(--card);
   color: var(--text);
   text-align: left;
   border-radius: 6px;
@@ -1704,8 +1711,8 @@ kbd {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.schedule-item-ep { font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-.schedule-day-empty { font-size: 11px; color: var(--text-faint); margin: 0; }
+.schedule-item-ep { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.schedule-day-empty { font-size: 11px; color: var(--faint); margin: 0; }
 
 .stats-grid-2col {
   display: grid;
@@ -1714,22 +1721,22 @@ kbd {
 }
 
 .stats-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 22px;
   transition: border-color 0.15s ease;
 }
-.stats-section:hover { border-color: var(--border-light); }
+.stats-section:hover { border-color: var(--line-lit); }
 .stats-section h3 {
   margin: 0 0 16px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-faint);
+  color: var(--faint);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 
 .stat-bar-row {
@@ -1740,10 +1747,10 @@ kbd {
   font-size: 12px;
   padding: 6px 0;
 }
-.stat-bar-label { color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat-bar-track { height: 7px; background: var(--border); border-radius: 999px; overflow: hidden; }
-.stat-bar-fill { height: 100%; background: var(--accent-gradient); border-radius: 999px; transition: width 0.5s ease; }
-.stat-bar-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-faint); font-weight: 600; }
+.stat-bar-label { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-bar-track { height: 7px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.stat-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-lit)); border-radius: 999px; transition: width 0.5s ease; }
+.stat-bar-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--faint); font-weight: 600; }
 
 /* Distinct accent per chart so the four sections read apart at a glance */
 .stats-section--score .stat-bar-fill { background: linear-gradient(90deg, var(--warning), color-mix(in srgb, var(--warning) 55%, var(--text))); }
@@ -1766,10 +1773,10 @@ kbd {
   text-align: center;
   font-size: 11px;
   font-weight: 700;
-  color: var(--text-faint);
+  color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
-.stat-mini-cover { width: 32px; height: 46px; object-fit: cover; border-radius: 4px; background: var(--border); flex-shrink: 0; }
+.stat-mini-cover { width: 32px; height: 46px; object-fit: cover; border-radius: 4px; background: var(--line); flex-shrink: 0; }
 .stat-mini-info { min-width: 0; }
 .stat-mini-title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -2017,24 +2024,87 @@ kbd {
 .search-empty .row { justify-content: center; }
 
 .backup-actions { display: flex; gap: 10px; margin-bottom: 8px; align-items: center; }
-.backup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
-.backup-list li { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-dim); padding: 6px 8px; border-radius: 6px; }
-.backup-list li:hover { background: var(--accent-soft); }
+.backup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow-y: auto; }
+.backup-list .backup-empty { font: var(--t-meta); color: var(--faint); padding: 6px 2px; }
+.backup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 13px;
+  color: var(--text);
+  font: var(--t-body);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color var(--d-2);
+}
+.backup-row:hover { border-color: var(--line-lit); }
+.backup-time { font-variant-numeric: tabular-nums; color: var(--faint); flex-shrink: 0; }
+.backup-time.recent { color: var(--accent-lit); }
+.backup-file { color: var(--faint); font-family: var(--mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.recovery-detail { font-family: monospace; font-size: 12px; background: var(--bg-card); padding: 8px; border-radius: 6px; color: var(--accent-lit); white-space: pre-wrap; }
+/* Recovery/blocked screens (design system §16: "New design, deliberately
+   plain") — no accent fills, no glow, nothing that could look like it's
+   guessing. Colour is limited to .tag.warn, which every other overlay in
+   the app already uses the same way (a fact, not a judgement). */
+.safety-tag { margin-bottom: 14px; }
+.safety-body p { margin: 0 0 6px; font: var(--t-body); color: var(--dim); }
+.safety-detail { margin: 0 0 18px; font: var(--t-meta); color: var(--faint); font-family: var(--mono); white-space: pre-wrap; }
+.safety-boxes { display: grid; gap: 9px; margin-bottom: 16px; }
+.safety-box { border: 1px solid var(--line); border-radius: 8px; padding: 12px 13px; }
+.safety-box b { font: var(--t-card); display: block; margin-bottom: 4px; }
+.safety-box .path { font: var(--t-meta); color: var(--faint); font-family: var(--mono); display: block; margin-bottom: 5px; word-break: break-all; }
+.recovery-detail { font-family: var(--mono); font-size: 12px; background: var(--card); padding: 8px; border-radius: 6px; color: var(--faint); white-space: pre-wrap; }
 
-.import-panel { max-width: 640px; }
-.import-step p { font-size: 13px; color: var(--text-dim); }
+/* ---------- Import steps + confidence review ----------
+   design/moonlit-shrine-design-system.md: "Three steps: pick the file,
+   check the matches, done. Confidence is shown as a number and a colour,
+   and anything below 80 percent is unchecked by default." Shared by MAL
+   import and screenshot import. */
+.steps { display: flex; align-items: center; gap: 0; margin-bottom: 20px; }
+.step { display: flex; align-items: center; gap: 9px; font: var(--t-meta); color: var(--faint); }
+.step i { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-lit); display: grid; place-items: center; font: var(--t-nano); font-variant-numeric: tabular-nums; font-style: normal; }
+.step.on { color: var(--text); }
+.step.on i { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
+.step.done i { border-color: var(--positive); color: var(--positive); }
+.step-line { flex: 1; height: 1px; background: var(--line); margin: 0 14px; }
+
+.review { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.review .hd { display: grid; grid-template-columns: 26px 1fr 1fr 76px 78px; gap: 12px; padding: 10px 14px; background: color-mix(in srgb, var(--text) 2%, transparent); border-bottom: 1px solid var(--line); font: var(--t-nano); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.review .rw { display: grid; grid-template-columns: 26px 1fr 1fr 76px 78px; gap: 12px; align-items: center; padding: 11px 14px; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); font-size: 12.5px; }
+.review .rw:last-child { border-bottom: 0; }
+.review .rw.row-removed { opacity: .45; }
+.review .rw .ck { appearance: none; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line-lit); display: grid; place-items: center; font-size: 10px; color: transparent; cursor: pointer; background: none; padding: 0; }
+.review .rw .ck.on { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
+.review .rw .src { color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.review .rw .src span, .review .rw .mt span { display: block; font: var(--t-meta); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review .rw .mt { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.review .rw .conf { font: var(--t-meta); font-variant-numeric: tabular-nums; }
+.review .rw .conf.hi { color: var(--positive); }
+.review .rw .conf.mid { color: var(--warning); }
+.review .rw .conf.lo { color: var(--accent-lit); }
+.review .rw .fix { font: var(--t-meta); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 5px 9px; background: none; cursor: pointer; }
+.review .rw .fix:hover { border-color: var(--accent); color: var(--accent-lit); }
+.import-summary2 { display: flex; gap: 20px; flex-wrap: wrap; padding: 4px 0 16px; }
+.import-summary2 div { font: var(--t-meta); color: var(--faint); }
+.import-summary2 div b { display: block; font: var(--t-display-m); font-size: 19px; color: var(--text); letter-spacing: var(--tr-display); margin-bottom: 3px; }
+
+.import-panel { max-width: 680px; }
+.import-step p { font-size: 13px; color: var(--dim); }
 .import-summary { display: flex; gap: 20px; margin-bottom: 12px; font-size: 13px; }
 .import-summary b { color: var(--text); }
 .import-review-list { max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
-.import-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; background: var(--bg-card); font-size: 12px; }
+.import-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; background: var(--card); font-size: 12px; }
 .import-row.unmatched { border: 1px dashed var(--accent); }
 .import-row .import-title { flex: 1; }
 .import-actions { display: flex; gap: 10px; margin-top: 14px; }
 
 .screenshot-panel { max-width: 640px; }
-.screenshot-row-cover { width: 32px; height: 46px; object-fit: cover; border-radius: 4px; flex-shrink: 0; background: var(--border); }
+.screenshot-row-cover { width: 32px; height: 46px; object-fit: cover; border-radius: 4px; flex-shrink: 0; background: var(--line); }
 .screenshot-status-select { font-size: 11px; padding: 5px 6px; }
 .import-row.row-removed { opacity: 0.4; }
 .import-row.row-removed .import-title { text-decoration: line-through; }

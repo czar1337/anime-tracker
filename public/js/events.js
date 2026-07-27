@@ -926,7 +926,7 @@ function bindBackupOverlay() {
   });
 
   document.getElementById('backup-list').addEventListener('click', async (e) => {
-    const file = e.target.dataset.restore;
+    const file = e.target.closest('[data-restore]')?.dataset.restore;
     if (!file) return;
     confirmDialog({
       title: `Restore "${file}"?`,

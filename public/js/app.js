@@ -63,7 +63,7 @@ window.addEventListener('beforeunload', (e) => {
 // Bound once (not inside showRecoveryScreen) so repeated corruption/restore
 // cycles in the same session can never stack up duplicate click handlers.
 document.getElementById('recovery-backup-list').addEventListener('click', async (e) => {
-  const file = e.target.dataset.restore;
+  const file = e.target.closest('[data-restore]')?.dataset.restore;
   if (!file) return;
   const overlay = document.getElementById('recovery-overlay');
   const statusEl = document.getElementById('recovery-status');
@@ -91,22 +91,31 @@ async function showRecoveryScreen(err) {
 // here can guess the right answer or touch files on the user's behalf.
 function showBlockedScreen(err) {
   const overlay = document.getElementById('blocked-overlay');
+  const detail = document.getElementById('blocked-detail');
+  const esc = Render.escapeHtml;
   if (err.dataConflict) {
     document.getElementById('blocked-title').textContent = 'Two different data folders were found';
-    document.getElementById('blocked-detail').textContent =
-      `Anime Tracker found data in two places with different contents and won't guess which one is right:\n\n` +
-      `${err.newDir}\n${err.oldDir}\n\n` +
-      `Nothing has been changed. Please back up both folders, decide which one to keep, ` +
-      `and move or delete the other manually — then restart the app.`;
+    // No series count/timestamp per folder here — that would need the
+    // server to read and parse both library.json files just to describe
+    // them, which is out of scope for a screen this rare. Path-only is
+    // honest about what's actually known without guessing at the rest.
+    detail.innerHTML = `
+      <p>There is a library in both the old and the new location. The app will not guess which one is right, and it will not touch either.</p>
+      <div class="safety-boxes">
+        <div class="safety-box"><b>New location</b><span class="path">${esc(err.newDir)}</span></div>
+        <div class="safety-box"><b>Old location</b><span class="path">${esc(err.oldDir)}</span></div>
+      </div>
+      <p>Move or rename the folder you do not want, then start the app again.</p>
+    `;
   } else if (err.tooNew) {
     document.getElementById('blocked-title').textContent = 'This library needs a newer app version';
-    document.getElementById('blocked-detail').textContent =
-      `Your data was saved by a newer version of Anime Tracker (schema ${err.dataVersion}); ` +
-      `this copy of the app only understands up to schema ${err.appVersion}.\n\n` +
-      `Nothing has been changed. Update Anime Tracker to the latest release and restart it.`;
+    detail.innerHTML = `
+      <p>Your data was saved by a newer version of Anime Tracker (schema ${esc(String(err.dataVersion))}); this copy of the app only understands up to schema ${esc(String(err.appVersion))}.</p>
+      <p>Nothing has been changed. Update Anime Tracker to the latest release and restart it.</p>
+    `;
   } else {
     document.getElementById('blocked-title').textContent = 'Anime Tracker cannot start';
-    document.getElementById('blocked-detail').textContent = err.message;
+    detail.innerHTML = `<p>${esc(err.message)}</p>`;
   }
   overlay.hidden = false;
 }

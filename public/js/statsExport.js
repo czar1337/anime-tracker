@@ -1,26 +1,37 @@
 // Draws a shareable "stats card" PNG from computeLibraryStats() output using
 // plain Canvas 2D — no chart/screenshot library, matching this app's
-// no-dependencies rule. Colors are fixed (not theme-aware) since the card is
-// meant to be shared outside the app, where the viewer never sees the
-// light/dark toggle anyway.
+// no-dependencies rule.
+//
+// design/moonlit-shrine-design-system.md's own rule table for this surface:
+// colours read from getComputedStyle at draw time (so the image matches
+// whichever theme is active, not a fixed brand palette), fonts waited for
+// via document.fonts.ready (done by the caller, events.js's
+// openStatsShareOverlay), and "no decoration — header glow only, since
+// leaves/feathers compress badly in PNG and read as noise."
 
 const CARD_WIDTH = 800;
 const CARD_HEIGHT = 900;
 
-const COLORS = {
-  bgTop: '#15121f',
-  bgBottom: '#1f1a30',
-  tealGlow: 'rgba(95,181,163,0.25)',
-  pinkGlow: 'rgba(226,143,206,0.2)',
-  teal: '#5FB5A3',
-  tealStrong: '#86D4C4',
-  text: '#f4f3f8',
-  textFaint: '#726f88',
-  tileBg: 'rgba(255,255,255,0.04)',
-  tileBorder: 'rgba(255,255,255,0.08)',
-  chipBg: 'rgba(95,181,163,0.16)',
-  chipBorder: 'rgba(95,181,163,0.4)',
-};
+// Reads real theme tokens at draw time via getComputedStyle — this is what
+// makes the card match the active theme instead of a fixed palette. Every
+// value here is a valid CSS colour string (hsl()/color-mix()), which
+// Canvas 2D's fillStyle/strokeStyle accept directly, no conversion needed.
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name) => cs.getPropertyValue(name).trim();
+  return {
+    bgTop: v('--bg-elevated'),
+    bgBottom: v('--bg-deep'),
+    glow: v('--glow'),
+    text: v('--text'),
+    textFaint: v('--faint'),
+    tileBg: `color-mix(in srgb, ${v('--text')} 4%, transparent)`,
+    tileBorder: `color-mix(in srgb, ${v('--text')} 8%, transparent)`,
+    accent: v('--accent-lit'),
+    chipBg: v('--accent-soft'),
+    chipBorder: `color-mix(in srgb, ${v('--accent')} 40%, transparent)`,
+  };
+}
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -44,23 +55,23 @@ function truncateToWidth(ctx, text, maxWidth) {
 // previously bled into every later section, silently center-aligning "Top
 // rated" too — invisible for short labels, but it clipped long titles off
 // the left edge of the card).
-function drawStatTile(ctx, x, y, w, h, value, label) {
+function drawStatTile(ctx, colors, x, y, w, h, value, label) {
   roundRect(ctx, x, y, w, h, 16);
-  ctx.fillStyle = COLORS.tileBg;
+  ctx.fillStyle = colors.tileBg;
   ctx.fill();
-  ctx.strokeStyle = COLORS.tileBorder;
+  ctx.strokeStyle = colors.tileBorder;
   ctx.lineWidth = 1;
   ctx.stroke();
 
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = COLORS.text;
-  ctx.font = "700 40px Sora, sans-serif";
+  ctx.fillStyle = colors.text;
+  ctx.font = "700 40px 'Zen Old Mincho', Georgia, serif";
   ctx.fillText(value, x + w / 2, y + h / 2 + 4);
 
-  ctx.fillStyle = COLORS.textFaint;
-  ctx.font = "600 13px Inter, sans-serif";
+  ctx.fillStyle = colors.textFaint;
+  ctx.font = "600 13px 'Schibsted Grotesk', sans-serif";
   ctx.fillText(label.toUpperCase(), x + w / 2, y + h / 2 + 30);
   ctx.restore();
 }
@@ -72,33 +83,30 @@ export function drawStatsCard(canvas, stats) {
   canvas.width = CARD_WIDTH;
   canvas.height = CARD_HEIGHT;
   const ctx = canvas.getContext('2d');
+  const colors = readColors();
 
   const bg = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
-  bg.addColorStop(0, COLORS.bgTop);
-  bg.addColorStop(1, COLORS.bgBottom);
+  bg.addColorStop(0, colors.bgTop);
+  bg.addColorStop(1, colors.bgBottom);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  const glow1 = ctx.createRadialGradient(120, 120, 0, 120, 120, 260);
-  glow1.addColorStop(0, COLORS.tealGlow);
-  glow1.addColorStop(1, 'rgba(95,181,163,0)');
-  ctx.fillStyle = glow1;
-  ctx.fillRect(0, 0, CARD_WIDTH, 400);
-
-  const glow2 = ctx.createRadialGradient(680, 220, 0, 680, 220, 260);
-  glow2.addColorStop(0, COLORS.pinkGlow);
-  glow2.addColorStop(1, 'rgba(226,143,206,0)');
-  ctx.fillStyle = glow2;
+  // Single header glow — no leaves/feathers/dual-tone glow in an exported
+  // image, per the design rule above.
+  const glow = ctx.createRadialGradient(CARD_WIDTH * 0.82, -40, 0, CARD_WIDTH * 0.82, -40, 420);
+  glow.addColorStop(0, `color-mix(in srgb, ${colors.glow} 30%, transparent)`);
+  glow.addColorStop(1, `color-mix(in srgb, ${colors.glow} 0%, transparent)`);
+  ctx.fillStyle = glow;
   ctx.fillRect(0, 0, CARD_WIDTH, 400);
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = COLORS.textFaint;
-  ctx.font = "700 14px Inter, sans-serif";
+  ctx.fillStyle = colors.accent;
+  ctx.font = "700 14px 'Schibsted Grotesk', sans-serif";
   ctx.fillText('ANIME TRACKER', 48, 64);
 
-  ctx.fillStyle = COLORS.text;
-  ctx.font = "800 44px Sora, sans-serif";
+  ctx.fillStyle = colors.text;
+  ctx.font = "700 44px 'Zen Old Mincho', Georgia, serif";
   ctx.fillText(`My ${stats.year} in anime`, 48, 118);
 
   const tiles = [
@@ -116,26 +124,26 @@ export function drawStatsCard(canvas, stats) {
   tiles.forEach(([value, label], i) => {
     const col = i % 2;
     const row = Math.floor(i / 2);
-    drawStatTile(ctx, 48 + col * (tileW + gap), gridTop + row * (tileH + gap), tileW, tileH, value, label);
+    drawStatTile(ctx, colors, 48 + col * (tileW + gap), gridTop + row * (tileH + gap), tileW, tileH, value, label);
   });
 
   const genresLabelY = gridTop + 3 * (tileH + gap) + 30;
-  ctx.fillStyle = COLORS.textFaint;
-  ctx.font = "700 13px Inter, sans-serif";
+  ctx.fillStyle = colors.textFaint;
+  ctx.font = "700 13px 'Schibsted Grotesk', sans-serif";
   ctx.fillText('TOP GENRES', 48, genresLabelY);
 
   const chipY = genresLabelY + 22;
-  ctx.font = "600 16px Inter, sans-serif";
+  ctx.font = "600 16px 'Schibsted Grotesk', sans-serif";
   let chipX = 48;
   for (const genre of stats.topGenres) {
     const chipW = ctx.measureText(genre).width + 32;
     if (chipX + chipW > CARD_WIDTH - 48) break; // a long tail of genres just gets left off one row rather than overflowing the card
     roundRect(ctx, chipX, chipY, chipW, 40, 20);
-    ctx.fillStyle = COLORS.chipBg;
+    ctx.fillStyle = colors.chipBg;
     ctx.fill();
-    ctx.strokeStyle = COLORS.chipBorder;
+    ctx.strokeStyle = colors.chipBorder;
     ctx.stroke();
-    ctx.fillStyle = COLORS.tealStrong;
+    ctx.fillStyle = colors.accent;
     ctx.textBaseline = 'middle';
     ctx.fillText(genre, chipX + 16, chipY + 21);
     ctx.textBaseline = 'alphabetic';
@@ -144,17 +152,17 @@ export function drawStatsCard(canvas, stats) {
 
   if (stats.topRatedTitle) {
     const labelY = chipY + 90;
-    ctx.fillStyle = COLORS.textFaint;
-    ctx.font = "700 13px Inter, sans-serif";
+    ctx.fillStyle = colors.textFaint;
+    ctx.font = "700 13px 'Schibsted Grotesk', sans-serif";
     ctx.fillText('TOP RATED', 48, labelY);
-    ctx.fillStyle = COLORS.text;
-    ctx.font = "600 20px Sora, sans-serif";
+    ctx.fillStyle = colors.text;
+    ctx.font = "600 20px 'Zen Old Mincho', Georgia, serif";
     ctx.fillText(truncateToWidth(ctx, stats.topRatedTitle, CARD_WIDTH - 96), 48, labelY + 32);
   }
 
   ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.textFaint;
-  ctx.font = "500 13px Inter, sans-serif";
+  ctx.fillStyle = colors.textFaint;
+  ctx.font = "500 13px 'Schibsted Grotesk', sans-serif";
   ctx.fillText('Made with Anime Tracker · a local, no-account anime list', CARD_WIDTH / 2, CARD_HEIGHT - 36);
 }
 

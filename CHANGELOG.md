@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.9.0
+
+**Moonlit Shrine — a full visual redesign.** New default theme (moon-and-shrine palette, warm red accent), 45 color themes total, two new typefaces (Zen Old Mincho for headings, Schibsted Grotesk for everything else), and user controls for text size, text weight, and decoration level. Nothing about the data model, storage format, or server changed — this is the visual layer only.
+
+- **Every screen redone**, in five stages: header/tabs/filter bar/cards/hero/Home; the anime detail view (episode squares, score/status/note controls right in the overlay, a >50-episode fallback), toasts, confirm dialogs, and search; interaction polish (press/ripple on every control, hold-to-select, a full keyboard shortcut set, an ambient atmosphere layer); and finally Discover, MyAnimeList/screenshot import, the shareable stats image, and the recovery/blocked safety screens.
+- **New Settings panel** replaces the old theme-only picker: all 45 themes, text size, text weight, decoration, and an "original titles" (Japanese title) option.
+- **New Help panel** replaces the shortcuts cheat-sheet: three tabs (the basics, keyboard, questions), with an FAQ.
+- **New keyboard shortcut set**: `/` filters the current list, `n` adds a series, `1`–`7` switch tabs, `j`/`k` move between cards, `space` marks the next episode, `enter` opens a series, `s` toggles select mode, `esc` closes or leaves select mode, `ctrl+z` undoes the last change, `?` opens help.
+- **MyAnimeList import gets a real review step**: matched/unmatched counts, a checkbox per row, and a done screen with an actual "undo this import."
+- **Screenshot import now shows its real match confidence** instead of a plain hit/miss — rows below 80% start unchecked.
+- **Discover cards are horizontal now**, with the reason for each suggestion (which series it's based on, in accent color) as the most prominent text on the card, and a proper dismissed-items list with a "bring back" per row.
+- **The shareable stats image now matches your actual theme** — colors are read live from the active theme instead of a fixed palette baked into the image.
+- Recovery and blocked screens (unreadable library, conflicting data folders) are deliberately plain — no accent fills, no decoration — and now show real backup timestamps and clearer path comparisons.
+
 ## 1.8.1
 
 - **Fix: Schedule's "Refresh" button only refreshed half the page.** "This week" is built from a separate episode-airing cache than the one the button actually re-fetched — if that cache predated `nextAiringEpisode`'s airing time being added to the data (an old cache saved before an earlier fix), "This week" could get stuck showing "Nothing airing" for every day with no visible way to fix it from the Schedule tab at all. Refresh now updates both.

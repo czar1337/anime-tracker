@@ -46,6 +46,9 @@ async function recognizeImages(files, onProgress) {
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+// score (0-1) used to be computed then thrown away, keeping only a binary
+// matched/unmatched split — now threaded through to `results` so the review
+// row can show a real confidence number and colour instead of a fixed tag.
 async function matchLines(lines, onProgress) {
   const results = [];
   for (let i = 0; i < lines.length; i++) {
@@ -55,40 +58,51 @@ async function matchLines(lines, onProgress) {
       const best = candidates
         .map((m) => ({ m, score: Math.max(titleSimilarity(lines[i], m.title.english), titleSimilarity(lines[i], m.title.romaji)) }))
         .sort((a, b) => b.score - a.score)[0];
-      results.push({ line: lines[i], media: best && best.score >= MATCH_THRESHOLD ? best.m : null });
+      const matched = best && best.score >= MATCH_THRESHOLD;
+      results.push({ line: lines[i], media: matched ? best.m : null, confidence: matched ? best.score : null });
     } catch (err) {
-      results.push({ line: lines[i], media: null, error: err.message });
+      results.push({ line: lines[i], media: null, confidence: null, error: err.message });
     }
     if (i < lines.length - 1) await sleep(500);
   }
   return results;
 }
 
-function reviewRowHtml(result, idx) {
+// design system: "anything below 80 percent is unchecked by default so
+// nothing wrong slips in." Rows default to included = confidence >= 0.8,
+// tracked per-index in the caller (screenshotImport doesn't otherwise have
+// a stable id to key off — OCR lines can repeat, indices don't).
+function confidenceClass(score) {
+  if (score >= 0.9) return 'hi';
+  if (score >= 0.7) return 'mid';
+  return 'lo';
+}
+
+function reviewRowHtml(result, idx, included) {
   const removed = result.removed;
   const media = result.media;
   const title = media ? media.title.english || media.title.romaji : result.line;
+  const esc = Render.escapeHtml;
   return `
-    <div class="import-row screenshot-row ${!media ? 'unmatched' : ''} ${removed ? 'row-removed' : ''}" data-idx="${idx}">
-      ${media ? `<img class="screenshot-row-cover" src="${Render.escapeHtml(media.coverImage.large)}" alt="" loading="lazy">` : ''}
-      <div class="import-title">
-        <div>${Render.escapeHtml(title)}</div>
-        ${media ? `<div class="card-meta">from OCR text: "${Render.escapeHtml(result.line)}"</div>` : `<div class="card-meta">no AniList match found</div>`}
-      </div>
-      ${media ? `
-        <select class="filter-select screenshot-status-select" data-idx="${idx}">
-          <option value="watchlist" selected>Watchlist</option>
-          <option value="watching">Watching</option>
-          <option value="watched">Watched</option>
-          <option value="dropped">Dropped</option>
-        </select>` : `<button class="mini-btn" data-action="manual-match" data-idx="${idx}">Search to match</button>`}
-      <button class="mini-btn" data-action="remove-row" data-idx="${idx}">${removed ? 'Undo' : 'Remove'}</button>
+    <div class="rw ${media && included ? 'on' : ''} ${!media ? 'unmatched' : ''} ${removed ? 'row-removed' : ''}" data-idx="${idx}">
+      ${media ? `<button class="ck ${included ? 'on' : ''}" data-action="toggle-row" aria-label="Include this row">✓</button>` : '<span></span>'}
+      <span class="src">"${esc(result.line)}"</span>
+      <span class="mt" ${!media ? 'style="color:var(--faint)"' : ''}>${media ? esc(title) : 'Not a title'}<span>${media ? `${esc(String(media.format || ''))} · ${media.seasonYear || '?'}` : 'Skipped automatically'}</span></span>
+      <span class="conf ${media ? confidenceClass(result.confidence) : 'lo'}">${media ? `${Math.round(result.confidence * 100)}%` : '—'}</span>
+      <span>
+        ${media
+          ? `<select class="filter-select screenshot-status-select" data-idx="${idx}"><option value="watchlist" selected>Watchlist</option><option value="watching">Watching</option><option value="watched">Watched</option><option value="dropped">Dropped</option></select>`
+          : `<button class="fix" data-action="manual-match" data-idx="${idx}">Search</button>`}
+      </span>
     </div>
   `;
 }
 
+const SCREENSHOT_STEP_LABELS = ['Paste or upload', 'Check matches'];
+
 export function initScreenshotImport() {
   const overlay = document.getElementById('screenshot-overlay');
+  const stepsEl = document.getElementById('screenshot-steps-indicator');
   const uploadStep = document.getElementById('screenshot-step-upload');
   const reviewStep = document.getElementById('screenshot-step-review');
   const fileInput = document.getElementById('screenshot-file-input');
@@ -100,23 +114,30 @@ export function initScreenshotImport() {
 
   let results = [];
   const statusByIdx = new Map(); // idx -> chosen listStatus
+  let included = new Set(); // idx -> included; seeded per-result once matching finishes
   let generation = 0; // bumped on every reset/cancel so stale async runs become no-ops
+
+  function showStep(step) {
+    stepsEl.innerHTML = Render.stepsHtml(step, SCREENSHOT_STEP_LABELS);
+    uploadStep.hidden = step !== 1;
+    reviewStep.hidden = step !== 2;
+  }
 
   function reset() {
     generation += 1;
     results = [];
     statusByIdx.clear();
+    included = new Set();
     fileInput.value = '';
     uploadStatus.textContent = '';
-    uploadStep.hidden = false;
-    reviewStep.hidden = true;
+    showStep(1);
   }
 
   function renderReview() {
-    const matched = results.filter((r) => r.media && !r.removed);
-    const unmatched = results.filter((r) => !r.media && !r.removed);
+    const matched = results.filter((r, i) => r.media && included.has(i));
+    const unmatched = results.filter((r) => !r.media);
     summaryEl.innerHTML = `<span><b>${matched.length}</b> ready to add</span><span><b>${unmatched.length}</b> need manual matching</span>`;
-    reviewListEl.innerHTML = results.map((r, i) => reviewRowHtml(r, i)).join('');
+    reviewListEl.innerHTML = results.map((r, i) => reviewRowHtml(r, i, included.has(i))).join('');
   }
 
   async function processFiles(files) {
@@ -132,8 +153,8 @@ export function initScreenshotImport() {
       const matched = await matchLines(lines, (msg) => { if (!isStale()) uploadStatus.textContent = msg; });
       if (isStale()) return; // overlay was cancelled/reset while matching was running
       results = matched;
-      uploadStep.hidden = true;
-      reviewStep.hidden = false;
+      included = new Set(results.map((r, i) => (r.media && r.confidence >= 0.8 ? i : null)).filter((i) => i !== null));
+      showStep(2);
       renderReview();
     } catch (err) {
       if (!isStale()) uploadStatus.textContent = `Error: ${err.message}`;
@@ -173,10 +194,11 @@ export function initScreenshotImport() {
   });
 
   reviewListEl.addEventListener('click', async (e) => {
-    const removeBtn = e.target.closest('[data-action="remove-row"]');
-    if (removeBtn) {
-      const idx = Number(removeBtn.dataset.idx);
-      results[idx].removed = !results[idx].removed;
+    const toggle = e.target.closest('[data-action="toggle-row"]');
+    if (toggle) {
+      const idx = Number(toggle.closest('.rw').dataset.idx);
+      if (included.has(idx)) included.delete(idx);
+      else included.add(idx);
       renderReview();
       return;
     }
@@ -197,6 +219,8 @@ export function initScreenshotImport() {
         const picked = found[Number(choice) - 1];
         if (!picked) return;
         results[idx].media = picked;
+        results[idx].confidence = 1; // a hand-picked match is as certain as it gets
+        included.add(idx);
         renderReview();
       } catch (err) {
         alert(`Search failed: ${err.message}`);
@@ -215,7 +239,7 @@ export function initScreenshotImport() {
     const toDownload = [];
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
-      if (r.removed || !r.media) continue;
+      if (!r.media || !included.has(i)) continue;
       const media = r.media;
       if (Store.getEntry(media.id)) continue;
       const listStatus = statusByIdx.get(i) || 'watchlist';

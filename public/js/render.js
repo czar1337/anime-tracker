@@ -878,29 +878,29 @@ function relativeAgeText(generatedAt) {
 
 function discoverCardHtml(item, index = 0) {
   const m = item.media;
-  const because = item.because && item.because.length
-    ? `Recommended because you liked ${item.because.map(escapeHtml).join(', ')}`
-    : 'Recommended for you';
+  const primary = m.title.english || m.title.romaji;
+  const metaBits = [m.seasonYear, formatEnumLabel(m.format), m.episodes ? `${m.episodes} ep` : null].filter(Boolean);
+  const seeds = item.because || [];
+  // design system: "every suggestion says why it is there, in one
+  // sentence, with the series it is based on in accent colour." Only the
+  // first seed is highlighted — listing all of them in accent would just
+  // read as a wall of red text for anything with several matches.
+  const why = seeds.length
+    ? `Shares taste with <b>${escapeHtml(seeds[0])}</b>${seeds.length > 1 ? ` and ${seeds.length - 1} more you rated highly` : ', which you rated highly'}.`
+    : 'Matches what you tend to rate highly.';
   return `
     <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelayMs(index)}ms">
-      <div class="card-cover-wrap">
-        <div class="skeleton"></div>
-        <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">
-        ${m.format ? `<span class="card-format-badge">${escapeHtml(m.format)}</span>` : ''}
-      </div>
-      <div class="card-body">
-        ${titleBlockHtml(m.title.english, m.title.romaji, m.id)}
-        <div class="card-meta">
-          ${m.seasonYear ? `<span>${m.seasonYear}</span>` : ''}
-          ${m.averageScore ? `<span>★ ${m.averageScore}</span>` : ''}
-          ${(m.genres || []).length ? `<span>${escapeHtml(m.genres.slice(0, 3).join(', '))}</span>` : ''}
-        </div>
-        <p class="discover-because">${because}</p>
-        <div class="discover-actions">
-          <button class="text-btn primary" data-action="discover-add">Add to Watchlist</button>
-          <button class="text-btn" data-action="discover-dismiss">Not interested</button>
+      <div class="cov" style="background-image:url('${escapeHtml(m.coverImage.large)}')"></div>
+      <div>
+        <h4 data-action="show-detail" data-detail-id="${m.id}" style="cursor:pointer">${escapeHtml(primary)}</h4>
+        <div class="m">${metaBits.map(escapeHtml).join(' · ')}${m.averageScore ? ` · ★ ${m.averageScore}` : ''}</div>
+        <div class="why">${why}</div>
+        <div class="acts">
+          <button class="btn btn-primary sm rip-host" data-action="discover-add">Add to Watchlist</button>
+          <button class="btn btn-quiet sm" data-action="show-detail" data-detail-id="${m.id}">Details</button>
         </div>
       </div>
+      <button class="x" data-action="discover-dismiss" title="Not interested" aria-label="Not interested">×</button>
     </article>
   `;
 }
@@ -956,13 +956,22 @@ function renderDiscoverPage(container, viewState) {
     return;
   }
   const visibleItems = items.slice(0, visibleCount);
-  const loadMore = visibleCount < items.length
+  const hasMore = visibleCount < items.length;
+  const endCard = hasMore ? '' : `
+    <div class="discover-card discover-more-card">
+      <div>
+        <b>That is all for now</b>
+        <p>Suggestions update once a day. Rate more series to make them better.</p>
+        <button class="btn btn-quiet sm" id="discover-refresh-btn-end">Refresh now</button>
+      </div>
+    </div>`;
+  const loadMore = hasMore
     ? `<div class="discover-load-more-row">
         <span class="discover-count">Showing ${visibleCount} of ${items.length}</span>
         <button class="text-btn" id="discover-load-more-btn">Load more</button>
       </div>`
     : '';
-  container.innerHTML = `${banner}<div class="card-grid discover-grid">${visibleItems.map((item, i) => discoverCardHtml(item, i)).join('')}</div>${loadMore}`;
+  container.innerHTML = `${banner}<div class="card-grid discover-grid">${visibleItems.map((item, i) => discoverCardHtml(item, i)).join('')}${endCard}</div>${loadMore}`;
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1078,10 +1087,13 @@ function renderSchedulePage(container, viewState) {
   `;
 }
 
+// No "Hidden N days ago" here — dismissedItems doesn't (and shouldn't)
+// store a timestamp; that's a library.json shape change for a nice-to-have
+// display detail, not something worth touching the storage format for.
 function renderDismissedOverlay(container) {
   const items = Store.getDismissedItems();
   if (items.length === 0) {
-    container.innerHTML = `<h2>Dismissed</h2><p>Nothing dismissed right now.</p>`;
+    container.innerHTML = `<h2>Not interested</h2><p class="card-meta">Nothing hidden from Discover right now.</p>`;
     return;
   }
   const rows = items
@@ -1090,11 +1102,16 @@ function renderDismissedOverlay(container) {
       <div class="import-row" data-anilist-id="${it.anilistId}">
         ${it.coverImage ? `<img class="screenshot-row-cover" src="${escapeHtml(it.coverImage)}" alt="">` : ''}
         <span class="import-title">${escapeHtml(it.title || `Anime #${it.anilistId}`)}</span>
-        <button class="mini-btn" data-action="undo-dismiss">Undo</button>
+        <button class="btn btn-quiet sm" data-action="undo-dismiss">Bring back</button>
       </div>`
     )
     .join('');
-  container.innerHTML = `<h2>Dismissed (${items.length})</h2><p>Titles you marked "Not interested" — undo to let them appear in suggestions again.</p><div class="import-review-list">${rows}</div>`;
+  container.innerHTML = `
+    <h2>Not interested</h2>
+    <p class="card-meta">${items.length} series hidden from Discover. Bring one back and it can be suggested again.</p>
+    <div class="import-review-list">${rows}</div>
+    <div class="row" style="margin-top:14px"><button class="btn btn-quiet sm" id="dismissed-restore-all-btn">Bring all back</button></div>
+  `;
 }
 
 function renderSearchResults(container, results, ownedIds, { replaceMode = false } = {}) {
@@ -1158,13 +1175,43 @@ function renderSearchEmpty(container, query, reason) {
   `;
 }
 
+// Backup filenames encode their own timestamp (library-YYYYMMDD-HHMMSS.json)
+// — parsed client-side into a relative time, no server change needed.
+function formatRelativeBackupTime(filename) {
+  const m = filename.match(/^library-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
+  if (!m) return filename;
+  const [, y, mo, d, h, mi, s] = m.map(Number);
+  const date = new Date(y, mo - 1, d, h, mi, s);
+  const diffMin = Math.round((Date.now() - date.getTime()) / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay === 1) return 'yesterday';
+  if (diffDay < 7) return `${diffDay} days ago`;
+  return date.toLocaleDateString();
+}
+
+// Shared by the Settings backup menu and the recovery screen. The whole row
+// is one button (design reference's own shape) — its click handlers use
+// closest('[data-restore]') rather than reading e.target.dataset directly,
+// since the time/file spans inside it are valid click targets too.
 function renderBackupList(container, backups) {
   if (!backups || backups.length === 0) {
-    container.innerHTML = `<li>No backups yet.</li>`;
+    container.innerHTML = `<li class="backup-empty">No backups yet.</li>`;
     return;
   }
   container.innerHTML = backups
-    .map((b) => `<li data-file="${b}"><span>${b.replace('library-', '').replace('.json', '')}</span><button class="text-btn" data-restore="${b}">Restore</button></li>`)
+    .map(
+      (b, i) => `
+      <li>
+        <button class="backup-row" data-restore="${b}">
+          <span class="backup-time${i === 0 ? ' recent' : ''}">${escapeHtml(formatRelativeBackupTime(b))}</span>
+          <span class="backup-file">${escapeHtml(b)}</span>
+        </button>
+      </li>`
+    )
     .join('');
 }
 
@@ -1208,6 +1255,19 @@ function showError(message) {
 
 function clearError() {
   document.getElementById('error-banner').hidden = true;
+}
+
+// Shared by the MAL and screenshot import flows (design system: "Three
+// steps: pick the file, check the matches, done").
+function stepsHtml(current, labels) {
+  return `<div class="steps">${labels
+    .map((label, i) => {
+      const n = i + 1;
+      const cls = n < current ? 'done' : n === current ? 'on' : '';
+      const icon = n < current ? '✓' : n;
+      return `<span class="step ${cls}"><i>${icon}</i>${escapeHtml(label)}</span>${i < labels.length - 1 ? '<span class="step-line"></span>' : ''}`;
+    })
+    .join('')}</div>`;
 }
 
 function formatEnumLabel(value) {
@@ -1488,6 +1548,7 @@ export const Render = {
   toggleSelected,
   getSelectedIds,
   renderBulkActionBar,
+  stepsHtml,
   renderSettingsPanel,
   renderHelpPanel,
   setHelpTab,

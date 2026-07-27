@@ -184,7 +184,7 @@ export function initDiscover({ persistFn } = {}) {
   const container = document.getElementById('discover-view');
 
   container.addEventListener('click', (e) => {
-    if (e.target.closest('#discover-refresh-btn')) {
+    if (e.target.closest('#discover-refresh-btn, #discover-refresh-btn-end')) {
       refreshGeneration += 1;
       runRefresh({ shuffleResults: true }).catch(() => {});
       return;
@@ -259,6 +259,13 @@ export function initDiscover({ persistFn } = {}) {
   });
 
   document.getElementById('dismissed-content').addEventListener('click', (e) => {
+    if (e.target.closest('#dismissed-restore-all-btn')) {
+      Store.getDismissedItems().slice().forEach((it) => Store.removeDismissedItem(it.anilistId));
+      Render.renderDismissedOverlay(document.getElementById('dismissed-content'));
+      renderNow();
+      persist();
+      return;
+    }
     const btn = e.target.closest('[data-action="undo-dismiss"]');
     if (!btn) return;
     const anilistId = Number(btn.closest('[data-anilist-id]').dataset.anilistId);

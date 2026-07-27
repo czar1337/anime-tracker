@@ -159,6 +159,7 @@
     <div class="overlay-panel screenshot-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Add anime from screenshot</h2>
+      <div id="screenshot-steps-indicator"></div>
       <div id="screenshot-step-upload" class="import-step">
         <p>Take a screenshot and press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste it in — or upload one or more image files below. Works with anything where anime titles appear as text (a list, app screen, website, etc). Recognition runs fully offline on this device.</p>
         <input type="file" id="screenshot-file-input" accept="image/*" multiple>
@@ -166,10 +167,11 @@
       </div>
       <div id="screenshot-step-review" class="import-step" hidden>
         <div class="import-summary" id="screenshot-summary"></div>
-        <div id="screenshot-review-list" class="import-review-list"></div>
+        <div id="screenshot-review-list" class="import-review-list review"></div>
         <div class="import-actions">
           <button id="screenshot-commit-btn" class="text-btn primary">Add selected</button>
           <button id="screenshot-cancel-btn" class="text-btn">Cancel</button>
+          <span class="card-meta" style="margin-left:auto">New series go to Watchlist. You can change that after.</span>
         </div>
       </div>
     </div>
@@ -256,14 +258,20 @@
     </div>
   </div>
 
-  <!-- Corrupt-data recovery banner (shown instead of app if library.json unreadable) -->
+  <!-- Corrupt-data recovery banner (shown instead of app if library.json
+       unreadable). design system §16: "New design, deliberately plain" —
+       no accent fills, no glow; the .tag.warn pill is the only colour. -->
   <div id="recovery-overlay" class="overlay" hidden>
     <div class="overlay-panel">
+      <span class="tag warn safety-tag">Nothing has been changed</span>
       <h2>Your library file could not be read</h2>
-      <p id="recovery-detail" class="recovery-detail"></p>
-      <p>Nothing has been overwritten. Choose a backup to restore:</p>
+      <div class="safety-body">
+        <p>The file exists but the contents are damaged, so the app cannot open it.</p>
+      </div>
+      <p id="recovery-detail" class="safety-detail"></p>
+      <h3>Restore a backup</h3>
       <ul id="recovery-backup-list" class="backup-list"></ul>
-      <p id="recovery-status" class="recovery-detail" hidden></p>
+      <p id="recovery-status" class="safety-detail" hidden></p>
     </div>
   </div>
 
@@ -274,8 +282,9 @@
        exactly what must not happen here. -->
   <div id="blocked-overlay" class="overlay" hidden>
     <div class="overlay-panel">
+      <span class="tag warn safety-tag">Needs a decision from you</span>
       <h2 id="blocked-title"></h2>
-      <p id="blocked-detail" class="recovery-detail"></p>
+      <div id="blocked-detail" class="safety-body"></div>
     </div>
   </div>
 
@@ -284,6 +293,7 @@
     <div class="overlay-panel import-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Import from MyAnimeList</h2>
+      <div id="import-steps-indicator"></div>
       <div id="import-step-upload" class="import-step">
         <p>Upload your MAL export file (<code>animelist_*.xml</code> or <code>.xml.gz</code>). Export it from your MAL profile → Export list.</p>
         <input type="file" id="mal-file-input" accept=".xml,.gz">
@@ -291,10 +301,19 @@
       </div>
       <div id="import-step-review" class="import-step" hidden>
         <div class="import-summary" id="import-summary"></div>
-        <div id="import-review-list" class="import-review-list"></div>
+        <div id="import-review-list" class="import-review-list review"></div>
         <div class="import-actions">
-          <button id="import-commit-btn" class="text-btn primary">Import matched entries</button>
+          <button id="import-commit-btn" class="text-btn primary">Import selected</button>
           <button id="import-cancel-btn" class="text-btn">Cancel</button>
+          <span class="card-meta" style="margin-left:auto">Nothing is changed until you press import. A backup is taken first.</span>
+        </div>
+      </div>
+      <div id="import-step-done" class="import-step" hidden>
+        <div class="import-summary2" id="import-done-summary"></div>
+        <div class="import-actions">
+          <button id="import-done-close-btn" class="text-btn primary">Go to library</button>
+          <button id="import-done-another-btn" class="text-btn">Import another file</button>
+          <button id="import-done-undo-btn" class="text-btn">Undo this import</button>
         </div>
       </div>
     </div>

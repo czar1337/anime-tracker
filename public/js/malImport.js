@@ -112,50 +112,73 @@ function mediaToEntryPatch(media, malEntry) {
   };
 }
 
-function reviewRowHtml(item, idx, kind) {
+// MAL entries match AniList by exact id (Api.fetchAniListByMalIds), not by
+// fuzzy text — so a match is either right or doesn't exist, there's no
+// genuine confidence gradient to color-code the way screenshot import has.
+// Shown as a plain "Matched" tag instead of a fabricated percentage.
+function reviewRowHtml(item, idx, kind, included) {
   const title = item.media ? item.media.title.english || item.media.title.romaji : item.malEntry.title;
+  const esc = Render.escapeHtml;
   return `
-    <div class="import-row ${kind === 'unmatched' ? 'unmatched' : ''}" data-idx="${idx}" data-kind="${kind}">
-      <span class="import-title">${Render.escapeHtml(title)}</span>
-      <span class="card-meta">${STATUS_MAP[item.malEntry.malStatus] || 'watchlist'} · ${item.malEntry.episodesWatched} ep watched</span>
-      ${kind === 'unmatched' ? `<button class="mini-btn" data-action="manual-match">Search to match</button>` : '<span class="list-badge">Matched</span>'}
+    <div class="rw ${included ? 'on' : ''} ${kind === 'unmatched' ? 'unmatched' : ''}" data-idx="${idx}" data-kind="${kind}">
+      ${kind === 'matched' ? `<button class="ck ${included ? 'on' : ''}" data-action="toggle-row" aria-label="Include this row">✓</button>` : '<span></span>'}
+      <span class="src">${esc(item.malEntry.title)}<span>${item.malEntry.episodesWatched} ep · ${STATUS_MAP[item.malEntry.malStatus] || 'watchlist'}</span></span>
+      <span class="mt" ${!item.media ? 'style="color:var(--faint)"' : ''}>${item.media ? esc(title) : 'No match found'}<span>${item.media ? `${esc(String(item.media.format || ''))} · ${item.media.seasonYear || '?'}` : 'Search by hand or skip'}</span></span>
+      <span class="conf ${kind === 'matched' ? 'hi' : 'lo'}">${kind === 'matched' ? 'Matched' : '—'}</span>
+      <span>${kind === 'unmatched' ? `<button class="fix" data-action="manual-match">Search</button>` : ''}</span>
     </div>
   `;
 }
 
+const IMPORT_STEP_LABELS = ['Pick file', 'Check matches', 'Done'];
+
 export function initMalImport() {
   const overlay = document.getElementById('import-overlay');
+  const stepsEl = document.getElementById('import-steps-indicator');
   const uploadStep = document.getElementById('import-step-upload');
   const reviewStep = document.getElementById('import-step-review');
+  const doneStep = document.getElementById('import-step-done');
   const fileInput = document.getElementById('mal-file-input');
   const uploadStatus = document.getElementById('import-upload-status');
   const summaryEl = document.getElementById('import-summary');
   const reviewListEl = document.getElementById('import-review-list');
+  const doneSummaryEl = document.getElementById('import-done-summary');
   const commitBtn = document.getElementById('import-commit-btn');
   const cancelBtn = document.getElementById('import-cancel-btn');
+  const doneCloseBtn = document.getElementById('import-done-close-btn');
+  const doneAnotherBtn = document.getElementById('import-done-another-btn');
 
   let matched = [];
   let unmatched = [];
+  let excluded = new Set(); // indices into `matched` unchecked by the user
+  let lastImportedIds = []; // for "Undo this import" on the done screen
   // Matching against AniList is rate-limited and can take a while; this is
   // bumped on reset/cancel so a stale run that finishes after the user moved
   // on can't clobber the current attempt's state.
   let importGeneration = 0;
 
+  function showStep(step) {
+    stepsEl.innerHTML = Render.stepsHtml(step, IMPORT_STEP_LABELS);
+    uploadStep.hidden = step !== 1;
+    reviewStep.hidden = step !== 2;
+    doneStep.hidden = step !== 3;
+  }
+
   function reset() {
     importGeneration += 1;
     matched = [];
     unmatched = [];
+    excluded = new Set();
     fileInput.value = '';
     uploadStatus.textContent = '';
-    uploadStep.hidden = false;
-    reviewStep.hidden = true;
+    showStep(1);
   }
 
   function renderReview() {
-    summaryEl.innerHTML = `<span><b>${matched.length}</b> matched</span><span><b>${unmatched.length}</b> need manual matching</span>`;
+    summaryEl.innerHTML = `<span><b>${matched.length - excluded.size}</b> will be added</span><span><b>${unmatched.length}</b> need manual matching</span>`;
     reviewListEl.innerHTML =
-      matched.map((item, i) => reviewRowHtml(item, i, 'matched')).join('') +
-      unmatched.map((item, i) => reviewRowHtml(item, i, 'unmatched')).join('');
+      matched.map((item, i) => reviewRowHtml(item, i, 'matched', !excluded.has(i))).join('') +
+      unmatched.map((item, i) => reviewRowHtml(item, i, 'unmatched', false)).join('');
   }
 
   document.getElementById('import-trigger').addEventListener('click', () => {
@@ -191,9 +214,9 @@ export function initMalImport() {
 
       matched = result.matched;
       unmatched = result.unmatched;
+      excluded = new Set();
 
-      uploadStep.hidden = true;
-      reviewStep.hidden = false;
+      showStep(2);
       renderReview();
     } catch (err) {
       if (myGeneration === importGeneration) uploadStatus.textContent = `Error: ${err.message}`;
@@ -201,9 +224,18 @@ export function initMalImport() {
   });
 
   reviewListEl.addEventListener('click', async (e) => {
+    const toggle = e.target.closest('[data-action="toggle-row"]');
+    if (toggle) {
+      const idx = Number(toggle.closest('.rw').dataset.idx);
+      if (excluded.has(idx)) excluded.delete(idx);
+      else excluded.add(idx);
+      renderReview();
+      return;
+    }
+
     const btn = e.target.closest('[data-action="manual-match"]');
     if (!btn) return;
-    const row = btn.closest('.import-row');
+    const row = btn.closest('.rw');
     const idx = Number(row.dataset.idx);
     const item = unmatched[idx];
     const query = prompt(`Search AniList for a match for "${item.malEntry.title}":`, item.malEntry.title);
@@ -228,14 +260,20 @@ export function initMalImport() {
 
   commitBtn.addEventListener('click', () => {
     let added = 0;
+    let alreadyOwned = 0;
     const toDownload = [];
-    for (const { malEntry, media } of matched) {
-      if (Store.getEntry(media.id)) continue;
+    lastImportedIds = [];
+    matched.forEach(({ malEntry, media }, i) => {
+      if (excluded.has(i)) return;
+      if (Store.getEntry(media.id)) {
+        alreadyOwned += 1;
+        return;
+      }
       Store.addEntry(mediaToEntryPatch(media, malEntry));
+      lastImportedIds.push(media.id);
       added += 1;
       toDownload.push({ anilistId: media.id, url: media.coverImage.large });
-    }
-    overlay.hidden = true;
+    });
     document.dispatchEvent(new CustomEvent('library-imported', { detail: { added } }));
     // Firing all of these at once (previously: no await, no limit) floods the
     // connection on a large import and silently fails almost all of them,
@@ -244,6 +282,34 @@ export function initMalImport() {
     downloadCoversLimited(toDownload).then(() => {
       document.dispatchEvent(new CustomEvent('covers-updated'));
     });
+
+    doneSummaryEl.innerHTML = `
+      <div><b>${added}</b>series added</div>
+      <div><b>${alreadyOwned}</b>already in your library, left alone</div>
+      <div><b>${excluded.size + unmatched.length}</b>skipped</div>
+      <div><b>1</b>backup taken before import</div>
+    `;
+    showStep(3);
+  });
+
+  doneCloseBtn.addEventListener('click', () => {
+    overlay.hidden = true;
+  });
+
+  doneAnotherBtn.addEventListener('click', () => {
+    reset();
+  });
+
+  document.getElementById('import-done-undo-btn').addEventListener('click', () => {
+    const removed = lastImportedIds.map((id) => Store.removeEntry(id)).filter(Boolean);
+    lastImportedIds = [];
+    // 'covers-updated' is reused deliberately here — it's the app's existing
+    // generic "something changed, refresh and persist, no toast of its own"
+    // event, which is exactly what's needed; 'library-imported' would also
+    // fire app.js's own "Imported N entries" toast with a confusing negative count.
+    document.dispatchEvent(new CustomEvent('covers-updated'));
+    Render.showToast(`Removed ${removed.length} titles from this import.`);
+    overlay.hidden = true;
   });
 }
 
