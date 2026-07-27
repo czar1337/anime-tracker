@@ -8,6 +8,7 @@ import { Airing } from './airing.js';
 import { Notifications } from './notifications.js';
 import { Themes } from './themes.js';
 import { Preferences } from './preferences.js';
+import { Atmosphere } from './atmosphere.js';
 import { computeLibraryStats } from './statsLogic.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsExport.js';
 
@@ -342,6 +343,9 @@ function handleSetStatus(id, newStatus) {
   if (!entry || entry.listStatus === newStatus) return;
   const before = entry.listStatus;
   Store.updateEntry(id, buildStatusPatch(entry, newStatus));
+  // design system §10, "Series finished": ripple (already happens on
+  // whatever button was pressed) plus one feather drifting down.
+  if (newStatus === 'watched') Atmosphere.rewardFeather();
   refreshView();
   Detail.refreshDetailIfOpen(id);
   persist();
@@ -1070,19 +1074,53 @@ function openHelp() {
   Render.renderHelpPanel(document.getElementById('help-body'));
 }
 
+// j/k move a roving focus between whatever `.card` elements are actually on
+// screen right now (list view, or Home's "pick up where you left off"
+// strip — whatever #grid/the page currently has). No wraparound: k at the
+// first card or j at the last just stays put, matching the "move between
+// cards" wording rather than a carousel.
+function focusAdjacentCard(delta) {
+  const cards = Array.from(document.querySelectorAll('.card'));
+  if (cards.length === 0) return;
+  const current = document.activeElement.closest && document.activeElement.closest('.card');
+  const currentIndex = current ? cards.indexOf(current) : -1;
+  const nextIndex = Math.max(0, Math.min(cards.length - 1, currentIndex + delta));
+  cards[nextIndex].focus();
+}
+
+// design system §13's full shortcut list: / search in this list · n add a
+// series · 1-7 switch tabs · j k move between cards · space mark next
+// episode · enter open the series · s select mode · esc close or leave
+// select mode · ctrl+z undo · ? help. All (except Escape, checked first)
+// are inactive while typing in a field, per that same section.
 function bindKeyboardShortcuts() {
   document.getElementById('shortcuts-trigger').addEventListener('click', openHelp);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      closeAllOverlays();
+      if (document.querySelector('.overlay:not([hidden])')) closeAllOverlays();
+      else if (Render.isSelectMode()) {
+        Render.toggleSelectMode();
+        refreshGridOnly();
+      }
       return;
     }
 
     if (isTypingTarget(e.target)) return;
 
+    if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      Render.undoLast();
+      return;
+    }
+
     if (e.key === '/') {
       e.preventDefault();
+      document.getElementById('title-filter').focus();
+      return;
+    }
+
+    if (e.key === 'n') {
       openOverlay('search-overlay');
       document.getElementById('search-input').focus();
       return;
@@ -1093,18 +1131,45 @@ function bindKeyboardShortcuts() {
       return;
     }
 
+    if (e.key === 's') {
+      Render.toggleSelectMode();
+      refreshGridOnly();
+      return;
+    }
+
+    if (e.key >= '1' && e.key <= '7') {
+      const tabs = document.querySelectorAll('.tab');
+      tabs[Number(e.key) - 1]?.click();
+      return;
+    }
+
+    if (e.key === 'j' || e.key === 'k') {
+      e.preventDefault();
+      focusAdjacentCard(e.key === 'j' ? 1 : -1);
+      return;
+    }
+
+    if (e.key === ' ' && document.activeElement.matches('.card')) {
+      e.preventDefault();
+      const card = document.activeElement;
+      handleIncrement(card, Number(card.dataset.id));
+      return;
+    }
+
+    if (e.key === 'Enter' && document.activeElement.matches('.card')) {
+      Detail.showDetail(Number(document.activeElement.dataset.id));
+      return;
+    }
+
+    // Kept working alongside the shortcuts above even though the design
+    // system doesn't list them — no replacement exists for +/- specifically
+    // (space only covers +1), and they were already muscle-memory before
+    // this phase, so there was no reason to take them away.
     const card = e.target.closest && e.target.closest('.card');
     if (!card) return;
     const id = Number(card.dataset.id);
-
-    if (['1', '2', '3', '4'].includes(e.key)) {
-      const map = { 1: 'watching', 2: 'watchlist', 3: 'watched', 4: 'dropped' };
-      handleSetStatus(id, map[e.key]);
-    } else if (e.key === '+' || e.key === '=') {
-      handleIncrement(card, id);
-    } else if (e.key === '-') {
-      handleDecrement(id);
-    }
+    if (e.key === '+' || e.key === '=') handleIncrement(card, id);
+    else if (e.key === '-') handleDecrement(id);
   });
 }
 
@@ -1266,14 +1331,63 @@ export function repositionTabPill() {
   updateTabPill();
 }
 
+// Hold a card 500ms to enter select mode and select it in one motion
+// (design §10: "Hold a card · 500ms · linear ring · ring fills, then select
+// mode" — also the primary route into select mode on touch, per @media
+// (hover:none) handling, since there's no hover to reveal the checkbox
+// first). Delegated on #app like bindGridEvents; deliberately ignores
+// presses that start on an actual control inside the card (buttons, the
+// title, etc.) so holding the plus button doesn't also arm this.
+function bindHoldToSelect() {
+  const root = document.getElementById('app');
+  let holdTimer = null;
+  let holdCard = null;
+
+  const cancelHold = () => {
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    if (holdCard) holdCard.classList.remove('holding');
+    holdCard = null;
+  };
+
+  root.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('button, input, textarea, select, a, [data-action]')) return;
+    const card = e.target.closest('.card');
+    if (!card) return;
+    holdCard = card;
+    card.classList.add('holding');
+    holdTimer = setTimeout(() => {
+      const id = Number(card.dataset.id);
+      if (!Render.isSelectMode()) Render.toggleSelectMode();
+      Render.toggleSelected(id);
+      refreshGridOnly();
+      cancelHold();
+    }, 500);
+  });
+  root.addEventListener('pointerup', cancelHold);
+  root.addEventListener('pointercancel', cancelHold);
+  // pointerout (not pointerleave) so moving between a card and its own
+  // children doesn't false-trigger a cancel — only actually leaving the
+  // held card's whole box does.
+  root.addEventListener('pointerout', (e) => {
+    if (holdCard && holdCard.contains(e.target) && !holdCard.contains(e.relatedTarget)) cancelHold();
+  });
+}
+
 // Pointer-positioned ripple on press (design/moonlit-shrine-design-system.md
-// §10: "Any press · ripple starting at the pointer position"), delegated
-// from document so any current or future `.rip-host` button gets it for
-// free. Skipped under reduced motion, same as the rest of the app's motion.
+// §10: "Any press · ripple starting at the pointer position · on all
+// controls"), delegated from document so it works on every control listed
+// below without binding per-element. `.rip-host` stays supported too, for
+// the couple of call sites that opted in individually before this covered
+// everything. Deliberately excludes `.sel` (native <select>s can't host a
+// child ripple span) and `.tab` (its badge-pop child animation briefly
+// scales past 100% — `overflow:hidden` here would clip it). Skipped under
+// reduced motion, same as the rest of the app's motion.
 function bindRipple() {
   document.addEventListener('pointerdown', (e) => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const host = e.target.closest('.rip-host');
+    const host = e.target.closest('.rip-host, .btn, .chip, .icn, .card, .plus, .seg button, .themegrid button, .score-dot, .quick-move-btn');
     if (!host) return;
     const rect = host.getBoundingClientRect();
     const rip = document.createElement('span');
@@ -1296,6 +1410,7 @@ export function initEvents({ initialList, persistFn }) {
   bindHero();
   bindDetailOverlay();
   bindGridEvents();
+  bindHoldToSelect();
   bindFilterBar();
   bindBulkActionBar();
   bindAiringStatus();

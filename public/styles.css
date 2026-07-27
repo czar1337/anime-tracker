@@ -157,6 +157,80 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* ---------- Atmosphere ----------
+   design/moonlit-shrine-design-system.md §11. Built once by atmosphere.js
+   and inserted as body's first child; z-index:-1 keeps it behind every bit
+   of real content regardless of paint order, with no need to touch #app's
+   own stacking. Moon glow + vignette are unconditional; canopy/leaves/
+   feathers are only ever populated by JS when decoration is actually
+   allowed (see atmosphere.js's decorativeLayerAllowed) — the [data-decor]
+   rules below only handle the "half" opacity case, since "off" is instead
+   handled by JS never creating those elements in the first place. */
+#atmosphere { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+
+.atmo-moon {
+  position: absolute;
+  top: -140px; left: 50%;
+  width: 680px; height: 440px;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, var(--glow), transparent);
+  opacity: .17;
+  filter: blur(2px);
+}
+.atmo-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, transparent 55%, color-mix(in srgb, var(--bg-deep) 65%, transparent) 100%);
+}
+
+.atmo-canopy i { position: absolute; border-radius: 50%; filter: blur(24px); }
+.atmo-canopy i:nth-child(1) { top: -70px; left: -90px; width: 320px; height: 220px; background: var(--support); opacity: .19; }
+.atmo-canopy i:nth-child(2) { top: -50px; right: -110px; width: 300px; height: 210px; background: var(--glow); opacity: .24; }
+.atmo-canopy i:nth-child(3) { bottom: -90px; left: 8%; width: 260px; height: 190px; background: var(--accent-deep); opacity: .22; }
+.atmo-canopy i:nth-child(4) { bottom: -70px; right: 6%; width: 300px; height: 210px; background: var(--support); opacity: .3; }
+[data-decor="half"] .atmo-canopy { opacity: .45; }
+
+/* Leaves and feathers animate transform+opacity only, per the design's
+   performance budget. Per-instance randomness (start position, drift,
+   duration, delay) comes from inline custom properties set in atmosphere.js
+   — the keyframes just consume them, nothing here is per-element. */
+.atmo-leaf {
+  position: absolute;
+  top: -20px;
+  left: var(--leaf-x);
+  width: 12px; height: 12px;
+  background: var(--accent-deep);
+  clip-path: polygon(50% 0%, 100% 40%, 80% 100%, 20% 100%, 0% 40%);
+  animation: leafDrift var(--leaf-dur) linear infinite;
+  opacity: 0;
+}
+@keyframes leafDrift {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  8% { opacity: var(--leaf-op); }
+  92% { opacity: var(--leaf-op); }
+  100% { transform: translate(var(--leaf-dx), 128vh) rotate(var(--leaf-rot)); opacity: 0; }
+}
+[data-decor="half"] .atmo-leaves { opacity: .45; }
+
+.atmo-feather {
+  position: absolute;
+  top: -30px;
+  left: var(--f-x);
+  width: 9px; height: 24px;
+  background: linear-gradient(180deg, var(--glow), transparent);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  animation: featherFall var(--f-dur, 2.4s) var(--e-out) forwards;
+  opacity: 0;
+}
+.atmo-feather.reward { width: 13px; height: 32px; }
+@keyframes featherFall {
+  0% { transform: translate(0, 0) rotate(-12deg); opacity: 0; }
+  10% { opacity: var(--f-op, .95); }
+  85% { opacity: var(--f-op, .95); }
+  100% { transform: translate(var(--f-dx), 128vh) rotate(var(--f-rot)); opacity: 0; }
+}
+[data-decor="half"] .atmo-feathers { opacity: .45; }
+
 button, input, select {
   font-family: inherit;
   color: inherit;
@@ -396,6 +470,8 @@ kbd {
 
 /* ---------- Icon buttons ---------- */
 .icn {
+  position: relative;
+  overflow: hidden;
   appearance: none;
   border: 1px solid var(--line);
   background: color-mix(in srgb, var(--text) 2%, transparent);
@@ -463,6 +539,32 @@ kbd {
   animation: ripple 520ms var(--e-out) forwards;
 }
 @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
+
+/* design/moonlit-shrine-design-system.md §10: "@media(hover:none): hover
+   states are dropped and press scales step up one level, since a finger
+   hides the feedback." Presses already work fine on touch (:active fires
+   normally) — this only removes the *lingering* hover look a tap can leave
+   behind on the two most visible hover effects (the card lift and the
+   primary button lift), and makes every press scale a bit more pronounced
+   to compensate for hover no longer being available as feedback. Not an
+   exhaustive per-control sweep of every :hover rule in this file — the
+   rest are subtle enough (border-color only, mostly) that a lingering tap
+   is barely noticeable, so this is scoped to the two that visibly are.
+   :not(:focus-within) keeps keyboard-focus styling intact regardless of
+   pointer capability — this only ever suppresses the *pointer-hover* look. */
+@media (hover: none) {
+  :root { --press-btn: .94; --press-icon: .85; --press-card: .98; --press-chip: .90; }
+  .card:hover:not(:focus-within) {
+    transform: none;
+    background: var(--card);
+    border-color: var(--line);
+    box-shadow: none;
+  }
+  .card:hover:not(:focus-within)::before { right: 100%; }
+  .card:hover:not(:focus-within) .card-cover-wrap img { filter: var(--cover-filter); }
+  .card:hover:not(:focus-within) .plus { opacity: 0; transform: scale(0.85); }
+  .btn-primary:hover { transform: none; filter: none; }
+}
 
 /* ---------- Main / toolbar ---------- */
 .app-main {
@@ -535,6 +637,8 @@ kbd {
    .on chip anywhere removes it, so the hint applies universally, not just
    in the active-filter row. */
 .chip {
+  position: relative;
+  overflow: hidden;
   font: var(--t-meta);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -705,6 +809,36 @@ kbd {
   box-shadow: var(--sh-3), 0 0 30px -18px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Hold 500ms to enter select mode (design §10: "Hold a card · 500ms ·
+   linear ring · ring fills, then select mode"). events.js's bindHoldToSelect
+   toggles .holding; the ring itself is a plain stroke-dashoffset sweep,
+   circumference 2*pi*17 ≈ 106.8. */
+.hold-ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  margin: -20px 0 0 -20px;
+  z-index: 5;
+  opacity: 0;
+  pointer-events: none;
+}
+.hold-ring circle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-dasharray: 106.8;
+  stroke-dashoffset: 106.8;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.card.holding .hold-ring { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .card.holding .hold-ring circle { animation: holdRing 500ms linear forwards; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.holding .hold-ring circle { stroke-dashoffset: 0; } /* "ring fills without animation" — still shows, just not as a sweep */
+}
+@keyframes holdRing { to { stroke-dashoffset: 0; } }
 
 /* The single accent signal on hover: a hairline that draws itself across
    the top edge, left of centre... actually right-to-left per the design
@@ -1093,6 +1227,7 @@ kbd {
    design-system.md §10). */
 .plus {
   position: absolute;
+  overflow: hidden;
   z-index: 4;
   right: 9px;
   bottom: calc(46px * var(--text-scale));
@@ -1150,6 +1285,8 @@ kbd {
   gap: 2px;
 }
 .score-dot {
+  position: relative;
+  overflow: hidden;
   appearance: none;
   border: 1px solid var(--border);
   background: transparent;
@@ -1171,6 +1308,8 @@ kbd {
   gap: 3px;
 }
 .quick-move-btn {
+  position: relative;
+  overflow: hidden;
   appearance: none;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
@@ -1748,12 +1887,12 @@ kbd {
 .set-row .k b { display: block; font: var(--t-card); margin-bottom: 3px; }
 .set-row .k span { font: var(--t-meta); color: var(--faint); line-height: 1.5; }
 .seg { display: inline-flex; gap: 4px; background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid var(--line); border-radius: 9px; padding: 4px; }
-.seg button { background: none; border: 0; border-radius: 6px; color: var(--dim); font: var(--t-meta); padding: 7px 11px; cursor: pointer; transition: color var(--d-2), background var(--d-2); }
+.seg button { position: relative; overflow: hidden; background: none; border: 0; border-radius: 6px; color: var(--dim); font: var(--t-meta); padding: 7px 11px; cursor: pointer; transition: color var(--d-2), background var(--d-2); }
 .seg button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
 .seg button.on { background: var(--accent-fill); color: var(--accent-contrast); }
 .set-row .note { display: block; margin-top: 6px; font: var(--t-meta); color: var(--faint); }
 .themegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; max-height: 280px; overflow-y: auto; padding-right: 2px; }
-.themegrid button { border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: none; cursor: pointer; transition: border-color var(--d-2), transform var(--d-2); }
+.themegrid button { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: none; cursor: pointer; transition: border-color var(--d-2), transform var(--d-2); }
 .themegrid button:hover { border-color: var(--line-lit); transform: translateY(-2px); }
 .themegrid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .themegrid .sw2 { height: 34px; display: flex; align-items: flex-end; gap: 3px; padding: 5px; }

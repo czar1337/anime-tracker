@@ -8,6 +8,7 @@ import { Discover } from './discover.js';
 import { Schedule } from './schedule.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
+import { Atmosphere } from './atmosphere.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -246,6 +247,7 @@ async function boot() {
   Detail.initDetail();
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
   Render.renderAll(initialList);
+  Atmosphere.initAtmosphere();
   repositionTabPill(); // real tab-count text is in now, which can shift tab widths from initEvents' earlier "0" placeholder measurement
   showVersionBanner();
   Airing.ensureFreshOnOpen(); // background only — never blocks startup, never fetches more than once/day

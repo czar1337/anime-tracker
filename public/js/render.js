@@ -245,6 +245,7 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
   const isNew = list === 'watching' && Airing.getUnseenCount(entry.anilistId) > 0;
   return `
     <article class="card ${seasonLabel ? 'season-row' : ''} ${isSelected ? 'selected' : ''} ${isFinished ? 'finished' : ''} ${isDropped ? 'dropped' : ''}" data-id="${entry.anilistId}" tabindex="0" style="animation-delay:${staggerDelayMs(index)}ms">
+      <svg class="hold-ring" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle></svg>
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
         ${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">` : ''}
@@ -1167,19 +1168,36 @@ function renderBackupList(container, backups) {
     .join('');
 }
 
+// The most recent toast's own Undo button, if it has one and is still
+// showing — this is the entirety of what `ctrl+z` needs (design system
+// §13), since every undoable action already routes through this same
+// actionLabel/onAction pair. Not a real undo *history*: only ever the
+// single most recent one, and only for as long as its toast is still up.
+let lastUndoBtn = null;
+
 function showToast(message, { actionLabel, onAction, duration = 5000 } = {}) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.innerHTML = `<span>${escapeHtml(message)}</span>${actionLabel ? `<button>${escapeHtml(actionLabel)}</button>` : ''}`;
   if (actionLabel && onAction) {
-    toast.querySelector('button').addEventListener('click', () => {
+    const btn = toast.querySelector('button');
+    btn.addEventListener('click', () => {
       onAction();
       toast.remove();
+      if (lastUndoBtn === btn) lastUndoBtn = null;
     });
+    lastUndoBtn = btn;
   }
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), duration);
+  setTimeout(() => {
+    toast.remove();
+    if (toast.querySelector('button') === lastUndoBtn) lastUndoBtn = null;
+  }, duration);
+}
+
+function undoLast() {
+  if (lastUndoBtn && document.body.contains(lastUndoBtn)) lastUndoBtn.click();
 }
 
 function showError(message) {
@@ -1386,14 +1404,21 @@ const HELP_TOUR_2 = [
   ['Selecting several', 'Press "Select several" in the toolbar, or hold a card, then pick more.'],
   ['Your data', 'Everything stays on this computer. Nothing is sent anywhere except searches to AniList.'],
 ];
-// Documents only the shortcuts events.js actually implements (bindKeyboardShortcuts) —
-// not a wishlist. `1`-`4`/`+`/`-` all require keyboard focus inside a card.
+// Documents only the shortcuts events.js actually implements
+// (bindKeyboardShortcuts) — matches design system §13 exactly, plus the one
+// bonus row (+/-) that isn't in that list but still works.
 const HELP_KEYS = [
-  ['/', 'Search and add a series'],
-  ['1 – 4', 'Set status on the focused card'],
-  ['+ / -', 'Episode progress on the focused card'],
-  ['esc', 'Close overlays'],
+  ['/', 'Focus the filter in this list'],
+  ['n', 'Search and add a series'],
+  ['1 – 7', 'Switch tab'],
+  ['j / k', 'Move between cards'],
+  ['space', "Mark the focused card's next episode watched"],
+  ['enter', 'Open the focused card'],
+  ['s', 'Select mode'],
+  ['esc', 'Close, or leave select mode'],
+  ['ctrl + z', 'Undo the last change'],
   ['?', 'Open this help'],
+  ['+ / -', 'Step episode progress on a focused card'],
 ];
 // Verified against server.js/datadir.js/README.md rather than copied
 // verbatim from the design reference — a couple of its answers (backup
@@ -1467,6 +1492,7 @@ export const Render = {
   renderHelpPanel,
   setHelpTab,
   showToast,
+  undoLast,
   showError,
   clearError,
   escapeHtml,
