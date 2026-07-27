@@ -13,10 +13,14 @@
    a key from a future version), there is otherwise nothing to fall back to
    and the whole app renders unstyled. The old token system had real
    default values for exactly this reason — this restores that safety net
-   using moonlit-shrine's own values, rather than regressing it. Every real
-   theme overrides all of this via higher specificity, so it's inert
-   otherwise. ---------- */
-:root{
+   using moonlit-shrine's own values, rather than regressing it. Wrapped in
+   :where() to zero out its specificity — every [data-color-theme] block
+   below has normal specificity, so it always wins regardless of source
+   order, instead of the two silently tying and the later one in the file
+   winning unconditionally (which is what let this stay broken unnoticed:
+   the fallback's values happen to equal moonlit-shrine's, so only the
+   default theme ever rendered correctly). ---------- */
+:where(:root){
   --bg: hsl(222 18% 5%); --bg-deep: hsl(222 18% 3.5%); --bg-elevated: hsl(222 16.2% 9%);
   --card: hsl(222 15.3% 10.5%); --card-hover: hsl(222 14.4% 13.5%);
   --line: hsl(222 12.6% 17%); --line-lit: hsl(222 9.9% 27%);
@@ -211,60 +215,76 @@ kbd {
 }
 
 .brand {
-  font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 0;
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: var(--t-display-s);
+  letter-spacing: var(--tr-brand);
+  color: var(--text);
   white-space: nowrap;
-  background: linear-gradient(135deg, var(--accent), var(--accent-pink));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+}
+.brand i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 13px color-mix(in srgb, var(--accent) 90%, transparent);
+  flex-shrink: 0;
 }
 
 .tabs {
   position: relative;
   display: flex;
-  gap: 4px;
+  gap: 24px;
   flex: 1;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
 
-/* Slides between tabs on selection instead of each tab toggling its own
-   background — position/width set from JS (measured off the active tab),
-   this only owns the motion. */
+/* A single underline slides between tabs on selection (design/moonlit-
+   shrine-design-system.md §10: "Tab change · 240ms · --e-out · the single
+   underline slides") — position/width set from JS (measured off the
+   active tab via getBoundingClientRect, same mechanism regardless of
+   whether this renders as a fill or a line), this only owns the motion. */
 .tab-pill {
   position: absolute;
-  top: 0;
-  bottom: 0;
   left: 0;
+  bottom: -1px;
   width: 0;
-  background: var(--accent-soft);
-  border-radius: var(--radius-sm);
-  transition: left 0.35s cubic-bezier(.22,1,.36,1), width 0.35s cubic-bezier(.22,1,.36,1);
-  z-index: 0;
+  height: 1px;
+  background: var(--accent);
+  transition: left 240ms var(--e-out), width 240ms var(--e-out);
+  z-index: 1;
   pointer-events: none;
 }
 
 .tab {
   position: relative;
-  z-index: 1;
   appearance: none;
   border: none;
   background: transparent;
-  color: var(--text-dim);
-  font-size: 14px;
-  font-weight: 600;
-  padding: 8px 14px;
-  border-radius: var(--radius-sm);
+  color: var(--faint);
+  font: var(--t-micro);
+  letter-spacing: var(--tr-micro);
+  text-transform: uppercase;
+  padding: 0 0 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: color 0.15s ease;
+  transition: color var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  white-space: nowrap;
 }
 
-.tab:hover { color: var(--text); }
+.tab:hover { color: var(--dim); }
+.tab:active { transform: translateY(1px); }
 
 .tab[aria-selected="true"] {
   color: var(--text);
@@ -272,19 +292,16 @@ kbd {
 
 .tab-count {
   display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  background: var(--border-light);
-  color: var(--text-dim);
-  border-radius: 999px;
-  padding: 1px 7px;
-  min-width: 18px;
-  text-align: center;
+  font: var(--t-meta);
+  font-weight: 500;
+  color: var(--faint);
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .tab[aria-selected="true"] .tab-count {
-  background: var(--accent);
-  color: var(--accent-contrast);
+  color: var(--faint);
 }
 
 /* Distinct from .tab-count (total in the list): how many of those series
@@ -326,105 +343,126 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-.update-banner {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  padding: 4px 10px;
+/* ---------- Banners: update available, save error ----------
+   design/moonlit-shrine-design-system.md §16: "New design". Two roles
+   sharing one shape — colour is the only thing that tells them apart, via
+   the modifier class, never inline. */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font: var(--t-meta);
+  font-size: 12px;
   text-decoration: none;
   white-space: nowrap;
 }
-.update-banner:hover { background: var(--accent); color: var(--accent-contrast); }
+.banner.update {
+  border: 1px solid color-mix(in srgb, var(--support) 40%, transparent);
+  background: color-mix(in srgb, var(--support) 8%, transparent);
+  color: var(--text);
+}
+.banner.update:hover { background: color-mix(in srgb, var(--support) 16%, transparent); }
+.banner.error {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+  color: var(--text);
+  white-space: normal;
+  padding: 10px 28px;
+}
 
-.save-indicator {
-  font-size: 11px;
-  color: var(--text-faint);
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+/* ---------- Save indicator, three states ----------
+   The dot carries the state, the words repeat it — colour is never the
+   only signal (design/moonlit-shrine-design-system.md §13). */
+.save {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: var(--t-meta);
+  color: var(--faint);
   white-space: nowrap;
-  transition: color 0.15s ease, border-color 0.15s ease;
 }
-.save-indicator[data-state="saving"] { color: var(--amber); border-color: var(--amber); }
-.save-indicator[data-state="failed"] { color: var(--accent-lit); border-color: var(--accent); }
-.save-indicator[data-state="saved"] { color: var(--success); border-color: var(--success); }
-.save-indicator[data-state="saved"]::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 5px;
+.save i {
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--success);
-  animation: pulseDot 1.6s ease-in-out infinite;
+  background: var(--positive);
 }
-@keyframes pulseDot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(0.65); }
-}
+.save[data-state="saving"] i { background: var(--warning); animation: savePulse 1.2s ease-in-out infinite; }
+.save[data-state="failed"] { color: var(--accent-lit); }
+.save[data-state="failed"] i { background: var(--accent); }
+@keyframes savePulse { 50% { opacity: 0.3; } }
 
-.icon-btn {
+/* ---------- Icon buttons ---------- */
+.icn {
   appearance: none;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-dim);
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  color: var(--dim);
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-weight: 700;
-  transition: all 0.15s ease;
+  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
 }
-.icon-btn:hover { color: var(--text); border-color: var(--border-light); transform: translateY(-1px); }
-.icon-btn:active { transform: scale(0.93); }
-.icon-btn.small { width: 30px; height: 30px; }
+.icn:hover { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
+.icn:active { transform: scale(var(--press-icon)); }
+.icn.small { width: 28px; height: 28px; }
+/* Sort direction: one icon flips vertically to show direction instead of
+   swapping its glyph — see sortDirBtn.classList.toggle('is-asc', ...) in
+   render.js. */
+.icn.is-asc svg { transform: scaleY(-1); }
 
-.add-trigger {
+/* ---------- Buttons, four levels ----------
+   design/moonlit-shrine-design-system.md §8: primary (--accent-fill, one
+   per view), ghost (line + faint surface), quiet (line only), danger
+   (accent line, --accent-lit text). */
+.btn {
+  position: relative;
+  overflow: hidden;
   appearance: none;
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  padding: 7px 14px 7px 10px;
   border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  font: var(--t-action);
+  padding: 10px 16px;
+  border: 1px solid transparent;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: background-color 0.15s ease, transform 0.15s ease;
-  animation: addGlow 2.6s ease-in-out infinite;
+  transition: transform var(--d-2) var(--e-out), filter var(--d-2), background var(--d-2), border-color var(--d-2), box-shadow var(--d-2);
 }
-.add-trigger:hover { background: var(--accent-strong); transform: translateY(-1px); }
-.add-trigger:active { transform: scale(0.93); }
-@keyframes addGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(95, 181, 163, 0.5); }
-  50% { box-shadow: 0 0 18px 4px rgba(95, 181, 163, 0.5); }
+.btn:active { transform: scale(var(--press-btn)); transition-duration: var(--d-press); transition-timing-function: var(--e-press); }
+.btn-primary {
+  background: var(--accent-fill);
+  color: var(--accent-contrast);
+  box-shadow: 0 10px 26px -12px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-
-.brand {
-  appearance: none;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  padding: 0;
+.btn-primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.btn-primary:active { transform: scale(var(--press-btn)); filter: brightness(0.94); }
+.btn-ghost { background: color-mix(in srgb, var(--text) 4%, transparent); border-color: var(--line); color: var(--text); }
+.btn-ghost:hover { border-color: var(--line-lit); }
+.btn-quiet { background: none; border-color: var(--line); color: var(--dim); }
+.btn-quiet:hover { border-color: var(--line-lit); color: var(--text); }
+.btn-danger { background: none; border-color: var(--accent); color: var(--accent-lit); }
+.btn-danger:hover { background: var(--accent-soft); }
+.btn.sm { padding: 6px 12px; }
+/* Pointer-positioned ripple on press (design §10: "Any press · ripple
+   starting at the pointer position"). JS sets --x/--y from the click
+   event and toggles this class; see events.js's bindRipple. */
+.rip {
+  position: absolute;
+  border-radius: 50%;
+  left: var(--x, 50%);
+  top: var(--y, 50%);
+  translate: -50% -50%;
+  transform: scale(0);
+  opacity: 0.55;
+  background: color-mix(in srgb, var(--accent-contrast) 100%, transparent);
+  pointer-events: none;
+  animation: ripple 520ms var(--e-out) forwards;
 }
-
-/* ---------- Error banner ---------- */
-.error-banner {
-  background: var(--accent-soft);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  color: var(--accent-lit);
-  padding: 10px 28px;
-  font-size: 13px;
-}
+@keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
 
 /* ---------- Main / toolbar ---------- */
 .app-main {
@@ -455,73 +493,127 @@ kbd {
 .stat-value { font-size: 20px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
 
+/* ---------- Filter bar ----------
+   design/moonlit-shrine-design-system.md §8, §16: two rows plus an
+   active-filter row, all New in this phase. */
 .filter-bar {
-  display: flex;
-  align-items: center;
+  display: grid;
   gap: 10px;
-  flex-wrap: wrap;
 }
+.line1 { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.line2 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-.search-filter-row {
+.field {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  gap: 9px;
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  color: var(--text-faint);
-  flex: 1 1 220px;
-  min-width: 160px;
-  max-width: 320px;
+  padding: 9px 12px;
+  color: var(--faint);
+  font: var(--t-body);
+  transition: border-color var(--d-2) var(--e-inout);
 }
+.field:hover { border-color: var(--line-lit); }
+.field kbd { margin-left: auto; font: var(--t-nano); border: 1px solid var(--line); border-radius: 3px; padding: 2px 6px; color: var(--faint); }
+.search-filter-row { flex: 1 1 250px; min-width: 250px; }
 .title-filter-input {
   flex: 1;
   border: none;
   background: transparent;
   color: var(--text);
-  font-size: 12px;
+  font: var(--t-body);
   min-width: 0;
 }
 .title-filter-input:focus { outline: none; }
 
-.filter-group {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
+.filter-group { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
-.genre-chip {
-  appearance: none;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-dim);
-  font-size: 12px;
-  padding: 5px 11px;
+/* Genre/active-filter pills — shared everywhere a toggleable filter shows
+   up (filter bar quick-chips, its "All genres" overflow, and the
+   active-filter row below). .on always gets a trailing " ×": clicking an
+   .on chip anywhere removes it, so the hint applies universally, not just
+   in the active-filter row. */
+.chip {
+  font: var(--t-meta);
+  border: 1px solid var(--line);
   border-radius: 999px;
+  padding: 6px 13px;
+  color: var(--dim);
+  background: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
 }
-.genre-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.genre-chip:active { transform: scale(0.93); }
-.genre-chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.chip:hover { border-color: var(--line-lit); color: var(--text); }
+.chip:active { transform: scale(0.95); }
+.chip.on { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
+.chip.on::after { content: " \00d7"; color: var(--faint); }
 
-.filter-select, .year-input {
-  appearance: none;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text);
-  font-size: 12px;
-  padding: 6px 10px;
+.sel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: var(--t-meta);
+  color: var(--dim);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  background: none;
   cursor: pointer;
+  appearance: none;
+  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout);
 }
-.year-input { width: 90px; cursor: text; }
-.year-range { display: flex; align-items: center; gap: 6px; color: var(--text-faint); font-size: 12px; }
-.score-range { display: flex; align-items: center; gap: 6px; color: var(--text-faint); font-size: 12px; }
-.score-range .year-input:disabled { opacity: 0.4; cursor: not-allowed; }
-.unrated-toggle { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); cursor: pointer; white-space: nowrap; margin-left: 2px; }
-.unrated-toggle input { cursor: pointer; accent-color: var(--accent); }
+.sel:hover { border-color: var(--line-lit); color: var(--text); }
+
+.divider { width: 1px; height: 20px; background: var(--line); }
+
+.range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+.range > span { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.range input {
+  width: 46px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: var(--t-meta);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.range input:focus { outline: none; color: var(--accent-lit); }
+.range input:disabled { opacity: 0.4; }
+.range i { color: var(--faint); font-style: normal; }
+
+.togg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: var(--t-meta);
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.togg input { position: absolute; opacity: 0; width: 0; height: 0; }
+.togg b {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--line-lit);
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  color: transparent;
+}
+.togg.on { border-color: var(--accent); color: var(--accent-lit); }
+.togg.on b { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
 .notifications-toggle-row { margin: 14px 0; font-size: 13px; white-space: normal; }
 .notifications-toggle-row input { width: 16px; height: 16px; }
 .notifications-description { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
@@ -555,35 +647,18 @@ kbd {
   flex-wrap: wrap;
   min-height: 26px;
 }
-.filter-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.active-chip {
-  appearance: none;
-  border: 1px solid transparent;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 9px;
-  border-radius: 999px;
+.active-filter-chips .lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.active-filter-chips .clear {
+  font: var(--t-meta);
+  color: var(--accent-lit);
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 5px;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.15s ease;
 }
-.active-chip:hover { background: var(--accent); color: var(--accent-contrast); }
-.active-chip-clear {
-  font-size: 11px;
-  padding: 0;
-  color: var(--text-faint);
-}
-.active-chip-clear:hover { color: var(--accent-lit); }
+.active-filter-chips .clear:hover { background: var(--accent-soft); }
+.result-count { margin-left: auto; font: var(--t-meta); color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .text-btn {
   appearance: none;
@@ -608,59 +683,60 @@ kbd {
 .text-btn.primary:hover { background: var(--accent-strong); text-decoration: none; }
 
 /* ---------- Card grid ---------- */
+/* auto-fill recalculates how many columns fit against this minimum width,
+   so scaling the minimum by --text-scale is what makes "grid columns drop
+   from 6 to 5 to 4 at l and xl" (design §4.2) fall out for free — larger
+   text needs a wider card to still read comfortably, which naturally means
+   fewer of them fit per row. */
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(calc(170px * var(--text-scale)), 1fr));
   gap: 14px;
 }
 
+/* ---------- Series card, six states ----------
+   design/moonlit-shrine-design-system.md §8: normal · new episode (accent
+   dot top left) · finished (support progress, n/total) · dropped (opacity
+   .55, accent-deep progress) · selected (accent border, filled check) ·
+   skeleton. Shared by .card, .discover-card and .franchise-card — same
+   surface, line, radius, hover choreography and top-edge sweep line. */
 .card {
-  background: var(--card-glass-bg);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--card-glass-border);
-  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 11px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4), background var(--d-4);
   position: relative;
   opacity: 0;
   animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) both;
 }
-.card:hover { transform: translateY(-6px); box-shadow: var(--shadow-glow); border-color: var(--accent); }
-.card:focus-within { border-color: var(--accent); }
+.card:hover, .card:focus-within {
+  transform: translateY(-5px);
+  background: var(--card-hover);
+  border-color: var(--line-lit);
+  box-shadow: var(--sh-3), 0 0 30px -18px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Status Window corner brackets — pure CSS (no extra markup), shared by
-   every card-like surface below. Sit inside the card's own overflow:hidden
-   bounds, so no clipping/z-index games needed. */
-.card::before, .card::after,
-.discover-card::before, .discover-card::after,
-.franchise-card::before, .franchise-card::after {
+/* The single accent signal on hover: a hairline that draws itself across
+   the top edge, left of centre... actually right-to-left per the design
+   reference (right:100% -> 0). Shared by every card-like surface. */
+.card::before, .discover-card::before, .franchise-card::before {
   content: '';
   position: absolute;
-  width: 10px;
-  height: 10px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s ease, width 0.2s ease, height 0.2s ease;
   z-index: 3;
+  top: 0; left: 0; right: 100%;
+  height: 1px;
+  background: var(--accent);
+  transition: right 450ms var(--e-out);
+  pointer-events: none;
 }
-.card::before, .discover-card::before, .franchise-card::before {
-  top: 6px; left: 6px;
-  border-top: 2px solid var(--card-corner-1);
-  border-left: 2px solid var(--card-corner-1);
-}
-.card::after, .discover-card::after, .franchise-card::after {
-  bottom: 6px; right: 6px;
-  border-bottom: 2px solid var(--card-corner-2);
-  border-right: 2px solid var(--card-corner-2);
-}
-.card:hover::before, .card:hover::after, .card:focus-within::before, .card:focus-within::after,
-.discover-card:hover::before, .discover-card:hover::after,
-.franchise-card:hover::before, .franchise-card:hover::after {
-  opacity: 0.9;
-  width: 14px;
-  height: 14px;
+.card:hover::before, .card:focus-within::before,
+.discover-card:hover::before, .discover-card:focus-within::before,
+.franchise-card:hover::before, .franchise-card:focus-within::before {
+  right: 0;
 }
 
 /* animation's `both` fill-mode holds its end-state (transform:translateY(0))
@@ -678,20 +754,24 @@ kbd {
 /* Discover cards share the card visual language but aren't part of the
    library grid's click delegation (no data-id, no quick-move/score/etc.) */
 .discover-card {
-  background: var(--card-glass-bg);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--card-glass-border);
-  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 11px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   position: relative;
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4), background var(--d-4);
   opacity: 0;
   animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) both;
 }
-.discover-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-glow); border-color: var(--accent); }
-.discover-because { font-size: 11px; color: var(--text-faint); margin: 0; line-height: 1.4; }
+.discover-card:hover {
+  transform: translateY(-5px);
+  background: var(--card-hover);
+  border-color: var(--line-lit);
+  box-shadow: var(--sh-3), 0 0 30px -18px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.discover-because { font-size: 11px; color: var(--faint); margin: 0; line-height: 1.4; }
 .discover-actions { display: flex; gap: 6px; margin-top: auto; }
 .discover-actions .text-btn { flex: 1; text-align: center; font-size: 11px; padding: 7px 6px; }
 .discover-actions .text-btn.primary { padding: 7px 6px; }
@@ -716,18 +796,22 @@ kbd {
 
 /* Franchise card: groups seasons/OVAs of the same title under one entry */
 .franchise-card {
-  background: var(--card-glass-bg);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--card-glass-border);
-  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 11px;
   overflow: hidden;
   position: relative;
-  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color var(--d-4), transform var(--d-4) var(--e-out), box-shadow var(--d-4), background var(--d-4);
   opacity: 0;
   animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) both;
 }
-.franchise-card:hover { border-color: var(--accent); transform: translateY(-6px); box-shadow: var(--shadow-glow); }
-.franchise-card.expanded { grid-column: 1 / -1; border-color: var(--accent); }
+.franchise-card:hover {
+  border-color: var(--line-lit);
+  background: var(--card-hover);
+  transform: translateY(-5px);
+  box-shadow: var(--sh-3), 0 0 30px -18px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.franchise-card.expanded { grid-column: 1 / -1; border-color: var(--line-lit); }
 .franchise-card.expanded:hover { transform: none; }
 
 .franchise-summary {
@@ -779,7 +863,10 @@ kbd {
 /* Nested corner brackets on every season row (already inside a bracketed
    franchise-card) read as noise, not polish — suppressed here. */
 .season-row::before, .season-row::after { content: none; }
-.season-row .card-cover-wrap { width: 64px; flex-shrink: 0; border-radius: var(--radius-sm); }
+/* Overrides the base .card-cover-wrap's fixed landscape height — a season
+   row's thumbnail is a small portrait crop, not the grid card's 126px
+   landscape strip. */
+.season-row .card-cover-wrap { width: 64px; height: auto; aspect-ratio: 2 / 3; flex-shrink: 0; border-radius: var(--radius-sm); }
 .season-row .card-corner-actions { top: 4px; right: 4px; gap: 3px; }
 .season-row .card-body { padding: 0; gap: 4px; min-width: 0; }
 /* -webkit-line-clamp:1 is unreliable (the box-orient/line-clamp hack is
@@ -803,12 +890,26 @@ kbd {
 .season-controls-row { display: flex; gap: 6px; }
 .season-select { flex: 1; min-width: 0; font-size: 11px; padding: 4px 6px; }
 
+/* Landscape crop from the AniList portrait, not the full portrait — a
+   fixed height (not aspect-ratio) so it scales with --text-scale but stays
+   independent of the card's own width (design/moonlit-shrine-design-
+   system.md §5: "126px tall at 192px wide", §4.2: "calc(126px *
+   var(--text-scale))"). */
 .card-cover-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 2 / 3;
-  background: linear-gradient(135deg, var(--bg-elevated), var(--border));
+  height: calc(126px * var(--text-scale));
+  flex-shrink: 0;
+  background: var(--bg-elevated);
   overflow: hidden;
+}
+.card-cover-wrap::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(transparent 50%, color-mix(in srgb, var(--card) 92%, black));
+  pointer-events: none;
 }
 .card-cover-wrap img {
   width: 100%;
@@ -816,13 +917,15 @@ kbd {
   object-fit: cover;
   display: block;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  filter: var(--cover-filter);
+  transition: opacity 0.3s ease, filter 420ms;
 }
 .card-cover-wrap img.loaded { opacity: 1; }
+.card:hover .card-cover-wrap img, .card:focus-within .card-cover-wrap img { filter: var(--cover-filter-hover); }
 .card-cover-wrap .skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-elevated) 37%, var(--bg-card) 63%);
+  background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 37%, var(--card) 63%);
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
 }
@@ -831,8 +934,38 @@ kbd {
   100% { background-position: -100% 0; }
 }
 
+/* New episode — accent dot, top left of the art (design §8). */
+.dot {
+  position: absolute;
+  z-index: 2;
+  top: 9px;
+  left: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 12px color-mix(in srgb, var(--accent) 90%, transparent);
+  pointer-events: none;
+}
+
+/* Skeleton — shown while the library is loading, never longer than 400ms
+   before real data replaces it; no spinner (design §8). Not yet wired
+   into a render path (see Phase 2 summary) — the state exists and is
+   ready for whenever app.js's boot sequence needs it. */
+.card.skeleton .card-cover-wrap,
+.card.skeleton .card-title,
+.card.skeleton .progress-track {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--text) 5%, transparent), color-mix(in srgb, var(--text) 11%, transparent), color-mix(in srgb, var(--text) 5%, transparent));
+  background-size: 220% 100%;
+  animation: cardSkeletonShimmer 1.5s linear infinite;
+}
+.card.skeleton .card-title { height: 11px; min-height: 0; border-radius: 3px; color: transparent; }
+.card.skeleton .card-meta { visibility: hidden; }
+@keyframes cardSkeletonShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
 .card-format-badge {
   position: absolute;
+  z-index: 2;
   top: 8px;
   left: 8px;
   background: rgba(0,0,0,0.65);
@@ -866,6 +999,21 @@ kbd {
   overflow: hidden;
   min-height: 2.7em;
   transition: color 0.12s ease;
+}
+/* Two lines at m/l/xl, one below that (design §4.2) — the plain
+   single-line ellipsis technique, not -webkit-line-clamp:1, which is
+   unreliable (that hack is meant for 2+ lines; see the season-row .card-
+   title fix earlier in this file for the same issue). Season rows already
+   have their own unconditional one-line rule, so excluded here to avoid
+   fighting it. */
+[data-text-size="xs"] .card:not(.season-row) .card-title,
+[data-text-size="s"] .card:not(.season-row) .card-title {
+  display: block;
+  -webkit-line-clamp: unset;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 0;
 }
 
 .card-title-sub {
@@ -953,28 +1101,61 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-.plus-one-btn {
-  appearance: none;
-  border: none;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  font-weight: 800;
+/* Floating plus button on the card cover — marks the next episode watched
+   without opening the card. Hover-reveal only; the spring easing is
+   reserved for exactly this and reward moments (design/moonlit-shrine-
+   design-system.md §10). */
+.plus {
+  position: absolute;
+  z-index: 4;
+  right: 9px;
+  bottom: calc(46px * var(--text-scale));
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--bg-deep) 86%, transparent);
+  color: var(--accent-lit);
+  display: grid;
+  place-items: center;
   font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: 280ms var(--e-spring);
+  backdrop-filter: blur(4px);
   cursor: pointer;
-  flex-shrink: 0;
-  transition: transform 0.12s ease, background-color 0.12s ease;
 }
-.plus-one-btn:hover { background: var(--accent-strong); }
-.plus-one-btn:active { transform: scale(0.93); }
-.plus-one-btn.pulse { animation: pulse 0.35s ease; }
-@keyframes pulse {
+.card:hover .plus, .card:focus-within .plus { opacity: 1; transform: none; }
+.plus:hover { background: var(--accent-fill); color: var(--accent-contrast); }
+.plus:active { transform: scale(0.88); }
+.plus.pulse { animation: plusPulse 0.35s ease; }
+@keyframes plusPulse {
   0% { transform: scale(1); }
   40% { transform: scale(1.25); }
   100% { transform: scale(1); }
 }
+
+/* Tags — used where a state must never rely on colour alone (§8, §13). */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font: var(--t-nano);
+  letter-spacing: var(--tr-nano);
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  width: fit-content;
+}
+.tag.drop { border-color: var(--accent); color: var(--accent-lit); }
+
+/* Finished: support-coloured progress, alongside the n/total text — never
+   colour alone. Dropped: reduced opacity plus the .tag.drop above, same
+   reasoning. */
+.card.finished .progress-fill { background: var(--positive); }
+.card.dropped { opacity: 0.55; }
+.card.dropped .progress-fill { background: var(--accent-deep); }
 
 /* Score strip */
 .score-strip {
@@ -1056,39 +1237,51 @@ kbd {
 .corner-btn:active { transform: scale(0.93); }
 .corner-btn.danger:hover { background: var(--accent-fill); color: var(--accent-contrast); }
 
-/* Bulk-select checkbox — takes the corner-actions' slot when select mode is
-   active, always visible (not hover-gated) since it's the primary interaction. */
+/* Select mode: an empty circle shows on every card while active (the
+   affordance), filled with a check once picked — always visible, not
+   hover-gated, since it's the primary interaction while select mode is on
+   (design/moonlit-shrine-design-system.md §8). */
 .card-select-box {
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 2;
-  width: 24px;
-  height: 24px;
+  z-index: 5;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line-lit);
+  background: color-mix(in srgb, var(--bg-deep) 80%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 6px;
   cursor: pointer;
-  backdrop-filter: blur(2px);
+  transition: background var(--d-2), border-color var(--d-2);
 }
-.card-select-box input { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--accent); }
-.card.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+.card-select-box::after { content: '✓'; font-size: 11px; color: transparent; }
+.card-select-box:has(input:checked) { background: var(--accent-fill); border-color: var(--accent-fill); }
+.card-select-box:has(input:checked)::after { color: var(--accent-contrast); }
+.card-select-box input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 #select-mode-toggle[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 
-.bulk-action-bar {
+/* Sits above the grid, never floating over it, so nothing it covers is
+   hidden (design/moonlit-shrine-design-system.md §8). */
+.bulkbar {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 11px 14px;
   margin-top: 10px;
-  background: var(--bg-card);
   border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
 }
-.bulk-count { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.bulkbar .count { font: var(--t-card); color: var(--text); white-space: nowrap; }
+.bulkbar .count b { color: var(--accent-lit); }
+.bulkbar .divider { width: 1px; height: 20px; background: var(--line-lit); }
+.bulkbar .r { margin-left: auto; display: flex; gap: 8px; }
 
 .list-badge {
   font-size: 10px;
@@ -1217,6 +1410,99 @@ kbd {
 .home-tile[data-nav="dropped"] { --tile-accent: var(--text-faint); }
 
 .home-continue h3 { margin: 0 0 14px; font-size: 14px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ---------- Hero — both modes, both placements ----------
+   design/moonlit-shrine-design-system.md §5, §12: 210px on Home, 268px on
+   the Watching list (.tall). ".calm" is the "pick up where you left off"
+   mode; the default (no modifier) is "new episode". */
+.hero {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  box-shadow: 0 0 46px -24px color-mix(in srgb, var(--accent) 60%, transparent);
+  height: 210px;
+  margin-bottom: 18px;
+}
+.hero.tall { height: 268px; }
+.hero.calm { border-color: var(--line); box-shadow: var(--sh-2); }
+.hero .bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(150deg, var(--card-hover), var(--bg-deep));
+  background-size: cover;
+  background-position: center;
+  filter: var(--cover-filter);
+  transform: scale(1.04);
+}
+.hero .bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--bg) 94%, transparent) 24%, color-mix(in srgb, var(--bg) 68%, transparent) 52%, transparent);
+}
+.hero .in {
+  position: relative;
+  height: 100%;
+  padding: 26px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 640px;
+}
+.hero .kick {
+  font: var(--t-nano);
+  letter-spacing: var(--tr-nano);
+  text-transform: uppercase;
+  color: var(--accent-lit);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hero.calm .kick { color: var(--faint); }
+.hero .kick i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; flex-shrink: 0; }
+.hero h2 {
+  font: var(--t-display-l);
+  letter-spacing: var(--tr-display);
+  margin: 0 0 8px;
+  cursor: pointer;
+}
+.hero h2:hover { color: var(--accent-lit); }
+.hero .sub { font: var(--t-meta); color: var(--dim); margin-bottom: 20px; }
+.hero .track { height: 3px; background: color-mix(in srgb, var(--text) 13%, transparent); position: relative; max-width: 380px; margin-bottom: 10px; border-radius: 999px; overflow: hidden; }
+.hero .track i { position: absolute; left: 0; top: 0; height: 3px; background: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 85%, transparent); transition: width 0.8s var(--e-out); }
+.hero .n { font: var(--t-meta); font-variant-numeric: tabular-nums; color: var(--faint); margin-bottom: 20px; }
+.hero .row { display: flex; gap: 9px; flex-wrap: wrap; }
+
+/* ---------- Home ----------
+   Hero above, then two columns: pick-up-where-you-left-off cards on the
+   left, Tonight + This year on the right (design §09 remaining-surfaces —
+   "not a second library": at most 4 pickup cards, at most 3 Tonight rows). */
+.home-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .home-cols { grid-template-columns: 1fr; } }
+.disc-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.disc-head h3 { margin: 0; font-size: 16px; font-family: var(--font-heading); font-weight: 600; }
+.disc-head .rule { flex: 1; height: 1px; background: var(--line); }
+.home-pickup { grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 500px) { .home-pickup { grid-template-columns: repeat(4, 1fr); } }
+
+.tonight { display: grid; gap: 9px; }
+.tonight-row {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 12px;
+}
+.tonight-row .num { font: var(--t-card); color: var(--accent-lit); }
+.tonight-row > span:last-child { font: var(--t-body); font-size: 12.5px; }
+.meta-line { display: block; font: var(--t-meta); color: var(--faint); }
+
+.stat-display { display: block; font: var(--t-display-m); letter-spacing: var(--tr-display); }
+.stat-kicker { font: var(--t-nano); letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
 
 /* ---------- Statistics page ---------- */
 .stats-view {

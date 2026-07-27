@@ -162,7 +162,7 @@ function handleIncrement(card, id) {
   if (!entry) return;
   const before = entry.episodesWatched;
   Store.updateEntry(id, { episodesWatched: entry.episodesWatched + 1 });
-  const btn = card.querySelector('.plus-one-btn');
+  const btn = card?.querySelector('.plus');
   if (btn) {
     btn.classList.remove('pulse');
     void btn.offsetWidth;
@@ -514,7 +514,12 @@ function bindFilterBar() {
   });
 
   document.getElementById('genre-filter').addEventListener('click', (e) => {
-    const chip = e.target.closest('.genre-chip');
+    if (e.target.closest('#genre-overflow-toggle')) {
+      Render.toggleGenreOverflow();
+      Render.renderFilterBar(activeList);
+      return;
+    }
+    const chip = e.target.closest('.chip');
     if (!chip) return;
     const genre = chip.dataset.genre;
     const filters = Store.state.preferences.filters[activeList];
@@ -969,6 +974,18 @@ function bindHome() {
   document.getElementById('stats-view').addEventListener('click', navClickHandler);
 }
 
+// The hero's "Mark episode watched" button isn't inside a .card (it's a
+// standalone banner, on both Home and the Watching list), so it needs its
+// own handler rather than relying on bindGridEvents' .card-scoped one —
+// handleIncrement itself works fine without a card (see the `card?.` guard).
+function bindHero() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-hero-id]');
+    if (!btn) return;
+    handleIncrement(null, Number(btn.dataset.heroId));
+  });
+}
+
 // The bootstrap inline script in index.html already applies the saved (or
 // default) color theme before first paint — this only wires up the picker
 // overlay to change it afterward, same as the old light/dark toggle did.
@@ -1007,12 +1024,34 @@ export function repositionTabPill() {
   updateTabPill();
 }
 
+// Pointer-positioned ripple on press (design/moonlit-shrine-design-system.md
+// §10: "Any press · ripple starting at the pointer position"), delegated
+// from document so any current or future `.rip-host` button gets it for
+// free. Skipped under reduced motion, same as the rest of the app's motion.
+function bindRipple() {
+  document.addEventListener('pointerdown', (e) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const host = e.target.closest('.rip-host');
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    const rip = document.createElement('span');
+    rip.className = 'rip';
+    const size = Math.max(rect.width, rect.height);
+    rip.style.width = rip.style.height = `${size}px`;
+    rip.style.setProperty('--x', `${e.clientX - rect.left}px`);
+    rip.style.setProperty('--y', `${e.clientY - rect.top}px`);
+    host.appendChild(rip);
+    setTimeout(() => rip.remove(), 600);
+  });
+}
+
 export function initEvents({ initialList, persistFn }) {
   activeList = initialList;
   currentView = initialList;
   persist = persistFn;
   bindTabs();
   bindHome();
+  bindHero();
   bindGridEvents();
   bindFilterBar();
   bindBulkActionBar();
@@ -1024,6 +1063,7 @@ export function initEvents({ initialList, persistFn }) {
   bindKeyboardShortcuts();
   bindOverlayCloseButtons();
   bindThemePicker();
+  bindRipple();
   updateTabPill(); // positions it for the initial tab, set by app.js before this runs
   window.addEventListener('resize', updateTabPill);
   // Tab label widths can shift slightly once the real webfont swaps in

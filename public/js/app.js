@@ -17,12 +17,14 @@ let saveInFlight = false;
 function setSaveIndicator(state, text) {
   const el = document.getElementById('save-indicator');
   el.dataset.state = state;
-  el.textContent = text;
+  // textContent would also wipe the <i> state dot — it's a sibling node,
+  // not something the state text should ever replace.
+  el.innerHTML = `<i></i>${text}`;
 }
 
 async function attemptSave(attempt = 0) {
   saveInFlight = true;
-  setSaveIndicator('saving', attempt === 0 ? 'Saving…' : 'Retrying save…');
+  setSaveIndicator('saving', 'Saving');
   try {
     await Api.saveLibrary(Store.toJSON());
     saveInFlight = false;
@@ -31,7 +33,7 @@ async function attemptSave(attempt = 0) {
     Render.clearError();
   } catch (err) {
     saveInFlight = false;
-    setSaveIndicator('failed', 'Save failed — retrying…');
+    setSaveIndicator('failed', 'Not saved. Retrying.');
     Render.showError(`Could not save: ${err.message}. Keep this tab open — your changes are kept here until the save succeeds.`);
     // Keep retrying indefinitely (backing off to a steady 5s) rather than
     // ever silently giving up on data the user just entered.
@@ -42,7 +44,7 @@ async function attemptSave(attempt = 0) {
 
 function persist() {
   hasUnsavedChanges = true;
-  setSaveIndicator('saving', 'Unsaved changes…');
+  setSaveIndicator('saving', 'Saving');
   clearTimeout(saveDebounceTimer);
   clearTimeout(retryTimer);
   saveDebounceTimer = setTimeout(() => attemptSave(0), 300);

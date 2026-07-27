@@ -166,7 +166,6 @@ function cardBodyForList(entry, list, isSeasonRow = false) {
       <div class="progress-row">
         <div class="progress-track"><div class="progress-fill" style="width:0%" data-target-width="${pct}"></div></div>
         <button class="progress-label" data-action="edit-episode" title="Click to type an exact episode number">${entry.episodesWatched}${total ? `/${total}` : ''}</button>
-        <button class="plus-one-btn" data-action="increment" aria-label="Add one episode">+1</button>
       </div>
       ${unseen > 0 ? `<div class="unseen-badge${unseenPopClass(entry.anilistId, unseen)}" title="Aired but not marked watched yet">${unseen} new episode${unseen === 1 ? '' : 's'}</div>` : ''}
       ${showCompletionPrompt ? `
@@ -179,9 +178,12 @@ function cardBodyForList(entry, list, isSeasonRow = false) {
     `;
   }
   if (list === 'watched') {
+    // Finished state (design/moonlit-shrine-design-system.md §8): a
+    // support-coloured, always-full progress bar alongside the episode
+    // count text — colour is never the only signal that a series is done.
     return `
       <div class="progress-row watched-progress-row">
-        <span class="watched-progress-label-prefix">Episodes</span>
+        <div class="progress-track"><div class="progress-fill" style="width:0%" data-target-width="100"></div></div>
         <button class="progress-label" data-action="edit-episode" title="Click to correct the episode count">${entry.episodesWatched}${entry.totalEpisodes ? `/${entry.totalEpisodes}` : ''}</button>
       </div>
       ${isSeasonRow
@@ -195,7 +197,13 @@ function cardBodyForList(entry, list, isSeasonRow = false) {
       ${isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry)}
     `;
   }
-  return isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry);
+  // Dropped (default branch) — reduced opacity (applied to the whole card,
+  // see cardHtml) plus this tag, never opacity alone.
+  const droppedTag = list === 'dropped' ? `<span class="tag drop">Dropped</span>` : '';
+  return `
+    ${droppedTag}
+    ${isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry)}
+  `;
 }
 
 // English title primary/large, Japanese romaji secondary/small/faded below —
@@ -228,11 +236,18 @@ function staggerDelayMs(index) {
 function cardHtml(entry, list, index = 0, seasonLabel = null) {
   const src = coverSrc(entry);
   const isSelected = selectedIds.has(entry.anilistId);
+  // Finished/dropped are card-wide modifiers (opacity, progress colour —
+  // see cardBodyForList and the .card.finished/.card.dropped rules), not
+  // just a property of whatever cardBodyForList renders for this list.
+  const isFinished = list === 'watched' || (list === 'watching' && entry.totalEpisodes && entry.episodesWatched >= entry.totalEpisodes);
+  const isDropped = list === 'dropped';
+  const isNew = list === 'watching' && Airing.getUnseenCount(entry.anilistId) > 0;
   return `
-    <article class="card ${seasonLabel ? 'season-row' : ''} ${isSelected ? 'selected' : ''}" data-id="${entry.anilistId}" tabindex="0" style="animation-delay:${staggerDelayMs(index)}ms">
+    <article class="card ${seasonLabel ? 'season-row' : ''} ${isSelected ? 'selected' : ''} ${isFinished ? 'finished' : ''} ${isDropped ? 'dropped' : ''}" data-id="${entry.anilistId}" tabindex="0" style="animation-delay:${staggerDelayMs(index)}ms">
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
         ${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">` : ''}
+        ${isNew ? `<span class="dot" title="New episode"></span>` : ''}
         ${seasonLabel
           ? `<span class="card-format-badge season-badge">${escapeHtml(seasonLabel)}</span>`
           : entry.format ? `<span class="card-format-badge">${escapeHtml(entry.format)}</span>` : ''}
@@ -242,6 +257,7 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
               <button class="corner-btn" data-action="fix-match" title="Fix wrong match" aria-label="Fix wrong match">${PENCIL_SVG}</button>
               <button class="corner-btn danger" data-action="delete" title="Remove from library" aria-label="Remove from library">${TRASH_SVG}</button>
             </div>`}
+        ${list === 'watching' && !selectMode ? `<button class="plus" data-action="increment" aria-label="Mark next episode watched" title="Mark next episode watched">＋</button>` : ''}
       </div>
       <div class="card-body">
         ${titleBlockHtml(entry.titleEnglish, entry.titleRomaji, entry.anilistId)}
@@ -338,6 +354,11 @@ function animateCountUp(root = document) {
 
 function renderGrid(list) {
   renderBulkActionBar();
+  // The hero only belongs on Watching — explicitly hidden otherwise rather
+  // than just "not re-rendered", since #watching-hero lives inside
+  // #list-view (shared by all four list tabs, not swapped per tab).
+  if (list === 'watching') renderWatchingHero();
+  else document.getElementById('watching-hero').hidden = true;
   const groups = Store.getGroupedFilteredSorted(list);
   if (groups.length === 0) {
     grid.hidden = true;
@@ -436,24 +457,63 @@ function activeFilterChips(list) {
   return chips;
 }
 
+// The result count is always visible, filtered or not — an empty list with
+// a hidden filter is the easiest way to think your data is gone (design/
+// moonlit-shrine-design-system.md §8).
 function renderActiveFilterChips(list) {
   const totalCount = Store.getEntriesByList(list).length;
   const filteredCount = Store.getGroupedFilteredSorted(list).reduce((s, g) => s + g.length, 0);
   const chips = activeFilterChips(list);
   activeFilterChipsEl.innerHTML = `
-    <span class="filter-count">${filteredCount} of ${totalCount}</span>
-    ${chips.map((c) => `<button class="active-chip" data-chip="${escapeHtml(c.key)}">${escapeHtml(c.label)} <span aria-hidden="true">×</span></button>`).join('')}
-    ${chips.length ? `<button class="text-btn active-chip-clear" data-chip="__clear_all">Clear all</button>` : ''}
+    ${chips.length ? `<span class="lbl">Filtering by</span>` : ''}
+    ${chips.map((c) => `<button class="chip on" data-chip="${escapeHtml(c.key)}">${escapeHtml(c.label)}</button>`).join('')}
+    ${chips.length ? `<button class="clear" data-chip="__clear_all">Clear all</button>` : ''}
+    <span class="num result-count">${filteredCount} of ${totalCount} series</span>
   `;
+}
+
+// Only five genre chips are shown at rest — the rest sit behind "All
+// genres N" — but a genre the user has already filtered by must never
+// become hidden/unreachable just because it isn't one of the five most
+// common, so the active ones are always folded into the visible set even
+// if that pushes it past five.
+function topGenresByFrequency(list, n) {
+  const counts = {};
+  for (const e of Store.getEntriesByList(list)) {
+    for (const g of e.genres || []) counts[g] = (counts[g] || 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([g]) => g).slice(0, n);
+}
+
+let genresExpanded = false;
+
+function genreChipHtml(g, active) {
+  return `<button class="chip ${active ? 'on' : ''}" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</button>`;
+}
+
+function renderGenreFilter(list) {
+  const filters = Store.state.preferences.filters[list];
+  const allGenresList = Store.allGenres();
+  const frequent = new Set(topGenresByFrequency(list, 5));
+  for (const g of filters.genres) frequent.add(g); // active filters are never hidden
+  const visible = allGenresList.filter((g) => frequent.has(g));
+  const overflow = allGenresList.filter((g) => !frequent.has(g));
+
+  genreFilterEl.innerHTML = `
+    ${visible.map((g) => genreChipHtml(g, filters.genres.includes(g))).join('')}
+    ${genresExpanded ? overflow.map((g) => genreChipHtml(g, filters.genres.includes(g))).join('') : ''}
+    ${overflow.length ? `<button class="sel" id="genre-overflow-toggle">${genresExpanded ? 'Show less' : 'All genres'} <span style="color:var(--faint)">${overflow.length}</span></button>` : ''}
+  `;
+}
+
+function toggleGenreOverflow() {
+  genresExpanded = !genresExpanded;
 }
 
 function renderFilterBar(list) {
   const filters = Store.state.preferences.filters[list];
   titleFilterEl.value = Store.getTitleFilter(list);
-  const genres = Store.allGenres();
-  genreFilterEl.innerHTML = genres
-    .map((g) => `<button class="genre-chip ${filters.genres.includes(g) ? 'active' : ''}" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</button>`)
-    .join('');
+  renderGenreFilter(list);
 
   const formats = Store.allFormats();
   formatFilterEl.innerHTML = `<option value="">All formats</option>` + formats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(f)}</option>`).join('');
@@ -465,11 +525,14 @@ function renderFilterBar(list) {
   unratedOnlyEl.checked = filters.unratedOnly;
   myScoreMinEl.disabled = filters.unratedOnly;
   myScoreMaxEl.disabled = filters.unratedOnly;
+  document.getElementById('unrated-toggle-label').classList.toggle('on', filters.unratedOnly);
 
   const currentSort = Store.state.preferences.sort[list];
   const sortOptions = list === 'watching' ? [...SORT_OPTIONS, ...WATCHING_ONLY_SORT_OPTIONS] : SORT_OPTIONS;
   sortSelectEl.innerHTML = sortOptions.map((o) => `<option value="${o.value}" ${o.value === currentSort ? 'selected' : ''}>${o.label}</option>`).join('');
-  sortDirBtn.textContent = Store.state.preferences.sortDir[list] === 'asc' ? '↑' : '↓';
+  // A single reverse-order icon flips vertically to show direction, rather
+  // than swapping its glyph — see .icn.is-asc in styles.css.
+  sortDirBtn.classList.toggle('is-asc', Store.state.preferences.sortDir[list] === 'asc');
 
   renderActiveFilterChips(list);
   renderBulkActionBar();
@@ -486,12 +549,13 @@ function renderBulkActionBar() {
   const count = selectedIds.size;
   const disabled = count === 0 ? 'disabled' : '';
   bulkActionBarEl.innerHTML = `
-    <span class="bulk-count">${count} selected</span>
-    <div class="quick-move" role="group" aria-label="Move selected to">
-      ${QUICK_MOVE_LISTS.map((l) => `<button class="quick-move-btn" data-action="bulk-move" data-status="${l.key}" title="Move selected to ${l.label}" ${disabled}>${l.short}</button>`).join('')}
-    </div>
-    <button class="text-btn" data-action="bulk-delete" ${disabled}>Delete</button>
-    <button class="text-btn" data-action="bulk-cancel">Cancel</button>
+    <span class="count"><b>${count}</b> selected</span>
+    <span class="divider"></span>
+    ${QUICK_MOVE_LISTS.map((l) => `<button class="btn btn-ghost sm" data-action="bulk-move" data-status="${l.key}" title="Move selected to ${l.label}" ${disabled}>${l.label}</button>`).join('')}
+    <span class="r">
+      <button class="btn btn-danger sm" data-action="bulk-delete" ${disabled}>Delete</button>
+      <button class="btn btn-quiet sm" data-action="bulk-cancel">Cancel</button>
+    </span>
   `;
 }
 
@@ -502,45 +566,125 @@ const LIST_META = {
   dropped: { label: 'Dropped', icon: '✕' },
 };
 
-function renderHome(container) {
-  const entries = Store.getEntries();
-  const counts = Store.getCounts();
-  const totalEpisodes = entries.reduce((sum, e) => sum + (e.episodesWatched || 0), 0);
-  const scored = entries.filter((e) => e.myScore != null);
-  const meanScore = scored.length ? (scored.reduce((s, e) => s + e.myScore, 0) / scored.length).toFixed(1) : '—';
-  const genreCount = Store.allGenres().length;
+// Picks which Watching entry the hero features and in which mode — a
+// series with an unseen aired episode wins (mode "new"), otherwise
+// whichever has the highest completion ratio ("calm": design/moonlit-
+// shrine-design-system.md §12 hero strings). Returns null with nothing to
+// watch, same "never invent a hero" reasoning as the empty states elsewhere.
+function heroPick() {
+  const watching = Store.getEntriesByList('watching');
+  if (!watching.length) return null;
+  const withNewEp = watching.filter((e) => Airing.getUnseenCount(e.anilistId) > 0);
+  if (withNewEp.length) {
+    const entry = withNewEp.slice().sort((a, b) => Airing.getUnseenCount(b.anilistId) - Airing.getUnseenCount(a.anilistId))[0];
+    return { entry, mode: 'new' };
+  }
+  const ratio = (e) => (e.totalEpisodes ? e.episodesWatched / e.totalEpisodes : 0);
+  const entry = watching.slice().sort((a, b) => ratio(b) - ratio(a))[0];
+  return { entry, mode: 'calm' };
+}
 
+// Same "Progress" string in both modes (design §12 core strings), rather
+// than the one-off "you rated this N" phrasing some references show only
+// for the new-episode case — the core-strings table is the one place both
+// documents agree is authoritative copy.
+function heroProgressLine(entry) {
+  const total = entry.totalEpisodes;
+  if (!total) return `${entry.episodesWatched} watched · no total known`;
+  const left = total - entry.episodesWatched;
+  return `Episode ${entry.episodesWatched} of ${total} watched${left > 0 ? ` · ${left} to go` : ''}`;
+}
+
+function heroHtml(pick, { tall = false } = {}) {
+  if (!pick) return '';
+  const { entry, mode } = pick;
+  const src = coverSrc(entry);
+  const total = entry.totalEpisodes;
+  const nextEp = entry.episodesWatched + 1;
+  const canMarkNext = !total || nextEp <= total;
+  const metaBits = [entry.genres?.[0], entry.format ? escapeHtml(entry.format) : null, entry.year].filter(Boolean);
+  return `
+    <div class="hero ${mode === 'calm' ? 'calm' : ''} ${tall ? 'tall' : ''}">
+      <div class="bg" style="${src ? `background-image:url('${src}')` : ''}"></div>
+      <div class="in">
+        <div class="kick"><i></i>${mode === 'new' ? 'New episode' : 'Pick up where you left off'}</div>
+        <h2 data-action="show-detail" data-detail-id="${entry.anilistId}">${escapeHtml(entry.titleEnglish || entry.titleRomaji)}</h2>
+        ${metaBits.length ? `<div class="sub">${metaBits.map(escapeHtml).join(' · ')}</div>` : ''}
+        ${total ? `<div class="track"><i style="width:${Math.min(100, (entry.episodesWatched / total) * 100)}%"></i></div>` : ''}
+        <div class="n">${escapeHtml(heroProgressLine(entry))}</div>
+        <div class="row">
+          ${canMarkNext ? `<button class="btn btn-primary rip-host" data-action="increment" data-hero-id="${entry.anilistId}">Mark episode ${nextEp} watched</button>` : ''}
+          <button class="btn btn-ghost" data-action="show-detail" data-detail-id="${entry.anilistId}">Open series</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Shown above the filter bar only on the Watching tab (design §5: "268px
+// tall on the library view" — see events.js's showListView).
+function renderWatchingHero() {
+  const el = document.getElementById('watching-hero');
+  if (!el) return;
+  const pick = heroPick();
+  el.hidden = !pick;
+  if (pick) el.innerHTML = heroHtml(pick, { tall: true });
+}
+
+function renderHome(container) {
+  const pick = heroPick();
+
+  // "Pick up where you left off": up to four, most-recently-touched first.
   const continuing = Store.getEntriesByList('watching')
     .slice()
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
     .slice(0, 4);
 
+  // "Tonight": today's column from the same airing cache the "unseen
+  // episodes" badges and Schedule's "This week" already use — never a
+  // second source of truth for what's airing when. Capped at three (design
+  // §09: "maximum three entries under Tonight").
+  const today = Airing.getWeekSchedule()[0]?.items || [];
+  const tonight = today.slice(0, 3).map((item) => {
+    const entry = Store.getEntry(item.anilistId);
+    return { ...item, totalEpisodes: entry?.totalEpisodes };
+  });
+
+  // "This year": episodes completed, their mean score, and current
+  // Watching count — three numbers, not four (design §09).
+  const thisYear = new Date().getFullYear();
+  const completedThisYear = Store.getEntries().filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
+  const episodesThisYear = completedThisYear.reduce((s, e) => s + (e.episodesWatched || 0), 0);
+  const scoredThisYear = completedThisYear.filter((e) => e.myScore != null);
+  const meanScoreThisYear = scoredThisYear.length ? (scoredThisYear.reduce((s, e) => s + e.myScore, 0) / scoredThisYear.length).toFixed(1) : '—';
+  const watchingCount = Store.getCounts().watching;
+
   container.innerHTML = `
-    <div class="home-hero">
-      <h2>Welcome back</h2>
-      <p>Your library at a glance.</p>
+    ${pick ? heroHtml(pick) : `<div class="empty-state"><h2>Nothing here yet</h2><p>Add a series and start watching to see it here.</p></div>`}
+    <div class="home-cols">
+      <div>
+        <div class="disc-head"><h3>Pick up where you left off</h3><span class="rule"></span></div>
+        ${continuing.length
+          ? `<div class="card-grid home-pickup">${continuing.map((e, i) => cardHtml(e, 'watching', i)).join('')}</div>`
+          : `<p class="card-meta">Nothing in progress.</p>`}
+      </div>
+      <div>
+        <div class="disc-head"><h3>Tonight</h3><span class="rule"></span></div>
+        ${tonight.length
+          ? `<div class="tonight">${tonight.map((it) => `
+              <div class="tonight-row">
+                <span class="num">${new Date(it.airingAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>${escapeHtml(it.title)}<span class="meta-line">Episode ${it.episode}${it.totalEpisodes ? ` of ${it.totalEpisodes}` : ''}</span></span>
+              </div>`).join('')}</div>`
+          : `<p class="card-meta">Nothing airing tonight.</p>`}
+        <div class="disc-head" style="margin-top:20px"><h3>This year</h3><span class="rule"></span></div>
+        <div class="row" style="gap:22px">
+          <span><b class="num stat-display">${episodesThisYear}</b><span class="stat-kicker">Episodes</span></span>
+          <span><b class="num stat-display">${meanScoreThisYear}</b><span class="stat-kicker">Average score</span></span>
+          <span><b class="num stat-display">${watchingCount}</b><span class="stat-kicker">Watching</span></span>
+        </div>
+      </div>
     </div>
-    <div class="home-stats">
-      <div class="stat"><span class="stat-value">${entries.length}</span><span class="stat-label">Titles</span></div>
-      <div class="stat"><span class="stat-value">${totalEpisodes}</span><span class="stat-label">Episodes watched</span></div>
-      <div class="stat"><span class="stat-value">${meanScore}</span><span class="stat-label">Mean score</span></div>
-      <div class="stat"><span class="stat-value">${genreCount}</span><span class="stat-label">Genres</span></div>
-    </div>
-    <div class="home-tiles">
-      ${Store.LISTS.map(
-        (list) => `
-        <button class="home-tile" data-nav="${list}">
-          <span class="home-tile-icon">${LIST_META[list].icon}</span>
-          <span class="home-tile-count">${counts[list]}</span>
-          <span class="home-tile-label">${LIST_META[list].label}</span>
-        </button>`
-      ).join('')}
-    </div>
-    ${continuing.length ? `
-      <div class="home-continue">
-        <h3>Continue watching</h3>
-        <div class="card-grid">${continuing.map((e, i) => cardHtml(e, 'watching', i)).join('')}</div>
-      </div>` : ''}
   `;
   animateProgressBars(container);
 }
@@ -1107,6 +1251,7 @@ export const Render = {
   renderDismissedOverlay,
   renderDetailOverlay,
   toggleGroupExpanded,
+  toggleGenreOverflow,
   isSelectMode,
   toggleSelectMode,
   clearSelection,
