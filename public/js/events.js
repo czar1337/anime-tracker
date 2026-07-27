@@ -7,6 +7,7 @@ import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 import { Notifications } from './notifications.js';
 import { Themes } from './themes.js';
+import { Preferences } from './preferences.js';
 import { computeLibraryStats } from './statsLogic.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsExport.js';
 
@@ -22,17 +23,93 @@ function isTypingTarget(el) {
   return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
-function openOverlay(id) {
-  closeAllOverlays();
-  document.getElementById(id).hidden = false;
+// design/moonlit-shrine-design-system.md §13: "All overlays trap focus,
+// restore it on close, and close on esc." lastFocusedBeforeOverlay captures
+// whatever had focus right before an overlay opened (a button, a card, the
+// body) so closeAllOverlays can hand focus back to exactly that element
+// rather than leaving it on <body> (or, worse, on a now-hidden control).
+let lastFocusedBeforeOverlay = null;
+
+function getFocusable(container) {
+  return Array.from(
+    container.querySelectorAll('a[href], button:not([disabled]), textarea, input:not([type="hidden"]), select, [tabindex]:not([tabindex="-1"])')
+  ).filter((el) => el.offsetParent !== null);
 }
 
-function closeAllOverlays() {
+// Cycles Tab/Shift+Tab inside whichever overlay is currently open instead of
+// letting focus escape into the (visually hidden, but still in the DOM)
+// page behind it. Bound once, globally — cheap no-op whenever no overlay is
+// open, so it doesn't need to be wired/unwired per overlay.
+function trapOverlayFocus(e) {
+  if (e.key !== 'Tab') return;
+  const overlay = document.querySelector('.overlay:not([hidden])');
+  if (!overlay) return;
+  const focusable = getFocusable(overlay);
+  if (focusable.length === 0) {
+    e.preventDefault();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+// Shared confirm dialog for destructive actions (design system §8: "confirm
+// dialog for anything destructive that always names what is kept"). `body`
+// must say what's kept, per that rule — never a bare "Are you sure?" (§12).
+// The danger button uses onclick (not addEventListener) because this one
+// dialog element is reused by every call site; onclick replaces the
+// previous handler instead of stacking a new listener on top of it each time.
+function confirmDialog({ title, body, confirmLabel, onConfirm }) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-body').textContent = body;
+  const dangerBtn = document.getElementById('confirm-danger-btn');
+  dangerBtn.textContent = confirmLabel;
+  dangerBtn.onclick = () => {
+    closeAllOverlays();
+    onConfirm();
+  };
+  openOverlay('confirm-overlay');
+}
+
+// Shared by openOverlay and closeAllOverlays — hides every overlay and
+// resets search-specific state, but never touches focus. Kept separate so
+// openOverlay can capture "what had focus before this overlay opened"
+// *before* clearing any previously-open overlay, instead of that capture
+// immediately getting wiped by closeAllOverlays' own end-of-function reset
+// (which happened when openOverlay called the combined version — the two
+// would race over the same variable and the capture always lost).
+function hideAllOverlaysOnly() {
   document.querySelectorAll('.overlay').forEach((o) => (o.hidden = true));
   replaceTargetId = null;
   searchGeneration += 1; // any in-flight search response becomes stale and gets ignored
   const input = document.getElementById('search-input');
   if (input) input.placeholder = 'Search anime on AniList…';
+}
+
+function openOverlay(id) {
+  const focusBefore = document.activeElement;
+  hideAllOverlaysOnly();
+  lastFocusedBeforeOverlay = focusBefore;
+  const overlay = document.getElementById(id);
+  overlay.hidden = false;
+  const focusable = getFocusable(overlay);
+  (focusable[0] || overlay).focus();
+}
+
+function closeAllOverlays() {
+  const wasOpen = Array.from(document.querySelectorAll('.overlay')).some((o) => !o.hidden);
+  hideAllOverlaysOnly();
+  if (wasOpen && lastFocusedBeforeOverlay && document.body.contains(lastFocusedBeforeOverlay)) {
+    lastFocusedBeforeOverlay.focus();
+  }
+  lastFocusedBeforeOverlay = null;
 }
 
 // Re-renders whatever is currently on screen (home/stats dashboard or a list) after a mutation.
@@ -170,12 +247,14 @@ function handleIncrement(card, id) {
   }
   refreshGridOnly();
   Render.renderTabCounts();
+  Detail.refreshDetailIfOpen(id);
   persist();
   Render.showToast(`Episode ${before + 1}`, {
     actionLabel: 'Undo',
     onAction: () => {
       Store.updateEntry(id, { episodesWatched: before });
       refreshView();
+      Detail.refreshDetailIfOpen(id);
       persist();
     },
   });
@@ -190,6 +269,7 @@ function commitEpisodeEdit(card, id, input) {
   Store.updateEntry(id, { episodesWatched: value });
   refreshGridOnly();
   Render.renderTabCounts();
+  Detail.refreshDetailIfOpen(id);
   persist();
 }
 
@@ -230,6 +310,7 @@ function handleDecrement(id) {
   if (!entry || entry.episodesWatched <= 0) return;
   Store.updateEntry(id, { episodesWatched: entry.episodesWatched - 1 });
   refreshGridOnly();
+  Detail.refreshDetailIfOpen(id);
   persist();
 }
 
@@ -239,6 +320,7 @@ function handleSetScore(id, score) {
   const newScore = entry.myScore === score ? null : score;
   Store.updateEntry(id, { myScore: newScore });
   refreshView();
+  Detail.refreshDetailIfOpen(id);
   persist();
 }
 
@@ -261,12 +343,14 @@ function handleSetStatus(id, newStatus) {
   const before = entry.listStatus;
   Store.updateEntry(id, buildStatusPatch(entry, newStatus));
   refreshView();
+  Detail.refreshDetailIfOpen(id);
   persist();
   Render.showToast(`Moved to ${newStatus}`, {
     actionLabel: 'Undo',
     onAction: () => {
       Store.updateEntry(id, { listStatus: before });
       refreshView();
+      Detail.refreshDetailIfOpen(id);
       persist();
     },
   });
@@ -274,6 +358,28 @@ function handleSetStatus(id, newStatus) {
 
 function handleComplete(id) {
   handleSetStatus(id, 'watched');
+}
+
+function confirmDrop(id) {
+  const entry = Store.getEntry(id);
+  if (!entry) return;
+  confirmDialog({
+    title: `Drop ${entry.titleRomaji}?`,
+    body: 'Moves to Dropped. Watched episodes and your score are kept.',
+    confirmLabel: 'Drop the series',
+    onConfirm: () => handleSetStatus(id, 'dropped'),
+  });
+}
+
+function confirmDelete(id) {
+  const entry = Store.getEntry(id);
+  if (!entry) return;
+  confirmDialog({
+    title: `Remove ${entry.titleRomaji}?`,
+    body: 'This can be undone right after, but not once you close or reload the tab.',
+    confirmLabel: 'Remove from library',
+    onConfirm: () => handleDelete(id),
+  });
 }
 
 // Selected-count is intentionally not bounds-checked beyond what
@@ -397,6 +503,19 @@ function bindGridEvents() {
       return;
     }
 
+    // The real "nothing here yet" empty state's two actions (design system
+    // §8: "empty state with a Mincho heading and two actions").
+    const emptyAction = e.target.closest('[data-action="open-search"], [data-action="open-import"]');
+    if (emptyAction) {
+      if (emptyAction.dataset.action === 'open-search') {
+        openOverlay('search-overlay');
+        document.getElementById('search-input').focus();
+      } else {
+        openOverlay('import-overlay');
+      }
+      return;
+    }
+
     const toggle = e.target.closest('[data-action="toggle-group"]');
     if (toggle) {
       const franchiseCard = toggle.closest('.franchise-card');
@@ -420,8 +539,16 @@ function bindGridEvents() {
     else if (action === 'edit-episode') handleEditEpisode(card, id);
     else if (action === 'set-score') handleSetScore(id, Number(actionEl.dataset.score));
     else if (action === 'complete') handleComplete(id);
-    else if (action === 'set-status') handleSetStatus(id, actionEl.dataset.status);
-    else if (action === 'delete') handleDelete(id);
+    else if (action === 'set-status') {
+      // Dropping is the one status change the design calls out as needing a
+      // confirm dialog (§8, and the reference's own "Släppa Shiki?" demo) —
+      // the quick season-row <select> and the 1-4 keyboard shortcuts stay
+      // unconfirmed on purpose, so a fast path still exists (see the "1-4"
+      // keydown handler and statusSelectHtml's own change listener below).
+      if (actionEl.dataset.status === 'dropped') confirmDrop(id);
+      else handleSetStatus(id, actionEl.dataset.status);
+    }
+    else if (action === 'delete') confirmDelete(id);
     else if (action === 'fix-match') handleFixMatch(id);
     else if (action === 'toggle-notes') {
       const field = card.querySelector('.notes-field');
@@ -474,11 +601,24 @@ function bindBulkActionBar() {
   document.getElementById('bulk-action-bar').addEventListener('click', (e) => {
     const moveBtn = e.target.closest('[data-action="bulk-move"]');
     if (moveBtn) {
-      handleBulkMove(moveBtn.dataset.status);
+      const status = moveBtn.dataset.status;
+      const count = Render.getSelectedIds().length;
+      confirmDialog({
+        title: `Move ${count} series to ${status}?`,
+        body: 'Watched episodes and scores are kept.',
+        confirmLabel: `Move to ${status}`,
+        onConfirm: () => handleBulkMove(status),
+      });
       return;
     }
     if (e.target.closest('[data-action="bulk-delete"]')) {
-      handleBulkDelete();
+      const count = Render.getSelectedIds().length;
+      confirmDialog({
+        title: `Remove ${count} titles from your library?`,
+        body: 'This can be undone right after, but not once you close or reload the tab.',
+        confirmLabel: 'Remove',
+        onConfirm: () => handleBulkDelete(),
+      });
       return;
     }
     if (e.target.closest('[data-action="bulk-cancel"]')) {
@@ -630,32 +770,33 @@ function ownedIdsMap() {
   return map;
 }
 
+let lastSearchQuery = '';
+
 async function runSearch(query) {
+  lastSearchQuery = query;
   const myGeneration = ++searchGeneration;
   const statusEl = document.getElementById('search-status');
   const resultsEl = document.getElementById('search-results');
+  statusEl.textContent = '';
   if (!query.trim()) {
     resultsEl.innerHTML = '';
-    statusEl.textContent = '';
     mediaCache.clear();
     return;
   }
-  statusEl.textContent = 'Searching…';
+  Render.renderSearchLoading(resultsEl);
   try {
     const results = await Api.searchAniList(query);
     if (myGeneration !== searchGeneration) return; // a newer search or a close superseded this one
     mediaCache.clear();
     for (const m of results) mediaCache.set(m.id, m);
-    statusEl.textContent = results.length ? '' : 'No results.';
-    Render.renderSearchResults(resultsEl, results, ownedIdsMap(), { replaceMode: replaceTargetId != null });
+    if (results.length) Render.renderSearchResults(resultsEl, results, ownedIdsMap(), { replaceMode: replaceTargetId != null });
+    else Render.renderSearchEmpty(resultsEl, query, null);
   } catch (err) {
     if (myGeneration !== searchGeneration) return;
-    if (err instanceof Api.RateLimitError) {
-      statusEl.textContent = `Rate limited — try again in ${err.retryAfterSeconds}s.`;
-    } else {
-      statusEl.textContent = err.message;
-    }
-    resultsEl.innerHTML = '';
+    const reason = err instanceof Api.RateLimitError
+      ? `Rate limited — try again in ${err.retryAfterSeconds}s.`
+      : `${err.message}. Search needs an internet connection.`;
+    Render.renderSearchEmpty(resultsEl, query, reason);
   }
 }
 
@@ -714,6 +855,10 @@ function bindSearchOverlay() {
   });
 
   resultsEl.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-action="search-retry"]')) {
+      runSearch(lastSearchQuery);
+      return;
+    }
     const resultEl = e.target.closest('.search-result');
     if (!resultEl) return;
     const id = Number(resultEl.dataset.anilistId);
@@ -779,17 +924,22 @@ function bindBackupOverlay() {
   document.getElementById('backup-list').addEventListener('click', async (e) => {
     const file = e.target.dataset.restore;
     if (!file) return;
-    if (!confirm(`Restore "${file}"? This replaces your current library.`)) return;
-    try {
-      await Api.restoreBackup(file);
-      const data = await Api.getLibrary();
-      Store.setLibrary(data);
-      refreshView();
-      Render.showToast('Restored from backup.');
-      closeAllOverlays();
-    } catch (err) {
-      Render.showToast(`Restore failed: ${err.message}`);
-    }
+    confirmDialog({
+      title: `Restore "${file}"?`,
+      body: 'Replaces your current library with this backup. Your current library is not itself deleted — it stays in the backups list.',
+      confirmLabel: 'Restore this backup',
+      onConfirm: async () => {
+        try {
+          await Api.restoreBackup(file);
+          const data = await Api.getLibrary();
+          Store.setLibrary(data);
+          refreshView();
+          Render.showToast('Restored from backup.');
+        } catch (err) {
+          Render.showToast(`Restore failed: ${err.message}`);
+        }
+      },
+    });
   });
 }
 
@@ -915,8 +1065,13 @@ function bindOverlayCloseButtons() {
   });
 }
 
+function openHelp() {
+  openOverlay('shortcuts-overlay');
+  Render.renderHelpPanel(document.getElementById('help-body'));
+}
+
 function bindKeyboardShortcuts() {
-  document.getElementById('shortcuts-trigger').addEventListener('click', () => openOverlay('shortcuts-overlay'));
+  document.getElementById('shortcuts-trigger').addEventListener('click', openHelp);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -934,7 +1089,7 @@ function bindKeyboardShortcuts() {
     }
 
     if (e.key === '?') {
-      openOverlay('shortcuts-overlay');
+      openHelp();
       return;
     }
 
@@ -986,26 +1141,108 @@ function bindHero() {
   });
 }
 
-// The bootstrap inline script in index.html already applies the saved (or
-// default) color theme before first paint — this only wires up the picker
-// overlay to change it afterward, same as the old light/dark toggle did.
-function bindThemePicker() {
-  document.getElementById('theme-toggle').addEventListener('click', () => {
-    openOverlay('theme-picker-overlay');
-    Render.renderThemePicker(document.getElementById('theme-picker-grid'), Themes.getCurrentThemeId());
+// The detail overlay's score/status/note/episode controls aren't inside a
+// .card, so they can't go through bindGridEvents' `.closest('.card')`
+// dispatch — this is its own small delegated handler, scoped to
+// #detail-content, reading the open series' id off the data-anilist-id
+// renderDetailOverlay sets on that container.
+function bindDetailOverlay() {
+  const content = document.getElementById('detail-content');
+
+  content.addEventListener('click', (e) => {
+    const id = Number(content.dataset.anilistId);
+    if (!id) return;
+    const actionEl = e.target.closest('[data-action]');
+    if (!actionEl) return;
+    const action = actionEl.dataset.action;
+    if (action === 'set-score') handleSetScore(id, Number(actionEl.dataset.score));
+    else if (action === 'set-status') {
+      // Same drop-confirms rule as the card's own quick-move row (bindGridEvents).
+      if (actionEl.dataset.status === 'dropped') confirmDrop(id);
+      else handleSetStatus(id, actionEl.dataset.status);
+    }
+    else if (action === 'detail-mark-next') handleIncrement(null, id);
+    else if (action === 'detail-drop') confirmDrop(id);
   });
 
-  document.getElementById('theme-picker-grid').addEventListener('click', (e) => {
-    const btn = e.target.closest('.theme-swatch');
-    if (!btn) return;
-    // Pass the clicked id directly rather than reading it back via
-    // Themes.getCurrentThemeId() — setColorTheme applies through
-    // document.startViewTransition when available, which runs its callback
-    // asynchronously, so reading the "current" theme back immediately after
-    // calling it would still see the *previous* theme and highlight the
-    // wrong swatch for one click (always one step behind).
-    Themes.setColorTheme(btn.dataset.themeId);
-    Render.renderThemePicker(document.getElementById('theme-picker-grid'), btn.dataset.themeId);
+  content.addEventListener(
+    'blur',
+    (e) => {
+      if (e.target.dataset && e.target.dataset.action === 'detail-note') {
+        Store.updateEntry(Number(content.dataset.anilistId), { notes: e.target.value });
+        persist();
+      }
+    },
+    true
+  );
+
+  content.addEventListener('keydown', (e) => {
+    if (!(e.target.dataset && e.target.dataset.action === 'detail-jump-episode' && e.key === 'Enter')) return;
+    const id = Number(content.dataset.anilistId);
+    const entry = Store.getEntry(id);
+    if (!entry) return;
+    let value = parseInt(e.target.value, 10);
+    if (Number.isNaN(value) || value < 0) return;
+    if (entry.totalEpisodes) value = Math.min(value, entry.totalEpisodes);
+    Store.updateEntry(id, { episodesWatched: value });
+    refreshGridOnly();
+    Render.renderTabCounts();
+    Detail.refreshDetailIfOpen(id);
+    persist();
+    e.target.value = '';
+  });
+}
+
+// The bootstrap inline script in index.html already applies the saved (or
+// default) color theme/text-size/text-weight/decor before first paint —
+// this wires up the Settings panel to change any of them afterward, same
+// as the old theme-only picker did for just the theme.
+function bindSettingsPanel() {
+  const body = document.getElementById('settings-body');
+
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    openOverlay('theme-picker-overlay');
+    Render.renderSettingsPanel(body, Themes.getCurrentThemeId());
+  });
+
+  body.addEventListener('click', (e) => {
+    const swatch = e.target.closest('.themegrid button');
+    if (swatch) {
+      // Pass the clicked id directly rather than reading it back via
+      // Themes.getCurrentThemeId() — setColorTheme applies through
+      // document.startViewTransition when available, which runs its
+      // callback asynchronously, so reading the "current" theme back
+      // immediately after calling it would still see the *previous* theme
+      // and highlight the wrong swatch for one click (always one step behind).
+      Themes.setColorTheme(swatch.dataset.themeId);
+      Render.renderSettingsPanel(body, swatch.dataset.themeId);
+      return;
+    }
+    const segBtn = e.target.closest('.seg button');
+    if (!segBtn) return;
+    const seg = segBtn.closest('.seg').dataset.seg;
+    const value = segBtn.dataset.value;
+    if (seg === 'textSize') Preferences.setTextSize(value);
+    else if (seg === 'textWeight') Preferences.setTextWeight(value);
+    else if (seg === 'decor') Preferences.setDecor(value);
+    else if (seg === 'originalTitles') {
+      Preferences.setOriginalTitlesMode(value);
+      Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
+    }
+    Render.renderSettingsPanel(body, Themes.getCurrentThemeId());
+  });
+}
+
+function bindHelpPanel() {
+  document.querySelectorAll('.help-tabs [data-help-tab]').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.help-tabs [data-help-tab]').forEach((t) => {
+        t.classList.toggle('on', t === tab);
+        t.setAttribute('aria-selected', String(t === tab));
+      });
+      Render.setHelpTab(tab.dataset.helpTab);
+      Render.renderHelpPanel(document.getElementById('help-body'));
+    });
   });
 }
 
@@ -1015,6 +1252,11 @@ function bindThemePicker() {
 export function refreshCurrentView() {
   refreshView();
 }
+
+// Exported so detail.js can route its open through the same focus-capture/
+// overlay-close/focus-trap plumbing every other overlay uses, instead of
+// toggling `hidden` directly (which used to skip all of that).
+export { openOverlay, closeAllOverlays };
 
 // Exported so app.js can re-measure the tab pill once the real tab-count
 // text is in (initEvents runs, and thus positions the pill, before
@@ -1052,6 +1294,7 @@ export function initEvents({ initialList, persistFn }) {
   bindTabs();
   bindHome();
   bindHero();
+  bindDetailOverlay();
   bindGridEvents();
   bindFilterBar();
   bindBulkActionBar();
@@ -1062,8 +1305,10 @@ export function initEvents({ initialList, persistFn }) {
   bindStatsShareOverlay();
   bindKeyboardShortcuts();
   bindOverlayCloseButtons();
-  bindThemePicker();
+  bindSettingsPanel();
+  bindHelpPanel();
   bindRipple();
+  document.addEventListener('keydown', trapOverlayFocus);
   updateTabPill(); // positions it for the initial tab, set by app.js before this runs
   window.addEventListener('resize', updateTabPill);
   // Tab label widths can shift slightly once the real webfont swaps in

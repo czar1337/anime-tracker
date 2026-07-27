@@ -2,6 +2,7 @@ import { Store } from './state.js';
 import { Airing } from './airing.js';
 import { COLOR_THEMES } from './themes.js';
 import { formatReleaseDate } from './scheduleLogic.js';
+import { Preferences } from './preferences.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -364,7 +365,14 @@ function renderGrid(list) {
     grid.hidden = true;
     emptyState.hidden = false;
     const info = EMPTY_STATES[list];
-    emptyState.innerHTML = `<h2>${info.title}</h2><p>${info.body}</p>`;
+    emptyState.innerHTML = `
+      <h2>${info.title}</h2>
+      <p>${info.body}</p>
+      <div class="row">
+        <button class="btn btn-primary rip-host" data-action="open-search">Add series</button>
+        <button class="btn btn-quiet" data-action="open-import">Import</button>
+      </div>
+    `;
     return;
   }
   grid.hidden = false;
@@ -1089,35 +1097,64 @@ function renderDismissedOverlay(container) {
 }
 
 function renderSearchResults(container, results, ownedIds, { replaceMode = false } = {}) {
-  if (results.length === 0) {
-    container.innerHTML = `<div class="search-status">No results.</div>`;
-    return;
-  }
+  const showNative = Preferences.getOriginalTitlesMode() === 'everywhere';
   container.innerHTML = results
     .map((m) => {
       const owned = ownedIds.get(m.id);
+      const primary = m.title.english || m.title.romaji;
+      const secondary = m.title.english && m.title.romaji && m.title.romaji !== m.title.english ? m.title.romaji : null;
+      const native = showNative && m.title.native && m.title.native !== primary ? m.title.native : null;
       return `
       <div class="search-result" data-anilist-id="${m.id}">
         <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy">
         <div class="search-result-info">
-          <div class="search-result-title">${escapeHtml(m.title.english || m.title.romaji)}</div>
-          ${m.title.english && m.title.romaji && m.title.romaji !== m.title.english ? `<div class="search-result-title-sub">${escapeHtml(m.title.romaji)}</div>` : ''}
+          <div class="search-result-title">${escapeHtml(primary)}</div>
+          ${secondary ? `<div class="search-result-title-sub">${escapeHtml(secondary)}</div>` : ''}
+          ${native ? `<div class="search-result-native">${escapeHtml(native)}</div>` : ''}
           <div class="search-result-meta">${m.seasonYear || '—'} · ${escapeHtml(m.format || '—')} · ${m.episodes ? m.episodes + ' ep' : '? ep'} ${m.averageScore ? '· ★' + m.averageScore : ''}</div>
         </div>
         <div class="search-result-actions">
           ${replaceMode
-            ? `<button class="mini-btn" data-use-match="1">Use this</button>`
+            ? `<button class="btn btn-primary sm rip-host" data-use-match="1">Use this</button>`
             : owned
-            ? `<span class="list-badge">${escapeHtml(owned)}</span>`
+            ? `<span class="tag info">In your ${escapeHtml(owned)} list</span>`
             : `
-              <button class="mini-btn" data-add-status="watching">Watching</button>
-              <button class="mini-btn" data-add-status="watchlist">Watchlist</button>
-              <button class="mini-btn" data-add-status="watched">Watched</button>
+              <button class="btn btn-primary sm rip-host" data-add-status="watchlist">Add</button>
+              <button class="btn btn-quiet sm" data-add-status="watching">Watching</button>
+              <button class="btn btn-quiet sm" data-add-status="watched">Watched</button>
             `}
         </div>
       </div>`;
     })
     .join('');
+}
+
+function renderSearchLoading(container) {
+  container.innerHTML = `
+    <div class="search-skeleton-row">
+      <div class="search-skeleton-cover"></div>
+      <div class="search-skeleton-lines"><span></span><span></span></div>
+    </div>
+    <div class="search-skeleton-row dim">
+      <div class="search-skeleton-cover"></div>
+      <div class="search-skeleton-lines"><span></span><span></span></div>
+    </div>
+  `;
+}
+
+// One combined state for "no results" and "could not search" (offline, rate
+// limited, AniList unreachable) — design/reference's own search mockup
+// treats both as the same visual block, differing only in copy (see
+// 27-07-2026-moonlit-shrine-remaining-surfaces.html §10). `reason` is the
+// specific message to show when it isn't a plain empty result.
+function renderSearchEmpty(container, query, reason) {
+  container.innerHTML = `
+    <div class="search-empty">
+      <b>${reason ? 'Could not search' : `No results for "${escapeHtml(query)}"`}</b>
+      <p>${reason ? escapeHtml(reason) : 'Check the spelling, or search the Japanese title.'}</p>
+      <div class="row"><button class="btn btn-ghost sm" data-action="search-retry">Try again</button></div>
+    </div>
+  `;
 }
 
 function renderBackupList(container, backups) {
@@ -1173,7 +1210,44 @@ function formatFuzzyDate(d) {
 // the AniList data. description(asHtml:false) from AniList is plain text
 // (its own lightweight markdown, not HTML) — escaped like any other API
 // string, no HTML sanitizer needed.
+// design/HANDOVER.md §14 "More than 50 episodes": squares stay up to 50;
+// past that, a compact bar plus a "jump to episode" field replaces them,
+// with only the last 18 squares still shown as a tail.
+const EPISODE_SQUARE_CAP = 50;
+const EPISODE_SQUARE_TAIL = 18;
+
+function episodeSquareHtml(index, entry) {
+  const cls = index < entry.episodesWatched ? 'f' : index === entry.episodesWatched ? 'n' : '';
+  return `<i class="${cls}"></i>`;
+}
+
+function episodesBlockHtml(entry) {
+  const total = entry.totalEpisodes;
+  const watched = entry.episodesWatched;
+  const knownCount = total || watched;
+  if (knownCount > EPISODE_SQUARE_CAP) {
+    const pct = total ? Math.min(100, (watched / total) * 100) : 100;
+    const tailStart = Math.max(0, watched - EPISODE_SQUARE_TAIL + 1);
+    const tailSquares = Array.from({ length: watched - tailStart + 1 }, (_, i) => episodeSquareHtml(tailStart + i, entry)).join('');
+    const nextEp = Math.min(watched + 1, total || watched + 1);
+    return `
+      <p class="detail-lbl">Episodes</p>
+      <div class="row detail-ep-summary"><span>Progress</span><span class="num">${watched} watched${total ? ` of ${total}` : ' · no total known'}</span></div>
+      <div class="barfallback"><i style="width:${pct}%"></i></div>
+      <div class="row detail-jump-row">
+        <span class="field detail-jump-field">Jump to episode<input type="number" min="0" ${total ? `max="${total}"` : ''} data-action="detail-jump-episode" aria-label="Jump to episode"><kbd>↵</kbd></span>
+        <button class="btn btn-ghost sm rip-host" data-action="detail-mark-next">Mark episode ${nextEp}</button>
+      </div>
+      <div class="row eps detail-eps-tail">${tailSquares}<span class="detail-eps-tail-label">last ${watched - tailStart + 1} shown</span></div>
+    `;
+  }
+  const count = total || watched + 1;
+  const squares = Array.from({ length: count }, (_, i) => episodeSquareHtml(i, entry)).join('');
+  return `<p class="detail-lbl">Episodes</p><div class="eps">${squares}</div>`;
+}
+
 function renderDetailOverlay(container, state) {
+  delete container.dataset.anilistId;
   if (state.status === 'loading') {
     container.innerHTML = `<div class="empty-state"><h2>Loading…</h2><p>Fetching details from AniList.</p></div>`;
     return;
@@ -1185,10 +1259,10 @@ function renderDetailOverlay(container, state) {
 
   const m = state.media;
   const local = state.localEntry;
+  container.dataset.anilistId = String(m.id);
   const primary = m.title.english || m.title.romaji;
-  const secondary = m.title.romaji && m.title.romaji !== primary
-    ? m.title.romaji
-    : (m.title.native && m.title.native !== primary ? m.title.native : null);
+  const secondary = m.title.romaji && m.title.romaji !== primary ? m.title.romaji : null;
+  const showNative = m.title.native && m.title.native !== primary && Preferences.getOriginalTitlesMode() !== 'off';
   const studios = (m.studios?.nodes || []).map((s) => s.name).join(', ');
   const aired = formatFuzzyDate(m.startDate);
   const ended = formatFuzzyDate(m.endDate);
@@ -1202,39 +1276,168 @@ function renderDetailOverlay(container, state) {
   const metaBits = [formatEnumLabel(m.format), formatEnumLabel(m.status), m.episodes ? `${m.episodes} ep` : null, m.duration ? `${m.duration} min/ep` : null].filter(Boolean);
 
   container.innerHTML = `
-    <div class="detail-header">
-      <img class="detail-cover" src="${escapeHtml(m.coverImage.large)}" alt="">
-      <div class="detail-header-info">
-        <h2 class="detail-title">${escapeHtml(primary)}</h2>
-        ${secondary ? `<div class="card-title-sub detail-title-sub">${escapeHtml(secondary)}</div>` : ''}
-        <div class="detail-meta-row">${metaBits.map(escapeHtml).join(' · ')}</div>
-        <div class="detail-score-row">
-          ${m.averageScore ? `<span>★ ${m.averageScore} AniList</span>` : ''}
-          ${local?.myScore != null ? `<span>★ ${local.myScore} my score</span>` : ''}
-          ${m.popularity ? `<span>${m.popularity.toLocaleString()} on lists</span>` : ''}
-          ${m.favourites ? `<span>${m.favourites.toLocaleString()} favourites</span>` : ''}
-        </div>
-        ${(m.genres || []).length ? `<div class="detail-genres">${m.genres.map((g) => `<span class="detail-genre-chip">${escapeHtml(g)}</span>`).join('')}</div>` : ''}
-        ${local ? `<div class="detail-owned-badge">In your ${escapeHtml(local.listStatus)} list${local.totalEpisodes ? ` — ${local.episodesWatched}/${local.totalEpisodes} watched` : ''}</div>` : ''}
+    <div class="detail-side">
+      <div class="detail-cover" style="background-image:url('${escapeHtml(m.coverImage.large)}')"></div>
+      <div class="detail-score">
+        <b>${local?.myScore != null ? local.myScore : '—'}</b>
+        <span>${local?.myScore != null ? 'your score' : 'not rated'}</span>
       </div>
     </div>
-    <div class="detail-meta-grid">
-      ${studios ? `<div><span class="detail-meta-label">Studio</span><span>${escapeHtml(studios)}</span></div>` : ''}
-      ${m.source ? `<div><span class="detail-meta-label">Source</span><span>${escapeHtml(formatEnumLabel(m.source))}</span></div>` : ''}
-      ${airedRange ? `<div><span class="detail-meta-label">Aired</span><span>${escapeHtml(airedRange)}</span></div>` : ''}
+    <div class="detail-body">
+      <h2 class="detail-title">${escapeHtml(primary)}</h2>
+      ${secondary ? `<div class="card-title-sub detail-title-sub">${escapeHtml(secondary)}</div>` : ''}
+      ${showNative ? `<p class="detail-native">${escapeHtml(m.title.native)}</p>` : ''}
+      <div class="detail-meta-row">${metaBits.map(escapeHtml).join(' · ')}</div>
+      <div class="detail-score-row">
+        ${m.averageScore ? `<span>★ ${m.averageScore} AniList</span>` : ''}
+        ${m.popularity ? `<span>${m.popularity.toLocaleString()} on lists</span>` : ''}
+        ${m.favourites ? `<span>${m.favourites.toLocaleString()} favourites</span>` : ''}
+      </div>
+      ${(m.genres || []).length ? `<div class="detail-genres">${m.genres.map((g) => `<span class="detail-genre-chip">${escapeHtml(g)}</span>`).join('')}</div>` : ''}
+      ${local ? `<div class="detail-owned-badge">In your ${escapeHtml(local.listStatus)} list</div>` : ''}
+      ${local ? `
+        <div class="detail-section">${episodesBlockHtml(local)}</div>
+        <div class="detail-split">
+          <div><p class="detail-lbl">Score</p>${scoreStripHtml(local)}</div>
+          <div><p class="detail-lbl">Status</p>${statusRowHtml(local)}</div>
+        </div>
+        <div class="detail-section">
+          <p class="detail-lbl">Note</p>
+          <textarea class="detail-note" placeholder="Your notes…" data-action="detail-note">${escapeHtml(local.notes || '')}</textarea>
+        </div>
+      ` : ''}
+      <div class="detail-meta-grid">
+        ${studios ? `<div><span class="detail-meta-label">Studio</span><span>${escapeHtml(studios)}</span></div>` : ''}
+        ${m.source ? `<div><span class="detail-meta-label">Source</span><span>${escapeHtml(formatEnumLabel(m.source))}</span></div>` : ''}
+        ${airedRange ? `<div><span class="detail-meta-label">Aired</span><span>${escapeHtml(airedRange)}</span></div>` : ''}
+      </div>
+      ${description ? `<div class="detail-description">${escapeHtml(description)}</div>` : `<p class="card-meta">No synopsis available.</p>`}
+      ${local ? `
+        <div class="detail-foot">
+          ${local.totalEpisodes && local.episodesWatched >= local.totalEpisodes ? '' : `<button class="btn btn-primary rip-host" data-action="detail-mark-next">Mark episode ${Math.min(local.episodesWatched + 1, local.totalEpisodes || local.episodesWatched + 1)} watched</button>`}
+          <button class="btn btn-quiet" data-action="close-overlay">Close</button>
+          ${local.listStatus === 'dropped' ? '' : `<button class="btn btn-danger" data-action="detail-drop">Drop the series</button>`}
+        </div>
+      ` : ''}
     </div>
-    ${description ? `<div class="detail-description">${escapeHtml(description)}</div>` : `<p class="card-meta">No synopsis available.</p>`}
   `;
 }
 
-function renderThemePicker(container, currentId) {
-  container.innerHTML = COLOR_THEMES.map(
+function settingsRowHtml(label, description, body) {
+  return `<div class="set-row"><div class="k"><b>${escapeHtml(label)}</b><span>${description}</span></div><div>${body}</div></div>`;
+}
+
+function segHtml(name, options, current) {
+  return `<div class="seg" data-seg="${name}" role="group" aria-label="${escapeHtml(name)}">${options
+    .map(([value, label]) => `<button class="${value === current ? 'on' : ''}" data-value="${value}">${escapeHtml(label)}</button>`)
+    .join('')}</div>`;
+}
+
+function themeGridHtml(currentId) {
+  return `<div class="themegrid">${COLOR_THEMES.map(
     (t) => `
-    <button class="theme-swatch ${t.id === currentId ? 'active' : ''}" data-theme-id="${t.id}">
-      <span class="theme-swatch-dots"><span style="background:${t.accent1}"></span><span style="background:${t.accent2}"></span></span>
-      <span class="theme-swatch-name">${escapeHtml(t.name)}</span>
+    <button class="${t.id === currentId ? 'on' : ''}" data-theme-id="${t.id}" title="${escapeHtml(t.name)}">
+      <span class="sw2" style="background:${t.accent1}"><i style="background:${t.accent2}"></i></span>
+      <span class="nm">${escapeHtml(t.name)}</span>
     </button>`
-  ).join('');
+  ).join('')}</div>`;
+}
+
+// Settings panel (design/HANDOVER.md §4 Phase 3: "theme grid, text size,
+// text weight, decoration, original titles"). Replaces the old
+// theme-picker-only overlay — same trigger/id, see events.js's bindThemePicker.
+function renderSettingsPanel(container, currentThemeId) {
+  container.innerHTML = `
+    ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. Four are light.`, themeGridHtml(currentThemeId))}
+    ${settingsRowHtml(
+      'Text size',
+      'Changes every size in the app at once.',
+      segHtml('textSize', [['xs', 'Small'], ['s', 'Normal'], ['m', 'Comfortable'], ['l', 'Large'], ['xl', 'Largest']], Preferences.getTextSize())
+    )}
+    ${settingsRowHtml(
+      'Text weight',
+      'Makes text thinner or thicker.',
+      segHtml('textWeight', [['light', 'Light'], ['normal', 'Normal'], ['clear', 'Clear'], ['bold', 'Bold']], Preferences.getTextWeight())
+    )}
+    ${settingsRowHtml(
+      'Decoration',
+      'Falling leaves, feathers and the glow behind the header.<span class="note">Turns off by itself if your system asks for less motion.</span>',
+      segHtml('decor', [['on', 'On'], ['half', 'Half'], ['off', 'Off']], Preferences.getDecor())
+    )}
+    ${settingsRowHtml(
+      'Original titles',
+      'Show the Japanese title next to the English one.',
+      segHtml('originalTitles', [['off', 'Off'], ['details', 'In details only'], ['everywhere', 'Everywhere']], Preferences.getOriginalTitlesMode())
+    )}
+  `;
+}
+
+const HELP_TOUR = [
+  ['Watching', 'Series you are in the middle of. The one with a new episode is shown large at the top.'],
+  ['Watchlist', 'Series you plan to watch. Nothing here counts towards your stats.'],
+  ['Watched', 'Finished series. A series moves here by itself when you mark the last episode.'],
+  ['Dropped', 'Series you stopped. Your episodes and score are kept.'],
+  ['Schedule', 'When new episodes arrive, by day. Only for series you are watching.'],
+  ['Discover', 'Suggestions based on what you rated high. Each one says why it is there.'],
+  ['Statistics', 'Episodes per month, episodes per genre, your average score.'],
+];
+const HELP_TOUR_2 = [
+  ['Marking an episode', 'Hover a card and press the plus, or open the series and press "Mark episode watched". Both can be undone.'],
+  ['Selecting several', 'Press "Select several" in the toolbar, or hold a card, then pick more.'],
+  ['Your data', 'Everything stays on this computer. Nothing is sent anywhere except searches to AniList.'],
+];
+// Documents only the shortcuts events.js actually implements (bindKeyboardShortcuts) —
+// not a wishlist. `1`-`4`/`+`/`-` all require keyboard focus inside a card.
+const HELP_KEYS = [
+  ['/', 'Search and add a series'],
+  ['1 – 4', 'Set status on the focused card'],
+  ['+ / -', 'Episode progress on the focused card'],
+  ['esc', 'Close overlays'],
+  ['?', 'Open this help'],
+];
+// Verified against server.js/datadir.js/README.md rather than copied
+// verbatim from the design reference — a couple of its answers (backup
+// retention count, the data path, "replace match" vs. this app's actual
+// "Fix wrong match" label) would otherwise have been wrong for this app.
+const HELP_FAQ = [
+  ['Where is my data saved?', 'On this computer, in a folder outside the app: <code>%APPDATA%\\anime-tracker</code> on Windows (<code>~/Library/Application Support/anime-tracker</code> on Mac). You can delete the app folder and your library stays.'],
+  ['How do I make a backup?', 'Press the backup button in the header, then Export backup. You get one file with everything. The app also saves a backup on every change and keeps the last 150.'],
+  ['How do I add a series?', 'Press Add series and search. You can also paste a screenshot of a list, or import your list from MyAnimeList.'],
+  ['A series I watch has a new episode, but the app does not show it.', 'The schedule comes from AniList. If the series has no schedule there, the app cannot know — open the series and mark the episode by hand.'],
+  ['Can I use the app without internet?', 'Yes. Your library, stats, schedule and backups all work offline. Only searching for new series and Discover need a connection.'],
+  ['I matched the wrong series. How do I fix it?', 'Hover the card and press "Fix wrong match", then search again. Your episodes and score move to the new match.'],
+  ['What happens when I drop a series?', 'It moves to Dropped. Watched episodes, your score and your notes are kept, and it stops showing up in Watching and Schedule.'],
+  ['How do I change how the app looks?', 'Press the settings button. You can pick from 45 themes, change text size and weight, and turn decoration down or off.'],
+  ['How do I update the app?', 'Download the new version and replace the old folder or exe. Your data is in a different place, so it is not touched.'],
+  ['Something looks broken. What now?', 'Reload the page first. If it stays broken, open the backup menu and restore your most recent backup.'],
+];
+
+let helpTab = 'basics';
+
+function helpTabBodyHtml() {
+  if (helpTab === 'keyboard') {
+    return `<div class="keys">${HELP_KEYS.map(([key, desc]) => `<div><kbd>${escapeHtml(key)}</kbd>${escapeHtml(desc)}</div>`).join('')}</div>
+      <p class="note" style="margin-top:18px">Shortcuts are off while you are typing in a field.</p>`;
+  }
+  if (helpTab === 'questions') {
+    return `<div class="faq">${HELP_FAQ.map(
+      ([q, a], i) => `<details ${i === 0 ? 'open' : ''}><summary>${escapeHtml(q)}</summary><p>${a}</p></details>`
+    ).join('')}</div>`;
+  }
+  return `
+    <p class="tour-h">What each tab is for</p>
+    <div class="tour">${HELP_TOUR.map(([t, d]) => `<div><b>${escapeHtml(t)}</b>${escapeHtml(d)}</div>`).join('')}</div>
+    <p class="tour-h">Three things worth knowing</p>
+    <div class="tour">${HELP_TOUR_2.map(([t, d]) => `<div><b>${escapeHtml(t)}</b>${escapeHtml(d)}</div>`).join('')}</div>
+  `;
+}
+
+function renderHelpPanel(container) {
+  container.innerHTML = helpTabBodyHtml();
+}
+
+function setHelpTab(tab) {
+  helpTab = tab;
 }
 
 export const Render = {
@@ -1243,6 +1446,8 @@ export const Render = {
   renderTabCounts,
   renderFilterBar,
   renderSearchResults,
+  renderSearchLoading,
+  renderSearchEmpty,
   renderBackupList,
   renderHome,
   renderStatsPage,
@@ -1258,7 +1463,9 @@ export const Render = {
   toggleSelected,
   getSelectedIds,
   renderBulkActionBar,
-  renderThemePicker,
+  renderSettingsPanel,
+  renderHelpPanel,
+  setHelpTab,
   showToast,
   showError,
   clearError,

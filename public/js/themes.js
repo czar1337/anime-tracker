@@ -1,8 +1,17 @@
-// The 40 approved "Status Window" color themes. Each id must match a
-// [data-color-theme="..."] block in styles.css — accent1/accent2 here are
-// only for rendering the swatch preview dots in the picker UI, the actual
-// colors live in the stylesheet as the source of truth.
+// All 45 color themes (the 40 approved "Status Window" ones, plus 5 new
+// Moonlit Shrine ones generated in Phase 1 — see scripts/generate-themes.js).
+// Each id must match a [data-color-theme="..."] block in styles.css —
+// accent1/accent2 here are only for rendering the swatch preview dots in the
+// Settings panel, the actual colors live in the stylesheet as the source of
+// truth. accent1/accent2 for the 5 Moonlit Shrine entries below are read
+// straight off that theme's own --accent/--accent-lit, converted to hex —
+// not invented.
 export const COLOR_THEMES = [
+  { id: 'moonlit-shrine', name: 'Moonlit Shrine', accent1: '#d5404a', accent2: '#e6808a' },
+  { id: 'crow-feather', name: 'Crow Feather', accent1: '#c63955', accent2: '#d07688' },
+  { id: 'moss-shrine', name: 'Moss Shrine', accent1: '#7bb964', accent2: '#a7cb9a' },
+  { id: 'cedar', name: 'Cedar', accent1: '#54ab7a', accent2: '#88bfa0' },
+  { id: 'wisteria', name: 'Wisteria', accent1: '#a98ecc', accent2: '#cfc2e0' },
   { id: 'clean-interface', name: 'Clean Interface', accent1: '#8fd4ff', accent2: '#4a7ba8' },
   { id: 'arcane-ward', name: 'Arcane Ward', accent1: '#c9a3ff', accent2: '#f0c975' },
   { id: 'holo-deck', name: 'Holo Deck', accent1: '#57e9ff', accent2: '#ff5fc4' },

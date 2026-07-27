@@ -24,6 +24,10 @@
   // synchronous-before-paint treatment as the theme above, so nothing jumps.
   document.documentElement.dataset.textSize = localStorage.getItem('anime-tracker-text-size') || 's';
   document.documentElement.dataset.textWeight = localStorage.getItem('anime-tracker-text-weight') || 'normal';
+  // Decoration (design/moonlit-shrine-design-system.md §11) has no visible
+  // effect yet — the atmosphere layer it will gate is Phase 4 — but the
+  // attribute is applied here now so a saved preference already sticks.
+  document.documentElement.dataset.decor = localStorage.getItem('anime-tracker-decor') || 'on';
 </script>
 </head>
 <body>
@@ -196,12 +200,14 @@
     </div>
   </div>
 
-  <!-- Color theme picker overlay -->
+  <!-- Settings panel: theme, text size, text weight, decoration, original
+       titles. Replaces the old theme-picker-only overlay (same trigger,
+       same id, new contents — see events.js's bindThemePicker). -->
   <div id="theme-picker-overlay" class="overlay" hidden>
-    <div class="overlay-panel theme-picker-panel">
+    <div class="overlay-panel" style="max-width:760px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
-      <h2>Choose a theme</h2>
-      <div id="theme-picker-grid" class="theme-picker-grid"></div>
+      <h2>Settings</h2>
+      <div id="settings-body"></div>
     </div>
   </div>
 
@@ -219,18 +225,19 @@
     </div>
   </div>
 
-  <!-- Shortcuts cheat-sheet overlay -->
+  <!-- Help panel: three tabs (The basics / Keyboard / Questions), behind
+       the ? button. Replaces the old shortcuts-only cheat-sheet (same
+       trigger, same id — see events.js's bindKeyboardShortcuts). -->
   <div id="shortcuts-overlay" class="overlay" hidden>
-    <div class="overlay-panel shortcuts-panel">
+    <div class="overlay-panel" style="max-width:720px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
-      <h2>Keyboard shortcuts</h2>
-      <dl class="shortcuts-list">
-        <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
-        <div><dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Set status on focused card</dd></div>
-        <div><dt><kbd>+</kbd> / <kbd>-</kbd></dt><dd>Episode progress on focused card</dd></div>
-        <div><dt><kbd>Esc</kbd></dt><dd>Close overlays</dd></div>
-        <div><dt><kbd>?</kbd></dt><dd>Toggle this cheat-sheet</dd></div>
-      </dl>
+      <h2>Help</h2>
+      <div class="tabs help-tabs" role="tablist">
+        <button class="on" data-help-tab="basics" role="tab" aria-selected="true">The basics</button>
+        <button data-help-tab="keyboard" role="tab" aria-selected="false">Keyboard</button>
+        <button data-help-tab="questions" role="tab" aria-selected="false">Questions</button>
+      </div>
+      <div id="help-body"></div>
     </div>
   </div>
 
@@ -289,6 +296,20 @@
           <button id="import-commit-btn" class="text-btn primary">Import matched entries</button>
           <button id="import-cancel-btn" class="text-btn">Cancel</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm dialog: shared by every destructive action. design system §8:
+       "confirm dialog for anything destructive that always names what is
+       kept." Populated per-use by events.js's confirmDialog(). -->
+  <div id="confirm-overlay" class="overlay" hidden>
+    <div class="overlay-panel dialog">
+      <h4 id="confirm-title"></h4>
+      <p id="confirm-body"></p>
+      <div class="row dialog-actions">
+        <button id="confirm-danger-btn" class="btn btn-danger rip-host"></button>
+        <button id="confirm-cancel-btn" class="btn btn-quiet" data-action="close-overlay">Keep it</button>
       </div>
     </div>
   </div>

@@ -1,6 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
+import { openOverlay } from './events.js';
 
 const cache = new Map(); // anilistId -> AniList Media detail object
 let generation = 0; // bumped whenever the overlay closes, invalidating any in-flight fetch
@@ -11,8 +12,11 @@ function renderNow(state) {
 }
 
 export async function showDetail(anilistId) {
-  const overlay = document.getElementById('detail-overlay');
-  overlay.hidden = false;
+  // Routes through the same focus-capture/close-trap plumbing every other
+  // overlay uses (design system §13: overlays trap focus and restore it on
+  // close) — previously this set `hidden = false` directly and skipped all
+  // of that.
+  openOverlay('detail-overlay');
   const myGeneration = generation;
   const localEntry = Store.getEntry(anilistId);
 
@@ -42,4 +46,20 @@ export function initDetail() {
   }).observe(overlay, { attributes: true, attributeFilter: ['hidden'] });
 }
 
-export const Detail = { showDetail, initDetail };
+// Re-renders the detail overlay in place (no re-open, no focus/scroll
+// reset) after a mutation made through its own score/status/note/episode
+// controls — or through a card's, if that card happens to be the same
+// series this overlay is currently showing. No-ops whenever the overlay
+// isn't open, or is open for a different series, or its media isn't cached
+// yet (still loading — the loading render will pick up the fresh local
+// entry on its own once the fetch resolves).
+export function refreshDetailIfOpen(anilistId) {
+  const overlay = document.getElementById('detail-overlay');
+  const content = document.getElementById('detail-content');
+  if (!content || overlay.hidden) return;
+  if (Number(content.dataset.anilistId) !== anilistId) return;
+  if (!cache.has(anilistId)) return;
+  renderNow({ status: 'ready', media: cache.get(anilistId), localEntry: Store.getEntry(anilistId) });
+}
+
+export const Detail = { showDetail, initDetail, refreshDetailIfOpen };
