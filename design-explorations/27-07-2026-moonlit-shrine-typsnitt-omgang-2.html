@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moonlit Shrine – typsnitt, omgång 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600;700&family=Zen+Old+Mincho:wght@400;600;700&family=Schibsted+Grotesk:wght@400;500;600;700&family=Fraunces:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0c0e13; --bg-elevated:#12161e; --card:#141821; --card-hover:#181d27;
+  --line:#212734; --line-lit:#38424f; --text:#ece8e3; --dim:#a2aab7; --faint:#6a7280;
+  --crimson:#d43f4a; --crimson-lit:#ea6b70; --crimson-soft:rgba(212,63,74,.11);
+  --steel:#8098b5; --sage:#8fa88f; --radius:12px; --radius-sm:7px;
+  --display:Georgia, serif; --ui:system-ui, sans-serif; --num:system-ui, sans-serif;
+  --dw:400; --dtrack:-0.01em; --utrack:0; --uw:550;
+}
+/* ---------- uppsättningarna ---------- */
+[data-font="s1"] { --display:"Instrument Serif", Georgia, serif; --ui:"Instrument Sans", system-ui, sans-serif; --num:"Instrument Sans", system-ui, sans-serif; --dw:400; --dtrack:-0.005em; --utrack:-0.002em; --uw:600; }
+[data-font="s2"] { --display:"Zen Old Mincho", Georgia, serif; --ui:"Schibsted Grotesk", system-ui, sans-serif; --num:"Schibsted Grotesk", system-ui, sans-serif; --dw:600; --dtrack:.015em; --utrack:0; --uw:550; }
+[data-font="s3"] { --display:"Fraunces", Georgia, serif; --ui:"Space Grotesk", system-ui, sans-serif; --num:"DM Mono", monospace; --dw:500; --dtrack:-0.015em; --utrack:.004em; --uw:550; }
+[data-font="cur"] { --display:"Instrument Serif", Georgia, serif; --ui:system-ui, sans-serif; --num:system-ui, sans-serif; --dw:600; --dtrack:-0.02em; --utrack:0; --uw:600; }
+
+* { box-sizing: border-box; }
+body { margin: 0; padding: 40px 30px 100px; background: #07080b; color: var(--text); font-family: system-ui, sans-serif; }
+.wrap { max-width: 1280px; margin: 0 auto; }
+h1.page { font-size: 28px; margin: 0 0 10px; font-weight: 600; letter-spacing: -0.02em; }
+.lede { color: #8d939e; font-size: 15px; line-height: 1.65; max-width: 820px; margin: 0 0 22px; }
+.sec { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #6f7784; margin: 46px 0 16px; }
+
+.rec { border: 1px solid rgba(212,63,74,.4); background: linear-gradient(100deg, rgba(212,63,74,.09), transparent 60%); border-radius: var(--radius); padding: 20px 22px; margin-bottom: 30px; }
+.rec b.h { display: block; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--crimson-lit); margin-bottom: 9px; }
+.rec p { margin: 0 0 8px; font-size: 14px; color: #cfcbc6; line-height: 1.65; max-width: 880px; }
+.rec p:last-child { margin: 0; color: #9aa1ad; font-size: 13px; }
+
+.switch { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; position: sticky; top: 0; padding: 12px 0; background: linear-gradient(#07080b 72%, transparent); z-index: 40; }
+.switch button { background: #12161e; border: 1px solid var(--line); color: var(--dim); border-radius: 8px; padding: 9px 15px; font-size: 12.5px; cursor: pointer; transition: .2s; }
+.switch button:hover { border-color: var(--line-lit); color: var(--text); }
+.switch button.on { border-color: var(--crimson); color: var(--text); background: var(--crimson-soft); }
+.switch .now { margin-left: auto; font-size: 12px; color: var(--faint); }
+
+.spec { border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 26px; margin-bottom: 18px; background: rgba(255,255,255,.012); }
+.spec.pick { border-color: rgba(212,63,74,.42); }
+.spec .head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 22px; flex-wrap: wrap; }
+.spec .head .n { font-size: 12px; color: var(--faint); }
+.spec .head .t { font-size: 17px; font-weight: 600; }
+.spec .head .badge { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--crimson-lit); border: 1px solid rgba(212,63,74,.45); border-radius: 999px; padding: 3px 9px; }
+.spec .head .fonts { font-size: 12px; color: var(--faint); }
+.spec .head .use { margin-left: auto; font-size: 11px; border: 1px solid var(--line); border-radius: 6px; padding: 5px 11px; background: none; color: var(--dim); cursor: pointer; }
+.spec .head .use:hover { border-color: var(--crimson); color: var(--crimson-lit); }
+.spec .rows { display: grid; grid-template-columns: 104px 1fr; gap: 15px 20px; align-items: baseline; }
+.spec .k { font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); padding-top: 6px; }
+.brandline { font-family: var(--display); font-weight: var(--dw); font-size: 22px; letter-spacing: .05em; }
+.brandline i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); margin-right: 10px; box-shadow: 0 0 13px rgba(212,63,74,.9); }
+.h2 { font-family: var(--display); font-weight: var(--dw); font-size: 33px; line-height: 1.12; letter-spacing: var(--dtrack); }
+.h2 em { font-style: italic; color: var(--dim); }
+.micro { font-family: var(--ui); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.ladder { font-family: var(--ui); display: grid; gap: 7px; }
+.ladder span { color: var(--text); }
+.ladder .l13 { font-size: 13px; font-weight: 400; }
+.ladder .l12 { font-size: 12px; font-weight: var(--uw); }
+.ladder .l11 { font-size: 11px; font-weight: 400; color: var(--dim); }
+.ladder .l10 { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.ladder b.tag { font-size: 9px; color: var(--faint); font-weight: 400; margin-right: 9px; letter-spacing: .1em; }
+.nums { font-family: var(--num); font-size: 13.5px; color: var(--dim); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.nums small { display: block; font-size: 11px; color: var(--faint); margin-top: 5px; }
+.trunc { font-family: var(--ui); font-weight: var(--uw); font-size: 12px; width: 168px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+.jpline { font-family: var(--display); font-size: 20px; color: var(--dim); }
+.jpline small { font-family: var(--ui); font-size: 11px; color: var(--faint); margin-left: 10px; }
+.verdict { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.verdict div { font-size: 12.5px; color: #8d939e; line-height: 1.6; }
+.verdict b { display: block; color: #cfcbc6; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 5px; }
+
+/* mockup */
+.app { position: relative; height: 560px; overflow: hidden; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--bg); box-shadow: 0 28px 64px -22px rgba(0,0,0,.95); display: flex; flex-direction: column; }
+.atmo { position: absolute; inset: 0; pointer-events: none; }
+.atmo .moon { position: absolute; width: 560px; height: 340px; right: -110px; top: -160px; background: radial-gradient(ellipse at center, rgba(176,196,222,.16), transparent 66%); }
+.atmo .canopy { position: absolute; inset: 0 0 auto 0; height: 210px; background:
+  radial-gradient(170px 80px at 13% -12%, rgba(194,86,79,.28), transparent 72%),
+  radial-gradient(200px 92px at 48% -16%, rgba(194,86,79,.18), transparent 72%),
+  radial-gradient(180px 86px at 86% -10%, rgba(194,86,79,.24), transparent 72%); filter: blur(22px); }
+.atmo .vign { position: absolute; inset: 0; background: radial-gradient(125% 95% at 50% 38%, transparent 52%, rgba(0,0,0,.58)); }
+.hdr { position: relative; z-index: 3; display: flex; align-items: center; padding: 18px 24px 0; }
+.brand { font-family: var(--display); font-weight: var(--dw); font-size: 20px; letter-spacing: .05em; display: flex; align-items: center; gap: 10px; }
+.brand i { width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 13px rgba(212,63,74,.9); }
+.hdr .acts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.icn { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--dim); font-size: 13px; }
+.btn-primary { border: 0; border-radius: var(--radius-sm); background: var(--crimson); color: #fff; font-family: var(--ui); font-size: 12.5px; font-weight: var(--uw); padding: 9px 16px; letter-spacing: var(--utrack); box-shadow: 0 10px 26px -12px rgba(212,63,74,.95); }
+.btn-ghost { border: 1px solid var(--line-lit); background: rgba(255,255,255,.05); color: var(--text); font-family: var(--ui); border-radius: var(--radius-sm); font-size: 12.5px; padding: 9px 16px; }
+nav { position: relative; z-index: 3; display: flex; gap: 24px; padding: 15px 24px 0; margin-top: 13px; border-bottom: 1px solid var(--line); }
+nav a { font-family: var(--ui); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); text-decoration: none; padding-bottom: 11px; border-bottom: 1px solid transparent; }
+nav a.on { color: var(--text); border-color: var(--crimson); }
+nav a b { font-family: var(--num); font-weight: 500; color: var(--faint); margin-left: 6px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.main { position: relative; z-index: 2; padding: 18px 24px; }
+.hero { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid rgba(212,63,74,.28); box-shadow: 0 0 46px -24px rgba(212,63,74,.6); height: 214px; }
+.hero .bg { position: absolute; inset: 0; background: linear-gradient(150deg,#4a5580,#1e2440); filter: saturate(.8) brightness(.86); }
+.hero .bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(12,14,19,.94) 24%, rgba(12,14,19,.66) 54%, rgba(12,14,19,.3)); }
+.hero .in { position: relative; height: 100%; padding: 22px 26px; display: flex; flex-direction: column; justify-content: center; max-width: 620px; }
+.hero .kick { font-family: var(--ui); font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--crimson-lit); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.hero .kick i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.hero h2 { font-family: var(--display); font-weight: var(--dw); margin: 0 0 7px; font-size: 30px; line-height: 1.14; letter-spacing: var(--dtrack); }
+.hero .sub { font-family: var(--ui); font-size: 12.5px; color: var(--dim); margin-bottom: 16px; letter-spacing: var(--utrack); }
+.hero .track { height: 3px; background: rgba(255,255,255,.13); position: relative; max-width: 360px; margin-bottom: 8px; }
+.hero .track i { position: absolute; left: 0; top: 0; height: 3px; width: 64%; background: var(--crimson); box-shadow: 0 0 12px rgba(212,63,74,.85); }
+.hero .n { font-family: var(--num); font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; margin-bottom: 16px; }
+.hero .cta { display: flex; gap: 9px; }
+.shelf-lbl { display: flex; align-items: baseline; gap: 12px; margin: 18px 0 11px; }
+.shelf-lbl h3 { font-family: var(--ui); margin: 0; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+.shelf-lbl .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+.card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.card .art { height: 104px; position: relative; filter: saturate(.66) brightness(.9); }
+.card .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 50%, rgba(20,24,33,.95)); }
+.card .meta { padding: 9px 10px 11px; }
+.card h4 { font-family: var(--ui); margin: 0 0 5px; font-size: 12px; font-weight: var(--uw); letter-spacing: var(--utrack); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .row { display: flex; justify-content: space-between; font-family: var(--num); font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.card .row em { font-style: normal; color: var(--dim); }
+.card .track { height: 2px; background: rgba(255,255,255,.08); margin-top: 8px; position: relative; }
+.card .track i { position: absolute; left: 0; top: 0; height: 2px; background: var(--crimson); }
+
+.notes .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 30px; }
+.notes .i { font-size: 13px; color: #8d939e; line-height: 1.6; border-left: 2px solid var(--line); padding-left: 13px; }
+.notes .i b { display: block; color: #d5d1cc; font-weight: 600; font-size: 12.5px; margin-bottom: 2px; }
+.notes .i.warn { border-left-color: rgba(212,63,74,.5); }
+code { font-family: "DM Mono", monospace; font-size: 12px; color: #c3b6ba; background: rgba(255,255,255,.05); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1 class="page">Typsnitt, omgång 2</h1>
+  <p class="lede">Förra omgången föll på att display-typsnitten var ömtåliga eller kostymaktiga. Den här gången är kriteriet att typsnittet ska hålla ner till 10 px, ha egen karaktär utan att bli fantasy, och komma från en samtida ritning snarare än en historisk kopia. Varje uppsättning testas därför i småtext och med avkapade titlar, inte bara i en stor rubrik.</p>
+
+  <div class="rec">
+    <b class="h">Min rekommendation · uppsättning 1</b>
+    <p><b>Instrument Serif + Instrument Sans.</b> Två snitt från samma ritning, gjorda för att sitta ihop. Serifen är smal, skarp och redaktionell, det är den där lugna allvarligheten du var efter, men den är ritad för skärm och tappar inte hårstrecken som Cormorant gjorde. Sansen är en modern grotesk med diskret värme som är knivskarp vid 10–12 px, där nittio procent av appens text faktiskt bor.</p>
+    <p>Praktiskt: två filer istället för tre, samma bokstavsskelett i båda så rubrik och gränssnitt aldrig krigar, tabulära siffror i sansen så vi slipper ett separat monosnitt, och ingen risk att appen börjar likna ett fantasyspel när crimson ligger på.</p>
+  </div>
+
+  <div class="switch" id="switch">
+    <button data-f="s1" class="on">1 · Instrument Serif + Instrument Sans</button>
+    <button data-f="s2">2 · Zen Old Mincho + Schibsted Grotesk</button>
+    <button data-f="s3">3 · Fraunces + Space Grotesk</button>
+    <button data-f="cur">Nuvarande · Sora + Inter</button>
+    <span class="now" id="now">Visar: uppsättning 1</span>
+  </div>
+
+  <!-- ============ 1 ============ -->
+  <div class="sec">Uppsättningar</div>
+  <div class="spec pick" data-font="s1">
+    <div class="head"><span class="n">1</span><span class="t">Instrument Serif + Instrument Sans</span><span class="badge">rekommenderad</span><span class="fonts">redaktionell serif · modern grotesk</span><button class="use" data-f="s1">Visa i mockup</button></div>
+    <div class="rows">
+      <span class="k">Varumärke</span><span class="brandline"><i></i>Anime Tracker</span>
+      <span class="k">Hero</span><span class="h2">Frieren: Beyond Journey's End<br><em>Mushishi</em></span>
+      <span class="k">Flikar</span><span class="micro">Pågår · Väntar · Sett · Släppt · Schema · Upptäck · Statistik</span>
+      <span class="k">Småtext</span>
+      <span class="ladder">
+        <span class="l13"><b class="tag">13</b>Ett avsnitt i taget, aldrig fler.</span>
+        <span class="l12"><b class="tag">12</b>Ping Pong the Animation</span>
+        <span class="l11"><b class="tag">11</b>Avsnitt 18 av 28 sedda · 10 kvar</span>
+        <span class="l10"><b class="tag">10</b>Resten av pågår</span>
+      </span>
+      <span class="k">Siffror</span><span class="nums">18 / 28 · 9,0 · 318 avsnitt · 21:00 · 2023<small>Tabulära siffror, samma bredd så räknaren inte hoppar vid uppdatering.</small></span>
+      <span class="k">Avkapning</span><span class="trunc">Rurouni Kenshin: Meiji Kenkaku Romantan</span>
+      <span class="k">Japanska</span><span class="jpline" style="font-family:'Zen Old Mincho',serif">葬送のフリーレン<small>kräver komplement</small></span>
+    </div>
+    <div class="verdict">
+      <div><b>Styrka</b>Bäst balans i hela omgången. Serifen ger allvar, sansen ger skärpa, och de delar proportioner så headern och korten känns som samma app. Håller ner till 10 px utan att grumlas.</div>
+      <div><b>Risk</b>Instrument Serif finns i en vikt plus kursiv, så hierarkin i rubriker måste göras med storlek och färg, inte med tjocklek. Det är en begränsning som tvingar fram disciplin, men den är verklig.</div>
+      <div><b>Filstorlek</b>Serif cirka 24 kB, sans cirka 30 kB per vikt. Tre vikter i sansen räcker. Totalt runt 115 kB latinsk delmängd.</div>
+    </div>
+  </div>
+
+  <!-- ============ 2 ============ -->
+  <div class="spec" data-font="s2">
+    <div class="head"><span class="n">2</span><span class="t">Zen Old Mincho + Schibsted Grotesk</span><span class="fonts">robust mincho · nordisk grotesk</span><button class="use" data-f="s2">Visa i mockup</button></div>
+    <div class="rows">
+      <span class="k">Varumärke</span><span class="brandline"><i></i>Anime Tracker</span>
+      <span class="k">Hero</span><span class="h2">Frieren: Beyond Journey's End<br><em>Mushishi</em></span>
+      <span class="k">Flikar</span><span class="micro">Pågår · Väntar · Sett · Släppt · Schema · Upptäck · Statistik</span>
+      <span class="k">Småtext</span>
+      <span class="ladder">
+        <span class="l13"><b class="tag">13</b>Ett avsnitt i taget, aldrig fler.</span>
+        <span class="l12"><b class="tag">12</b>Ping Pong the Animation</span>
+        <span class="l11"><b class="tag">11</b>Avsnitt 18 av 28 sedda · 10 kvar</span>
+        <span class="l10"><b class="tag">10</b>Resten av pågår</span>
+      </span>
+      <span class="k">Siffror</span><span class="nums">18 / 28 · 9,0 · 318 avsnitt · 21:00 · 2023<small>Groteskens siffror är breda och tydliga, tabulärt läge finns.</small></span>
+      <span class="k">Avkapning</span><span class="trunc">Rurouni Kenshin: Meiji Kenkaku Romantan</span>
+      <span class="k">Japanska</span><span class="jpline">葬送のフリーレン · アニメ記録<small>ingår</small></span>
+    </div>
+    <div class="verdict">
+      <div><b>Styrka</b>Tyngre och mer stadig än Shippori från förra omgången, med riktig gravitas i rubriker. Klarar kanji och kana ur lådan, så originaltitlar går att visa utan extra typsnitt. Grotesken är sval och saklig, vilket balanserar stämningen.</div>
+      <div><b>Risk</b>Mincho i latinska bokstäver är alltid en översättning, versalerna blir lite platta. Kombinationen kan kännas mer museum än anime, och den japanska teckenuppsättningen är stor om den laddas fullt.</div>
+      <div><b>Filstorlek</b>Latinsk delmängd cirka 28 kB per vikt. Full japansk uppsättning flera megabyte och bör laddas separat, bara när originaltitlar visas.</div>
+    </div>
+  </div>
+
+  <!-- ============ 3 ============ -->
+  <div class="spec" data-font="s3">
+    <div class="head"><span class="n">3</span><span class="t">Fraunces + Space Grotesk</span><span class="fonts">uttrycksfull variabel serif · teknisk grotesk · mono</span><button class="use" data-f="s3">Visa i mockup</button></div>
+    <div class="rows">
+      <span class="k">Varumärke</span><span class="brandline"><i></i>Anime Tracker</span>
+      <span class="k">Hero</span><span class="h2">Frieren: Beyond Journey's End<br><em>Mushishi</em></span>
+      <span class="k">Flikar</span><span class="micro">Pågår · Väntar · Sett · Släppt · Schema · Upptäck · Statistik</span>
+      <span class="k">Småtext</span>
+      <span class="ladder">
+        <span class="l13"><b class="tag">13</b>Ett avsnitt i taget, aldrig fler.</span>
+        <span class="l12"><b class="tag">12</b>Ping Pong the Animation</span>
+        <span class="l11"><b class="tag">11</b>Avsnitt 18 av 28 sedda · 10 kvar</span>
+        <span class="l10"><b class="tag">10</b>Resten av pågår</span>
+      </span>
+      <span class="k">Siffror</span><span class="nums">18 / 28 · 9,0 · 318 avsnitt · 21:00 · 2023<small>DM Mono ger teknisk skärpa, men tar mer bredd än en proportionell sans.</small></span>
+      <span class="k">Avkapning</span><span class="trunc">Rurouni Kenshin: Meiji Kenkaku Romantan</span>
+      <span class="k">Japanska</span><span class="jpline" style="font-family:'Zen Old Mincho',serif">葬送のフリーレン<small>kräver komplement</small></span>
+    </div>
+    <div class="verdict">
+      <div><b>Styrka</b>Mest karaktär. Fraunces är variabel, så vikt och mjukhet kan finjusteras till exakt den ton du vill, och Space Grotesk ger en kylig samtida kant som drar designen mot streetwear snarare än tempel.</div>
+      <div><b>Risk</b>Karaktären är också problemet. Fraunces syns, vilket blir kul i två veckor och sedan högljutt. Space Grotesks siffror och versaler är breda, så mikrotexten i flikarna tar mer plats. Tre typsnitt att underhålla.</div>
+      <div><b>Filstorlek</b>Fraunces variabel cirka 90 kB, Space Grotesk cirka 30 kB per vikt, DM Mono cirka 26 kB. Totalt runt 200 kB, störst av de tre.</div>
+    </div>
+  </div>
+
+  <!-- ============ MOCKUP ============ -->
+  <div class="sec">I sitt sammanhang</div>
+  <div class="app" id="mock" data-font="s1">
+    <div class="atmo"><div class="moon"></div><div class="canopy"></div><div class="vign"></div></div>
+    <div class="hdr">
+      <span class="brand"><i></i>Anime Tracker</span>
+      <div class="acts"><span class="icn">⌕</span><span class="icn">✦</span><span class="icn">❋</span><button class="btn-primary">Lägg till serie</button></div>
+    </div>
+    <nav>
+      <a href="#" class="on">Pågår <b>6</b></a><a href="#">Väntar <b>38</b></a><a href="#">Sett <b>212</b></a><a href="#">Släppt <b>9</b></a><a href="#">Schema</a><a href="#">Upptäck</a><a href="#">Statistik</a>
+    </nav>
+    <div class="main">
+      <div class="hero">
+        <div class="bg"></div>
+        <div class="in">
+          <div class="kick"><i></i>Nytt avsnitt · för tre timmar sedan</div>
+          <h2>Frieren: Beyond Journey's End</h2>
+          <div class="sub">Fantasy · TV · 2023 · ditt betyg 9,0</div>
+          <div class="track"><i></i></div>
+          <div class="n">Avsnitt 18 av 28 sedda · 10 kvar</div>
+          <div class="cta"><button class="btn-primary">Markera avsnitt 19 sett</button><button class="btn-ghost">Öppna serien</button></div>
+        </div>
+      </div>
+      <div class="shelf-lbl"><h3>Resten av pågår</h3><span class="rule"></span></div>
+      <div class="grid">
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#3f7a78,#182f36)"></div><div class="meta"><h4>Mushishi</h4><div class="row"><em>21 / 26</em><span>10</span></div><div class="track"><i style="width:81%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#96434c,#3d1f2a)"></div><div class="meta"><h4>Vinland Saga</h4><div class="row"><em>12 / 24</em><span>8,0</span></div><div class="track"><i style="width:50%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#6b6193,#2c2748)"></div><div class="meta"><h4>Monogatari Series</h4><div class="row"><em>5 / 15</em><span>—</span></div><div class="track"><i style="width:33%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#a8763f,#4a2c1c)"></div><div class="meta"><h4>Odd Taxi</h4><div class="row"><em>7 / 13</em><span>—</span></div><div class="track"><i style="width:54%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#8a5570,#3c2038)"></div><div class="meta"><h4>Ping Pong the Animation</h4><div class="row"><em>3 / 11</em><span>8,5</span></div><div class="track"><i style="width:27%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#546f92,#22303f)"></div><div class="meta"><h4>Kaiju No. 8</h4><div class="row"><em>9 / 12</em><span>7,5</span></div><div class="track"><i style="width:75%"></i></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="sec">Noter</div>
+    <div class="cols">
+      <div class="i"><b>Alla tre är fria</b>SIL Open Font License, hämtningsbara som woff2 och läggs lokalt i <code>public/fonts</code> med egna <code>@font-face</code> precis som <code>inter.css</code> och <code>sora.css</code>. Appen fortsätter fungera utan nätanslutning.</div>
+      <div class="i warn"><b>Förhandsvisningen laddar från Google Fonts</b>Bara i den här filen, för att du ska kunna jämföra direkt. Inget av det följer med in i appen.</div>
+      <div class="i"><b>Testet är gjort i småtext</b>Stegen 13 / 12 / 11 / 10 px och den avkapade titeln är de verkliga påfrestningarna. En rubrik är lätt att göra snygg, ett kortrutnät med tolv titlar är det inte.</div>
+      <div class="i"><b>Kursiv är en resurs</b>Instrument Serif har en riktig kursiv. Den kan bära seriens originaltitel eller ett citat i detaljvyn, vilket ger variation utan ett fjärde typsnitt.</div>
+      <div class="i warn"><b>Om du vill ha japanska titlar i appen</b>Bara uppsättning 2 klarar det utan komplement. Väljer du 1 lägger vi till Zen Old Mincho enbart som japanskt komplement, laddat först när en originaltitel visas.</div>
+      <div class="i"><b>Nästa steg</b>Säg om 1 känns rätt, då sätter jag en typografisk skala med exakta storlekar, vikter och spärrning per element och lägger in den i v0.6 tillsammans med din övriga feedback.</div>
+    </div>
+  </div>
+
+</div>
+<script>
+  const mock = document.getElementById("mock"), now = document.getElementById("now");
+  const names = { s1: "uppsättning 1 · Instrument Serif + Instrument Sans", s2: "uppsättning 2 · Zen Old Mincho + Schibsted Grotesk", s3: "uppsättning 3 · Fraunces + Space Grotesk", cur: "nuvarande · Sora + Inter" };
+  function apply(f) {
+    if (f === "cur") { mock.dataset.font = "cur"; mock.style.setProperty("--display", "'Sora', system-ui, sans-serif"); mock.style.setProperty("--ui", "'Inter', system-ui, sans-serif"); mock.style.setProperty("--num", "'Inter', system-ui, sans-serif"); }
+    else { mock.style.cssText = ""; mock.dataset.font = f; }
+    document.querySelectorAll("#switch button").forEach(b => b.classList.toggle("on", b.dataset.f === f));
+    now.textContent = "Visar: " + names[f];
+  }
+  document.querySelectorAll("[data-f]").forEach(b => b.addEventListener("click", () => {
+    apply(b.dataset.f);
+    if (b.classList.contains("use")) mock.scrollIntoView({ behavior: "smooth", block: "center" });
+  }));
+</script>
+</body>
+</html>

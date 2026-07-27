@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crimson Dusk – tre finputsade varianter</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 44px 32px 120px; background: #0a0b0f; color: #e9e6e2; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  h1 { font-size: 29px; margin: 0 0 10px; font-weight: 600; letter-spacing: -0.02em; }
+  .lede { color: #8d939e; font-size: 15px; line-height: 1.66; max-width: 780px; margin: 0 0 20px; }
+  .base { display: flex; gap: 14px; align-items: flex-start; border-left: 2px solid #2a3040; padding: 2px 0 2px 14px; margin-bottom: 46px; font-size: 13.5px; color: #8d939e; line-height: 1.6; max-width: 780px; }
+  .base b { color: #d5d1cc; font-weight: 600; }
+
+  .vhead { display: flex; align-items: baseline; gap: 12px; margin: 54px 0 6px; }
+  .vhead .n { font-size: 12px; color: #626a78; font-variant-numeric: tabular-nums; }
+  .vhead .t { font-size: 19px; font-weight: 600; }
+  .vhead .tag { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #a8535a; border: 1px solid #3a2530; border-radius: 999px; padding: 3px 9px; }
+  .vhead .play { margin-left: auto; background: none; border: 1px solid #2c3240; color: #a3aab6; border-radius: 6px; font-size: 11px; padding: 5px 11px; cursor: pointer; }
+  .vhead .play:hover { border-color: #d43f4a; color: #e8626a; }
+  .vnote { font-size: 13.5px; color: #8d939e; line-height: 1.65; max-width: 900px; margin: 0 0 8px; }
+  .vnote b { color: #cfcbc6; font-weight: 550; }
+  .fix { font-size: 12.5px; color: #6f7784; line-height: 1.7; margin: 0 0 16px; max-width: 900px; }
+  .fix span { color: #98a0ad; }
+  .screen { height: 640px; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 28px 64px -22px rgba(0,0,0,.95); }
+
+  /* shared leaves */
+  .leaves span { position: absolute; top: -18px; border-radius: 60% 40% 60% 40%; opacity: 0; animation: leaf linear infinite; pointer-events: none; }
+  @keyframes leaf { 0% { transform: translate(0,-20px) rotate(0); opacity: 0 } 12% { opacity: .38 } 84% { opacity: .26 } 100% { transform: translate(70px,700px) rotate(300deg); opacity: 0 } }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.014) 0 1px, transparent 1px 3px); }
+
+  /* =====================================================================
+     A · KEPT BLADE — stramast, mest disciplinerad
+     ===================================================================== */
+  .A { --bg:#0b0d12; --card:#12151c; --line:#1d2330; --line-lit:#333d4e; --text:#e9e6e2; --dim:#9aa3b1; --faint:#626b79;
+       --crimson:#d43f4a; --crimson-lit:#e8626a; --steel:#8098b5;
+       background: var(--bg); color: var(--text); font-size: 14px; }
+  .A .bar1 { display: flex; align-items: center; gap: 16px; padding: 0 22px; height: 52px; border-bottom: 1px solid var(--line); }
+  .A .brand { display: flex; align-items: center; gap: 9px; font-size: 12px; letter-spacing: .26em; text-transform: uppercase; font-weight: 600; }
+  .A .brand i { width: 5px; height: 5px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 10px rgba(212,63,74,.9); }
+  .A .find { margin-left: 12px; flex: 1; max-width: 320px; display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--faint); font-size: 12.5px; transition: .2s; }
+  .A .find:hover { border-color: var(--line-lit); }
+  .A .find kbd { margin-left: auto; font-family: inherit; font-size: 10px; border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; color: var(--faint); }
+  .A .acts { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .A .icn { width: 29px; height: 29px; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; color: var(--dim); font-size: 13px; transition: .2s; }
+  .A .icn:hover { border-color: var(--line-lit); color: var(--text); }
+  .A .add { height: 29px; padding: 0 14px; border: 1px solid rgba(128,152,181,.5); background: rgba(128,152,181,.08); color: #cfdcec; border-radius: 6px; font-size: 12px; font-weight: 550; cursor: pointer; transition: .2s; }
+  .A .add:hover { border-color: var(--steel); background: rgba(128,152,181,.16); }
+  .A .bar2 { display: flex; align-items: center; gap: 22px; padding: 0 22px; height: 42px; border-bottom: 1px solid var(--line); }
+  .A .bar2 a { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); text-decoration: none; height: 42px; display: flex; align-items: center; border-bottom: 1px solid transparent; transition: .2s; }
+  .A .bar2 a:hover { color: var(--dim); }
+  .A .bar2 a.on { color: var(--text); border-color: var(--crimson); }
+  .A .bar2 a b { font-weight: 500; color: var(--faint); margin-left: 6px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+  .A .bar2 .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .A .bar2 .sel { font-size: 11px; color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 5px 9px; }
+  .A .body { padding: 20px 22px; }
+  .A .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  .A .c { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; transition: transform .35s cubic-bezier(.2,1,.3,1), border-color .35s; }
+  .A .c::before { content: ""; position: absolute; z-index: 3; top: 0; left: 0; right: 100%; height: 1px; background: var(--crimson); transition: right .4s cubic-bezier(.2,1,.3,1); }
+  .A .c:hover { transform: translateY(-4px); border-color: var(--line-lit); }
+  .A .c:hover::before { right: 0; }
+  .A .c .art { height: 148px; filter: saturate(.6) brightness(.9) contrast(1.05); transition: filter .4s; position: relative; }
+  .A .c:hover .art { filter: saturate(.92) brightness(1) contrast(1.03); }
+  .A .c .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 55%, rgba(11,13,18,.92)); }
+  .A .c .new { position: absolute; z-index: 2; top: 8px; left: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 0 3px rgba(212,63,74,.18), 0 0 10px rgba(212,63,74,.9); }
+  .A .c .meta { padding: 9px 10px 11px; }
+  .A .c h3 { margin: 0 0 5px; font-size: 12px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .A .c .num { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .06em; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .A .c .num em { font-style: normal; color: var(--dim); }
+  .A .c .track { height: 2px; background: rgba(255,255,255,.07); margin-top: 8px; position: relative; }
+  .A .c .track i { position: absolute; left: 0; top: 0; height: 2px; background: var(--crimson); }
+  .A .c .plus { position: absolute; z-index: 3; right: 8px; bottom: 44px; width: 26px; height: 26px; border-radius: 5px; border: 1px solid var(--line-lit); background: rgba(11,13,18,.86); color: var(--text); display: grid; place-items: center; font-size: 13px; opacity: 0; transform: translateY(4px); transition: .26s; backdrop-filter: blur(4px); }
+  .A .c:hover .plus { opacity: 1; transform: none; }
+  .A .status { position: absolute; left: 0; right: 0; bottom: 0; height: 32px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 18px; padding: 0 22px; font-size: 11px; color: var(--faint); background: var(--bg); }
+  .A .status .d { display: flex; align-items: center; gap: 7px; }
+  .A .status .d i { width: 5px; height: 5px; border-radius: 50%; background: var(--crimson); }
+  .A .status .r { margin-left: auto; }
+  .A .ring { position: absolute; left: 9%; top: 34%; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--crimson); transform: scale(0); opacity: 0; pointer-events: none; }
+  .A.playing .ring { animation: ring 1.1s cubic-bezier(.2,.75,.2,1); }
+  .A.playing .c:first-child .track i { animation: fill .9s cubic-bezier(.2,.9,.2,1); }
+  .A.playing .c:first-child::before { animation: sweep .9s cubic-bezier(.2,.9,.2,1); }
+
+  /* =====================================================================
+     B · MOONLIT SHRINE — atmosfär med tydlig hierarki
+     ===================================================================== */
+  .B { --bg:#0c0e13; --card:#141821; --line:#212734; --line-lit:#38424f; --text:#ece8e3; --dim:#a2aab7; --faint:#6a7280;
+       --crimson:#d43f4a; --crimson-lit:#ea6b70;
+       background: var(--bg); color: var(--text); font-size: 14px; }
+  .B .moon { position: absolute; width: 460px; height: 300px; right: -80px; top: -130px; background: radial-gradient(ellipse at center, rgba(176,196,222,.16), transparent 66%); }
+  .B .canopy { position: absolute; inset: 0 0 auto 0; height: 200px; background:
+      radial-gradient(150px 70px at 14% -10%, rgba(194,86,79,.3), transparent 72%),
+      radial-gradient(170px 80px at 52% -14%, rgba(194,86,79,.2), transparent 72%),
+      radial-gradient(150px 74px at 88% -8%, rgba(194,86,79,.26), transparent 72%); filter: blur(22px); }
+  .B .vign { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0,0,0,.55)); pointer-events: none; }
+  .B header { position: relative; display: flex; align-items: center; padding: 20px 26px 0; }
+  .B .brand { font-family: Georgia, serif; font-size: 19px; letter-spacing: .06em; font-weight: 400; }
+  .B .brand i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--crimson); margin-right: 10px; vertical-align: 3px; box-shadow: 0 0 12px rgba(212,63,74,.85); }
+  .B nav { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 24px; }
+  .B nav a { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); text-decoration: none; padding-bottom: 5px; border-bottom: 1px solid transparent; transition: .22s; }
+  .B nav a:hover { color: var(--dim); }
+  .B nav a.on { color: var(--text); border-color: var(--crimson); }
+  .B .acts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .B .icn { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--dim); font-size: 13px; transition: .2s; }
+  .B .icn:hover { border-color: var(--crimson); color: var(--crimson-lit); }
+  .B .add { height: 30px; padding: 0 15px; border: 1px solid var(--line-lit); background: rgba(255,255,255,.04); color: var(--text); border-radius: 999px; font-size: 12px; cursor: pointer; transition: .2s; }
+  .B .add:hover { border-color: var(--crimson); box-shadow: 0 0 24px -10px rgba(212,63,74,.7); }
+  .B .body { position: relative; padding: 22px 26px; display: grid; grid-template-columns: 336px 1fr; gap: 20px; }
+  .B .hero { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid rgba(212,63,74,.3); box-shadow: 0 0 46px -22px rgba(212,63,74,.55); }
+  .B .hero .art { position: absolute; inset: 0; filter: saturate(.85) contrast(1.05); }
+  .B .hero .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(200deg, rgba(12,14,19,.25), rgba(12,14,19,.96) 68%); }
+  .B .hero .in { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 22px; }
+  .B .hero .kick { font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--crimson-lit); margin-bottom: 10px; }
+  .B .hero h2 { font-family: Georgia, serif; margin: 0 0 6px; font-size: 25px; font-weight: 400; letter-spacing: -0.01em; line-height: 1.2; }
+  .B .hero .sub { font-size: 12px; color: var(--dim); margin-bottom: 16px; }
+  .B .hero .track { height: 3px; background: rgba(255,255,255,.12); margin-bottom: 8px; position: relative; }
+  .B .hero .track i { position: absolute; left: 0; top: 0; height: 3px; background: var(--crimson); box-shadow: 0 0 12px rgba(212,63,74,.9); }
+  .B .hero .n { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; margin-bottom: 18px; }
+  .B .hero .cta { display: flex; gap: 9px; }
+  .B .hero .cta button { border: 0; border-radius: 7px; font-size: 12.5px; font-weight: 600; padding: 9px 15px; cursor: pointer; transition: .2s; }
+  .B .hero .cta .p { background: var(--crimson); color: #fff; box-shadow: 0 10px 26px -12px rgba(212,63,74,.95); }
+  .B .hero .cta .p:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .B .hero .cta .g { background: rgba(255,255,255,.06); color: var(--text); border: 1px solid var(--line-lit); }
+  .B .side h3.lbl { margin: 0 0 12px; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+  .B .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .B .c { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; transition: transform .38s cubic-bezier(.2,1,.3,1), border-color .38s, box-shadow .38s; }
+  .B .c:hover { transform: translateY(-5px); border-color: var(--line-lit); box-shadow: 0 20px 40px -22px rgba(0,0,0,.9); }
+  .B .c .art { height: 118px; filter: saturate(.68) brightness(.92); transition: filter .4s; position: relative; }
+  .B .c:hover .art { filter: saturate(.95) brightness(1); }
+  .B .c .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 52%, rgba(20,24,33,.94)); }
+  .B .c .meta { padding: 9px 11px 12px; }
+  .B .c h4 { margin: 0 0 4px; font-size: 12px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .B .c .sub { font-size: 10px; letter-spacing: .05em; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .B .c .track { height: 2px; background: rgba(255,255,255,.08); margin-top: 9px; position: relative; }
+  .B .c .track i { position: absolute; left: 0; top: 0; height: 2px; background: var(--crimson); }
+  .B .shelf { position: absolute; left: 26px; right: 26px; bottom: 18px; display: flex; align-items: center; gap: 14px; border-top: 1px solid var(--line); padding-top: 13px; }
+  .B .shelf .lbl { font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+  .B .shelf .chip { font-size: 11px; color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; }
+  .B .shelf .chip b { color: var(--crimson-lit); font-weight: 500; }
+  .B .shelf .r { margin-left: auto; font-size: 11px; color: var(--faint); }
+  .B .ring { position: absolute; left: 16%; top: 52%; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--crimson); transform: scale(0); opacity: 0; pointer-events: none; }
+  .B.playing .ring { animation: ring 1.2s cubic-bezier(.2,.75,.2,1); }
+  .B.playing .hero .track i { animation: fill 1s cubic-bezier(.2,.9,.2,1); }
+  .B.playing .hero { animation: pulse 1s ease-out; }
+  @keyframes pulse { 40% { box-shadow: 0 0 60px -14px rgba(212,63,74,.8) } }
+
+  /* =====================================================================
+     C · INK & CRIMSON — editorial, lugnast, mest värdig
+     ===================================================================== */
+  .C { --bg:#0d0f14; --line:rgba(233,230,226,.09); --text:#eae7e2; --dim:#9aa1ac; --faint:#6b7280;
+       --crimson:#cf4049; --crimson-lit:#e4666d;
+       background: var(--bg); color: var(--text); font-size: 14px; }
+  .C .wash { position: absolute; width: 620px; height: 420px; right: -140px; top: -190px; background: radial-gradient(ellipse at center, rgba(207,64,73,.11), transparent 70%); }
+  .C .wash2 { position: absolute; width: 420px; height: 300px; left: -140px; bottom: -140px; background: radial-gradient(ellipse at center, rgba(150,170,200,.07), transparent 70%); }
+  .C .rail { position: absolute; left: 0; top: 0; bottom: 0; width: 54px; border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 20px 0; }
+  .C .rail .jp { writing-mode: vertical-rl; font-size: 10px; letter-spacing: .5em; color: var(--faint); }
+  .C .rail .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 10px rgba(207,64,73,.9); }
+  .C .rail .ticks { display: flex; flex-direction: column; gap: 7px; align-items: center; }
+  .C .rail .ticks i { width: 10px; height: 1px; background: var(--line); }
+  .C .rail .ticks i.on { background: var(--crimson); width: 16px; }
+  .C .main { position: relative; margin-left: 54px; padding: 30px 34px 0; }
+  .C .top { display: flex; align-items: flex-end; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+  .C .top h1 { font-family: Georgia, serif; margin: 0; font-size: 27px; font-weight: 400; letter-spacing: -0.01em; }
+  .C .top .cnt { font-size: 11.5px; color: var(--faint); letter-spacing: .04em; padding-bottom: 5px; }
+  .C .top .cnt b { color: var(--crimson-lit); font-weight: 500; }
+  .C .top .acts { margin-left: auto; display: flex; gap: 9px; align-items: center; padding-bottom: 2px; }
+  .C .top .ghost { font-size: 11.5px; color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 6px 11px; transition: .2s; }
+  .C .top .ghost:hover { border-color: rgba(207,64,73,.55); color: var(--text); }
+  .C nav { display: flex; gap: 22px; margin: 16px 0 8px; }
+  .C nav a { font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); text-decoration: none; transition: .2s; }
+  .C nav a:hover { color: var(--dim); }
+  .C nav a.on { color: var(--crimson-lit); }
+  .C .r { position: relative; display: grid; grid-template-columns: 44px 1fr 168px 74px 30px; align-items: center; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--line); transition: .3s; }
+  .C .r::after { content: ""; position: absolute; left: 0; right: 100%; bottom: -1px; height: 1px; background: var(--crimson); transition: right .5s cubic-bezier(.2,1,.3,1); }
+  .C .r:hover::after { right: 0; }
+  .C .r .th { width: 44px; height: 60px; border-radius: 4px; filter: saturate(.62) brightness(.9); transition: filter .4s; }
+  .C .r:hover .th { filter: saturate(.95) brightness(1); }
+  .C .r h3 { margin: 0 0 4px; font-family: Georgia, serif; font-size: 17px; font-weight: 400; letter-spacing: -0.005em; }
+  .C .r .sub { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .C .r .sub em { color: var(--crimson-lit); font-style: normal; }
+  .C .dots { display: flex; gap: 3px; align-items: center; }
+  .C .dots i { width: 5px; height: 5px; border-radius: 1px; background: rgba(233,230,226,.14); }
+  .C .dots i.f { background: var(--crimson); }
+  .C .dots i.n { background: rgba(207,64,73,.4); animation: blip 2.6s ease-in-out infinite; }
+  @keyframes blip { 50% { background: var(--crimson); box-shadow: 0 0 8px rgba(207,64,73,.9) } }
+  .C .r .ep { font-size: 12px; color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
+  .C .r .ep span { display: block; font-size: 10px; color: var(--faint); margin-top: 2px; }
+  .C .r .plus { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); color: var(--faint); display: grid; place-items: center; font-size: 14px; opacity: 0; transition: .26s; }
+  .C .r:hover .plus { opacity: 1; color: var(--crimson-lit); border-color: rgba(207,64,73,.5); }
+  .C .foot { position: absolute; left: 88px; right: 34px; bottom: 20px; display: flex; gap: 20px; font-size: 11px; color: var(--faint); letter-spacing: .04em; }
+  .C .foot .r2 { margin-left: auto; }
+  .C .ink { position: absolute; left: 10%; top: 44%; width: 10px; height: 10px; border-radius: 50%; background: rgba(207,64,73,.42); transform: scale(0); opacity: 0; pointer-events: none; }
+  .C.playing .ink { animation: inkgo 1.3s cubic-bezier(.2,.8,.2,1); }
+  .C.playing .r:first-of-type .dots i.n { animation: none; background: var(--crimson); }
+  @keyframes inkgo { 0% { transform: scale(0); opacity: .8 } 100% { transform: scale(24); opacity: 0 } }
+
+  @keyframes ring { 0% { transform: scale(0); opacity: .9 } 100% { transform: scale(9); opacity: 0 } }
+  @keyframes fill { from { width: 46% } }
+  @keyframes sweep { 0% { right: 100% } 45% { right: 0 } 100% { right: 0 } }
+
+  /* covers */
+  .p1 { background: linear-gradient(150deg,#4a5580,#1e2440); }
+  .p2 { background: linear-gradient(150deg,#96434c,#3d1f2a); }
+  .p3 { background: linear-gradient(150deg,#3f7a78,#182f36); }
+  .p4 { background: linear-gradient(150deg,#a8763f,#4a2c1c); }
+  .p5 { background: linear-gradient(150deg,#6b6193,#2c2748); }
+  .p6 { background: linear-gradient(150deg,#8a5570,#3c2038); }
+  .p7 { background: linear-gradient(150deg,#546f92,#22303f); }
+  .p8 { background: linear-gradient(150deg,#8f7f4d,#3f3418); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Crimson Dusk – tre finputsade varianter</h1>
+  <p class="lede">Samma identitet i alla tre: blåsvart natt, crimson på små ytor, avmättade omslag som tänds vid hover, allvarlig och återhållsam ton. Skillnaden ligger i hur mycket atmosfär som får plats och hur informationen är organiserad.</p>
+  <div class="base"><div><b>Vad som är åtgärdat från grundskissen:</b> spacing lagd på 8-punktsraster, mikrotext låst till 10–11 px med 0,16 em spärr, alla siffror tabulära, hover separerad från fokus, statusrad längst ner istället för lös text, och crimson reserverad så att neutralt gränssnitt inte konkurrerar med varningar. Tempelsilhuetten från grundskissen är borta i A och C och ersatt av riktig ljussättning i B.</div></div>
+
+  <!-- ================= A ================= -->
+  <div class="vhead"><span class="n">A</span><span class="t">Kept Blade</span><span class="tag">stramast</span><button class="play" data-play>spela +1</button></div>
+  <p class="vnote"><b>All dekor borta, disciplinen kvar.</b> Sex kolumner, kompakta kort, inga suddiga lövkronor. Crimson används på exakt tre ställen: aktiv flik, nytt avsnitt och progress. Neutrala handlingar bär stålblått, så "Lägg till" aldrig ser ut som en varning. Kortets översta hårlinje ritas ut vid hover, det är hela effekten.</p>
+  <p class="fix"><span>Fördel:</span> tål tvåhundra serier och ser lika samlad ut. <span>Nackdel:</span> minst anime-känsla av de tre, närmar sig verktyg.</p>
+  <div class="screen A">
+    <div class="grain"></div>
+    <div class="bar1">
+      <span class="brand"><i></i>Anime Tracker</span>
+      <div class="find">⌕ Filtrera titel eller anteckning <kbd>/</kbd></div>
+      <div class="acts"><span class="icn">✦</span><span class="icn">◷</span><span class="icn">↧</span><button class="add">Lägg till serie</button></div>
+    </div>
+    <div class="bar2">
+      <a href="#" class="on">Pågår <b>5</b></a><a href="#">Väntar <b>38</b></a><a href="#">Sett <b>212</b></a><a href="#">Släppt <b>9</b></a><a href="#">Schema</a><a href="#">Upptäck</a><a href="#">Statistik</a>
+      <div class="right"><span class="sel">Betyg ↓</span><span class="sel">Alla format</span><span class="icn">☰</span></div>
+    </div>
+    <div class="body">
+      <div class="grid">
+        <div class="c"><div class="art p1"><span class="new"></span></div><div class="plus">＋</div><div class="meta"><h3>Frieren</h3><div class="num"><em>18 / 28</em><span>9,0</span></div><div class="track"><i style="width:64%"></i></div></div></div>
+        <div class="c"><div class="art p2"></div><div class="plus">＋</div><div class="meta"><h3>Vinland Saga</h3><div class="num"><em>12 / 24</em><span>8,0</span></div><div class="track"><i style="width:50%"></i></div></div></div>
+        <div class="c"><div class="art p3"></div><div class="plus">＋</div><div class="meta"><h3>Mushishi</h3><div class="num"><em>21 / 26</em><span>10</span></div><div class="track"><i style="width:81%"></i></div></div></div>
+        <div class="c"><div class="art p5"></div><div class="plus">＋</div><div class="meta"><h3>Monogatari</h3><div class="num"><em>5 / 15</em><span>—</span></div><div class="track"><i style="width:33%"></i></div></div></div>
+        <div class="c"><div class="art p4"></div><div class="plus">＋</div><div class="meta"><h3>Odd Taxi</h3><div class="num"><em>7 / 13</em><span>—</span></div><div class="track"><i style="width:54%"></i></div></div></div>
+        <div class="c"><div class="art p6"></div><div class="plus">＋</div><div class="meta"><h3>Ping Pong</h3><div class="num"><em>3 / 11</em><span>8,5</span></div><div class="track"><i style="width:27%"></i></div></div></div>
+        <div class="c"><div class="art p7"></div><div class="plus">＋</div><div class="meta"><h3>Kaiju No. 8</h3><div class="num"><em>9 / 12</em><span>7,5</span></div><div class="track"><i style="width:75%"></i></div></div></div>
+        <div class="c"><div class="art p8"></div><div class="plus">＋</div><div class="meta"><h3>Hyouka</h3><div class="num"><em>14 / 22</em><span>9,5</span></div><div class="track"><i style="width:63%"></i></div></div></div>
+        <div class="c"><div class="art p3"></div><div class="plus">＋</div><div class="meta"><h3>Mob Psycho 100</h3><div class="num"><em>6 / 12</em><span>9,0</span></div><div class="track"><i style="width:50%"></i></div></div></div>
+        <div class="c"><div class="art p1"></div><div class="plus">＋</div><div class="meta"><h3>Kids on the Slope</h3><div class="num"><em>2 / 12</em><span>—</span></div><div class="track"><i style="width:17%"></i></div></div></div>
+        <div class="c"><div class="art p5"></div><div class="plus">＋</div><div class="meta"><h3>Shiki</h3><div class="num"><em>11 / 22</em><span>8,0</span></div><div class="track"><i style="width:50%"></i></div></div></div>
+        <div class="c"><div class="art p2"></div><div class="plus">＋</div><div class="meta"><h3>Rurouni Kenshin</h3><div class="num"><em>4 / 24</em><span>—</span></div><div class="track"><i style="width:17%"></i></div></div></div>
+      </div>
+    </div>
+    <div class="status">
+      <span class="d"><i></i>1 nytt avsnitt · Frieren 19</span>
+      <span>5 serier pågår · 318 avsnitt i år</span>
+      <span class="r">Sparat lokalt · v1.8.1</span>
+    </div>
+    <div class="ring"></div>
+  </div>
+
+  <!-- ================= B ================= -->
+  <div class="vhead"><span class="n">B</span><span class="t">Moonlit Shrine</span><span class="tag">mest atmosfär</span><button class="play" data-play>spela +1</button></div>
+  <p class="vnote"><b>Atmosfären kvar, men riktad.</b> Månljus uppe till höger, lövkronan bara antydd, vinjett som drar blicken mot mitten. Serien med nytt avsnitt får en egen hero-panel med omslaget som bakgrund och den enda fyllda crimson-knappen i hela gränssnittet. Resten av biblioteket ligger dämpat till höger, så det finns en tydlig huvudperson på skärmen istället för tolv likadana kort.</p>
+  <p class="fix"><span>Fördel:</span> varmast och mest inbjudande, du ser direkt vad du ska göra. <span>Nackdel:</span> hero-panelen tar plats som annars visar serier, och blir konstig när inget nytt avsnitt finns. Den behöver ett andra läge, till exempel "fortsätt där du var".</p>
+  <div class="screen B">
+    <div class="moon"></div><div class="canopy"></div>
+    <div class="leaves">
+      <span style="left:11%;width:7px;height:9px;background:linear-gradient(150deg,#d8574e,#a13a3a);animation-duration:19s;animation-delay:0s"></span>
+      <span style="left:34%;width:6px;height:8px;background:linear-gradient(150deg,#c9524c,#93353a);animation-duration:24s;animation-delay:6s"></span>
+      <span style="left:63%;width:7px;height:9px;background:linear-gradient(150deg,#d8574e,#a13a3a);animation-duration:21s;animation-delay:12s"></span>
+      <span style="left:86%;width:6px;height:8px;background:linear-gradient(150deg,#c9524c,#93353a);animation-duration:27s;animation-delay:18s"></span>
+    </div>
+    <div class="grain"></div>
+    <header>
+      <span class="brand"><i></i>Anime Tracker</span>
+      <nav><a href="#" class="on">Pågår</a><a href="#">Väntar</a><a href="#">Sett</a><a href="#">Släppt</a><a href="#">Schema</a><a href="#">Upptäck</a><a href="#">Statistik</a></nav>
+      <div class="acts"><span class="icn">⌕</span><span class="icn">✦</span><button class="add">Lägg till serie</button></div>
+    </header>
+    <div class="body">
+      <div class="hero">
+        <div class="art p1"></div>
+        <div class="in">
+          <div class="kick">Nytt avsnitt · för tre timmar sedan</div>
+          <h2>Frieren: Beyond<br>Journey's End</h2>
+          <div class="sub">Fantasy · TV · 2023 · ditt betyg 9,0</div>
+          <div class="track"><i style="width:64%"></i></div>
+          <div class="n">Avsnitt 18 av 28 sedda · 10 kvar</div>
+          <div class="cta"><button class="p">Markera avsnitt 19 sett</button><button class="g">Öppna</button></div>
+        </div>
+      </div>
+      <div class="side">
+        <h3 class="lbl">Resten av pågår</h3>
+        <div class="grid">
+          <div class="c"><div class="art p3"></div><div class="meta"><h4>Mushishi</h4><div class="sub">21 / 26 · 10</div><div class="track"><i style="width:81%"></i></div></div></div>
+          <div class="c"><div class="art p2"></div><div class="meta"><h4>Vinland Saga</h4><div class="sub">12 / 24 · 8,0</div><div class="track"><i style="width:50%"></i></div></div></div>
+          <div class="c"><div class="art p5"></div><div class="meta"><h4>Monogatari</h4><div class="sub">5 / 15</div><div class="track"><i style="width:33%"></i></div></div></div>
+          <div class="c"><div class="art p4"></div><div class="meta"><h4>Odd Taxi</h4><div class="sub">7 / 13</div><div class="track"><i style="width:54%"></i></div></div></div>
+          <div class="c"><div class="art p6"></div><div class="meta"><h4>Ping Pong</h4><div class="sub">3 / 11 · 8,5</div><div class="track"><i style="width:27%"></i></div></div></div>
+          <div class="c"><div class="art p7"></div><div class="meta"><h4>Kaiju No. 8</h4><div class="sub">9 / 12</div><div class="track"><i style="width:75%"></i></div></div></div>
+          <div class="c"><div class="art p8"></div><div class="meta"><h4>Hyouka</h4><div class="sub">14 / 22 · 9,5</div><div class="track"><i style="width:63%"></i></div></div></div>
+          <div class="c"><div class="art p1"></div><div class="meta"><h4>Kids on the Slope</h4><div class="sub">2 / 12</div><div class="track"><i style="width:17%"></i></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="shelf">
+      <span class="lbl">I kväll</span>
+      <span class="chip"><b>21:00</b> Kaiju No. 8 avsnitt 10</span>
+      <span class="chip"><b>23:30</b> Mob Psycho 100 avsnitt 7</span>
+      <span class="r">5 pågår · 318 avsnitt i år · sparat</span>
+    </div>
+    <div class="vign"></div>
+    <div class="ring"></div>
+  </div>
+
+  <!-- ================= C ================= -->
+  <div class="vhead"><span class="n">C</span><span class="t">Ink &amp; Crimson</span><span class="tag">lugnast</span><button class="play" data-play>spela +1</button></div>
+  <p class="vnote"><b>Värdigheten i typografin istället för i effekterna.</b> Radlayout med serif-titlar, smal vertikal ribba till vänster med japansk etikett och crimson-markörer, och avsnitten visade som små rutor istället för en progressbar, så du ser exakt hur många som återstår. Nästa oseda avsnitt pulserar mycket svagt. En crimson linje ritas under raden du hovrar, som ett penndrag.</p>
+  <p class="fix"><span>Fördel:</span> stämningen håller över tid, läsbarheten är bäst av de tre, och rutorna ger information en progressbar inte kan. <span>Nackdel:</span> omslagen får minst plats, så biblioteket känns mindre visuellt. Rutorna funkar dåligt över ~50 avsnitt och behöver falla tillbaka till en stapel.</p>
+  <div class="screen C">
+    <div class="wash"></div><div class="wash2"></div><div class="grain"></div>
+    <div class="rail">
+      <span class="dot"></span>
+      <span class="jp">アニメ 記録</span>
+      <span class="ticks"><i class="on"></i><i></i><i></i><i></i><i></i></span>
+    </div>
+    <div class="main">
+      <div class="top">
+        <h1>Pågår</h1>
+        <span class="cnt">5 serier · <b>1 nytt avsnitt</b> sedan tre timmar</span>
+        <div class="acts"><span class="ghost">⌕ Filtrera</span><span class="ghost">Betyg ↓</span><span class="ghost">＋ Lägg till serie</span></div>
+      </div>
+      <nav><a href="#" class="on">Pågår</a><a href="#">Väntar</a><a href="#">Sett</a><a href="#">Släppt</a><a href="#">Schema</a><a href="#">Upptäck</a><a href="#">Statistik</a></nav>
+      <div class="r">
+        <div class="th p1"></div>
+        <div><h3>Frieren: Beyond Journey's End</h3><div class="sub">Fantasy · TV · 2023 · <em>nytt avsnitt</em></div></div>
+        <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="n"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="ep">18 / 28<span>9,0</span></div>
+        <div class="plus">＋</div>
+      </div>
+      <div class="r">
+        <div class="th p3"></div>
+        <div><h3>Mushishi</h3><div class="sub">Slice of life · TV · 2005</div></div>
+        <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="ep">21 / 26<span>10</span></div>
+        <div class="plus">＋</div>
+      </div>
+      <div class="r">
+        <div class="th p2"></div>
+        <div><h3>Vinland Saga</h3><div class="sub">Drama · TV · 2019</div></div>
+        <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="ep">12 / 24<span>8,0</span></div>
+        <div class="plus">＋</div>
+      </div>
+      <div class="r">
+        <div class="th p5"></div>
+        <div><h3>Monogatari Series</h3><div class="sub">Mystik · TV · 2009</div></div>
+        <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="ep">5 / 15<span>—</span></div>
+        <div class="plus">＋</div>
+      </div>
+      <div class="r">
+        <div class="th p4"></div>
+        <div><h3>Odd Taxi</h3><div class="sub">Thriller · TV · 2021</div></div>
+        <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="ep">7 / 13<span>—</span></div>
+        <div class="plus">＋</div>
+      </div>
+      <div class="r">
+        <div class="th p6"></div>
+        <div><h3>Ping Pong the Animation</h3><div class="sub">Sport · TV · 2014</div></div>
+        <div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="ep">3 / 11<span>8,5</span></div>
+        <div class="plus">＋</div>
+      </div>
+      <div class="foot"><span>212 sedda serier · 318 avsnitt i år · snitt 8,4</span><span class="r2">Sparat lokalt</span></div>
+    </div>
+    <div class="ink"></div>
+  </div>
+
+</div>
+<script>
+  function play(el) { el.classList.remove('playing'); void el.offsetWidth; el.classList.add('playing'); setTimeout(() => el.classList.remove('playing'), 1400); }
+  document.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => {
+    let n = b.closest('.vhead'); while (n && !n.classList.contains('screen')) n = n.nextElementSibling;
+    if (n) play(n);
+  }));
+</script>
+</body>
+</html>

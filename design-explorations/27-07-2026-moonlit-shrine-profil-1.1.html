@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moonlit Shrine – profil 1.1 · interaktion, textkontroller, 41 teman</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;600;700&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   MOONLIT SHRINE · PROFIL 1.1
+   Tillägg till 1.0: tryck- och hållanimationer, textkontroller, teman.
+   Typtokens är omgjorda till calc() så textstorlek och vikt kan styras
+   av användaren utan att någon komponent skrivs om.
+   ===================================================================== */
+:root{
+  /* --- färg (default = moonlit-shrine, skrivs över av temamotorn) --- */
+  --bg:#0c0e13; --bg-deep:#080a0e; --bg-elevated:#12161e; --card:#141821; --card-hover:#181d27;
+  --line:#212734; --line-lit:#38424f;
+  --text:#ece8e3; --dim:#a2aab7; --faint:#7b8494;
+  --accent:#d43f4a; --accent-lit:#ea6b70; --accent-soft:rgba(212,63,74,.12); --accent-deep:#8f2730;
+  --glow:#b0c4de; --support:#8098b5; --positive:#8fa88f; --warning:#c9a05b; --deco:#c2564f;
+
+  /* --- form --- */
+  --radius-xs:4px; --radius-sm:7px; --radius:12px; --radius-lg:16px;
+  --sh-1:0 2px 8px -2px rgba(0,0,0,.5);
+  --sh-2:0 12px 28px -14px rgba(0,0,0,.8);
+  --sh-3:0 22px 42px -22px rgba(0,0,0,.95);
+
+  /* --- typsnitt --- */
+  --display:"Zen Old Mincho",Georgia,serif;
+  --ui:"Schibsted Grotesk",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",monospace;
+
+  /* --- NYTT: användarstyrd typografi --- */
+  --text-scale:1;
+  --w-body:400; --w-med:500; --w-strong:600; --w-display:600;
+
+  --fs-display-l:calc(30px * var(--text-scale));
+  --fs-display-m:calc(21px * var(--text-scale));
+  --fs-display-s:calc(19px * var(--text-scale));
+  --fs-body:calc(13px * var(--text-scale));
+  --fs-action:calc(12.5px * var(--text-scale));
+  --fs-card:calc(12px * var(--text-scale));
+  --fs-meta:calc(11px * var(--text-scale));
+  --fs-micro:calc(10.5px * var(--text-scale));
+  --fs-nano:calc(9.5px * var(--text-scale));
+
+  --t-display-l:var(--w-display) var(--fs-display-l)/1.16 var(--display);
+  --t-display-m:var(--w-display) var(--fs-display-m)/1.24 var(--display);
+  --t-display-s:var(--w-display) var(--fs-display-s)/1.2 var(--display);
+  --t-body:var(--w-body) var(--fs-body)/1.62 var(--ui);
+  --t-action:var(--w-med) var(--fs-action)/1 var(--ui);
+  --t-card:var(--w-med) var(--fs-card)/1.3 var(--ui);
+  --t-meta:var(--w-body) var(--fs-meta)/1.5 var(--ui);
+  --t-micro:var(--w-med) var(--fs-micro)/1 var(--ui);
+  --t-nano:var(--w-med) var(--fs-nano)/1 var(--ui);
+  --tr-display:.015em; --tr-brand:.055em; --tr-micro:.16em; --tr-nano:.22em;
+
+  /* --- rörelse --- */
+  --e-out:cubic-bezier(.2,1,.3,1);
+  --e-spring:cubic-bezier(.2,1.5,.3,1);
+  --e-inout:cubic-bezier(.4,0,.2,1);
+  --e-press:cubic-bezier(.3,0,.6,1);
+  --d-press:90ms; --d-1:120ms; --d-2:200ms; --d-3:280ms; --d-4:380ms; --d-5:800ms;
+  --press-btn:.97; --press-icon:.90; --press-card:.995; --press-chip:.95;
+}
+/* --- textstorlek och vikt --- */
+[data-text-size="xs"]{--text-scale:.92}
+[data-text-size="s"] {--text-scale:1}
+[data-text-size="m"] {--text-scale:1.08}
+[data-text-size="l"] {--text-scale:1.18}
+[data-text-size="xl"]{--text-scale:1.32}
+[data-text-weight="light"] {--w-body:400;--w-med:400;--w-strong:500;--w-display:400}
+[data-text-weight="normal"]{--w-body:400;--w-med:500;--w-strong:600;--w-display:600}
+[data-text-weight="clear"] {--w-body:500;--w-med:600;--w-strong:600;--w-display:600}
+[data-text-weight="bold"]  {--w-body:500;--w-med:600;--w-strong:700;--w-display:700}
+
+*{box-sizing:border-box}
+body{margin:0;background:#07080b;color:#ece8e3;font:400 13.5px/1.62 var(--ui);-webkit-font-smoothing:antialiased}
+button{font-family:var(--ui);cursor:pointer}
+
+/* ---------- dokumentram ---------- */
+.wrap{max-width:1320px;margin:0 auto;padding:38px 34px 120px}
+h1.page{font:600 34px/1.12 var(--display);letter-spacing:.015em;margin:0 0 10px}
+.lede{color:#8d939e;font-size:14.5px;line-height:1.7;max-width:840px;margin:0 0 12px}
+.sec-h{display:flex;align-items:baseline;gap:14px;margin:60px 0 8px}
+.sec-h .no{font:500 10.5px/1 var(--ui);letter-spacing:.16em;text-transform:uppercase;color:#ea6b70}
+.sec-h h2{margin:0;font:600 21px/1.24 var(--display);letter-spacing:.015em}
+.sec-h .rule{flex:1;height:1px;background:linear-gradient(90deg,#212734,transparent)}
+.intro{color:#a2aab7;max-width:840px;line-height:1.7;margin:0 0 22px}
+h3.sub{font:500 10.5px/1 var(--ui);letter-spacing:.16em;text-transform:uppercase;color:#7b8494;margin:30px 0 14px}
+.note{border-left:2px solid #38424f;padding-left:14px;color:#a2aab7;line-height:1.65;max-width:880px;margin:16px 0}
+.note.warn{border-left-color:#d43f4a}
+.note b{color:#ece8e3;display:block;font-weight:600;font-size:12.5px;margin-bottom:2px}
+code{font-family:var(--mono);font-size:12px;color:#c9bcbf;background:rgba(255,255,255,.055);padding:1.5px 6px;border-radius:4px}
+pre{font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#c2c8d2;background:#0a0c11;border:1px solid #212734;border-radius:12px;padding:18px 20px;overflow-x:auto}
+pre .c{color:#6a7280}pre .v{color:#ea6b70}pre .k{color:#8098b5}
+table{width:100%;border-collapse:collapse;margin:12px 0}
+th{text-align:left;font:500 9.5px/1 var(--ui);letter-spacing:.22em;text-transform:uppercase;color:#7b8494;padding:0 14px 10px 0;border-bottom:1px solid #212734}
+td{padding:11px 14px 11px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px;color:#a2aab7;vertical-align:top}
+td b{color:#ece8e3;font-weight:550}
+td.mono,th.mono{font-family:var(--mono);font-size:11.5px}
+.ok{color:#8fa88f}.bad{color:#ea6b70}
+.panel{border:1px solid #212734;border-radius:12px;padding:22px 24px;background:rgba(255,255,255,.014)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* =====================================================================
+   INTERAKTIONSDEMON
+   ===================================================================== */
+.lab{border:1px solid var(--line);border-radius:12px;padding:24px;background:var(--bg);margin-bottom:14px}
+.lab .lbl{font:var(--t-nano);letter-spacing:var(--tr-nano);text-transform:uppercase;color:var(--faint);margin-bottom:18px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
+/* knappar med tryck */
+.btn{position:relative;overflow:hidden;border-radius:var(--radius-sm);font:var(--t-action);padding:10px 17px;border:0;
+  transition:transform var(--d-2) var(--e-out),filter var(--d-2),background var(--d-2),border-color var(--d-2),box-shadow var(--d-2)}
+.btn:active{transform:scale(var(--press-btn));transition-duration:var(--d-press);transition-timing-function:var(--e-press)}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 10px 26px -12px color-mix(in srgb,var(--accent) 90%,transparent)}
+.btn-primary:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.btn-primary:active{transform:scale(var(--press-btn));filter:brightness(.93)}
+.btn-ghost{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--line-lit)}
+.btn-ghost:hover{border-color:var(--accent);background:var(--accent-soft)}
+.btn-quiet{background:none;color:var(--dim);border:1px solid var(--line)}
+.btn-quiet:hover{color:var(--text);border-color:var(--line-lit)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.rip{position:absolute;border-radius:50%;transform:scale(0);opacity:.55;background:rgba(255,255,255,.5);pointer-events:none;
+  animation:rip 520ms var(--e-out) forwards}
+.btn-ghost .rip,.btn-quiet .rip{background:color-mix(in srgb,var(--accent) 60%,transparent)}
+@keyframes rip{to{transform:scale(2.6);opacity:0}}
+
+/* ikonknapp */
+.icn{width:34px;height:34px;border:1px solid var(--line);border-radius:50%;background:rgba(255,255,255,.02);
+  display:grid;place-items:center;color:var(--dim);transition:transform var(--d-2) var(--e-out),border-color var(--d-2),color var(--d-2),background var(--d-2)}
+.icn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.icn:hover{border-color:var(--accent);color:var(--accent-lit);background:var(--accent-soft)}
+.icn:active{transform:scale(var(--press-icon));transition-duration:var(--d-press)}
+
+/* chip */
+.chip{font:var(--t-meta);border:1px solid var(--line);border-radius:999px;padding:7px 14px;color:var(--dim);background:none;
+  transition:transform var(--d-2) var(--e-out),border-color var(--d-2),color var(--d-2),background var(--d-2)}
+.chip:hover{border-color:var(--line-lit);color:var(--text)}
+.chip:active{transform:scale(var(--press-chip));transition-duration:var(--d-press)}
+.chip.on{border-color:var(--accent);color:var(--accent-lit);background:var(--accent-soft)}
+
+/* switch */
+.sw{width:44px;height:24px;border-radius:999px;border:1px solid var(--line-lit);background:rgba(255,255,255,.04);position:relative;padding:0;
+  transition:background var(--d-2),border-color var(--d-2)}
+.sw i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--dim);
+  transition:transform var(--d-3) var(--e-spring),background var(--d-2),width var(--d-press)}
+.sw:active i{width:22px}
+.sw.on{background:var(--accent-soft);border-color:var(--accent)}
+.sw.on i{transform:translateX(20px);background:var(--accent-lit)}
+
+/* tabs med glidande understreck */
+.tabs{position:relative;display:flex;gap:26px;border-bottom:1px solid var(--line);padding-bottom:0}
+.tabs button{background:none;border:0;padding:0 0 13px;color:var(--faint);font:var(--t-micro);letter-spacing:var(--tr-micro);
+  text-transform:uppercase;transition:color var(--d-2),transform var(--d-press)}
+.tabs button:hover{color:var(--dim)}
+.tabs button.on{color:var(--text)}
+.tabs button:active{transform:translateY(1px)}
+.tabs .ink{position:absolute;bottom:-1px;height:1px;background:var(--accent);transition:left 240ms var(--e-out),width 240ms var(--e-out)}
+
+/* kort med tryck och långtryck */
+.cards{display:grid;grid-template-columns:repeat(var(--cols,4),1fr);gap:15px}
+.c{position:relative;background:var(--card);border:1px solid var(--line);border-radius:11px;overflow:hidden;text-align:left;padding:0;
+  color:inherit;transition:transform var(--d-4) var(--e-out),border-color var(--d-4),box-shadow var(--d-4),background var(--d-4)}
+.c::before{content:"";position:absolute;z-index:3;top:0;left:0;right:100%;height:1px;background:var(--accent);transition:right 450ms var(--e-out)}
+.c:hover{transform:translateY(-5px);background:var(--card-hover);border-color:var(--line-lit);
+  box-shadow:var(--sh-3),0 0 30px -18px color-mix(in srgb,var(--accent) 60%,transparent)}
+.c:hover::before{right:0}
+.c:active{transform:translateY(-2px) scale(var(--press-card));transition-duration:var(--d-press)}
+.c:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.c .art{height:calc(126px * var(--text-scale));position:relative;filter:saturate(.66) brightness(.9) contrast(1.05);transition:filter 420ms}
+.c:hover .art{filter:saturate(.96) brightness(1) contrast(1.03)}
+.c .art::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 50%,color-mix(in srgb,var(--card) 92%,#000))}
+.c .dot{position:absolute;z-index:2;top:9px;left:9px;width:6px;height:6px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft),0 0 12px color-mix(in srgb,var(--accent) 90%,transparent)}
+.c .plus{position:absolute;z-index:4;right:9px;bottom:calc(46px * var(--text-scale));width:28px;height:28px;border-radius:50%;
+  border:1px solid var(--accent);background:color-mix(in srgb,var(--bg) 86%,transparent);color:var(--accent-lit);display:grid;place-items:center;
+  font-size:14px;opacity:0;transform:scale(.85);transition:280ms var(--e-spring);backdrop-filter:blur(4px)}
+.c:hover .plus{opacity:1;transform:none}
+.c .plus:active{transform:scale(.88);background:var(--accent);color:#fff}
+.c .meta{padding:10px 11px 12px}
+.c h4{margin:0 0 5px;font:var(--t-card);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c .r{display:flex;justify-content:space-between;font:var(--t-meta);color:var(--faint);font-variant-numeric:tabular-nums}
+.c .r em{font-style:normal;color:var(--dim)}
+.c .track{height:2px;background:rgba(255,255,255,.09);margin-top:9px;position:relative}
+.c .track i{position:absolute;left:0;top:0;height:2px;background:var(--accent);transition:width 700ms var(--e-out)}
+/* långtryck: ring som fylls */
+.c .hold{position:absolute;z-index:5;inset:0;pointer-events:none;opacity:0;transition:opacity var(--d-2)}
+.c.holding .hold{opacity:1}
+.c .hold svg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-90deg);width:44px;height:44px}
+.c .hold circle{fill:none;stroke-width:2.5}
+.c .hold .bgc{stroke:rgba(255,255,255,.16)}
+.c .hold .fg{stroke:var(--accent);stroke-dasharray:126;stroke-dashoffset:126;transition:stroke-dashoffset 500ms linear}
+.c.holding .hold .fg{stroke-dashoffset:0}
+.c.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 34px -18px color-mix(in srgb,var(--accent) 80%,transparent)}
+.c.selected .selmark{position:absolute;z-index:6;top:9px;right:9px;width:20px;height:20px;border-radius:50%;background:var(--accent);
+  color:#fff;display:grid;place-items:center;font-size:11px;animation:pop 280ms var(--e-spring)}
+@keyframes pop{from{transform:scale(0)}}
+.pressripple{position:absolute;border-radius:50%;pointer-events:none;transform:scale(0);opacity:.5;
+  background:radial-gradient(circle,color-mix(in srgb,var(--accent) 70%,transparent),transparent 70%);animation:rip 620ms var(--e-out) forwards}
+
+/* dragdemo */
+.dragrow{display:flex;gap:12px}
+.drag{width:112px;height:74px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:grid;place-items:center;
+  font:var(--t-meta);color:var(--dim);cursor:grab;transition:transform var(--d-3) var(--e-out),box-shadow var(--d-3),border-color var(--d-3)}
+.drag.grabbing{cursor:grabbing;transform:translateY(-8px) rotate(2.5deg) scale(1.03);box-shadow:var(--sh-3);border-color:var(--accent);z-index:5}
+
+/* =====================================================================
+   MINI-APP (används av tema- och textkontroller)
+   ===================================================================== */
+.mini{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg);box-shadow:var(--sh-2)}
+.mini .atmo{position:absolute;inset:0;pointer-events:none}
+.mini .atmo .moon{position:absolute;width:520px;height:320px;right:-110px;top:-150px;
+  background:radial-gradient(ellipse at center,color-mix(in srgb,var(--glow) 22%,transparent),transparent 66%)}
+.mini .atmo .canopy{position:absolute;inset:0 0 auto 0;height:200px;filter:blur(22px);background:
+  radial-gradient(170px 78px at 13% -14%,color-mix(in srgb,var(--deco) 34%,transparent),transparent 72%),
+  radial-gradient(200px 88px at 50% -18%,color-mix(in srgb,var(--deco) 22%,transparent),transparent 72%),
+  radial-gradient(180px 84px at 87% -12%,color-mix(in srgb,var(--deco) 28%,transparent),transparent 72%)}
+.mini .atmo .vign{position:absolute;inset:0;background:radial-gradient(125% 95% at 50% 38%,transparent 52%,rgba(0,0,0,.5))}
+.mini .hd{position:relative;display:flex;align-items:center;gap:14px;padding:16px 22px 0}
+.mini .brand{display:flex;align-items:center;gap:10px;font:var(--t-display-s);letter-spacing:var(--tr-brand)}
+.mini .brand i{width:7px;height:7px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 13px color-mix(in srgb,var(--accent) 90%,transparent)}
+.mini .hd .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+.mini .nav{position:relative;display:flex;gap:22px;padding:14px 22px 0;margin-top:12px;border-bottom:1px solid var(--line)}
+.mini .nav a{font:var(--t-micro);letter-spacing:var(--tr-micro);text-transform:uppercase;color:var(--faint);text-decoration:none;
+  padding-bottom:11px;border-bottom:1px solid transparent}
+.mini .nav a.on{color:var(--text);border-color:var(--accent)}
+.mini .nav a b{font-weight:var(--w-med);color:var(--faint);margin-left:5px;letter-spacing:0;font-variant-numeric:tabular-nums}
+.mini .body{position:relative;padding:16px 22px 20px}
+.mini .hero{position:relative;border-radius:12px;overflow:hidden;height:calc(150px * var(--text-scale));
+  border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
+  box-shadow:0 0 44px -24px color-mix(in srgb,var(--accent) 70%,transparent)}
+.mini .hero .bg{position:absolute;inset:0;background:linear-gradient(150deg,#4a5580,#1e2440);filter:saturate(.78) brightness(.85)}
+.mini .hero .bg::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,
+  color-mix(in srgb,var(--bg) 94%,transparent) 24%,color-mix(in srgb,var(--bg) 66%,transparent) 54%,transparent)}
+.mini .hero .in{position:relative;height:100%;padding:16px 20px;display:flex;flex-direction:column;justify-content:center}
+.mini .hero .kick{font:var(--t-nano);letter-spacing:var(--tr-nano);text-transform:uppercase;color:var(--accent-lit);margin-bottom:8px}
+.mini .hero h2{font:var(--t-display-l);letter-spacing:var(--tr-display);margin:0 0 6px}
+.mini .hero .sub{font:var(--t-meta);color:var(--dim);margin-bottom:12px}
+.mini .hero .cta{display:flex;gap:8px}
+.mini .lbl2{display:flex;align-items:baseline;gap:12px;margin:16px 0 10px}
+.mini .lbl2 h3{margin:0;font:var(--t-micro);letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
+.mini .lbl2 .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.mini .status{display:flex;gap:14px;align-items:center;border-top:1px solid var(--line);margin:0 22px;padding:11px 0 14px;
+  font:var(--t-meta);color:var(--faint)}
+.mini .status .tag{font:var(--t-nano);letter-spacing:.12em;text-transform:uppercase;padding:4px 9px;border-radius:999px;
+  background:var(--accent);color:#fff}
+.mini .status .ok2{color:var(--positive)}
+.mini .status .r{margin-left:auto}
+
+/* kontroller */
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:16px}
+.ctl{border:1px solid #212734;border-radius:12px;padding:16px 18px;background:rgba(255,255,255,.014)}
+.ctl .h{font:500 9.5px/1 var(--ui);letter-spacing:.22em;text-transform:uppercase;color:#7b8494;margin-bottom:12px}
+.seg{display:flex;gap:4px;background:rgba(255,255,255,.03);border:1px solid #212734;border-radius:9px;padding:4px}
+.seg button{flex:1;background:none;border:0;border-radius:6px;color:#a2aab7;font:500 11.5px/1 var(--ui);padding:8px 6px;
+  transition:background 200ms,color 200ms,transform 90ms}
+.seg button:hover{color:#ece8e3;background:rgba(255,255,255,.05)}
+.seg button:active{transform:scale(.96)}
+.seg button.on{background:#d43f4a;color:#fff}
+.ctl .hint{margin:10px 0 0;font-size:11.5px;color:#6a7280;line-height:1.55}
+
+/* temagalleri */
+.themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:10px}
+.th-card{border:1px solid #212734;border-radius:10px;overflow:hidden;background:#0f1218;padding:0;text-align:left;
+  transition:transform 200ms var(--e-out),border-color 200ms,box-shadow 200ms}
+.th-card:hover{transform:translateY(-3px);border-color:#38424f;box-shadow:0 14px 28px -18px rgba(0,0,0,.9)}
+.th-card:active{transform:translateY(-1px) scale(.985);transition-duration:90ms}
+.th-card.on{border-color:#d43f4a;box-shadow:0 0 0 1px #d43f4a}
+.th-card .prev{height:56px;position:relative;display:flex;align-items:flex-end;padding:8px;gap:5px}
+.th-card .prev i{width:12px;height:12px;border-radius:3px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.th-card .prev .glowdot{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;filter:blur(6px);opacity:.75}
+.th-card .txt{padding:9px 10px 11px;border-top:1px solid rgba(255,255,255,.06)}
+.th-card .txt b{display:block;font:500 11.5px/1.3 var(--ui);color:#ece8e3;margin-bottom:3px}
+.th-card .txt span{font:400 10px/1.3 var(--ui);color:#6a7280;letter-spacing:.06em;text-transform:uppercase}
+.th-card .txt .aa{float:right;font:500 9px/1 var(--ui);letter-spacing:.1em;color:#8fa88f}
+.fam{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.fam button{background:rgba(255,255,255,.03);border:1px solid #212734;color:#a2aab7;border-radius:999px;padding:6px 13px;
+  font:400 11.5px/1 var(--ui);transition:200ms}
+.fam button:hover{border-color:#38424f;color:#ece8e3}
+.fam button.on{border-color:#d43f4a;color:#ea6b70;background:rgba(212,63,74,.1)}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1 class="page">Profil 1.1 – interaktion, textkontroller och teman</h1>
+  <p class="lede">Tre tillägg till profil 1.0. Alla tre är byggda så att de inte kräver att någon komponent skrivs om: tryckanimationer ligger som tokens på <code>:active</code>, textstorlek och vikt styrs av två variabler som alla typtokens räknar på, och temana är en motor med fyra parametrar per tema i stället för fyrtio handskrivna färgblock.</p>
+
+<!-- ============================ A · INTERAKTION ============================ -->
+<div class="sec-h"><span class="no">A</span><h2>Håll och tryck</h2><span class="rule"></span></div>
+<p class="intro">Profil 1.0 hade bara hover. Här finns hela kedjan: hover, tryck ner, släpp, långtryck och drag. Regeln är att tryck alltid ger en fysisk reaktion, aldrig en färgblink. Ytan krymper något, som om den ger efter, och släppet fjädrar tillbaka. Prova allt nedan, det är levande.</p>
+
+<div class="lab">
+  <div class="lbl">Knappar · tryck ger krympning plus ring från pekaren</div>
+  <div class="row">
+    <button class="btn btn-primary rip-host">Markera avsnitt sett</button>
+    <button class="btn btn-ghost rip-host">Öppna serien</button>
+    <button class="btn btn-quiet rip-host">Avbryt</button>
+  </div>
+  <p class="hint" style="margin:16px 0 0;font-size:11.5px;color:#6a7280">Ner: skala 0,97 på 90 ms med <code>--e-press</code>. Upp: tillbaka på 200 ms med <code>--e-out</code>. Ringen startar där du faktiskt tryckte, inte i mitten.</p>
+</div>
+
+<div class="lab">
+  <div class="lbl">Ikonknappar, chips och switchar</div>
+  <div class="row" style="margin-bottom:16px">
+    <button class="icn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+    <button class="icn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="icn"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></button>
+    <button class="icn"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg></button>
+    <span style="width:14px"></span>
+    <button class="chip on">Fantasy</button><button class="chip">Drama</button><button class="chip">Slice of life</button>
+    <span style="width:14px"></span>
+    <button class="sw on" id="sw1"><i></i></button>
+    <span style="font:var(--t-meta);color:var(--faint)">Visa dekor</span>
+  </div>
+  <p style="margin:0;font-size:11.5px;color:#6a7280">Ikonknappar trycks till 0,90 eftersom de är små och behöver tydligare respons. Switchens knopp blir bredare medan du håller, som en gummiknapp, och glider över med fjädrande kurva.</p>
+</div>
+
+<div class="lab">
+  <div class="lbl">Flikar · understrecket glider till den nya positionen</div>
+  <div class="tabs" id="tabs">
+    <button class="on">Pågår</button><button>Väntar</button><button>Sett</button><button>Släppt</button><button>Schema</button><button>Upptäck</button><button>Statistik</button>
+    <span class="ink" id="ink"></span>
+  </div>
+  <p style="margin:16px 0 0;font-size:11.5px;color:#6a7280">Understrecket är ett enda element som flyttas, 240 ms. Det gör bytet till en rörelse i stället för två separata färgbyten. Fliken sjunker 1 px medan du håller.</p>
+</div>
+
+<div class="lab">
+  <div class="lbl">Kort · hover, tryck och långtryck för att markera flera</div>
+  <div class="cards" id="cardlab" style="--cols:4">
+    <button class="c"><div class="art" style="background:linear-gradient(150deg,#4a5580,#1e2440)"><span class="dot"></span></div><span class="plus">＋</span><div class="meta"><h4>Frieren</h4><div class="r"><em>18 / 28</em><span>9,0</span></div><div class="track"><i style="width:64%"></i></div></div><div class="hold"><svg viewBox="0 0 44 44"><circle class="bgc" cx="22" cy="22" r="20"/><circle class="fg" cx="22" cy="22" r="20"/></svg></div></button>
+    <button class="c"><div class="art" style="background:linear-gradient(150deg,#96434c,#3d1f2a)"></div><span class="plus">＋</span><div class="meta"><h4>Vinland Saga</h4><div class="r"><em>12 / 24</em><span>8,0</span></div><div class="track"><i style="width:50%"></i></div></div><div class="hold"><svg viewBox="0 0 44 44"><circle class="bgc" cx="22" cy="22" r="20"/><circle class="fg" cx="22" cy="22" r="20"/></svg></div></button>
+    <button class="c"><div class="art" style="background:linear-gradient(150deg,#3f7a78,#182f36)"></div><span class="plus">＋</span><div class="meta"><h4>Mushishi</h4><div class="r"><em>21 / 26</em><span>10</span></div><div class="track"><i style="width:81%"></i></div></div><div class="hold"><svg viewBox="0 0 44 44"><circle class="bgc" cx="22" cy="22" r="20"/><circle class="fg" cx="22" cy="22" r="20"/></svg></div></button>
+    <button class="c"><div class="art" style="background:linear-gradient(150deg,#a8763f,#4a2c1c)"></div><span class="plus">＋</span><div class="meta"><h4>Odd Taxi</h4><div class="r"><em>7 / 13</em><span>—</span></div><div class="track"><i style="width:54%"></i></div></div><div class="hold"><svg viewBox="0 0 44 44"><circle class="bgc" cx="22" cy="22" r="20"/><circle class="fg" cx="22" cy="22" r="20"/></svg></div></button>
+  </div>
+  <p style="margin:16px 0 0;font-size:11.5px;color:#6a7280">Håll ett kort i en halv sekund: en ring fylls medan du håller, och när den är full går kortet in i markeringsläge. Det löser massmarkeringen som saknades i profil 1.0 utan att lägga en kryssruta på varje kort. Tryck på plusknappen fylls i stället direkt, eftersom den är en genväg och ska kännas snabb.</p>
+</div>
+
+<div class="lab">
+  <div class="lbl">Drag · lyft, luta och släpp</div>
+  <div class="dragrow" id="dragrow">
+    <div class="drag">Dra mig</div><div class="drag">Ordna om</div><div class="drag">Släpp</div>
+  </div>
+  <p style="margin:16px 0 0;font-size:11.5px;color:#6a7280">Vid grepp lyfts kortet 8 px, lutas 2,5 grader och får full skugga. Släppet landar med utgångskurvan. Används för att ordna om egna listor, aldrig för att ändra status.</p>
+</div>
+
+<h3 class="sub">Specifikation</h3>
+<table>
+  <tr><th>Element</th><th>Hover</th><th>Tryck ner</th><th>Släpp</th><th>Hålls</th></tr>
+  <tr><td><b>Primärknapp</b></td><td>lyft 1 px, ljus +8 %</td><td class="mono">scale .97 · 90ms</td><td class="mono">200ms --e-out</td><td>ring från pekaren, 520 ms</td></tr>
+  <tr><td><b>Ghost och quiet</b></td><td>kantlinje accent, mjuk yta</td><td class="mono">scale .97 · 90ms</td><td class="mono">200ms</td><td>ring i accentfärg</td></tr>
+  <tr><td><b>Ikonknapp</b></td><td>accentfärg och ring</td><td class="mono">scale .90 · 90ms</td><td class="mono">200ms</td><td>—</td></tr>
+  <tr><td><b>Chip</b></td><td>ljusare kant</td><td class="mono">scale .95 · 90ms</td><td class="mono">200ms</td><td>—</td></tr>
+  <tr><td><b>Switch</b></td><td>—</td><td>knoppen breddas till 22 px</td><td class="mono">280ms --e-spring</td><td>—</td></tr>
+  <tr><td><b>Flik</b></td><td>text ljusare</td><td class="mono">translateY 1px</td><td>understreck glider 240 ms</td><td>—</td></tr>
+  <tr><td><b>Seriekort</b></td><td>lyft 5 px, linje, färg, plus in</td><td class="mono">scale .995 · lyft 2 px</td><td class="mono">380ms</td><td><b>500 ms → markeringsläge</b></td></tr>
+  <tr><td><b>Plusknapp på kort</b></td><td>fyllning accent</td><td class="mono">scale .88</td><td>progress växer, ring vid pekaren</td><td>—</td></tr>
+  <tr><td><b>Drag</b></td><td>cursor grab</td><td>lyft 8 px, luta 2,5°, skugga</td><td class="mono">280ms --e-out</td><td>—</td></tr>
+</table>
+<div class="note warn"><b>Pekskärm och grov pekare</b>Under <code>@media (hover:none)</code> tas alla hover-lägen bort och tryckskalorna förstärks ett steg, eftersom fingret döljer det som händer. Långtryck blir då primärvägen till markeringsläge. Under <code>prefers-reduced-motion</code> ersätts varje tryckanimation av ett opacitetsbyte på 120 ms, och långtrycksringen visas utan animation som en enkel fyllning.</div>
+
+<!-- ============================ B · TEXTKONTROLLER ============================ -->
+<div class="sec-h"><span class="no">B</span><h2>Textstorlek och tjocklek</h2><span class="rule"></span></div>
+<p class="intro">Profil 1.0 hade fasta pixelvärden i typtokens, vilket inte går att skala. Här är skalan omgjord: varje storlek är <code>calc(bas * var(--text-scale))</code> och varje vikt går via <code>--w-body</code>, <code>--w-med</code>, <code>--w-strong</code> och <code>--w-display</code>. Två attribut på <code>&lt;html&gt;</code> styr allt, och inget behöver ändras i komponenterna. Ändra nedan och se hela appen svara.</p>
+
+<div class="controls">
+  <div class="ctl">
+    <div class="h">Textstorlek</div>
+    <div class="seg" id="sizeseg">
+      <button data-size="xs">Kompakt</button>
+      <button data-size="s" class="on">Standard</button>
+      <button data-size="m">Bekväm</button>
+      <button data-size="l">Stor</button>
+      <button data-size="xl">Störst</button>
+    </div>
+    <p class="hint">92 % · 100 % · 108 % · 118 % · 132 %. Kortens höjd och plusknappens läge räknas på samma variabel, så inget hamnar utanför.</p>
+  </div>
+  <div class="ctl">
+    <div class="h">Texttjocklek</div>
+    <div class="seg" id="weightseg">
+      <button data-weight="light">Lätt</button>
+      <button data-weight="normal" class="on">Standard</button>
+      <button data-weight="clear">Tydlig</button>
+      <button data-weight="bold">Fet</button>
+    </div>
+    <p class="hint">Mincho har 400, 600 och 700, grotesk 400 till 700. Vikterna flyttas i par så rubrik och gränssnitt aldrig hamnar på samma tyngd.</p>
+  </div>
+  <div class="ctl">
+    <div class="h">Kolumner</div>
+    <div class="seg" id="colseg">
+      <button data-cols="auto" class="on">Följ textstorlek</button>
+      <button data-cols="6">6</button>
+      <button data-cols="4">4</button>
+    </div>
+    <p class="hint">Vid Stor och Störst faller rutnätet automatiskt från sex till fem och fyra kolumner. Utan det kapas titlarna redan vid 118 %.</p>
+  </div>
+</div>
+
+<div class="mini" id="mini" data-text-size="s" data-text-weight="normal">
+  <div class="atmo"><div class="moon"></div><div class="canopy"></div><div class="vign"></div></div>
+  <div class="hd">
+    <span class="brand"><i></i>Anime Tracker</span>
+    <div class="sp">
+      <button class="icn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+      <button class="icn"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></button>
+      <button class="btn btn-primary rip-host">Lägg till serie</button>
+    </div>
+  </div>
+  <div class="nav">
+    <a href="#" class="on">Pågår <b>6</b></a><a href="#">Väntar <b>38</b></a><a href="#">Sett <b>212</b></a>
+    <a href="#">Släppt <b>9</b></a><a href="#">Schema</a><a href="#">Upptäck</a><a href="#">Statistik</a>
+  </div>
+  <div class="body">
+    <div class="hero">
+      <div class="bg"></div>
+      <div class="in">
+        <div class="kick">Nytt avsnitt · för tre timmar sedan</div>
+        <h2>Frieren: Beyond Journey's End</h2>
+        <div class="sub">Fantasy · TV · 2023 · ditt betyg 9,0</div>
+        <div class="cta"><button class="btn btn-primary rip-host">Markera avsnitt 19 sett</button><button class="btn btn-ghost rip-host">Öppna</button></div>
+      </div>
+    </div>
+    <div class="lbl2"><h3>Resten av pågår</h3><span class="rule"></span></div>
+    <div class="cards" id="minicards" style="--cols:6"></div>
+  </div>
+  <div class="status">
+    <span class="tag">Nytt avsnitt</span>
+    <span>Frieren avsnitt 19 väntar</span>
+    <span class="ok2">Sparat lokalt</span>
+    <span class="r">6 pågår · 318 avsnitt i år</span>
+  </div>
+</div>
+
+<div class="two" style="margin-top:16px">
+  <div class="note" style="margin:0"><b>Var inställningen bor</b>Två attribut på <code>&lt;html&gt;</code>: <code>data-text-size</code> och <code>data-text-weight</code>, sparade i localStorage och satta synkront i <code>&lt;head&gt;</code> precis som temat redan görs, så inget hoppar vid start.</div>
+  <div class="note warn" style="margin:0"><b>Vad som går sönder utan omsorg</b>Flikraden är det trängsta stället. Vid 132 % ryms inte sju flikar på 1280 px, så raden måste kunna skrolla vågrätt eller flytta Upptäck och Statistik in i en meny. Korttitlar bör dessutom gå från en till två rader ovanför 118 % i stället för att kapas.</div>
+</div>
+
+<pre><span class="c">/* profil 1.1 · typtokens som skalar */</span>
+<span class="k">:root</span>{
+  --text-scale:<span class="v">1</span>;
+  --w-body:<span class="v">400</span>; --w-med:<span class="v">500</span>; --w-strong:<span class="v">600</span>; --w-display:<span class="v">600</span>;
+  --fs-display-l:<span class="v">calc(30px * var(--text-scale))</span>;
+  --fs-body:<span class="v">calc(13px * var(--text-scale))</span>;   <span class="c">/* och så vidare för alla nio */</span>
+  --t-display-l:<span class="v">var(--w-display) var(--fs-display-l)/1.16 var(--display)</span>;
+  --t-body:<span class="v">var(--w-body) var(--fs-body)/1.62 var(--ui)</span>;
+}
+<span class="k">[data-text-size="xs"]</span>{--text-scale:<span class="v">.92</span>}
+<span class="k">[data-text-size="m"]</span> {--text-scale:<span class="v">1.08</span>}
+<span class="k">[data-text-size="xl"]</span>{--text-scale:<span class="v">1.32</span>}
+<span class="k">[data-text-weight="clear"]</span>{--w-body:<span class="v">500</span>;--w-med:<span class="v">600</span>;--w-strong:<span class="v">600</span>;--w-display:<span class="v">600</span>}
+<span class="k">[data-text-weight="bold"]</span> {--w-body:<span class="v">500</span>;--w-med:<span class="v">600</span>;--w-strong:<span class="v">700</span>;--w-display:<span class="v">700</span>}</pre>
+
+<!-- ============================ C · TEMAN ============================ -->
+<div class="sec-h"><span class="no">C</span><h2>41 teman</h2><span class="rule"></span></div>
+<p class="intro">Appens fyrtio temanycklar finns kvar, så sparade inställningar fortsätter fungera, men alla värden är omräknade till den nya profilen: samma ytstege, samma linjer, samma textkontraster, bara olika ljus. Plus <b>moonlit-shrine</b> som ny standard. Varje tema definieras av fyra parametrar och resten räknas fram, vilket är skälet till att de hänger ihop i stället för att vara fyrtio olika smaker. Klicka ett tema, det tillämpas direkt på mini-appen ovanför och på hela dokumentets demon.</p>
+
+<div class="fam" id="fams"></div>
+<div class="themes" id="themes"></div>
+
+<h3 class="sub">Så fungerar motorn</h3>
+<div class="two">
+  <div class="panel">
+    <p style="margin:0 0 12px;color:#a2aab7;line-height:1.7">Per tema anges bara: <b>grundton</b> (nyans och mättnad för mörkret), <b>accent</b>, <b>ljuskälla</b> och <b>dekorfärg</b>. Ur det räknas nitton tokens fram med fasta ljushetssteg, identiska i alla teman.</p>
+    <table style="margin:0">
+      <tr><th>Token</th><th class="mono">Regel</th></tr>
+      <tr><td><b>bg → line-lit</b></td><td class="mono">L = 5 · 9 · 10,5 · 13,5 · 17 · 27 %</td></tr>
+      <tr><td><b>text / dim / faint</b></td><td class="mono">L = 92 / 70 / 55 %, mättnad 10–12 %</td></tr>
+      <tr><td><b>accent-lit</b></td><td class="mono">accent ljusas upp till ≥ 4,6:1 mot bg</td></tr>
+      <tr><td><b>accent-soft</b></td><td class="mono">accent vid 12 % opacitet</td></tr>
+      <tr><td><b>accent-deep</b></td><td class="mono">accent med L × 0,55</td></tr>
+    </table>
+  </div>
+  <div class="panel">
+    <p style="margin:0 0 12px;color:#a2aab7;line-height:1.7">Kontrasten kontrolleras i motorn, inte i efterhand. Varje temakort visar sin uppmätta kontrast för accentfärgad text. Inget tema släpps under 4,6:1, och den ljusaste färgen ljusas automatiskt upp tills den klarar kravet.</p>
+    <div style="display:grid;gap:8px;font-size:12.5px;color:#a2aab7" id="audit"></div>
+  </div>
+</div>
+
+<div class="note warn" style="margin-top:18px"><b>Fyra teman är ljusa</b>daybreak, parchment, radiant och clean-interface är ljusa lägen, där hela ljushetsstegen inverteras och accenten mörknas i stället för att ljusas. Det var det som saknades i profil 1.0. Räkna med att omslagsbehandlingen behöver ett eget värde i ljust läge, ungefär <code>brightness(.96) saturate(.8)</code>, eftersom mörkning mot vitt beter sig annorlunda.</div>
+
+<pre><span class="c">/* generator, körs en gång och skrivs ut som statisk CSS i bygget */</span>
+<span class="k">const</span> themes = [
+  { key:<span class="v">"moonlit-shrine"</span>, name:<span class="v">"Moonlit Shrine"</span>, fam:<span class="v">"ask"</span>, base:[<span class="v">222,18</span>], accent:[<span class="v">356,64,54</span>], glow:[<span class="v">214,42,78</span>], deco:[<span class="v">4,48,54</span>] },
+  { key:<span class="v">"crow-feather"</span>,  name:<span class="v">"Crow Feather"</span>,  fam:<span class="v">"ask"</span>, base:[<span class="v">228,14</span>], accent:[<span class="v">348,58,50</span>], glow:[<span class="v">220,32,74</span>], deco:[<span class="v">352,40,48</span>] },
+  <span class="c">/* … 41 rader totalt … */</span>
+];
+<span class="c">// surfaces(base) → 6 ytor · texts(base) → 3 textnivåer · accents(accent,bg) → 4 accenttokens</span>
+<span class="c">// ensureContrast(color, bg, 4.6) höjer ljusheten i steg om 2 % tills kravet klaras</span></pre>
+
+<div class="note"><b>Rekommendation för bygget</b>Kör generatorn en gång och klistra in resultatet som fyrtioen <code>[data-color-theme]</code>-block i <code>styles.css</code>. Då behåller appen sin nuvarande struktur, inget beror på JavaScript vid start, och temaväljaren fungerar precis som i dag. Behåll generatorn i <code>scripts/</code> så att ett nytt tema är fyra tal i stället för nitton hexvärden.</div>
+
+</div>
+
+<script>
+/* =====================================================================
+   TEMAMOTOR
+   ===================================================================== */
+const themes = [
+  // familj: ask (blåsvart + rött)
+  {key:"moonlit-shrine",name:"Moonlit Shrine",fam:"ask",base:[222,18],accent:[356,64,54],glow:[214,42,78],deco:[4,48,54]},
+  {key:"crow-feather",name:"Crow Feather",fam:"ask",base:[228,14],accent:[348,55,50],glow:[220,30,74],deco:[352,40,48]},
+  {key:"crimson-core",name:"Crimson Core",fam:"ask",base:[234,20],accent:[2,70,52],glow:[228,34,72],deco:[6,52,50]},
+  {key:"blood-moon",name:"Blood Moon",fam:"ask",base:[350,16],accent:[8,62,48],glow:[24,44,70],deco:[10,54,46]},
+  {key:"eclipse",name:"Eclipse",fam:"ask",base:[240,10],accent:[344,48,52],glow:[250,26,72],deco:[348,36,48]},
+  {key:"rogue",name:"Rogue",fam:"ask",base:[218,12],accent:[0,58,50],glow:[206,30,70],deco:[358,42,48]},
+  // familj: sakura (plommonsvart + rosa)
+  {key:"bloom",name:"Bloom",fam:"sakura",base:[318,16],accent:[338,58,60],glow:[320,38,80],deco:[344,48,60]},
+  {key:"nightshade",name:"Nightshade",fam:"sakura",base:[300,18],accent:[318,46,58],glow:[288,32,76],deco:[326,40,56]},
+  {key:"mystic",name:"Mystic",fam:"sakura",base:[288,20],accent:[300,44,62],glow:[276,34,78],deco:[312,38,58]},
+  {key:"phantom",name:"Phantom",fam:"sakura",base:[310,10],accent:[332,38,58],glow:[300,24,74],deco:[338,32,54]},
+  {key:"venom",name:"Venom",fam:"sakura",base:[296,22],accent:[290,56,62],glow:[282,40,78],deco:[300,44,58]},
+  // familj: lykta (varmt brunsvart + guld)
+  {key:"solar",name:"Solar",fam:"lykta",base:[32,18],accent:[38,64,58],glow:[44,50,80],deco:[26,52,54]},
+  {key:"sunflare",name:"Sunflare",fam:"lykta",base:[26,20],accent:[30,68,56],glow:[38,52,78],deco:[20,54,52]},
+  {key:"copper",name:"Copper",fam:"lykta",base:[20,16],accent:[22,58,54],glow:[32,44,76],deco:[16,48,50]},
+  {key:"radiant",name:"Radiant",fam:"lykta",base:[40,14],accent:[36,58,46],glow:[46,40,62],deco:[30,44,52],light:true},
+  {key:"parchment",name:"Parchment",fam:"lykta",base:[40,20],accent:[24,50,42],glow:[40,34,58],deco:[18,40,48],light:true},
+  // familj: jade (grönsvart + jade)
+  {key:"verdant",name:"Verdant",fam:"jade",base:[158,16],accent:[152,48,56],glow:[164,34,76],deco:[140,40,54]},
+  {key:"jade",name:"Jade",fam:"jade",base:[168,18],accent:[166,50,54],glow:[176,36,74],deco:[152,42,52]},
+  {key:"viridian",name:"Viridian",fam:"jade",base:[176,20],accent:[178,52,52],glow:[186,38,74],deco:[164,44,52]},
+  {key:"moss-shrine",name:"Moss Shrine",fam:"jade",base:[120,14],accent:[104,38,56],glow:[110,28,74],deco:[96,36,52]},
+  {key:"cedar",name:"Cedar",fam:"jade",base:[150,12],accent:[146,34,50],glow:[158,24,70],deco:[134,30,48]},
+  // familj: frost (isblått + cyan)
+  {key:"frost",name:"Frost",fam:"frost",base:[204,18],accent:[196,52,66],glow:[200,44,84],deco:[188,40,62]},
+  {key:"glacial-rift",name:"Glacial Rift",fam:"frost",base:[196,20],accent:[188,56,64],glow:[194,46,82],deco:[180,42,60]},
+  {key:"holo-deck",name:"Holo Deck",fam:"frost",base:[190,22],accent:[184,62,62],glow:[190,50,80],deco:[176,46,58]},
+  {key:"tidal",name:"Tidal",fam:"frost",base:[208,20],accent:[204,54,58],glow:[210,42,78],deco:[196,44,56]},
+  {key:"deep-sea",name:"Deep Sea",fam:"frost",base:[214,24],accent:[210,50,54],glow:[216,40,74],deco:[202,42,52]},
+  {key:"clean-interface",name:"Clean Interface",fam:"frost",base:[210,14],accent:[208,48,44],glow:[212,32,60],deco:[198,36,50],light:true},
+  // familj: iris (violett)
+  {key:"amethyst",name:"Amethyst",fam:"iris",base:[268,20],accent:[272,50,64],glow:[264,38,80],deco:[280,42,60]},
+  {key:"arcane-ward",name:"Arcane Ward",fam:"iris",base:[276,22],accent:[278,54,66],glow:[270,42,82],deco:[286,44,62]},
+  {key:"nebula",name:"Nebula",fam:"iris",base:[256,22],accent:[258,52,64],glow:[248,40,80],deco:[268,44,60]},
+  {key:"indigo-night",name:"Indigo Night",fam:"iris",base:[244,22],accent:[246,48,60],glow:[238,36,78],deco:[256,40,58]},
+  {key:"celestial",name:"Celestial",fam:"iris",base:[250,18],accent:[224,46,68],glow:[232,40,84],deco:[262,38,62]},
+  {key:"wisteria",name:"Wisteria",fam:"iris",base:[262,14],accent:[266,38,68],glow:[258,30,82],deco:[274,34,62]},
+  // familj: ember (orange, koppar)
+  {key:"ember",name:"Ember",fam:"ember",base:[16,16],accent:[18,64,56],glow:[30,46,76],deco:[10,54,52]},
+  {key:"inferno",name:"Inferno",fam:"ember",base:[10,20],accent:[12,70,52],glow:[24,50,74],deco:[4,58,50]},
+  {key:"wildfire",name:"Wildfire",fam:"ember",base:[22,18],accent:[26,66,54],glow:[36,48,76],deco:[14,56,50]},
+  {key:"aurora",name:"Aurora",fam:"ember",base:[172,18],accent:[46,58,62],glow:[160,40,78],deco:[36,48,58]},
+  // familj: void (neutralt, stål, aska)
+  {key:"void",name:"Void",fam:"void",base:[220,6],accent:[210,20,72],glow:[214,16,84],deco:[210,14,60]},
+  {key:"obsidian",name:"Obsidian",fam:"void",base:[240,4],accent:[0,0,86],glow:[240,8,88],deco:[240,6,60]},
+  {key:"storm",name:"Storm",fam:"void",base:[212,10],accent:[206,32,66],glow:[210,22,80],deco:[204,26,58]},
+  {key:"static",name:"Static",fam:"void",base:[0,0],accent:[0,0,74],glow:[0,0,86],deco:[0,0,56]},
+  {key:"wraith",name:"Wraith",fam:"void",base:[228,8],accent:[228,24,70],glow:[232,18,82],deco:[224,20,58]},
+  {key:"ashen",name:"Ashen",fam:"void",base:[26,8],accent:[28,26,66],glow:[34,20,80],deco:[22,22,56]},
+  {key:"cobalt",name:"Cobalt",fam:"void",base:[224,26],accent:[220,58,58],glow:[224,44,78],deco:[212,46,56]},
+  {key:"daybreak",name:"Daybreak",fam:"void",base:[214,10],accent:[220,44,46],glow:[214,26,64],deco:[204,32,52],light:true}
+];
+const families = {ask:"Ask och crimson",sakura:"Sakura",lykta:"Lykta",jade:"Jade",frost:"Frost",iris:"Iris",ember:"Ember",void:"Void"};
+
+/* --- färghjälp --- */
+const hsl = (h,s,l) => `hsl(${h} ${s}% ${l}%)`;
+function hslToRgb(h,s,l){h/=360;s/=100;l/=100;
+  const k=n=>(n+h*12)%12, a=s*Math.min(l,1-l), f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+  return [f(0),f(8),f(4)];}
+const lin = c => c<=.03928? c/12.92 : Math.pow((c+.055)/1.055,2.4);
+function lum(h,s,l){const [r,g,b]=hslToRgb(h,s,l);return .2126*lin(r)+.7152*lin(g)+.0722*lin(b);}
+function ratio(a,b){const la=lum(...a),lb=lum(...b);const hi=Math.max(la,lb),lo=Math.min(la,lb);return (hi+.05)/(lo+.05);}
+function ensureContrast(col,bg,target,light){
+  let [h,s,l]=col, guard=0;
+  while(ratio([h,s,l],bg)<target && guard++<60){ l = light ? Math.max(4,l-2) : Math.min(96,l+2); }
+  return [h,s,l];
+}
+
+function buildTheme(t){
+  const [bh,bs]=t.base, light=!!t.light;
+  const L = light ? [96,99,100,97,89,74] : [5,9,10.5,13.5,17,27];
+  const surf = {
+    bg:[bh,light?bs*.35:bs,L[0]], elevated:[bh,light?bs*.25:bs*.9,L[1]], card:[bh,light?bs*.2:bs*.85,L[2]],
+    cardHover:[bh,light?bs*.3:bs*.8,L[3]], line:[bh,light?bs*.4:bs*.7,L[4]], lineLit:[bh,light?bs*.45:bs*.55,L[5]]
+  };
+  const txt = light ? {text:[bh,Math.min(bs,18),12],dim:[bh,Math.min(bs,14),34],faint:[bh,Math.min(bs,14),46]}
+                    : {text:[bh,10,92],dim:[bh,12,70],faint:[bh,12,55]};
+  const accent = t.accent;
+  const accentLit = ensureContrast([accent[0],Math.max(30,accent[1]-6),light?accent[2]-6:accent[2]+14], surf.bg, 4.6, light);
+  const accentDeep = [accent[0],accent[1],Math.max(12,accent[2]*.55)];
+  return {
+    key:t.key,name:t.name,fam:t.fam,light,
+    vars:{
+      "--bg":hsl(...surf.bg), "--bg-deep":hsl(surf.bg[0],surf.bg[1],light?92:3.5),
+      "--bg-elevated":hsl(...surf.elevated), "--card":hsl(...surf.card), "--card-hover":hsl(...surf.cardHover),
+      "--line":hsl(...surf.line), "--line-lit":hsl(...surf.lineLit),
+      "--text":hsl(...txt.text), "--dim":hsl(...txt.dim), "--faint":hsl(...txt.faint),
+      "--accent":hsl(...accent), "--accent-lit":hsl(...accentLit),
+      "--accent-soft":`hsl(${accent[0]} ${accent[1]}% ${accent[2]}% / .12)`,
+      "--accent-deep":hsl(...accentDeep),
+      "--glow":hsl(...t.glow), "--deco":hsl(...t.deco),
+      "--support":hsl(surf.bg[0]+18,26,light?46:62),
+      "--positive":hsl(142,light?34:20,light?34:62),
+      "--warning":hsl(38,light?58:45,light?40:60)
+    },
+    audit:{
+      text:ratio(txt.text,surf.bg), faint:ratio(txt.faint,surf.bg),
+      accentLit:ratio(accentLit,surf.bg), accent:ratio(accent,surf.bg)
+    },
+    preview:[hsl(...surf.bg),hsl(...surf.card),hsl(...surf.lineLit),hsl(...accent),hsl(...accentLit)],
+    glowCss:hsl(...t.glow)
+  };
+}
+const built = themes.map(buildTheme);
+
+/* --- rendera galleri --- */
+let activeFam = "alla", activeKey = "moonlit-shrine";
+const famBox = document.getElementById("fams"), thBox = document.getElementById("themes");
+function renderFams(){
+  famBox.innerHTML = [["alla",`Alla ${built.length}`],...Object.entries(families)]
+    .map(([k,v])=>`<button data-fam="${k}" class="${k===activeFam?"on":""}">${v}</button>`).join("");
+}
+function renderThemes(){
+  thBox.innerHTML = built.filter(t=>activeFam==="alla"||t.fam===activeFam).map(t=>`
+    <button class="th-card ${t.key===activeKey?"on":""}" data-key="${t.key}">
+      <div class="prev" style="background:${t.preview[0]}">
+        <div class="glowdot" style="background:${t.glowCss}"></div>
+        <i style="background:${t.preview[1]}"></i><i style="background:${t.preview[2]}"></i>
+        <i style="background:${t.preview[3]}"></i><i style="background:${t.preview[4]}"></i>
+      </div>
+      <div class="txt"><b>${t.name}</b><span>${families[t.fam].split(" ")[0]}${t.light?" · ljust":""}</span>
+      <span class="aa">${t.audit.accentLit.toFixed(1)}:1</span></div>
+    </button>`).join("");
+}
+function applyTheme(key){
+  const t = built.find(x=>x.key===key); if(!t) return;
+  activeKey = key;
+  Object.entries(t.vars).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
+  renderThemes();
+}
+famBox.addEventListener("click",e=>{const b=e.target.closest("[data-fam]");if(!b)return;activeFam=b.dataset.fam;renderFams();renderThemes();});
+thBox.addEventListener("click",e=>{const b=e.target.closest("[data-key]");if(!b)return;applyTheme(b.dataset.key);});
+renderFams(); renderThemes();
+
+/* --- revision --- */
+const worstText = Math.min(...built.map(t=>t.audit.text));
+const worstFaint = Math.min(...built.map(t=>t.audit.faint));
+const worstAccent = Math.min(...built.map(t=>t.audit.accentLit));
+const failAccentFill = built.filter(t=>t.audit.accent<4.5).length;
+document.getElementById("audit").innerHTML = `
+  <div><b style="color:#ece8e3">Lägsta primärtext:</b> ${worstText.toFixed(1)}:1 <span class="ok">klarar 4,5</span></div>
+  <div><b style="color:#ece8e3">Lägsta etikettext:</b> ${worstFaint.toFixed(1)}:1 <span class="${worstFaint>=4.5?"ok":"bad"}">${worstFaint>=4.5?"klarar 4,5":"under kravet"}</span></div>
+  <div><b style="color:#ece8e3">Lägsta accenttext:</b> ${worstAccent.toFixed(1)}:1 <span class="ok">tvingas upp av motorn</span></div>
+  <div><b style="color:#ece8e3">Accent som ren fyllnadsfärg:</b> ${failAccentFill} av ${built.length} teman under 4,5:1, därför är accentfyllnad aldrig textbärare utan alltid bakgrund till vit text i vikt 500.</div>`;
+
+/* =====================================================================
+   MINI-APP: kort
+   ===================================================================== */
+const mini = document.getElementById("mini");
+const covers = ["linear-gradient(150deg,#3f7a78,#182f36)","linear-gradient(150deg,#96434c,#3d1f2a)","linear-gradient(150deg,#6b6193,#2c2748)",
+  "linear-gradient(150deg,#a8763f,#4a2c1c)","linear-gradient(150deg,#8a5570,#3c2038)","linear-gradient(150deg,#546f92,#22303f)"];
+const titles = [["Mushishi","21 / 26","10"],["Vinland Saga","12 / 24","8,0"],["Monogatari Series","5 / 15","—"],
+  ["Odd Taxi","7 / 13","—"],["Ping Pong the Animation","3 / 11","8,5"],["Kaiju No. 8","9 / 12","7,5"]];
+document.getElementById("minicards").innerHTML = titles.map((t,i)=>`
+  <button class="c"><div class="art" style="background:${covers[i]}"></div><span class="plus">＋</span>
+  <div class="meta"><h4>${t[0]}</h4><div class="r"><em>${t[1]}</em><span>${t[2]}</span></div>
+  <div class="track"><i style="width:${[81,50,33,54,27,75][i]}%"></i></div></div></button>`).join("");
+
+/* --- textkontroller --- */
+let colMode="auto";
+function syncCols(){
+  const size = mini.dataset.textSize;
+  const auto = {xs:6,s:6,m:6,l:5,xl:4}[size] || 6;
+  const cols = colMode==="auto" ? auto : +colMode;
+  document.getElementById("minicards").style.setProperty("--cols",cols);
+}
+document.getElementById("sizeseg").addEventListener("click",e=>{
+  const b=e.target.closest("[data-size]"); if(!b) return;
+  mini.dataset.textSize=b.dataset.size;
+  document.querySelectorAll("#sizeseg button").forEach(x=>x.classList.toggle("on",x===b));
+  syncCols();
+});
+document.getElementById("weightseg").addEventListener("click",e=>{
+  const b=e.target.closest("[data-weight]"); if(!b) return;
+  mini.dataset.textWeight=b.dataset.weight;
+  document.querySelectorAll("#weightseg button").forEach(x=>x.classList.toggle("on",x===b));
+});
+document.getElementById("colseg").addEventListener("click",e=>{
+  const b=e.target.closest("[data-cols]"); if(!b) return;
+  colMode=b.dataset.cols;
+  document.querySelectorAll("#colseg button").forEach(x=>x.classList.toggle("on",x===b));
+  syncCols();
+});
+syncCols();
+
+/* =====================================================================
+   INTERAKTION: ring från pekaren, långtryck, flikar, drag, switch
+   ===================================================================== */
+document.addEventListener("pointerdown",e=>{
+  const host=e.target.closest(".rip-host,.btn");
+  if(!host) return;
+  const r=host.getBoundingClientRect(), size=Math.max(r.width,r.height);
+  const s=document.createElement("span");
+  s.className="rip";
+  s.style.cssText=`width:${size}px;height:${size}px;left:${e.clientX-r.left-size/2}px;top:${e.clientY-r.top-size/2}px`;
+  host.appendChild(s);
+  setTimeout(()=>s.remove(),560);
+});
+
+/* långtryck på kort */
+let holdTimer=null, holdCard=null;
+document.addEventListener("pointerdown",e=>{
+  const card=e.target.closest("#cardlab .c");
+  if(!card || e.target.closest(".plus")) return;
+  holdCard=card; card.classList.add("holding");
+  holdTimer=setTimeout(()=>{
+    card.classList.remove("holding");
+    card.classList.toggle("selected");
+    if(card.classList.contains("selected")){
+      const m=document.createElement("span"); m.className="selmark"; m.textContent="✓"; card.appendChild(m);
+    } else card.querySelector(".selmark")?.remove();
+    holdCard=null;
+  },520);
+});
+["pointerup","pointerleave","pointercancel"].forEach(ev=>document.addEventListener(ev,()=>{
+  clearTimeout(holdTimer);
+  if(holdCard){holdCard.classList.remove("holding");holdCard=null;}
+}));
+
+/* plusknapp: ring vid pekaren + progress */
+document.addEventListener("pointerdown",e=>{
+  const plus=e.target.closest(".plus"); if(!plus) return;
+  e.stopPropagation();
+  const card=plus.closest(".c"), r=card.getBoundingClientRect();
+  const rip=document.createElement("span"); rip.className="pressripple";
+  const size=120;
+  rip.style.cssText=`width:${size}px;height:${size}px;left:${e.clientX-r.left-size/2}px;top:${e.clientY-r.top-size/2}px`;
+  card.appendChild(rip); setTimeout(()=>rip.remove(),660);
+  const bar=card.querySelector(".track i");
+  if(bar){const w=parseFloat(bar.style.width)||0;bar.style.width=Math.min(100,w+ (100/ (parseInt(card.querySelector(".r em")?.textContent.split("/")[1])||24) ))+"%";}
+});
+
+/* flikar */
+const tabs=document.getElementById("tabs"), ink=document.getElementById("ink");
+function moveInk(btn){const r=btn.getBoundingClientRect(),p=tabs.getBoundingClientRect();
+  ink.style.left=(r.left-p.left)+"px";ink.style.width=r.width+"px";}
+tabs.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  tabs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));moveInk(b);});
+moveInk(tabs.querySelector("button.on"));
+addEventListener("resize",()=>moveInk(tabs.querySelector("button.on")));
+
+/* switch */
+document.getElementById("sw1").addEventListener("click",e=>e.currentTarget.classList.toggle("on"));
+
+/* drag */
+document.querySelectorAll("#dragrow .drag").forEach(d=>{
+  d.addEventListener("pointerdown",()=>d.classList.add("grabbing"));
+  ["pointerup","pointerleave","pointercancel"].forEach(ev=>d.addEventListener(ev,()=>d.classList.remove("grabbing")));
+});
+
+applyTheme("moonlit-shrine");
+</script>
+</body>
+</html>

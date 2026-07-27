@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moonlit Shrine – tre typsnittsförslag</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Cormorant+Garamond:wght@300;400;600&family=Inter+Tight:wght@400;500;600&family=Marcellus&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0c0e13; --bg-elevated:#12161e; --card:#141821; --card-hover:#181d27;
+  --line:#212734; --line-lit:#38424f; --text:#ece8e3; --dim:#a2aab7; --faint:#6a7280;
+  --crimson:#d43f4a; --crimson-lit:#ea6b70; --crimson-soft:rgba(212,63,74,.11);
+  --steel:#8098b5; --sage:#8fa88f; --radius:12px; --radius-sm:7px;
+  --ease:cubic-bezier(.2,1,.3,1);
+  /* typsnittsslots – det som byts */
+  --display:Georgia, serif;
+  --ui:system-ui, sans-serif;
+  --num:system-ui, sans-serif;
+  --display-weight:400;
+  --display-track:-0.01em;
+  --ui-track:0;
+}
+/* ---- de tre uppsättningarna ---- */
+[data-font="f1"] { --display:"Shippori Mincho", Georgia, serif; --ui:"Zen Kaku Gothic New", system-ui, sans-serif; --num:"Zen Kaku Gothic New", system-ui, sans-serif; --display-weight:400; --display-track:.01em; --ui-track:.005em; }
+[data-font="f2"] { --display:"Cormorant Garamond", Georgia, serif; --ui:"Inter Tight", system-ui, sans-serif; --num:"IBM Plex Mono", monospace; --display-weight:400; --display-track:0; --ui-track:0; }
+[data-font="f3"] { --display:"Marcellus", Georgia, serif; --ui:"IBM Plex Sans", system-ui, sans-serif; --num:"IBM Plex Mono", monospace; --display-weight:400; --display-track:.02em; --ui-track:.002em; }
+
+* { box-sizing: border-box; }
+body { margin: 0; padding: 40px 30px 100px; background: #07080b; color: var(--text); font-family: system-ui, sans-serif; }
+.wrap { max-width: 1280px; margin: 0 auto; }
+h1.page { font-size: 28px; margin: 0 0 10px; font-weight: 600; letter-spacing: -0.02em; }
+.lede { color: #8d939e; font-size: 15px; line-height: 1.65; max-width: 800px; margin: 0 0 34px; }
+.sec { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #6f7784; margin: 46px 0 16px; }
+
+/* switcher */
+.switch { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; position: sticky; top: 0; padding: 12px 0; background: linear-gradient(#07080b 70%, transparent); z-index: 40; }
+.switch button { background: #12161e; border: 1px solid var(--line); color: var(--dim); border-radius: 8px; padding: 9px 15px; font-size: 12.5px; cursor: pointer; transition: .2s; }
+.switch button:hover { border-color: var(--line-lit); color: var(--text); }
+.switch button.on { border-color: var(--crimson); color: var(--text); background: var(--crimson-soft); }
+.switch .now { margin-left: auto; font-size: 12px; color: var(--faint); }
+
+/* specimen */
+.spec { border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 26px; margin-bottom: 18px; background: rgba(255,255,255,.012); }
+.spec .head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; }
+.spec .head .n { font-size: 12px; color: var(--faint); }
+.spec .head .t { font-size: 17px; font-weight: 600; }
+.spec .head .fonts { font-size: 12px; color: var(--faint); }
+.spec .head .use { margin-left: auto; font-size: 11px; border: 1px solid var(--line); border-radius: 6px; padding: 5px 11px; background: none; color: var(--dim); cursor: pointer; }
+.spec .head .use:hover { border-color: var(--crimson); color: var(--crimson-lit); }
+.spec .rows { display: grid; grid-template-columns: 96px 1fr; gap: 14px 20px; align-items: baseline; }
+.spec .k { font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); padding-top: 6px; }
+.spec .brandline { font-family: var(--display); font-weight: var(--display-weight); font-size: 21px; letter-spacing: .06em; }
+.spec .brandline i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); margin-right: 10px; box-shadow: 0 0 13px rgba(212,63,74,.9); }
+.spec .h2 { font-family: var(--display); font-weight: var(--display-weight); font-size: 31px; line-height: 1.14; letter-spacing: var(--display-track); }
+.spec .micro { font-family: var(--ui); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.spec .cardtitle { font-family: var(--ui); font-size: 12px; font-weight: 550; letter-spacing: var(--ui-track); }
+.spec .nums { font-family: var(--num); font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.spec .bodytext { font-family: var(--ui); font-size: 12.5px; color: var(--dim); line-height: 1.65; max-width: 620px; letter-spacing: var(--ui-track); }
+.spec .jp { font-family: var(--display); font-size: 19px; color: var(--dim); }
+.verdict { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.verdict div { font-size: 12.5px; color: #8d939e; line-height: 1.6; }
+.verdict b { display: block; color: #cfcbc6; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 5px; }
+
+/* ---------- mockup ---------- */
+.app { position: relative; height: 560px; overflow: hidden; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--bg); box-shadow: 0 28px 64px -22px rgba(0,0,0,.95); display: flex; flex-direction: column; }
+.atmo { position: absolute; inset: 0; pointer-events: none; }
+.atmo .moon { position: absolute; width: 560px; height: 340px; right: -110px; top: -160px; background: radial-gradient(ellipse at center, rgba(176,196,222,.16), transparent 66%); }
+.atmo .canopy { position: absolute; inset: 0 0 auto 0; height: 210px; background:
+  radial-gradient(170px 80px at 13% -12%, rgba(194,86,79,.28), transparent 72%),
+  radial-gradient(200px 92px at 48% -16%, rgba(194,86,79,.18), transparent 72%),
+  radial-gradient(180px 86px at 86% -10%, rgba(194,86,79,.24), transparent 72%); filter: blur(22px); }
+.atmo .vign { position: absolute; inset: 0; background: radial-gradient(125% 95% at 50% 38%, transparent 52%, rgba(0,0,0,.58)); }
+.hdr { position: relative; z-index: 3; display: flex; align-items: center; padding: 18px 24px 0; }
+.brand { font-family: var(--display); font-weight: var(--display-weight); font-size: 19px; letter-spacing: .06em; display: flex; align-items: center; gap: 10px; }
+.brand i { width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 13px rgba(212,63,74,.9); }
+.hdr .acts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.icn { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--dim); font-size: 13px; }
+.btn-primary { border: 0; border-radius: var(--radius-sm); background: var(--crimson); color: #fff; font-family: var(--ui); font-size: 12.5px; font-weight: 600; padding: 9px 16px; letter-spacing: var(--ui-track); box-shadow: 0 10px 26px -12px rgba(212,63,74,.95); }
+.btn-ghost { border: 1px solid var(--line-lit); background: rgba(255,255,255,.05); color: var(--text); font-family: var(--ui); border-radius: var(--radius-sm); font-size: 12.5px; padding: 9px 16px; }
+nav { position: relative; z-index: 3; display: flex; gap: 24px; padding: 15px 24px 0; margin-top: 13px; border-bottom: 1px solid var(--line); }
+nav a { font-family: var(--ui); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); text-decoration: none; padding-bottom: 11px; border-bottom: 1px solid transparent; }
+nav a.on { color: var(--text); border-color: var(--crimson); }
+nav a b { font-family: var(--num); font-weight: 500; color: var(--faint); margin-left: 6px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.main { position: relative; z-index: 2; padding: 18px 24px; }
+.hero { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid rgba(212,63,74,.28); box-shadow: 0 0 46px -24px rgba(212,63,74,.6); height: 214px; }
+.hero .bg { position: absolute; inset: 0; background: linear-gradient(150deg,#4a5580,#1e2440); filter: saturate(.8) brightness(.86); }
+.hero .bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(12,14,19,.94) 24%, rgba(12,14,19,.66) 54%, rgba(12,14,19,.3)); }
+.hero .in { position: relative; height: 100%; padding: 22px 26px; display: flex; flex-direction: column; justify-content: center; max-width: 600px; }
+.hero .kick { font-family: var(--ui); font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--crimson-lit); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.hero .kick i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.hero h2 { font-family: var(--display); font-weight: var(--display-weight); margin: 0 0 7px; font-size: 29px; line-height: 1.15; letter-spacing: var(--display-track); }
+.hero .sub { font-family: var(--ui); font-size: 12.5px; color: var(--dim); margin-bottom: 16px; letter-spacing: var(--ui-track); }
+.hero .track { height: 3px; background: rgba(255,255,255,.13); position: relative; max-width: 360px; margin-bottom: 8px; }
+.hero .track i { position: absolute; left: 0; top: 0; height: 3px; width: 64%; background: var(--crimson); box-shadow: 0 0 12px rgba(212,63,74,.85); }
+.hero .n { font-family: var(--num); font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; margin-bottom: 16px; }
+.hero .cta { display: flex; gap: 9px; }
+.shelf-lbl { display: flex; align-items: baseline; gap: 12px; margin: 18px 0 11px; }
+.shelf-lbl h3 { font-family: var(--ui); margin: 0; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+.shelf-lbl .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+.card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.card .art { height: 104px; position: relative; filter: saturate(.66) brightness(.9); }
+.card .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 50%, rgba(20,24,33,.95)); }
+.card .meta { padding: 9px 10px 11px; }
+.card h4 { font-family: var(--ui); margin: 0 0 5px; font-size: 12px; font-weight: 550; letter-spacing: var(--ui-track); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .row { display: flex; justify-content: space-between; font-family: var(--num); font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.card .row em { font-style: normal; color: var(--dim); }
+.card .track { height: 2px; background: rgba(255,255,255,.08); margin-top: 8px; position: relative; }
+.card .track i { position: absolute; left: 0; top: 0; height: 2px; background: var(--crimson); }
+
+/* noter */
+.notes { margin-top: 42px; }
+.notes .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 30px; }
+.notes .i { font-size: 13px; color: #8d939e; line-height: 1.6; border-left: 2px solid var(--line); padding-left: 13px; }
+.notes .i b { display: block; color: #d5d1cc; font-weight: 600; font-size: 12.5px; margin-bottom: 2px; }
+.notes .i.warn { border-left-color: rgba(212,63,74,.5); }
+code { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: #c3b6ba; background: rgba(255,255,255,.05); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1 class="page">Typsnitt för Moonlit Shrine</h1>
+  <p class="lede">Tre uppsättningar. Varje uppsättning är ett par: ett display-typsnitt för varumärke och rubriker, och ett gränssnittstypsnitt för allt smått. Alla är fria (SIL Open Font License) och går att lägga lokalt i <code>public/fonts</code> precis som Inter och Sora, så appen fortsätter fungera utan internet. Tryck på knapparna för att byta typsnitt i mockupen längst ner.</p>
+
+  <div class="switch" id="switch">
+    <button data-f="f1" class="on">1 · Shippori Mincho + Zen Kaku Gothic</button>
+    <button data-f="f2">2 · Cormorant Garamond + Inter Tight</button>
+    <button data-f="f3">3 · Marcellus + IBM Plex Sans</button>
+    <button data-f="cur">Nuvarande · Sora + Inter</button>
+    <span class="now" id="now">Visar: förslag 1</span>
+  </div>
+
+  <!-- ================== SPECIMEN 1 ================== -->
+  <div class="sec">Förslag</div>
+  <div class="spec" data-font="f1">
+    <div class="head"><span class="n">1</span><span class="t">Shippori Mincho + Zen Kaku Gothic New</span><span class="fonts">japansk mincho · humanistisk gothic</span><button class="use" data-f="f1">Visa i mockup</button></div>
+    <div class="rows">
+      <span class="k">Varumärke</span><span class="brandline"><i></i>Anime Tracker</span>
+      <span class="k">Hero</span><span class="h2">Frieren: Beyond<br>Journey's End</span>
+      <span class="k">Japanska</span><span class="jp">葬送のフリーレン · アニメ記録</span>
+      <span class="k">Mikrotext</span><span class="micro">Pågår · Väntar · Sett · Släppt · Schema · Statistik</span>
+      <span class="k">Korttitel</span><span class="cardtitle">Ping Pong the Animation</span>
+      <span class="k">Siffror</span><span class="nums">18 / 28 · 9,0 · 318 avsnitt · 21:00</span>
+      <span class="k">Löptext</span><span class="bodytext">Långsam på rätt sätt. Sparar sista bågen till helgen, när jag kan se tre avsnitt i rad utan att bli avbruten.</span>
+    </div>
+    <div class="verdict">
+      <div><b>Styrka</b>Äkta japansk form utan att bli kostym. Mincho har mjuka penseldrag som rimmar med löven och fjädern, och den enda av de tre som renderar kanji och kana korrekt om du vill visa originaltitlar.</div>
+      <div><b>Risk</b>Zen Kaku är något bredare än Inter, så långa titlar kapas tidigare i kortrutnätet. Mincho i versaler blir svag, så mikrotexten måste ligga i gothic-typsnittet.</div>
+      <div><b>Filstorlek</b>Latinsk delmängd cirka 30 kB per vikt. Full japansk teckenuppsättning är flera megabyte, så den laddas bara om originaltitlar visas.</div>
+    </div>
+  </div>
+
+  <!-- ================== SPECIMEN 2 ================== -->
+  <div class="spec" data-font="f2">
+    <div class="head"><span class="n">2</span><span class="t">Cormorant Garamond + Inter Tight</span><span class="fonts">högkontrastserif · tät sans · mono för siffror</span><button class="use" data-f="f2">Visa i mockup</button></div>
+    <div class="rows">
+      <span class="k">Varumärke</span><span class="brandline"><i></i>Anime Tracker</span>
+      <span class="k">Hero</span><span class="h2">Frieren: Beyond<br>Journey's End</span>
+      <span class="k">Japanska</span><span class="jp" style="font-family:'Zen Kaku Gothic New',sans-serif">葬送のフリーレン <span style="font-size:12px;color:#6a7280">(kräver extra typsnitt)</span></span>
+      <span class="k">Mikrotext</span><span class="micro">Pågår · Väntar · Sett · Släppt · Schema · Statistik</span>
+      <span class="k">Korttitel</span><span class="cardtitle">Ping Pong the Animation</span>
+      <span class="k">Siffror</span><span class="nums">18 / 28 · 9,0 · 318 avsnitt · 21:00</span>
+      <span class="k">Löptext</span><span class="bodytext">Långsam på rätt sätt. Sparar sista bågen till helgen, när jag kan se tre avsnitt i rad utan att bli avbruten.</span>
+    </div>
+    <div class="verdict">
+      <div><b>Styrka</b>Mest elegant och mest värdig. Den höga kontrasten mellan grova och tunna streck ger exakt den återhållna allvarligheten du var efter. Mono-siffrorna gör avsnittsräknare och klockslag skarpa.</div>
+      <div><b>Risk</b>Cormorant är ömtålig. Under ungefär 22 px tappar hårstrecken bort sig på vanliga skärmar, så den får bara användas i hero och stora rubriker, aldrig i kort. Tre typsnitt att underhålla istället för två.</div>
+      <div><b>Filstorlek</b>Cirka 25 kB per vikt latinsk delmängd, Inter Tight cirka 30 kB, IBM Plex Mono cirka 28 kB. Totalt runt 140 kB för fyra vikter.</div>
+    </div>
+  </div>
+
+  <!-- ================== SPECIMEN 3 ================== -->
+  <div class="spec" data-font="f3">
+    <div class="head"><span class="n">3</span><span class="t">Marcellus + IBM Plex Sans</span><span class="fonts">romerska kapitäler · teknisk sans · mono för siffror</span><button class="use" data-f="f3">Visa i mockup</button></div>
+    <div class="rows">
+      <span class="k">Varumärke</span><span class="brandline"><i></i>Anime Tracker</span>
+      <span class="k">Hero</span><span class="h2">Frieren: Beyond<br>Journey's End</span>
+      <span class="k">Japanska</span><span class="jp" style="font-family:'Zen Kaku Gothic New',sans-serif">葬送のフリーレン <span style="font-size:12px;color:#6a7280">(kräver extra typsnitt)</span></span>
+      <span class="k">Mikrotext</span><span class="micro">Pågår · Väntar · Sett · Släppt · Schema · Statistik</span>
+      <span class="k">Korttitel</span><span class="cardtitle">Ping Pong the Animation</span>
+      <span class="k">Siffror</span><span class="nums">18 / 28 · 9,0 · 318 avsnitt · 21:00</span>
+      <span class="k">Löptext</span><span class="bodytext">Långsam på rätt sätt. Sparar sista bågen till helgen, när jag kan se tre avsnitt i rad utan att bli avbruten.</span>
+    </div>
+    <div class="verdict">
+      <div><b>Styrka</b>Sten och tempel. Marcellus bygger på inskriptioner, vilket ger monumental tyngd utan att bli tung, och Plex Sans är precis och lite teknisk, så gränssnittet känns byggt snarare än pyntat.</div>
+      <div><b>Risk</b>Marcellus finns bara i en vikt och har svaga gemener, så den fungerar bäst i korta rubriker. Långa serietitlar i hero blir breda. Kombinationen kan luta mot fantasyspel om crimson används för mycket.</div>
+      <div><b>Filstorlek</b>Marcellus cirka 22 kB, Plex Sans cirka 32 kB per vikt, Plex Mono cirka 28 kB. Totalt runt 150 kB.</div>
+    </div>
+  </div>
+
+  <!-- ================== MOCKUP ================== -->
+  <div class="sec">I sitt sammanhang</div>
+  <div class="app" id="mock" data-font="f1">
+    <div class="atmo"><div class="moon"></div><div class="canopy"></div><div class="vign"></div></div>
+    <div class="hdr">
+      <span class="brand"><i></i>Anime Tracker</span>
+      <div class="acts"><span class="icn">⌕</span><span class="icn">✦</span><span class="icn">❋</span><button class="btn-primary">Lägg till serie</button></div>
+    </div>
+    <nav>
+      <a href="#" class="on">Pågår <b>6</b></a><a href="#">Väntar <b>38</b></a><a href="#">Sett <b>212</b></a><a href="#">Släppt <b>9</b></a><a href="#">Schema</a><a href="#">Upptäck</a><a href="#">Statistik</a>
+    </nav>
+    <div class="main">
+      <div class="hero">
+        <div class="bg"></div>
+        <div class="in">
+          <div class="kick"><i></i>Nytt avsnitt · för tre timmar sedan</div>
+          <h2>Frieren: Beyond Journey's End</h2>
+          <div class="sub">Fantasy · TV · 2023 · ditt betyg 9,0</div>
+          <div class="track"><i></i></div>
+          <div class="n">Avsnitt 18 av 28 sedda · 10 kvar</div>
+          <div class="cta"><button class="btn-primary">Markera avsnitt 19 sett</button><button class="btn-ghost">Öppna serien</button></div>
+        </div>
+      </div>
+      <div class="shelf-lbl"><h3>Resten av pågår</h3><span class="rule"></span></div>
+      <div class="grid">
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#3f7a78,#182f36)"></div><div class="meta"><h4>Mushishi</h4><div class="row"><em>21 / 26</em><span>10</span></div><div class="track"><i style="width:81%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#96434c,#3d1f2a)"></div><div class="meta"><h4>Vinland Saga</h4><div class="row"><em>12 / 24</em><span>8,0</span></div><div class="track"><i style="width:50%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#6b6193,#2c2748)"></div><div class="meta"><h4>Monogatari</h4><div class="row"><em>5 / 15</em><span>—</span></div><div class="track"><i style="width:33%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#a8763f,#4a2c1c)"></div><div class="meta"><h4>Odd Taxi</h4><div class="row"><em>7 / 13</em><span>—</span></div><div class="track"><i style="width:54%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#8a5570,#3c2038)"></div><div class="meta"><h4>Ping Pong the Animation</h4><div class="row"><em>3 / 11</em><span>8,5</span></div><div class="track"><i style="width:27%"></i></div></div></div>
+        <div class="card"><div class="art" style="background:linear-gradient(150deg,#546f92,#22303f)"></div><div class="meta"><h4>Kaiju No. 8</h4><div class="row"><em>9 / 12</em><span>7,5</span></div><div class="track"><i style="width:75%"></i></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="sec">Att veta innan du väljer</div>
+    <div class="cols">
+      <div class="i"><b>Display och gränssnitt måste vara olika typsnitt</b>Nuvarande Sora används både i rubriker och knappar, vilket är varför designen känns platt i tonen. Ett tydligt par gör mer för känslan än själva valet av serif.</div>
+      <div class="i"><b>Siffror förtjänar egen omsorg</b>Avsnittsräknare, betyg och klockslag står överallt i appen. Tabulära siffror gör att de inte hoppar när de uppdateras, och mono i förslag 2 och 3 gör dem mer läsbara i kortrutnätet.</div>
+      <div class="i warn"><b>Förhandsvisningen laddar från Google Fonts</b>Bara här, för att du ska kunna jämföra. I appen läggs filerna lokalt i <code>public/fonts</code> med egna <code>@font-face</code>, som <code>inter.css</code> och <code>sora.css</code> redan gör. Ingen nätanslutning krävs.</div>
+      <div class="i warn"><b>Japanska tecken är ett eget beslut</b>Bara förslag 1 klarar kanji och kana ur lådan. Vill du visa originaltitlar med de andra behövs Zen Kaku eller Noto Sans JP som komplement, och den japanska delmängden är stor.</div>
+      <div class="i"><b>Min läsning</b>Förslag 1 om appen ska kännas japansk snarare än västerländskt tolkad, förslag 2 om Itachi-allvaret väger tyngst. Förslag 3 är snyggast i varumärket men stelast i vardagsbruk.</div>
+      <div class="i"><b>Nästa steg</b>Välj ett par, sen sätter vi en riktig typografisk skala: exakta storlekar, spärrning och vikter per element, och lägger in det i v0.6 istället för att gissa per komponent.</div>
+    </div>
+  </div>
+
+</div>
+<script>
+  const mock = document.getElementById("mock"), now = document.getElementById("now");
+  const names = { f1: "förslag 1 · Shippori Mincho + Zen Kaku Gothic", f2: "förslag 2 · Cormorant Garamond + Inter Tight", f3: "förslag 3 · Marcellus + IBM Plex Sans", cur: "nuvarande · Sora + Inter" };
+  function apply(f) {
+    if (f === "cur") { mock.removeAttribute("data-font"); mock.style.setProperty("--display", "'Sora', system-ui, sans-serif"); mock.style.setProperty("--ui", "'Inter', system-ui, sans-serif"); mock.style.setProperty("--num", "'Inter', system-ui, sans-serif"); mock.style.setProperty("--display-weight", "600"); }
+    else { mock.style.cssText = ""; mock.dataset.font = f; }
+    document.querySelectorAll("#switch button").forEach(b => b.classList.toggle("on", b.dataset.f === f));
+    now.textContent = "Visar: " + names[f];
+  }
+  document.querySelectorAll("[data-f]").forEach(b => b.addEventListener("click", () => {
+    apply(b.dataset.f);
+    if (b.classList.contains("use")) mock.scrollIntoView({ behavior: "smooth", block: "center" });
+  }));
+</script>
+</body>
+</html>

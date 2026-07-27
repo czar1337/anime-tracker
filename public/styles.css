@@ -1,926 +1,134 @@
-/* ---------- Theme tokens ---------- */
-:root {
-  --bg: oklch(14% 0.012 280);
-  --bg-elevated: oklch(17% 0.014 280);
-  --bg-card: oklch(19% 0.016 280);
-  --bg-hover: #23273300;
-  --border: oklch(28% 0.02 280);
-  --border-light: oklch(35% 0.024 280);
-  --text: oklch(94% 0.006 280);
-  --text-dim: oklch(60% 0.01 280);
-  --text-faint: oklch(45% 0.012 280);
-  --accent: #5FB5A3;
-  --accent-strong: #86D4C4;
-  --accent-soft: rgba(95, 181, 163, 0.15);
-  --accent-pink: oklch(72% 0.15 320);
-  --accent-contrast: white;
-  --accent-gradient: linear-gradient(90deg, var(--accent), var(--accent-pink));
-  --teal: #5FB5A3;
-  --amber: oklch(80% 0.13 70);
-  --amber-bg: oklch(30% 0.08 70 / 0.35);
-  --success: oklch(75% 0.16 150);
-  --red: #f2555a;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --shadow-glow: 0 14px 32px -6px rgba(95, 181, 163, 0.5);
-  --card-glass-bg: var(--bg-card);
-  --card-glass-border: var(--border);
+/* =====================================================================
+   Moonlit Shrine — imports the 45 generated theme blocks (colour tokens
+   only). Do not hand-edit that file — see scripts/generate-themes.js and
+   design/moonlit-shrine-design-system.md §3.2.
+   ===================================================================== */
+@import url('moonlit-shrine-themes.css');
+
+/* ---------- Moonlit Shrine tokens — design/moonlit-shrine-design-system.md §15
+   Copied verbatim from the design system. Colour tokens are NOT here —
+   they live per-theme in the imported file above, EXCEPT for the fallback
+   block right below: if data-color-theme is ever missing or holds a key
+   that doesn't match any [data-color-theme] block (corrupted localStorage,
+   a key from a future version), there is otherwise nothing to fall back to
+   and the whole app renders unstyled. The old token system had real
+   default values for exactly this reason — this restores that safety net
+   using moonlit-shrine's own values, rather than regressing it. Every real
+   theme overrides all of this via higher specificity, so it's inert
+   otherwise. ---------- */
+:root{
+  --bg: hsl(222 18% 5%); --bg-deep: hsl(222 18% 3.5%); --bg-elevated: hsl(222 16.2% 9%);
+  --card: hsl(222 15.3% 10.5%); --card-hover: hsl(222 14.4% 13.5%);
+  --line: hsl(222 12.6% 17%); --line-lit: hsl(222 9.9% 27%);
+  --text: hsl(222 10% 92%); --dim: hsl(222 12% 70%); --faint: hsl(222 12% 55%);
+  --accent: hsl(356 64% 54%); --accent-lit: hsl(356 58% 68%); --accent-fill: hsl(356 64% 53%);
+  --accent-soft: hsl(356 64% 54% / 0.12); --accent-deep: hsl(356 64% 29.7%); --accent-contrast: hsl(0 0% 100%);
+  --support: hsl(240 26% 62%); --positive: hsl(142 20% 62%); --warning: hsl(38 45% 60%);
+  --glow: hsl(214 42% 78%); --deco: hsl(4 48% 54%);
+  --cover-filter: saturate(.66) brightness(.9) contrast(1.05);
+  --cover-filter-hover: saturate(.96) brightness(1) contrast(1.03);
+  color-scheme: dark;
+
+  /* form */
+  --radius-xs:4px; --radius-sm:7px; --radius:12px; --radius-lg:16px;
+  --sh-1:0 2px 8px -2px rgba(0,0,0,.5);
+  --sh-2:0 12px 28px -14px rgba(0,0,0,.8);
+  --sh-3:0 22px 42px -22px rgba(0,0,0,.95);
+
+  /* type families */
+  --display:"Zen Old Mincho",Georgia,serif;
+  --ui:"Schibsted Grotesk",system-ui,sans-serif;
+
+  /* user-controlled typography */
+  --text-scale:1;
+  --w-body:400; --w-med:500; --w-strong:600; --w-display:600;
+  --fs-display-l:calc(30px * var(--text-scale));
+  --fs-display-m:calc(21px * var(--text-scale));
+  --fs-display-s:calc(19px * var(--text-scale));
+  --fs-body:calc(13px * var(--text-scale));
+  --fs-action:calc(12.5px * var(--text-scale));
+  --fs-card:calc(12px * var(--text-scale));
+  --fs-meta:calc(11px * var(--text-scale));
+  --fs-micro:calc(10.5px * var(--text-scale));
+  --fs-nano:calc(9.5px * var(--text-scale));
+  --t-display-l:var(--w-display) var(--fs-display-l)/1.16 var(--display);
+  --t-display-m:var(--w-display) var(--fs-display-m)/1.24 var(--display);
+  --t-display-s:var(--w-display) var(--fs-display-s)/1.2 var(--display);
+  --t-body:var(--w-body) var(--fs-body)/1.62 var(--ui);
+  --t-action:var(--w-med) var(--fs-action)/1 var(--ui);
+  --t-card:var(--w-med) var(--fs-card)/1.3 var(--ui);
+  --t-meta:var(--w-body) var(--fs-meta)/1.5 var(--ui);
+  --t-micro:var(--w-med) var(--fs-micro)/1 var(--ui);
+  --t-nano:var(--w-med) var(--fs-nano)/1 var(--ui);
+  --tr-display:.015em; --tr-brand:.055em; --tr-micro:.16em; --tr-nano:.22em;
+
+  /* motion */
+  --e-out:cubic-bezier(.2,1,.3,1);
+  --e-spring:cubic-bezier(.2,1.5,.3,1);
+  --e-inout:cubic-bezier(.4,0,.2,1);
+  --e-press:cubic-bezier(.3,0,.6,1);
+  --d-press:90ms; --d-1:120ms; --d-2:200ms; --d-3:280ms; --d-4:380ms; --d-5:800ms;
+  --press-btn:.97; --press-icon:.90; --press-card:.995; --press-chip:.95;
+
+  /* rhythm */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-6:24px; --sp-8:32px; --sp-12:48px; --sp-16:64px;
+}
+
+[data-text-size="xs"]{--text-scale:.92}
+[data-text-size="s"] {--text-scale:1}
+[data-text-size="m"] {--text-scale:1.08}
+[data-text-size="l"] {--text-scale:1.18}
+[data-text-size="xl"]{--text-scale:1.32}
+
+[data-text-weight="light"] {--w-body:400;--w-med:400;--w-strong:500;--w-display:400}
+[data-text-weight="normal"]{--w-body:400;--w-med:500;--w-strong:600;--w-display:600}
+[data-text-weight="clear"] {--w-body:500;--w-med:600;--w-strong:600;--w-display:600}
+[data-text-weight="bold"]  {--w-body:500;--w-med:600;--w-strong:700;--w-display:700}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* ---------- Phase 1 compatibility bridge — TEMPORARY -----------------------
+   The component rules below this point (all of them, ~600 references)
+   were written against the old "Status Window" token names. This block
+   aliases each one to the nearest Moonlit Shrine token so nothing breaks
+   before Phase 2 rewrites those rules directly against the real names.
+   Delete this block as part of Phase 2 once no component rule below still
+   references an old name — grep for it, don't guess.
+
+   Two are NOT simple aliases because the old token mixed roles the new
+   system deliberately keeps separate:
+   - --red was used as both text colour AND fill/border. --accent is never
+     a text colour (hard rule), so every individual --red usage below was
+     edited directly instead of bridged — some now read --accent-lit
+     (text), some --accent or --accent-fill (fill/border). This block does
+     not define --red at all any more; if you find one, it's a leftover.
+   - --font-heading is deliberately left pointing at its old value (not
+     bridged to --display/Mincho) because two of its current consumers
+     (.card-title at 14.5px, .overlay-panel h2 at 16px) sit below Mincho's
+     17px floor — reassigning them is a Phase 2 decision, not a token swap. */
+:root{
+  --bg-card: var(--card);
+  --border: var(--line);
+  --border-light: var(--line-lit);
+  --text-dim: var(--dim);
+  --text-faint: var(--faint);
+  --accent-strong: var(--accent-lit);   /* every current usage is `color:`, same role as --accent-lit */
+  --accent-pink: var(--support);
+  --success: var(--positive);
+  --amber: var(--warning);
+  --amber-bg: color-mix(in srgb, var(--warning) 30%, transparent);
+  --shadow: var(--sh-2);
+  --shadow-glow: var(--sh-3), 0 0 24px var(--accent-soft);
+  --card-glass-bg: var(--card);
+  --card-glass-border: var(--line);
   --card-corner-1: var(--accent);
-  --card-corner-2: var(--accent-pink);
-  --radius: 14px;
-  --radius-sm: 8px;
+  --card-corner-2: var(--support);
+  --accent-gradient: linear-gradient(90deg, var(--accent), var(--accent-lit));
   --font-heading: 'Sora', 'Inter', system-ui, sans-serif;
   font-synthesis: none;
-}
-
-/* ---------- Status Window color themes ----------
-   One component (cards, header, chrome) driven entirely by these tokens —
-   picking a theme is just swapping which block below is active via
-   [data-color-theme] on <html> (see themes.js). --accent-contrast exists
-   because every one of these accents is a bright "glow" color meant to pop
-   off a dark background: white text on top of a filled accent button would
-   be unreadable, so buttons use --accent-contrast instead of a hardcoded
-   white (see .add-trigger, .text-btn.primary, etc. below). */
-
-[data-color-theme="clean-interface"] {
-  --bg: #0a0e16;
-  --bg-elevated: #151920;
-  --bg-card: #1c2027;
-  --border: #273a49;
-  --border-light: #3d596f;
-  --text: #eef3fa;
-  --text-dim: #b4bccc;
-  --text-faint: #6c7994;
-  --accent: #8fd4ff;
-  --accent-strong: #a8ddff;
-  --accent-soft: rgba(143, 212, 255, 0.15);
-  --accent-pink: #4a7ba8;
-  --accent-contrast: #0a0e16;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(143, 212, 255, 0.4);
-  --card-glass-bg: rgba(143, 212, 255, 0.05);
-  --card-glass-border: rgba(143, 212, 255, 0.22);
-  --card-corner-1: #8fd4ff;
-  --card-corner-2: #4a7ba8;
-}
-
-[data-color-theme="arcane-ward"] {
-  --bg: #150a1c;
-  --bg-elevated: #201526;
-  --bg-card: #271c2d;
-  --border: #3d2c4e;
-  --border-light: #594472;
-  --text: #f3ecff;
-  --text-dim: #c8bdd8;
-  --text-faint: #9484a8;
-  --accent: #c9a3ff;
-  --accent-strong: #d5b7ff;
-  --accent-soft: rgba(201, 163, 255, 0.15);
-  --accent-pink: #f0c975;
-  --accent-contrast: #150a1c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(201, 163, 255, 0.4);
-  --card-glass-bg: rgba(201, 163, 255, 0.05);
-  --card-glass-border: rgba(201, 163, 255, 0.22);
-  --card-corner-1: #c9a3ff;
-  --card-corner-2: #f0c975;
-}
-
-[data-color-theme="holo-deck"] {
-  --bg: #050c10;
-  --bg-elevated: #10171b;
-  --bg-card: #181e22;
-  --border: #173d45;
-  --border-light: #24606b;
-  --text: #eafcff;
-  --text-dim: #abcbd1;
-  --text-faint: #5f8f99;
-  --accent: #57e9ff;
-  --accent-strong: #7ceeff;
-  --accent-soft: rgba(87, 233, 255, 0.15);
-  --accent-pink: #ff5fc4;
-  --accent-contrast: #050c10;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(87, 233, 255, 0.4);
-  --card-glass-bg: rgba(87, 233, 255, 0.05);
-  --card-glass-border: rgba(87, 233, 255, 0.22);
-  --card-corner-1: #57e9ff;
-  --card-corner-2: #ff5fc4;
-}
-
-[data-color-theme="verdant"] {
-  --bg: #071410;
-  --bg-elevated: #121f1b;
-  --bg-card: #1a2622;
-  --border: #1e4330;
-  --border-light: #2e6547;
-  --text: #eafff0;
-  --text-dim: #b1d2bf;
-  --text-faint: #6c9a82;
-  --accent: #6eeaa0;
-  --accent-strong: #8eefb5;
-  --accent-soft: rgba(110, 234, 160, 0.15);
-  --accent-pink: #fef6e4;
-  --accent-contrast: #071410;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(110, 234, 160, 0.4);
-  --card-glass-bg: rgba(110, 234, 160, 0.05);
-  --card-glass-border: rgba(110, 234, 160, 0.22);
-  --card-corner-1: #6eeaa0;
-  --card-corner-2: #fef6e4;
-}
-
-[data-color-theme="ember"] {
-  --bg: #170905;
-  --bg-elevated: #211410;
-  --bg-card: #281b18;
-  --border: #4a2a15;
-  --border-light: #6f4120;
-  --text: #fff1e8;
-  --text-dim: #d7bbae;
-  --text-faint: #a67a68;
-  --accent: #ff9d4d;
-  --accent-strong: #ffb374;
-  --accent-soft: rgba(255, 157, 77, 0.15);
-  --accent-pink: #ff4d5e;
-  --accent-contrast: #170905;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 157, 77, 0.4);
-  --card-glass-bg: rgba(255, 157, 77, 0.05);
-  --card-glass-border: rgba(255, 157, 77, 0.22);
-  --card-corner-1: #ff9d4d;
-  --card-corner-2: #ff4d5e;
-}
-
-[data-color-theme="frost"] {
-  --bg: #081018;
-  --bg-elevated: #131b22;
-  --bg-card: #1b2229;
-  --border: #303f4b;
-  --border-light: #4e6170;
-  --text: #eef8ff;
-  --text-dim: #b7cad9;
-  --text-faint: #7391ab;
-  --accent: #bfe6ff;
-  --accent-strong: #cdecff;
-  --accent-soft: rgba(191, 230, 255, 0.15);
-  --accent-pink: #ffffff;
-  --accent-contrast: #081018;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(191, 230, 255, 0.4);
-  --card-glass-bg: rgba(191, 230, 255, 0.05);
-  --card-glass-border: rgba(191, 230, 255, 0.22);
-  --card-corner-1: #bfe6ff;
-  --card-corner-2: #ffffff;
-}
-
-[data-color-theme="void"] {
-  --bg: #0a0e07;
-  --bg-elevated: #151912;
-  --bg-card: #1c201a;
-  --border: #31431a;
-  --border-light: #4d6a27;
-  --text: #eaffd8;
-  --text-dim: #b5caa2;
-  --text-faint: #748a5f;
-  --accent: #baff5c;
-  --accent-strong: #c9ff80;
-  --accent-soft: rgba(186, 255, 92, 0.15);
-  --accent-pink: #a95cf0;
-  --accent-contrast: #0a0e07;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(186, 255, 92, 0.4);
-  --card-glass-bg: rgba(186, 255, 92, 0.05);
-  --card-glass-border: rgba(186, 255, 92, 0.22);
-  --card-corner-1: #baff5c;
-  --card-corner-2: #a95cf0;
-}
-
-[data-color-theme="aurora"] {
-  --bg: #0a1014;
-  --bg-elevated: #151b1f;
-  --bg-card: #1c2226;
-  --border: #243c3c;
-  --border-light: #365c59;
-  --text: #eef7f4;
-  --text-dim: #bacbc7;
-  --text-faint: #7a9691;
-  --accent: #7fd8c9;
-  --accent-strong: #9be1d5;
-  --accent-soft: rgba(127, 216, 201, 0.15);
-  --accent-pink: #e8b98a;
-  --accent-contrast: #0a1014;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(127, 216, 201, 0.4);
-  --card-glass-bg: rgba(127, 216, 201, 0.05);
-  --card-glass-border: rgba(127, 216, 201, 0.22);
-  --card-corner-1: #7fd8c9;
-  --card-corner-2: #e8b98a;
-}
-
-[data-color-theme="solar"] {
-  --bg: #170a1c;
-  --bg-elevated: #211526;
-  --bg-card: #281c2d;
-  --border: #4a272e;
-  --border-light: #6f3d3c;
-  --text: #fff0ea;
-  --text-dim: #d6bbc4;
-  --text-faint: #a37b95;
-  --accent: #ff8f70;
-  --accent-strong: #ffa88f;
-  --accent-soft: rgba(255, 143, 112, 0.15);
-  --accent-pink: #b98cff;
-  --accent-contrast: #170a1c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 143, 112, 0.4);
-  --card-glass-bg: rgba(255, 143, 112, 0.05);
-  --card-glass-border: rgba(255, 143, 112, 0.22);
-  --card-corner-1: #ff8f70;
-  --card-corner-2: #b98cff;
-}
-
-[data-color-theme="storm"] {
-  --bg: #0c1016;
-  --bg-elevated: #171b20;
-  --bg-card: #1e2227;
-  --border: #3f3e23;
-  --border-light: #655f2c;
-  --text: #eef1f6;
-  --text-dim: #b6bdca;
-  --text-faint: #727e94;
-  --accent: #f5e050;
-  --accent-strong: #f7e777;
-  --accent-soft: rgba(245, 224, 80, 0.15);
-  --accent-pink: #7f93ad;
-  --accent-contrast: #0c1016;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(245, 224, 80, 0.4);
-  --card-glass-bg: rgba(245, 224, 80, 0.05);
-  --card-glass-border: rgba(245, 224, 80, 0.22);
-  --card-corner-1: #f5e050;
-  --card-corner-2: #7f93ad;
-}
-
-[data-color-theme="bloom"] {
-  --bg: #1a0f16;
-  --bg-elevated: #241a20;
-  --bg-card: #2b2127;
-  --border: #4c2f3c;
-  --border-light: #714658;
-  --text: #fff0f6;
-  --text-dim: #d6bdc9;
-  --text-faint: #a37e91;
-  --accent: #ff9fc4;
-  --accent-strong: #ffb4d1;
-  --accent-soft: rgba(255, 159, 196, 0.15);
-  --accent-pink: #a8f0d4;
-  --accent-contrast: #1a0f16;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 159, 196, 0.4);
-  --card-glass-bg: rgba(255, 159, 196, 0.05);
-  --card-glass-border: rgba(255, 159, 196, 0.22);
-  --card-corner-1: #ff9fc4;
-  --card-corner-2: #a8f0d4;
-}
-
-[data-color-theme="obsidian"] {
-  --bg: #0d0e10;
-  --bg-elevated: #18191b;
-  --bg-card: #1f2022;
-  --border: #36383c;
-  --border-light: #54575b;
-  --text: #f2f3f5;
-  --text-dim: #babcc0;
-  --text-faint: #75797f;
-  --accent: #c9ced6;
-  --accent-strong: #d5d9df;
-  --accent-soft: rgba(201, 206, 214, 0.15);
-  --accent-pink: #ff7a45;
-  --accent-contrast: #0d0e10;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(201, 206, 214, 0.4);
-  --card-glass-bg: rgba(201, 206, 214, 0.05);
-  --card-glass-border: rgba(201, 206, 214, 0.22);
-  --card-corner-1: #c9ced6;
-  --card-corner-2: #ff7a45;
-}
-
-[data-color-theme="tidal"] {
-  --bg: #071726;
-  --bg-elevated: #122130;
-  --bg-card: #1a2836;
-  --border: #1a454c;
-  --border-light: #286768;
-  --text: #eafffb;
-  --text-dim: #abcbd2;
-  --text-faint: #5f8ba0;
-  --accent: #5eead4;
-  --accent-strong: #81efdd;
-  --accent-soft: rgba(94, 234, 212, 0.15);
-  --accent-pink: #ff8a65;
-  --accent-contrast: #071726;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(94, 234, 212, 0.4);
-  --card-glass-bg: rgba(94, 234, 212, 0.05);
-  --card-glass-border: rgba(94, 234, 212, 0.22);
-  --card-corner-1: #5eead4;
-  --card-corner-2: #ff8a65;
-}
-
-[data-color-theme="wraith"] {
-  --bg: #120f16;
-  --bg-elevated: #1d1a20;
-  --bg-card: #242127;
-  --border: #3a3640;
-  --border-light: #58535f;
-  --text: #f0eef4;
-  --text-dim: #bcb8c3;
-  --text-faint: #7c7686;
-  --accent: #c9c2d6;
-  --accent-strong: #d5cfdf;
-  --accent-soft: rgba(201, 194, 214, 0.15);
-  --accent-pink: #c23b4a;
-  --accent-contrast: #120f16;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(201, 194, 214, 0.4);
-  --card-glass-bg: rgba(201, 194, 214, 0.05);
-  --card-glass-border: rgba(201, 194, 214, 0.22);
-  --card-corner-1: #c9c2d6;
-  --card-corner-2: #c23b4a;
-}
-
-[data-color-theme="sunflare"] {
-  --bg: #180f10;
-  --bg-elevated: #221a1b;
-  --bg-card: #292122;
-  --border: #4b3a23;
-  --border-light: #705931;
-  --text: #fff6e8;
-  --text-dim: #d6c5b7;
-  --text-faint: #a3897a;
-  --accent: #ffd166;
-  --accent-strong: #ffdb88;
-  --accent-soft: rgba(255, 209, 102, 0.15);
-  --accent-pink: #e0459b;
-  --accent-contrast: #180f10;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 209, 102, 0.4);
-  --card-glass-bg: rgba(255, 209, 102, 0.05);
-  --card-glass-border: rgba(255, 209, 102, 0.22);
-  --card-corner-1: #ffd166;
-  --card-corner-2: #e0459b;
-}
-
-/* ---------- 25 more themes (v1.8.0): 23 dark, 2 light (Daybreak, Parchment) ---------- */
-
-[data-color-theme="crimson-core"] {
-  --bg: #170608;
-  --bg-elevated: #211012;
-  --bg-card: #281719;
-  --border: #4a1e22;
-  --border-light: #6f2f35;
-  --text: #fff0ef;
-  --text-dim: #d7b6b4;
-  --text-faint: #a67573;
-  --accent: #ff4757;
-  --accent-strong: #ff6b78;
-  --accent-soft: rgba(255, 71, 87, 0.15);
-  --accent-pink: #ffb347;
-  --accent-contrast: #170608;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 71, 87, 0.4);
-  --card-glass-bg: rgba(255, 71, 87, 0.05);
-  --card-glass-border: rgba(255, 71, 87, 0.22);
-  --card-corner-1: #ff4757;
-  --card-corner-2: #ffb347;
-}
-
-[data-color-theme="nebula"] {
-  --bg: #0a0a1c;
-  --bg-elevated: #131328;
-  --bg-card: #1a1a30;
-  --border: #2c2c52;
-  --border-light: #42427a;
-  --text: #efeeff;
-  --text-dim: #bcb9d9;
-  --text-faint: #7a76a3;
-  --accent: #8c7cff;
-  --accent-strong: #a698ff;
-  --accent-soft: rgba(140, 124, 255, 0.15);
-  --accent-pink: #5ce1ff;
-  --accent-contrast: #0a0a1c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(140, 124, 255, 0.4);
-  --card-glass-bg: rgba(140, 124, 255, 0.05);
-  --card-glass-border: rgba(140, 124, 255, 0.22);
-  --card-corner-1: #8c7cff;
-  --card-corner-2: #5ce1ff;
-}
-
-[data-color-theme="amethyst"] {
-  --bg: #130a1c;
-  --bg-elevated: #1d1328;
-  --bg-card: #241a30;
-  --border: #402c52;
-  --border-light: #5e427a;
-  --text: #f5eeff;
-  --text-dim: #cabbd9;
-  --text-faint: #8e76a3;
-  --accent: #b276ff;
-  --accent-strong: #c495ff;
-  --accent-soft: rgba(178, 118, 255, 0.15);
-  --accent-pink: #ff8ed4;
-  --accent-contrast: #130a1c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(178, 118, 255, 0.4);
-  --card-glass-bg: rgba(178, 118, 255, 0.05);
-  --card-glass-border: rgba(178, 118, 255, 0.22);
-  --card-corner-1: #b276ff;
-  --card-corner-2: #ff8ed4;
-}
-
-[data-color-theme="copper"] {
-  --bg: #170f08;
-  --bg-elevated: #211811;
-  --bg-card: #281f17;
-  --border: #4a3620;
-  --border-light: #6f5230;
-  --text: #fff5e8;
-  --text-dim: #d7c4ae;
-  --text-faint: #a68d6e;
-  --accent: #d98a4d;
-  --accent-strong: #e6a56f;
-  --accent-soft: rgba(217, 138, 77, 0.15);
-  --accent-pink: #f0c14b;
-  --accent-contrast: #170f08;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(217, 138, 77, 0.4);
-  --card-glass-bg: rgba(217, 138, 77, 0.05);
-  --card-glass-border: rgba(217, 138, 77, 0.22);
-  --card-corner-1: #d98a4d;
-  --card-corner-2: #f0c14b;
-}
-
-[data-color-theme="jade"] {
-  --bg: #071410;
-  --bg-elevated: #0f1f19;
-  --bg-card: #16261f;
-  --border: #1e4335;
-  --border-light: #2e6551;
-  --text: #eaffef;
-  --text-dim: #b1d2bd;
-  --text-faint: #6c9a80;
-  --accent: #4ee6a0;
-  --accent-strong: #71eeb5;
-  --accent-soft: rgba(78, 230, 160, 0.15);
-  --accent-pink: #ffcf5c;
-  --accent-contrast: #071410;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(78, 230, 160, 0.4);
-  --card-glass-bg: rgba(78, 230, 160, 0.05);
-  --card-glass-border: rgba(78, 230, 160, 0.22);
-  --card-corner-1: #4ee6a0;
-  --card-corner-2: #ffcf5c;
-}
-
-[data-color-theme="indigo-night"] {
-  --bg: #070a1c;
-  --bg-elevated: #101428;
-  --bg-card: #171b30;
-  --border: #232c52;
-  --border-light: #35427a;
-  --text: #eef0ff;
-  --text-dim: #b7bdd9;
-  --text-faint: #7379a3;
-  --accent: #6b8cff;
-  --accent-strong: #8ea5ff;
-  --accent-soft: rgba(107, 140, 255, 0.15);
-  --accent-pink: #ff6ba8;
-  --accent-contrast: #070a1c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(107, 140, 255, 0.4);
-  --card-glass-bg: rgba(107, 140, 255, 0.05);
-  --card-glass-border: rgba(107, 140, 255, 0.22);
-  --card-corner-1: #6b8cff;
-  --card-corner-2: #ff6ba8;
-}
-
-[data-color-theme="blood-moon"] {
-  --bg: #170505;
-  --bg-elevated: #210f0f;
-  --bg-card: #281616;
-  --border: #4a1c1c;
-  --border-light: #6f2b2b;
-  --text: #ffefef;
-  --text-dim: #d7b5b5;
-  --text-faint: #a67373;
-  --accent: #ff3b3b;
-  --accent-strong: #ff6363;
-  --accent-soft: rgba(255, 59, 59, 0.15);
-  --accent-pink: #ff9d3b;
-  --accent-contrast: #170505;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 59, 59, 0.4);
-  --card-glass-bg: rgba(255, 59, 59, 0.05);
-  --card-glass-border: rgba(255, 59, 59, 0.22);
-  --card-corner-1: #ff3b3b;
-  --card-corner-2: #ff9d3b;
-}
-
-[data-color-theme="deep-sea"] {
-  --bg: #05121c;
-  --bg-elevated: #0e1c28;
-  --bg-card: #142430;
-  --border: #1a3d52;
-  --border-light: #285d7a;
-  --text: #eafcff;
-  --text-dim: #aecdd9;
-  --text-faint: #6592a3;
-  --accent: #3ec6e0;
-  --accent-strong: #66d4e8;
-  --accent-soft: rgba(62, 198, 224, 0.15);
-  --accent-pink: #6bffb8;
-  --accent-contrast: #05121c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(62, 198, 224, 0.4);
-  --card-glass-bg: rgba(62, 198, 224, 0.05);
-  --card-glass-border: rgba(62, 198, 224, 0.22);
-  --card-corner-1: #3ec6e0;
-  --card-corner-2: #6bffb8;
-}
-
-[data-color-theme="wildfire"] {
-  --bg: #170c05;
-  --bg-elevated: #21160e;
-  --bg-card: #281d14;
-  --border: #4a3018;
-  --border-light: #6f4826;
-  --text: #fff6e8;
-  --text-dim: #d7c3ae;
-  --text-faint: #a68b6e;
-  --accent: #ff7a29;
-  --accent-strong: #ff9955;
-  --accent-soft: rgba(255, 122, 41, 0.15);
-  --accent-pink: #ffe066;
-  --accent-contrast: #170c05;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 122, 41, 0.4);
-  --card-glass-bg: rgba(255, 122, 41, 0.05);
-  --card-glass-border: rgba(255, 122, 41, 0.22);
-  --card-corner-1: #ff7a29;
-  --card-corner-2: #ffe066;
-}
-
-[data-color-theme="static"] {
-  --bg: #0c0c0e;
-  --bg-elevated: #17171a;
-  --bg-card: #1e1e21;
-  --border: #35353a;
-  --border-light: #52525a;
-  --text: #f4f4f6;
-  --text-dim: #bcbcc2;
-  --text-faint: #77777f;
-  --accent: #d8dee6;
-  --accent-strong: #e4e9ef;
-  --accent-soft: rgba(216, 222, 230, 0.15);
-  --accent-pink: #7d8899;
-  --accent-contrast: #0c0c0e;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(216, 222, 230, 0.4);
-  --card-glass-bg: rgba(216, 222, 230, 0.05);
-  --card-glass-border: rgba(216, 222, 230, 0.22);
-  --card-corner-1: #d8dee6;
-  --card-corner-2: #7d8899;
-}
-
-[data-color-theme="phantom"] {
-  --bg: #0e0c16;
-  --bg-elevated: #181521;
-  --bg-card: #1f1b29;
-  --border: #332c47;
-  --border-light: #4c426b;
-  --text: #f1eef8;
-  --text-dim: #bcb6cf;
-  --text-faint: #79749a;
-  --accent: #a6a0c9;
-  --accent-strong: #bcb6da;
-  --accent-soft: rgba(166, 160, 201, 0.15);
-  --accent-pink: #6f5fa8;
-  --accent-contrast: #0e0c16;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(166, 160, 201, 0.4);
-  --card-glass-bg: rgba(166, 160, 201, 0.05);
-  --card-glass-border: rgba(166, 160, 201, 0.22);
-  --card-corner-1: #a6a0c9;
-  --card-corner-2: #6f5fa8;
-}
-
-[data-color-theme="radiant"] {
-  --bg: #17130a;
-  --bg-elevated: #211c11;
-  --bg-card: #282218;
-  --border: #4a3d20;
-  --border-light: #6f5c30;
-  --text: #fffaed;
-  --text-dim: #d7cdae;
-  --text-faint: #a6996e;
-  --accent: #ffe27a;
-  --accent-strong: #ffe999;
-  --accent-soft: rgba(255, 226, 122, 0.15);
-  --accent-pink: #ffb84d;
-  --accent-contrast: #17130a;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 226, 122, 0.4);
-  --card-glass-bg: rgba(255, 226, 122, 0.05);
-  --card-glass-border: rgba(255, 226, 122, 0.22);
-  --card-corner-1: #ffe27a;
-  --card-corner-2: #ffb84d;
-}
-
-[data-color-theme="venom"] {
-  --bg: #0c1405;
-  --bg-elevated: #161f0e;
-  --bg-card: #1d2614;
-  --border: #33431c;
-  --border-light: #4c652a;
-  --text: #f2ffe8;
-  --text-dim: #c0d2ac;
-  --text-faint: #839a6c;
-  --accent: #9dff3b;
-  --accent-strong: #b6ff66;
-  --accent-soft: rgba(157, 255, 59, 0.15);
-  --accent-pink: #ff3b8f;
-  --accent-contrast: #0c1405;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(157, 255, 59, 0.4);
-  --card-glass-bg: rgba(157, 255, 59, 0.05);
-  --card-glass-border: rgba(157, 255, 59, 0.22);
-  --card-corner-1: #9dff3b;
-  --card-corner-2: #ff3b8f;
-}
-
-[data-color-theme="eclipse"] {
-  --bg: #0a0a0d;
-  --bg-elevated: #151417;
-  --bg-card: #1c1a1f;
-  --border: #362f3a;
-  --border-light: #544a5a;
-  --text: #f6f2fa;
-  --text-dim: #c2b9cc;
-  --text-faint: #7f7488;
-  --accent: #ff8c42;
-  --accent-strong: #ffa668;
-  --accent-soft: rgba(255, 140, 66, 0.15);
-  --accent-pink: #c9a4ff;
-  --accent-contrast: #0a0a0d;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 140, 66, 0.4);
-  --card-glass-bg: rgba(255, 140, 66, 0.05);
-  --card-glass-border: rgba(255, 140, 66, 0.22);
-  --card-corner-1: #ff8c42;
-  --card-corner-2: #c9a4ff;
-}
-
-[data-color-theme="mystic"] {
-  --bg: #071414;
-  --bg-elevated: #101f1f;
-  --bg-card: #172626;
-  --border: #1e4343;
-  --border-light: #2e6565;
-  --text: #eafffc;
-  --text-dim: #b1d2ce;
-  --text-faint: #6c9a95;
-  --accent: #4dd9c0;
-  --accent-strong: #71e2cd;
-  --accent-soft: rgba(77, 217, 192, 0.15);
-  --accent-pink: #b06bff;
-  --accent-contrast: #071414;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(77, 217, 192, 0.4);
-  --card-glass-bg: rgba(77, 217, 192, 0.05);
-  --card-glass-border: rgba(77, 217, 192, 0.22);
-  --card-corner-1: #4dd9c0;
-  --card-corner-2: #b06bff;
-}
-
-[data-color-theme="rogue"] {
-  --bg: #120a0a;
-  --bg-elevated: #1d1414;
-  --bg-card: #241a1a;
-  --border: #402c2c;
-  --border-light: #5e4242;
-  --text: #f8eeee;
-  --text-dim: #d0b9b9;
-  --text-faint: #937575;
-  --accent: #ff5050;
-  --accent-strong: #ff7878;
-  --accent-soft: rgba(255, 80, 80, 0.15);
-  --accent-pink: #c9c9c9;
-  --accent-contrast: #120a0a;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 80, 80, 0.4);
-  --card-glass-bg: rgba(255, 80, 80, 0.05);
-  --card-glass-border: rgba(255, 80, 80, 0.22);
-  --card-corner-1: #ff5050;
-  --card-corner-2: #c9c9c9;
-}
-
-[data-color-theme="celestial"] {
-  --bg: #070c1c;
-  --bg-elevated: #101528;
-  --bg-card: #171c30;
-  --border: #232f52;
-  --border-light: #35467a;
-  --text: #eef2ff;
-  --text-dim: #b7bfd9;
-  --text-faint: #737ea3;
-  --accent: #7fb8ff;
-  --accent-strong: #a0cbff;
-  --accent-soft: rgba(127, 184, 255, 0.15);
-  --accent-pink: #ffd76b;
-  --accent-contrast: #070c1c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(127, 184, 255, 0.4);
-  --card-glass-bg: rgba(127, 184, 255, 0.05);
-  --card-glass-border: rgba(127, 184, 255, 0.22);
-  --card-corner-1: #7fb8ff;
-  --card-corner-2: #ffd76b;
-}
-
-[data-color-theme="inferno"] {
-  --bg: #170703;
-  --bg-elevated: #21100a;
-  --bg-card: #28170f;
-  --border: #4a2417;
-  --border-light: #6f3823;
-  --text: #fff2ea;
-  --text-dim: #d7bcae;
-  --text-faint: #a67d6a;
-  --accent: #ff5722;
-  --accent-strong: #ff7a4d;
-  --accent-soft: rgba(255, 87, 34, 0.15);
-  --accent-pink: #ffca28;
-  --accent-contrast: #170703;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(255, 87, 34, 0.4);
-  --card-glass-bg: rgba(255, 87, 34, 0.05);
-  --card-glass-border: rgba(255, 87, 34, 0.22);
-  --card-corner-1: #ff5722;
-  --card-corner-2: #ffca28;
-}
-
-[data-color-theme="nightshade"] {
-  --bg: #120a1c;
-  --bg-elevated: #1c1328;
-  --bg-card: #231a30;
-  --border: #3e2c52;
-  --border-light: #5b427a;
-  --text: #f5eeff;
-  --text-dim: #c8bbd9;
-  --text-faint: #8b76a3;
-  --accent: #9b59ff;
-  --accent-strong: #b47eff;
-  --accent-soft: rgba(155, 89, 255, 0.15);
-  --accent-pink: #ff4fa3;
-  --accent-contrast: #120a1c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(155, 89, 255, 0.4);
-  --card-glass-bg: rgba(155, 89, 255, 0.05);
-  --card-glass-border: rgba(155, 89, 255, 0.22);
-  --card-corner-1: #9b59ff;
-  --card-corner-2: #ff4fa3;
-}
-
-[data-color-theme="glacial-rift"] {
-  --bg: #050f16;
-  --bg-elevated: #0e1a22;
-  --bg-card: #142129;
-  --border: #1a3a4b;
-  --border-light: #285a70;
-  --text: #eafaff;
-  --text-dim: #aecad9;
-  --text-faint: #6590ab;
-  --accent: #a8e6ff;
-  --accent-strong: #c0edff;
-  --accent-soft: rgba(168, 230, 255, 0.15);
-  --accent-pink: #4fc3f7;
-  --accent-contrast: #050f16;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(168, 230, 255, 0.4);
-  --card-glass-bg: rgba(168, 230, 255, 0.05);
-  --card-glass-border: rgba(168, 230, 255, 0.22);
-  --card-corner-1: #a8e6ff;
-  --card-corner-2: #4fc3f7;
-}
-
-[data-color-theme="ashen"] {
-  --bg: #0e0d0d;
-  --bg-elevated: #191717;
-  --bg-card: #201e1e;
-  --border: #383333;
-  --border-light: #554d4d;
-  --text: #f5f2f2;
-  --text-dim: #beb8b8;
-  --text-faint: #7a7373;
-  --accent: #d0d0d0;
-  --accent-strong: #dedede;
-  --accent-soft: rgba(208, 208, 208, 0.15);
-  --accent-pink: #ff5f4d;
-  --accent-contrast: #0e0d0d;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(208, 208, 208, 0.4);
-  --card-glass-bg: rgba(208, 208, 208, 0.05);
-  --card-glass-border: rgba(208, 208, 208, 0.22);
-  --card-corner-1: #d0d0d0;
-  --card-corner-2: #ff5f4d;
-}
-
-[data-color-theme="cobalt"] {
-  --bg: #060b1c;
-  --bg-elevated: #0f1528;
-  --bg-card: #151c30;
-  --border: #1f2f52;
-  --border-light: #2f467a;
-  --text: #eaf1ff;
-  --text-dim: #adbdd9;
-  --text-faint: #647aa3;
-  --accent: #4d7cff;
-  --accent-strong: #749aff;
-  --accent-soft: rgba(77, 124, 255, 0.15);
-  --accent-pink: #ff9f4d;
-  --accent-contrast: #060b1c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(77, 124, 255, 0.4);
-  --card-glass-bg: rgba(77, 124, 255, 0.05);
-  --card-glass-border: rgba(77, 124, 255, 0.22);
-  --card-corner-1: #4d7cff;
-  --card-corner-2: #ff9f4d;
-}
-
-[data-color-theme="viridian"] {
-  --bg: #061410;
-  --bg-elevated: #0f1f19;
-  --bg-card: #152620;
-  --border: #1c4336;
-  --border-light: #2a6552;
-  --text: #eafff6;
-  --text-dim: #aed2c4;
-  --text-faint: #659a86;
-  --accent: #3ddc97;
-  --accent-strong: #65e6ac;
-  --accent-soft: rgba(61, 220, 151, 0.15);
-  --accent-pink: #ffe66d;
-  --accent-contrast: #061410;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 14px 32px -6px rgba(61, 220, 151, 0.4);
-  --card-glass-bg: rgba(61, 220, 151, 0.05);
-  --card-glass-border: rgba(61, 220, 151, 0.22);
-  --card-corner-1: #3ddc97;
-  --card-corner-2: #ffe66d;
-}
-
-[data-color-theme="daybreak"] {
-  --bg: #f4f7fc;
-  --bg-elevated: #eaf0f9;
-  --bg-card: #ffffff;
-  --border: #d7e1ef;
-  --border-light: #b9c9e0;
-  --text: #101a2c;
-  --text-dim: #445370;
-  --text-faint: #7789a8;
-  --accent: #2f6fed;
-  --accent-strong: #1a5adb;
-  --accent-soft: rgba(47, 111, 237, 0.12);
-  --accent-pink: #ff7a45;
-  --accent-contrast: #ffffff;
-  --shadow: 0 8px 24px rgba(16, 26, 44, 0.12);
-  --shadow-glow: 0 14px 32px -6px rgba(47, 111, 237, 0.3);
-  --card-glass-bg: rgba(47, 111, 237, 0.04);
-  --card-glass-border: rgba(47, 111, 237, 0.18);
-  --card-corner-1: #2f6fed;
-  --card-corner-2: #ff7a45;
-}
-
-[data-color-theme="parchment"] {
-  --bg: #f7f1e3;
-  --bg-elevated: #f1e8d3;
-  --bg-card: #fffaf0;
-  --border: #e0d3b3;
-  --border-light: #c9b587;
-  --text: #2b2013;
-  --text-dim: #5c4e38;
-  --text-faint: #8a7a5c;
-  --accent: #3a7d5c;
-  --accent-strong: #2c6248;
-  --accent-soft: rgba(58, 125, 92, 0.12);
-  --accent-pink: #b8860b;
-  --accent-contrast: #fffaf0;
-  --shadow: 0 8px 24px rgba(43, 32, 19, 0.15);
-  --shadow-glow: 0 14px 32px -6px rgba(58, 125, 92, 0.3);
-  --card-glass-bg: rgba(58, 125, 92, 0.05);
-  --card-glass-border: rgba(58, 125, 92, 0.2);
-  --card-corner-1: #3a7d5c;
-  --card-corner-2: #b8860b;
 }
 
 * { box-sizing: border-box; }
@@ -936,7 +144,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--ui);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -1142,7 +350,7 @@ kbd {
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .save-indicator[data-state="saving"] { color: var(--amber); border-color: var(--amber); }
-.save-indicator[data-state="failed"] { color: var(--red); border-color: var(--red); }
+.save-indicator[data-state="failed"] { color: var(--accent-lit); border-color: var(--accent); }
 .save-indicator[data-state="saved"] { color: var(--success); border-color: var(--success); }
 .save-indicator[data-state="saved"]::before {
   content: '';
@@ -1211,9 +419,9 @@ kbd {
 
 /* ---------- Error banner ---------- */
 .error-banner {
-  background: rgba(242, 85, 90, 0.12);
-  border-bottom: 1px solid rgba(242, 85, 90, 0.3);
-  color: var(--red);
+  background: var(--accent-soft);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent-lit);
   padding: 10px 28px;
   font-size: 13px;
 }
@@ -1375,7 +583,7 @@ kbd {
   padding: 0;
   color: var(--text-faint);
 }
-.active-chip-clear:hover { color: var(--red); }
+.active-chip-clear:hover { color: var(--accent-lit); }
 
 .text-btn {
   appearance: none;
@@ -1500,8 +708,8 @@ kbd {
 .discover-age { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
 .discover-genre-filter { margin: -12px 0 24px; align-items: center; }
 .discover-genre-filter-label { font-size: 12px; color: var(--text-faint); margin-right: 2px; }
-.discover-genre-chip.active { background: var(--red); border-color: var(--red); color: white; }
-.discover-genre-chip.active:hover { background: var(--red); border-color: var(--red); color: white; }
+.discover-genre-chip.active { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
+.discover-genre-chip.active:hover { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
 .discover-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
 .discover-load-more-row { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 28px 0 8px; }
 .discover-count { font-size: 12px; color: var(--text-faint); }
@@ -1846,7 +1054,7 @@ kbd {
 }
 .corner-btn:hover { background: rgba(0, 0, 0, 0.85); }
 .corner-btn:active { transform: scale(0.93); }
-.corner-btn.danger:hover { background: var(--red); }
+.corner-btn.danger:hover { background: var(--accent-fill); color: var(--accent-contrast); }
 
 /* Bulk-select checkbox — takes the corner-actions' slot when select mode is
    active, always visible (not hover-gated) since it's the primary interaction. */
@@ -2126,10 +1334,10 @@ kbd {
 .stat-bar-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-faint); font-weight: 600; }
 
 /* Distinct accent per chart so the four sections read apart at a glance */
-.stats-section--score .stat-bar-fill { background: linear-gradient(90deg, var(--amber), #ffd873); }
-.stats-section--format .stat-bar-fill { background: linear-gradient(90deg, var(--accent), var(--accent-strong)); }
-.stats-section--genre .stat-bar-fill { background: linear-gradient(90deg, var(--accent-pink), #ffb3e6); }
-.stats-section--decade .stat-bar-fill { background: linear-gradient(90deg, var(--red), #ff8a8e); }
+.stats-section--score .stat-bar-fill { background: linear-gradient(90deg, var(--warning), color-mix(in srgb, var(--warning) 55%, var(--text))); }
+.stats-section--format .stat-bar-fill { background: linear-gradient(90deg, var(--accent), var(--accent-lit)); }
+.stats-section--genre .stat-bar-fill { background: linear-gradient(90deg, var(--support), color-mix(in srgb, var(--support) 55%, var(--text))); }
+.stats-section--decade .stat-bar-fill { background: linear-gradient(90deg, var(--accent), var(--accent-lit)); }
 
 .stat-mini-list { display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow-y: auto; }
 .stat-mini-row {
@@ -2255,7 +1463,7 @@ kbd {
   z-index: 1;
   transition: all 0.15s ease;
 }
-.overlay-close:hover { color: var(--text); border-color: var(--red); background: var(--bg-elevated); }
+.overlay-close:hover { color: var(--text); border-color: var(--accent); background: var(--bg-elevated); }
 
 .overlay-panel h2 { margin: 0 40px 12px 0; font-size: 16px; font-family: var(--font-heading); font-weight: 600; }
 .overlay-panel h3 { margin: 16px 0 8px; font-size: 12px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -2343,7 +1551,7 @@ kbd {
 .backup-list li { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-dim); padding: 6px 8px; border-radius: 6px; }
 .backup-list li:hover { background: var(--accent-soft); }
 
-.recovery-detail { font-family: monospace; font-size: 12px; background: var(--bg-card); padding: 8px; border-radius: 6px; color: var(--red); white-space: pre-wrap; }
+.recovery-detail { font-family: monospace; font-size: 12px; background: var(--bg-card); padding: 8px; border-radius: 6px; color: var(--accent-lit); white-space: pre-wrap; }
 
 .import-panel { max-width: 640px; }
 .import-step p { font-size: 13px; color: var(--text-dim); }
@@ -2351,7 +1559,7 @@ kbd {
 .import-summary b { color: var(--text); }
 .import-review-list { max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .import-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; background: var(--bg-card); font-size: 12px; }
-.import-row.unmatched { border: 1px dashed var(--red); }
+.import-row.unmatched { border: 1px dashed var(--accent); }
 .import-row .import-title { flex: 1; }
 .import-actions { display: flex; gap: 10px; margin-top: 14px; }
 
@@ -2473,7 +1681,6 @@ kbd {
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
 }
 
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
-}
+/* Reduced motion — superseded by the Moonlit Shrine §15 block at the top of
+   this file (kills animation/transition outright rather than squashing
+   duration), kept only as a fallback in case that block is ever removed. */

@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moonlit Shrine – grafisk profil 1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;600;700&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   MOONLIT SHRINE · GRAFISK PROFIL 1.0
+   Anime Tracker · 27/07/2026
+   ===================================================================== */
+:root{
+  --bg:#0c0e13; --bg-deep:#080a0e; --bg-elevated:#12161e; --card:#141821; --card-hover:#181d27;
+  --line:#212734; --line-lit:#38424f;
+  --text:#ece8e3; --dim:#a2aab7; --faint:#7b8494; --faint-deco:#6a7280;
+  --crimson:#d43f4a; --crimson-lit:#ea6b70; --crimson-soft:rgba(212,63,74,.11); --crimson-deep:#8f2730;
+  --leaf:#c2564f; --moon:#b0c4de; --steel:#8098b5; --sage:#8fa88f; --amber:#c9a05b;
+  --radius-xs:4px; --radius-sm:7px; --radius:12px; --radius-lg:16px;
+  --display:"Zen Old Mincho",Georgia,serif; --ui:"Schibsted Grotesk",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",monospace;
+  --t-display-l:600 30px/1.16 var(--display);
+  --t-display-m:600 21px/1.24 var(--display);
+  --t-display-s:600 19px/1.2 var(--display);
+  --t-body:400 13px/1.62 var(--ui);
+  --t-action:500 12.5px/1 var(--ui);
+  --t-card:500 12px/1.3 var(--ui);
+  --t-meta:400 11px/1.5 var(--ui);
+  --t-micro:500 10.5px/1 var(--ui);
+  --t-nano:500 9.5px/1 var(--ui);
+  --tr-display:.015em; --tr-brand:.055em; --tr-micro:.16em; --tr-nano:.22em;
+  --e-out:cubic-bezier(.2,1,.3,1); --e-spring:cubic-bezier(.2,1.5,.3,1); --e-inout:cubic-bezier(.4,0,.2,1);
+  --d-1:120ms; --d-2:200ms; --d-3:280ms; --d-4:380ms; --d-5:800ms;
+  --sh-1:0 2px 8px -2px rgba(0,0,0,.5);
+  --sh-2:0 12px 28px -14px rgba(0,0,0,.8);
+  --sh-3:0 22px 42px -22px rgba(0,0,0,.95);
+  --sh-glow:0 0 30px -18px rgba(212,63,74,.5);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg-deep);color:var(--text);font:var(--t-body);font-size:13.5px;
+  -webkit-font-smoothing:antialiased}
+button{font-family:var(--ui);cursor:pointer}
+
+/* ---------- sidlayout ---------- */
+.shell{display:grid;grid-template-columns:236px 1fr;max-width:1560px;margin:0 auto;gap:0}
+aside{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:34px 22px 40px;
+  border-right:1px solid var(--line);background:linear-gradient(180deg,#0b0d12,#080a0e)}
+aside .id{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+aside .id b{font:var(--t-display-s);letter-spacing:var(--tr-brand);font-weight:600}
+aside .ver{font:var(--t-nano);letter-spacing:var(--tr-nano);text-transform:uppercase;color:var(--crimson-lit);margin-bottom:26px;display:block}
+aside nav{display:grid;gap:1px}
+aside a{display:grid;grid-template-columns:26px 1fr;gap:8px;padding:7px 9px;border-radius:6px;text-decoration:none;
+  color:var(--faint);font:var(--t-meta);font-size:11.5px;transition:color var(--d-2),background var(--d-2)}
+aside a span{color:var(--faint-deco);font-variant-numeric:tabular-nums}
+aside a:hover{color:var(--text);background:rgba(255,255,255,.04)}
+aside .foot{margin-top:28px;padding-top:18px;border-top:1px solid var(--line);font:var(--t-meta);color:var(--faint-deco);line-height:1.6}
+main{padding:34px 44px 120px;min-width:0}
+
+/* ---------- typografiska block ---------- */
+.hero-doc{border:1px solid var(--line);border-radius:var(--radius-lg);padding:38px 40px;margin-bottom:14px;position:relative;overflow:hidden;
+  background:radial-gradient(120% 130% at 88% -20%,rgba(176,196,222,.14),transparent 58%),linear-gradient(160deg,#12161e,#0c0e13)}
+.hero-doc::after{content:"";position:absolute;inset:0 0 auto 0;height:200px;pointer-events:none;background:
+  radial-gradient(170px 78px at 14% -14%,rgba(194,86,79,.26),transparent 72%),
+  radial-gradient(200px 88px at 52% -18%,rgba(194,86,79,.17),transparent 72%),
+  radial-gradient(180px 84px at 88% -12%,rgba(194,86,79,.22),transparent 72%);filter:blur(22px)}
+.hero-doc h1{position:relative;font:600 40px/1.1 var(--display);letter-spacing:var(--tr-display);margin:0 0 12px}
+.hero-doc p{position:relative;margin:0;max-width:660px;font-size:14px;line-height:1.7;color:var(--dim)}
+.hero-doc .meta{position:relative;display:flex;gap:22px;margin-top:26px;font:var(--t-micro);letter-spacing:var(--tr-micro);
+  text-transform:uppercase;color:var(--faint)}
+
+section{padding-top:64px;scroll-margin-top:20px}
+.sec-h{display:flex;align-items:baseline;gap:14px;margin-bottom:8px}
+.sec-h .no{font:var(--t-micro);letter-spacing:var(--tr-micro);color:var(--crimson-lit);font-variant-numeric:tabular-nums}
+.sec-h h2{margin:0;font:var(--t-display-m);letter-spacing:var(--tr-display)}
+.sec-h .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.intro{color:var(--dim);max-width:760px;line-height:1.7;margin:0 0 24px}
+h3.sub{font:var(--t-micro);letter-spacing:var(--tr-micro);text-transform:uppercase;color:var(--faint);margin:32px 0 14px}
+.note{border-left:2px solid var(--line-lit);padding-left:14px;color:var(--dim);line-height:1.65;max-width:820px;margin:16px 0}
+.note.warn{border-left-color:var(--crimson)}
+.note b{color:var(--text);display:block;font-weight:600;font-size:12.5px;margin-bottom:2px}
+code{font-family:var(--mono);font-size:12px;color:#c9bcbf;background:rgba(255,255,255,.055);padding:1.5px 6px;border-radius:4px}
+pre{font-family:var(--mono);font-size:11.5px;line-height:1.7;color:#c2c8d2;background:#0a0c11;border:1px solid var(--line);
+  border-radius:var(--radius);padding:18px 20px;overflow-x:auto;margin:14px 0}
+pre .c{color:var(--faint-deco)}
+pre .v{color:var(--crimson-lit)}
+pre .k{color:var(--steel)}
+.card-box{border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;background:rgba(255,255,255,.014)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+table{width:100%;border-collapse:collapse;margin:12px 0 4px}
+th{text-align:left;font:var(--t-nano);letter-spacing:var(--tr-nano);text-transform:uppercase;color:var(--faint);
+  padding:0 14px 10px 0;border-bottom:1px solid var(--line);font-weight:500}
+td{padding:11px 14px 11px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px;color:var(--dim);vertical-align:top}
+td b{color:var(--text);font-weight:550}
+td.mono,th.mono{font-family:var(--mono);font-size:11.5px}
+.ok{color:var(--sage)}.bad{color:var(--crimson-lit)}
+
+/* ---------- 02 logotyp ---------- */
+.logo-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;align-items:stretch}
+.logo-cell{border:1px solid var(--line);border-radius:var(--radius);padding:26px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:18px;min-height:170px;background:var(--bg)}
+.logo-cell.light{background:#f3f0eb}
+.logo-cell .cap{font:var(--t-nano);letter-spacing:var(--tr-nano);text-transform:uppercase;color:var(--faint)}
+.logo-cell.light .cap{color:#8b8479}
+.wordmark{display:flex;align-items:center;gap:12px;font:var(--t-display-s);font-size:22px;letter-spacing:var(--tr-brand)}
+.wordmark.light{color:#171a20}
+.lockup-v{display:flex;flex-direction:column;align-items:center;gap:12px}
+.clearspace{position:relative;padding:26px;border:1px dashed rgba(128,152,181,.4);border-radius:8px}
+.clearspace::after{content:"x = märkets radie";position:absolute;bottom:-20px;left:0;font:var(--t-nano);letter-spacing:.1em;color:var(--faint-deco)}
+.dont{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:8px}
+.dont div{border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px;text-align:center}
+.dont div p{margin:12px 0 0;font:var(--t-meta);color:var(--crimson-lit)}
+.dont .sq{stroke-width:1.5}
+
+/* ---------- 03 färg ---------- */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:12px}
+.sw{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg-elevated)}
+.sw .chip{height:74px;position:relative}
+.sw .chip span{position:absolute;bottom:7px;right:9px;font:var(--t-nano);letter-spacing:.08em;color:rgba(255,255,255,.6)}
+.sw .txt{padding:10px 11px 12px}
+.sw .txt b{display:block;font:var(--t-card);margin-bottom:3px}
+.sw .txt code{background:none;padding:0;font-size:11px;color:var(--faint)}
+.sw .txt p{margin:6px 0 0;font:var(--t-meta);color:var(--faint);line-height:1.5}
+.ladder{display:grid;grid-template-columns:repeat(6,1fr);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.ladder div{height:72px;display:flex;align-items:flex-end;padding:9px;font:var(--t-nano);letter-spacing:.08em;color:var(--faint)}
+
+/* ---------- 04 typografi ---------- */
+.scale-row{display:grid;grid-template-columns:130px 1fr 280px;gap:22px;align-items:center;padding:15px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.scale-row:last-child{border-bottom:0}
+.scale-row .tok{font-family:var(--mono);font-size:11.5px;color:#c9bcbf}
+.scale-row .use{font:var(--t-meta);color:var(--faint)}
+.s-dl{font:var(--t-display-l);letter-spacing:var(--tr-display)}
+.s-dm{font:var(--t-display-m);letter-spacing:var(--tr-display)}
+.s-ds{font:var(--t-display-s);letter-spacing:var(--tr-brand)}
+.s-bd{font:var(--t-body)}.s-ac{font:var(--t-action)}.s-cd{font:var(--t-card)}.s-mt{font:var(--t-meta)}
+.s-mi{font:var(--t-micro);letter-spacing:var(--tr-micro);text-transform:uppercase}
+.s-na{font:var(--t-nano);letter-spacing:var(--tr-nano);text-transform:uppercase}
+
+/* ---------- 05 rutnät ---------- */
+.spacer-demo{display:flex;align-items:flex-end;gap:10px;margin-top:6px}
+.spacer-demo div{background:linear-gradient(180deg,rgba(212,63,74,.7),rgba(212,63,74,.2));border-radius:2px 2px 0 0;position:relative}
+.spacer-demo div span{position:absolute;bottom:-19px;left:50%;transform:translateX(-50%);font:var(--t-nano);color:var(--faint)}
+.gridviz{border:1px solid var(--line);border-radius:var(--radius);padding:16px;background:
+  repeating-linear-gradient(90deg,rgba(128,152,181,.09) 0 calc((100% - 5*15px)/6),transparent 0 15px)}
+.gridviz .bar{height:56px;border-radius:6px;background:linear-gradient(120deg,rgba(212,63,74,.22),rgba(176,196,222,.12))}
+.radii{display:flex;gap:14px;flex-wrap:wrap}
+.radii div{width:88px;height:66px;border:1px solid var(--line-lit);background:var(--card);display:grid;place-items:end center;
+  padding-bottom:7px;font:var(--t-nano);color:var(--faint)}
+
+/* ---------- 07 ikoner ---------- */
+.icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.icons figure{margin:0;border:1px solid var(--line);border-radius:10px;padding:14px 8px 10px;display:grid;justify-items:center;gap:9px;
+  background:rgba(255,255,255,.014);transition:border-color var(--d-2),background var(--d-2)}
+.icons figure:hover{border-color:var(--line-lit);background:rgba(255,255,255,.04)}
+.icons svg{width:22px;height:22px;stroke:var(--dim);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.icons figcaption{font:var(--t-nano);letter-spacing:.06em;color:var(--faint)}
+
+/* ---------- 08 komponenter ---------- */
+.demo{border:1px solid var(--line);border-radius:var(--radius);padding:22px;background:var(--bg);margin-bottom:14px}
+.demo .lbl{font:var(--t-nano);letter-spacing:var(--tr-nano);text-transform:uppercase;color:var(--faint);margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border-radius:var(--radius-sm);font:var(--t-action);padding:10px 16px;border:0;transition:transform var(--d-2),filter var(--d-2),background var(--d-2),border-color var(--d-2)}
+.btn-primary{background:var(--crimson);color:#fff;box-shadow:0 10px 26px -12px rgba(212,63,74,.95)}
+.btn-primary:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.btn-primary:active{transform:translateY(0);filter:brightness(.94)}
+.btn-ghost{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--line-lit)}
+.btn-ghost:hover{border-color:var(--crimson);background:var(--crimson-soft)}
+.btn-quiet{background:none;color:var(--dim);border:1px solid var(--line)}
+.btn-quiet:hover{color:var(--text);border-color:var(--line-lit)}
+.btn-danger{background:none;color:var(--crimson-lit);border:1px solid rgba(212,63,74,.4)}
+.btn-danger:hover{background:var(--crimson-soft)}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.btn:focus-visible{outline:2px solid var(--crimson);outline-offset:2px}
+.btn.load{position:relative;color:transparent}
+.btn.load::after{content:"";position:absolute;inset:0;margin:auto;width:14px;height:14px;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.field{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;
+  color:var(--faint);font:var(--t-body);min-width:280px;transition:border-color var(--d-2),background var(--d-2)}
+.field:hover{border-color:var(--line-lit)}
+.field.focus{border-color:var(--crimson);background:var(--crimson-soft);color:var(--text)}
+.field kbd{margin-left:auto;font:var(--t-nano);border:1px solid var(--line);border-radius:3px;padding:2px 6px;color:var(--faint)}
+.chip{font:var(--t-meta);border:1px solid var(--line);border-radius:999px;padding:6px 13px;color:var(--dim);background:none;transition:var(--d-2)}
+.chip:hover{border-color:var(--line-lit);color:var(--text)}
+.chip.on{border-color:var(--crimson);color:var(--crimson-lit);background:var(--crimson-soft)}
+.chip.x::after{content:" ×";color:var(--faint)}
+.tag{font:var(--t-nano);letter-spacing:.12em;text-transform:uppercase;border-radius:999px;padding:4px 9px}
+.tag.new{background:var(--crimson);color:#fff}
+.tag.air{border:1px solid rgba(143,168,143,.5);color:var(--sage)}
+.tag.done{border:1px solid rgba(128,152,181,.45);color:var(--steel)}
+.tag.drop{border:1px solid rgba(212,63,74,.4);color:var(--crimson-lit)}
+.tabs{display:flex;gap:24px;border-bottom:1px solid var(--line)}
+.tabs button{background:none;border:0;padding:0 0 12px;color:var(--faint);font:var(--t-micro);letter-spacing:var(--tr-micro);
+  text-transform:uppercase;border-bottom:1px solid transparent;transition:var(--d-2)}
+.tabs button:hover{color:var(--dim)}
+.tabs button.on{color:var(--text);border-color:var(--crimson)}
+.tabs button b{font-weight:500;color:var(--faint);margin-left:6px;letter-spacing:0;font-variant-numeric:tabular-nums}
+
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.c{position:relative;background:var(--card);border:1px solid var(--line);border-radius:11px;overflow:hidden;
+  transition:transform var(--d-4) var(--e-out),border-color var(--d-4),box-shadow var(--d-4),background var(--d-4)}
+.c::before{content:"";position:absolute;z-index:3;top:0;left:0;right:100%;height:1px;background:var(--crimson);transition:right 450ms var(--e-out)}
+.c:hover{transform:translateY(-5px);background:var(--card-hover);border-color:var(--line-lit);box-shadow:var(--sh-3),var(--sh-glow)}
+.c:hover::before{right:0}
+.c .art{height:126px;position:relative;filter:saturate(.66) brightness(.9) contrast(1.05);transition:filter 420ms}
+.c:hover .art{filter:saturate(.96) brightness(1) contrast(1.03)}
+.c .art::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 50%,rgba(20,24,33,.95))}
+.c .dot{position:absolute;z-index:2;top:9px;left:9px;width:6px;height:6px;border-radius:50%;background:var(--crimson);
+  box-shadow:0 0 0 3px rgba(212,63,74,.2),0 0 12px rgba(212,63,74,.95)}
+.c .plus{position:absolute;z-index:4;right:9px;bottom:46px;width:27px;height:27px;border-radius:50%;border:1px solid var(--crimson);
+  background:rgba(12,14,19,.86);color:var(--crimson-lit);display:grid;place-items:center;font-size:14px;opacity:0;transform:scale(.85);
+  transition:280ms var(--e-spring);backdrop-filter:blur(4px)}
+.c:hover .plus{opacity:1;transform:none}
+.c .meta{padding:10px 11px 12px}
+.c h4{margin:0 0 5px;font:var(--t-card);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c .r{display:flex;justify-content:space-between;font:var(--t-meta);font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.c .r em{font-style:normal;color:var(--dim)}
+.c .track{height:2px;background:rgba(255,255,255,.08);margin-top:9px;position:relative}
+.c .track i{position:absolute;left:0;top:0;height:2px;background:var(--crimson)}
+.c.state-done .track i{background:var(--steel)}
+.c.state-drop{opacity:.55}
+.c.state-drop .track i{background:var(--crimson-deep)}
+.c.skeleton .art,.c.skeleton h4,.c.skeleton .track{background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.11),rgba(255,255,255,.05));
+  background-size:220% 100%;animation:shimmer 1.5s linear infinite;filter:none}
+.c.skeleton h4{height:11px;border-radius:3px;color:transparent}
+.c.skeleton .r{visibility:hidden}
+@keyframes shimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+
+.toast{display:inline-flex;align-items:center;gap:14px;background:rgba(18,22,30,.96);border:1px solid var(--line-lit);
+  border-radius:999px;padding:11px 12px 11px 18px;font:var(--t-body);font-size:12.5px}
+.toast button{border:0;background:none;color:var(--crimson-lit);font:var(--t-action);padding:4px 10px;border-radius:999px}
+.toast button:hover{background:var(--crimson-soft)}
+.tip{display:inline-block;background:#1b202a;border:1px solid var(--line-lit);border-radius:6px;padding:6px 10px;font:var(--t-meta);color:var(--dim)}
+.empty-demo{border:1px dashed var(--line-lit);border-radius:var(--radius);padding:38px;text-align:center}
+.empty-demo b{display:block;font:var(--t-display-m);letter-spacing:var(--tr-display);margin-bottom:8px}
+.empty-demo p{margin:0 0 18px;font:var(--t-meta);font-size:12.5px;color:var(--faint)}
+.dialog{max-width:420px;border:1px solid var(--line-lit);border-radius:var(--radius);background:var(--bg-elevated);padding:22px;box-shadow:var(--sh-2)}
+.dialog h4{margin:0 0 8px;font:var(--t-display-m);font-size:18px;letter-spacing:var(--tr-display)}
+.dialog p{margin:0 0 18px;font:var(--t-body);color:var(--dim)}
+
+/* ---------- 09 omslagsbehandling ---------- */
+.covers{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.cov{position:relative;border-radius:10px;overflow:hidden;height:190px;border:1px solid var(--line)}
+.cov .im{position:absolute;inset:0}
+.cov.rest .im{filter:saturate(.66) brightness(.9) contrast(1.05)}
+.cov.hot .im{filter:saturate(.96) brightness(1) contrast(1.03)}
+.cov.raw .im{filter:none}
+.cov .scrim{position:absolute;inset:0;background:linear-gradient(transparent 50%,rgba(20,24,33,.95))}
+.cov .cap{position:absolute;bottom:10px;left:12px;right:12px;font:var(--t-card)}
+.cov .cap span{display:block;font:var(--t-nano);letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-top:4px}
+.cov.fallback{display:grid;place-items:center;background:linear-gradient(150deg,#1a1f2a,#101319)}
+.cov.fallback .fb{text-align:center}
+.cov.fallback .fb b{display:block;font:600 34px/1 var(--display);color:rgba(236,232,227,.22)}
+.cov.fallback .fb span{font:var(--t-nano);letter-spacing:.2em;text-transform:uppercase;color:var(--faint-deco);margin-top:10px;display:block}
+
+/* ---------- 10 rörelse ---------- */
+.motion-lab{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.mcell{border:1px solid var(--line);border-radius:var(--radius);padding:18px;background:var(--bg);position:relative;overflow:hidden;min-height:132px}
+.mcell .name{font:var(--t-card);margin-bottom:4px}
+.mcell .spec{font:var(--t-meta);color:var(--faint);font-family:var(--mono);font-size:11px}
+.mcell .stage{height:52px;position:relative;margin-top:12px}
+.dotmove{position:absolute;top:20px;left:0;width:12px;height:12px;border-radius:50%;background:var(--crimson)}
+.mcell:hover .dotmove{animation:slide 1.4s var(--e-out) infinite alternate}
+.mcell.spring:hover .dotmove{animation:slide 1.4s var(--e-spring) infinite alternate}
+.mcell.inout:hover .dotmove{animation:slide 1.4s var(--e-inout) infinite alternate}
+@keyframes slide{to{left:calc(100% - 12px)}}
+.leafdemo{position:relative;height:150px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--bg)}
+.leafdemo i{position:absolute;top:-14px;width:7px;height:9px;border-radius:60% 40% 60% 40%;background:linear-gradient(150deg,#d8574e,#94363a);animation:fall linear infinite}
+@keyframes fall{0%{transform:translate(0,-14px) rotate(0);opacity:0}12%{opacity:.4}88%{opacity:.26}100%{transform:translate(60px,170px) rotate(300deg);opacity:0}}
+.feather-demo{position:absolute;top:-40px;width:18px;animation:ffall 9s linear infinite}
+@keyframes ffall{0%{transform:translate(0,-40px) rotate(-8deg);opacity:0}10%{opacity:.32}45%{transform:translate(26px,70px) rotate(14deg)}90%{opacity:.2}100%{transform:translate(8px,180px) rotate(-6deg);opacity:0}}
+
+/* ---------- 13 tillgänglighet ---------- */
+.focusring{display:inline-block;padding:10px 16px;border-radius:var(--radius-sm);border:1px solid var(--line-lit);
+  outline:2px solid var(--crimson);outline-offset:2px;font:var(--t-action);color:var(--text);background:rgba(255,255,255,.05)}
+.keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.keys div{border:1px solid var(--line);border-radius:8px;padding:11px 13px;font:var(--t-meta);color:var(--dim)}
+.keys kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-lit);border-radius:4px;padding:2px 6px;margin-right:9px;color:var(--text)}
+
+/* ---------- do / dont ---------- */
+.dd{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dd .box{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.dd .box .top{padding:9px 14px;font:var(--t-nano);letter-spacing:var(--tr-nano);text-transform:uppercase}
+.dd .box.y .top{background:rgba(143,168,143,.12);color:var(--sage);border-bottom:1px solid rgba(143,168,143,.25)}
+.dd .box.n .top{background:rgba(212,63,74,.1);color:var(--crimson-lit);border-bottom:1px solid rgba(212,63,74,.25)}
+.dd .box .in{padding:18px}
+.dd .box p{margin:12px 0 0;font:var(--t-meta);color:var(--faint);line-height:1.55}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- =========================== SIDOMENY =========================== -->
+<aside>
+  <div class="id">
+    <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <linearGradient id="mk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a1f29"/><stop offset="1" stop-color="#0c0e13"/></linearGradient>
+        <mask id="crescent"><rect width="64" height="64" fill="#000"/><circle cx="32" cy="30" r="15" fill="#fff"/><circle cx="41" cy="24" r="14" fill="#000"/></mask>
+      </defs>
+      <rect width="64" height="64" rx="15" fill="url(#mk)"/>
+      <rect x=".5" y=".5" width="63" height="63" rx="14.5" fill="none" stroke="rgba(176,196,222,.22)"/>
+      <circle cx="32" cy="30" r="15" fill="#b0c4de" opacity=".85" mask="url(#crescent)"/>
+      <g transform="translate(24,16) rotate(18)">
+        <path d="M8 2 C3 12 2.2 24 6 33 C7.6 36.8 7.9 40 8 42 C8 35 3.7 24 8 2 Z" fill="#0c0e13" opacity=".95"/>
+        <path d="M8 2 C13 12 13.8 24 10 33 C8.4 36.8 8.1 40 8 42 C8 35 12.3 24 8 2 Z" fill="#191e28"/>
+        <path d="M8 3 C8 16 8 32 8 44" stroke="#d43f4a" stroke-opacity=".75" stroke-width=".9"/>
+      </g>
+    </svg>
+    <b>Moonlit Shrine</b>
+  </div>
+  <span class="ver">Grafisk profil 1.0 · 27/07/2026</span>
+  <nav>
+    <a href="#s1"><span>01</span>Grundhållning</a>
+    <a href="#s2"><span>02</span>Märke och logotyp</a>
+    <a href="#s3"><span>03</span>Färg</a>
+    <a href="#s4"><span>04</span>Typografi</a>
+    <a href="#s5"><span>05</span>Rutnät och rytm</a>
+    <a href="#s6"><span>06</span>Ytor och djup</a>
+    <a href="#s7"><span>07</span>Ikonografi</a>
+    <a href="#s8"><span>08</span>Komponenter</a>
+    <a href="#s9"><span>09</span>Omslag och bild</a>
+    <a href="#s10"><span>10</span>Rörelse</a>
+    <a href="#s11"><span>11</span>Atmosfär</a>
+    <a href="#s12"><span>12</span>Språk och ton</a>
+    <a href="#s13"><span>13</span>Tillgänglighet</a>
+    <a href="#s14"><span>14</span>Tokens som kod</a>
+    <a href="#s15"><span>15</span>Överlämning</a>
+  </nav>
+  <div class="foot">Anime Tracker · lokal app, ingen molntjänst.<br>Zen Old Mincho + Schibsted Grotesk.<br>Allt innehåll i profilen finns även som markdown för överlämning.</div>
+</aside>
+
+<!-- =========================== INNEHÅLL =========================== -->
+<main>
+
+<div class="hero-doc">
+  <h1>Moonlit Shrine</h1>
+  <p>En grafisk profil för Anime Tracker. Mörk, varm i botten och kall i ljuset, med crimson som enda starka färg och rörelse som andas snarare än pockar. Referenserna är en lyktgata i körsbärsblom och Itachi under röda löv: allvarlig, återhållsam, vacker utan att skrika.</p>
+  <div class="meta"><span>Version 1.0</span><span>15 avsnitt</span><span>Dark mode först</span><span>Offline, lokala typsnitt</span></div>
+</div>
+
+<!-- ---------------- 01 ---------------- -->
+<section id="s1">
+  <div class="sec-h"><span class="no">01</span><h2>Grundhållning</h2><span class="rule"></span></div>
+  <p class="intro">Fem principer som avgör varje senare beslut. När något känns fel i en skiss är det nästan alltid en av dessa som brutits.</p>
+  <div class="two">
+    <div class="card-box"><h3 class="sub" style="margin-top:0">01 · Mörkret är rummet, inte temat</h3><p style="margin:0;color:var(--dim);line-height:1.7">Bakgrunden är blåsvart och nästan tom. Allt som lyser gör det för att det betyder något: ett nytt avsnitt, en aktiv flik, en progress som rör sig. Dekoration lyser aldrig starkare än information.</p></div>
+    <div class="card-box"><h3 class="sub" style="margin-top:0">02 · Crimson är sällsynt</h3><p style="margin:0;color:var(--dim);line-height:1.7">Högst tre crimson-ytor per skärm. Färgen betyder handling eller händelse. När allt är rött betyder inget något, och allvaret blir aggression.</p></div>
+    <div class="card-box"><h3 class="sub" style="margin-top:0">03 · Omslagen är dämpade i vila</h3><p style="margin:0;color:var(--dim);line-height:1.7">AniLists omslag är brokiga. I vila sänks mättnad och ljus så rutnätet läser som en helhet. Hover ger full färg, vilket gör uppmärksamhet till en handling istället för ett brus.</p></div>
+    <div class="card-box"><h3 class="sub" style="margin-top:0">04 · Rörelsen andas</h3><p style="margin:0;color:var(--dim);line-height:1.7">Ambient rörelse är långsam, gles och genomskinlig. Belöningar är korta och ligger där handlingen skedde. Ingen blixt, ingen skärmskakning, inget som kräver att du väntar.</p></div>
+    <div class="card-box" style="grid-column:1/-1"><h3 class="sub" style="margin-top:0">05 · Typografin bär allvaret</h3><p style="margin:0;color:var(--dim);line-height:1.7">Mincho i stora rubriker ger tyngd, grotesk i allt smått ger skärpa. Hierarki byggs med storlek, färg och luft, inte med fler typsnitt eller fler färger. Om en skärm känns platt är det luft som saknas, inte effekter.</p></div>
+  </div>
+</section>
+
+<!-- ---------------- 02 ---------------- -->
+<section id="s2">
+  <div class="sec-h"><span class="no">02</span><h2>Märke och logotyp</h2><span class="rule"></span></div>
+  <p class="intro">Märket är en avtagande måne med en fjäder som faller genom den. Månen ger natten och stillheten, fjädern ger Itachi-referensen och kopplar ihop med appens belöningsanimation. Crimson finns bara som en tunn linje i fjäderns skaft, vilket gör märket läsbart även i 16 px.</p>
+
+  <div class="logo-row">
+    <div class="logo-cell">
+      <svg width="96" height="96" viewBox="0 0 64 64">
+        <defs><mask id="cr2"><rect width="64" height="64" fill="#000"/><circle cx="32" cy="30" r="15" fill="#fff"/><circle cx="41" cy="24" r="14" fill="#000"/></mask></defs>
+        <rect width="64" height="64" rx="15" fill="url(#mk)"/>
+        <rect x=".5" y=".5" width="63" height="63" rx="14.5" fill="none" stroke="rgba(176,196,222,.22)"/>
+        <circle cx="32" cy="30" r="15" fill="#b0c4de" opacity=".85" mask="url(#cr2)"/>
+        <g transform="translate(24,16) rotate(18)">
+          <path d="M8 2 C3 12 2.2 24 6 33 C7.6 36.8 7.9 40 8 42 C8 35 3.7 24 8 2 Z" fill="#0c0e13" opacity=".95"/>
+          <path d="M8 2 C13 12 13.8 24 10 33 C8.4 36.8 8.1 40 8 42 C8 35 12.3 24 8 2 Z" fill="#191e28"/>
+          <path d="M8 3 C8 16 8 32 8 44" stroke="#d43f4a" stroke-opacity=".75" stroke-width=".9"/>
+        </g>
+      </svg>
+      <span class="cap">App-ikon 64 px</span>
+    </div>
+    <div class="logo-cell">
+      <div class="wordmark"><svg width="22" height="22" viewBox="0 0 64 64"><defs><mask id="cr3"><rect width="64" height="64" fill="#000"/><circle cx="32" cy="32" r="26" fill="#fff"/><circle cx="47" cy="22" r="24" fill="#000"/></mask></defs><circle cx="32" cy="32" r="26" fill="#b0c4de" opacity=".9" mask="url(#cr3)"/><circle cx="50" cy="46" r="5" fill="#d43f4a"/></svg>Anime Tracker</div>
+      <span class="cap">Horisontell lockup</span>
+    </div>
+    <div class="logo-cell">
+      <div class="lockup-v">
+        <svg width="34" height="34" viewBox="0 0 64 64"><defs><mask id="cr4"><rect width="64" height="64" fill="#000"/><circle cx="32" cy="32" r="26" fill="#fff"/><circle cx="47" cy="22" r="24" fill="#000"/></mask></defs><circle cx="32" cy="32" r="26" fill="#b0c4de" opacity=".9" mask="url(#cr4)"/><circle cx="50" cy="46" r="5" fill="#d43f4a"/></svg>
+        <span style="font:var(--t-display-s);letter-spacing:var(--tr-brand)">Anime Tracker</span>
+      </div>
+      <span class="cap">Vertikal lockup</span>
+    </div>
+    <div class="logo-cell light">
+      <div class="wordmark light"><svg width="22" height="22" viewBox="0 0 64 64"><defs><mask id="cr5"><rect width="64" height="64" fill="#000"/><circle cx="32" cy="32" r="26" fill="#fff"/><circle cx="47" cy="22" r="24" fill="#000"/></mask></defs><circle cx="32" cy="32" r="26" fill="#3d4654" mask="url(#cr5)"/><circle cx="50" cy="46" r="5" fill="#b32f38"/></svg>Anime Tracker</div>
+      <span class="cap">På ljus yta</span>
+    </div>
+  </div>
+
+  <h3 class="sub">Frizon och minsta storlek</h3>
+  <div class="two">
+    <div class="card-box" style="display:grid;place-items:center;padding:34px">
+      <div class="clearspace">
+        <div class="wordmark" style="font-size:19px"><svg width="20" height="20" viewBox="0 0 64 64"><defs><mask id="cr6"><rect width="64" height="64" fill="#000"/><circle cx="32" cy="32" r="26" fill="#fff"/><circle cx="47" cy="22" r="24" fill="#000"/></mask></defs><circle cx="32" cy="32" r="26" fill="#b0c4de" opacity=".9" mask="url(#cr6)"/><circle cx="50" cy="46" r="5" fill="#d43f4a"/></svg>Anime Tracker</div>
+      </div>
+    </div>
+    <div class="card-box">
+      <table style="margin-top:0">
+        <tr><th>Användning</th><th>Storlek</th><th class="mono">Detalj</th></tr>
+        <tr><td><b>App-ikon</b></td><td>256 / 128 / 64 px</td><td class="mono">måne + fjäder + ram</td></tr>
+        <tr><td><b>Header i appen</b></td><td>19 px text, 7 px märke</td><td class="mono">crimson punkt räcker</td></tr>
+        <tr><td><b>Favicon</b></td><td>32 / 16 px</td><td class="mono">bara måne + punkt, ingen fjäder</td></tr>
+        <tr><td><b>Minsta bredd lockup</b></td><td>96 px</td><td class="mono">under det: bara märket</td></tr>
+      </table>
+      <div class="note" style="margin-bottom:0"><b>Frizon</b>Minst en månradie luft runt hela lockupen. Ingenting placeras i frizonen, inte heller dekorativa löv.</div>
+    </div>
+  </div>
+
+  <h3 class="sub">Så här inte</h3>
+  <div class="dont">
+    <div><svg width="70" height="34" viewBox="0 0 140 68"><text x="8" y="44" font-family="Georgia" font-size="26" fill="#ece8e3" transform="skewX(-14)">Anime</text></svg><p>Lutas eller sträcks</p></div>
+    <div><svg width="70" height="34" viewBox="0 0 140 68"><rect x="6" y="10" width="128" height="48" rx="10" fill="#d43f4a"/><text x="18" y="42" font-family="Georgia" font-size="22" fill="#fff">Anime</text></svg><p>Läggs på crimson</p></div>
+    <div><svg width="70" height="34" viewBox="0 0 140 68"><text x="8" y="44" font-family="Impact, sans-serif" font-size="28" fill="#ece8e3">ANIME</text></svg><p>Byter typsnitt</p></div>
+    <div><svg width="70" height="34" viewBox="0 0 140 68"><text x="8" y="44" font-family="Georgia" font-size="26" fill="#ece8e3" style="filter:drop-shadow(0 0 8px #d43f4a)">Anime</text></svg><p>Får glöd eller skugga</p></div>
+  </div>
+</section>
+
+<!-- ---------------- 03 ---------------- -->
+<section id="s3">
+  <div class="sec-h"><span class="no">03</span><h2>Färg</h2><span class="rule"></span></div>
+  <p class="intro">Paletten har en kall blåsvart botten, ett varmt rött ljus och tre stödfärger med tydliga jobb. Varje färg har en roll, och roller överlappar inte. Kontrastvärdena nedan är uppmätta mot bakgrunden <code>#0C0E13</code>.</p>
+
+  <h3 class="sub">Ytor, mörkt till ljust</h3>
+  <div class="ladder">
+    <div style="background:#080a0e">bg-deep<br>#080A0E</div>
+    <div style="background:#0c0e13">bg<br>#0C0E13</div>
+    <div style="background:#12161e">elevated<br>#12161E</div>
+    <div style="background:#141821">card<br>#141821</div>
+    <div style="background:#181d27">card-hover<br>#181D27</div>
+    <div style="background:#212734">line<br>#212734</div>
+  </div>
+
+  <h3 class="sub">Färger med roll</h3>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#d43f4a"><span>4,25:1</span></div><div class="txt"><b>Crimson</b><code>#D43F4A</code><p>Fyllnad och indikator. Primärknapp, aktiv flik, progress, ny-punkt. Aldrig som textfärg.</p></div></div>
+    <div class="sw"><div class="chip" style="background:#ea6b70"><span>6,30:1</span></div><div class="txt"><b>Crimson ljus</b><code>#EA6B70</code><p>All crimson text och alla ikoner i crimson. Länkfärg i detaljvyn.</p></div></div>
+    <div class="sw"><div class="chip" style="background:#8f2730"><span>—</span></div><div class="txt"><b>Crimson djup</b><code>#8F2730</code><p>Enbart för släppta serier och nedtonad progress. Aldrig text.</p></div></div>
+    <div class="sw"><div class="chip" style="background:#b0c4de"><span>10,2:1</span></div><div class="txt"><b>Måne</b><code>#B0C4DE</code><p>Ljuskälla i atmosfären. Aldrig på ytor eller text, bara som glöd med låg opacitet.</p></div></div>
+    <div class="sw"><div class="chip" style="background:#8098b5"><span>6,53:1</span></div><div class="txt"><b>Stål</b><code>#8098B5</code><p>Neutral interaktion. Sekundära etiketter, hero i lugnt läge, fokus utanför crimson-flöden.</p></div></div>
+    <div class="sw"><div class="chip" style="background:#8fa88f"><span>7,53:1</span></div><div class="txt"><b>Salvia</b><code>#8FA88F</code><p>Positiv status. Sparat, avklarad serie, sänds nu.</p></div></div>
+    <div class="sw"><div class="chip" style="background:#c9a05b"><span>8,17:1</span></div><div class="txt"><b>Amber</b><code>#C9A05B</code><p>Varning som inte är fel: gammal backup, saknad data, importkonflikt.</p></div></div>
+    <div class="sw"><div class="chip" style="background:#c2564f"><span>—</span></div><div class="txt"><b>Löv</b><code>#C2564F</code><p>Bara atmosfär: löv, blomkrona. Aldrig gränssnitt.</p></div></div>
+  </div>
+
+  <h3 class="sub">Text</h3>
+  <table>
+    <tr><th>Token</th><th class="mono">Hex</th><th>Kontrast mot bg</th><th>Används för</th></tr>
+    <tr><td><b>--text</b></td><td class="mono">#ECE8E3</td><td><span class="ok">16,0:1</span></td><td>Titlar, primär text, siffror som räknas</td></tr>
+    <tr><td><b>--dim</b></td><td class="mono">#A2AAB7</td><td><span class="ok">8,3:1</span></td><td>Sekundär text, metadata, löptext i detaljvy</td></tr>
+    <tr><td><b>--faint</b></td><td class="mono">#7B8494</td><td><span class="ok">5,1:1</span></td><td>Etiketter, flikar i vila, hjälptext</td></tr>
+    <tr><td><b>--faint-deco</b></td><td class="mono">#6A7280</td><td><span class="bad">4,0:1</span></td><td>Endast avdelare och rent dekorativ text, aldrig information</td></tr>
+  </table>
+  <div class="note warn"><b>Två regler som inte får glömmas</b>Crimson <code>#D43F4A</code> klarar 4,25:1 och är därför förbjuden som textfärg. All crimson text använder <code>#EA6B70</code>. Vit text på crimson fyllnad ligger på 4,56:1, vilket precis håller, så knappar använder minst vikt 500 och aldrig mindre än 12 px.</div>
+
+  <h3 class="sub">Fördelning på en skärm</h3>
+  <div class="card-box">
+    <div style="display:flex;height:34px;border-radius:6px;overflow:hidden;font:var(--t-nano);letter-spacing:.1em;text-transform:uppercase">
+      <div style="flex:72;background:#0c0e13;display:grid;place-items:center;color:#7b8494">Bakgrund och ytor 72 %</div>
+      <div style="flex:18;background:#212734;display:grid;place-items:center;color:#a2aab7">Linjer och text 18 %</div>
+      <div style="flex:7;background:#8098b5;display:grid;place-items:center;color:#0c0e13">Stöd 7 %</div>
+      <div style="flex:3;background:#d43f4a;display:grid;place-items:center;color:#fff">Crimson 3 %</div>
+    </div>
+    <p style="margin:14px 0 0;font:var(--t-meta);color:var(--faint)">Om crimson tar mer än ungefär tre procent av ytan har något gått fel. Mät genom att kisa: skärmen ska läsa som mörk med enstaka glöd.</p>
+  </div>
+</section>
+
+<!-- ---------------- 04 ---------------- -->
+<section id="s4">
+  <div class="sec-h"><span class="no">04</span><h2>Typografi</h2><span class="rule"></span></div>
+  <p class="intro">Zen Old Mincho bär varumärket och stora rubriker. Schibsted Grotesk bär allt annat. Nio tokens, inga lösa värden. Mincho används aldrig under 17 px och aldrig i versaler, eftersom dess latinska versaler blir platta och seriferna slammar igen.</p>
+  <div class="card-box">
+    <div class="scale-row"><span class="tok">--t-display-l</span><span class="s-dl">Frieren: Beyond Journey's End</span><span class="use">Mincho 600 · 30/1.16 · +0,015em<br>Hero-titel, stora tal i statistik</span></div>
+    <div class="scale-row"><span class="tok">--t-display-m</span><span class="s-dm">Vinland Saga</span><span class="use">Mincho 600 · 21/1.24 · +0,015em<br>Detaljtitel, vyrubrik, tomt läge</span></div>
+    <div class="scale-row"><span class="tok">--t-display-s</span><span class="s-ds">Anime Tracker</span><span class="use">Mincho 600 · 19/1.2 · +0,055em<br>Varumärket, bara där</span></div>
+    <div class="scale-row"><span class="tok">--t-body</span><span class="s-bd">Långsam på rätt sätt. Sparar sista bågen till helgen.</span><span class="use">Grotesk 400 · 13/1.62<br>Anteckningar, löptext, notiser</span></div>
+    <div class="scale-row"><span class="tok">--t-action</span><span class="s-ac">Markera avsnitt 19 sett</span><span class="use">Grotesk 500 · 12,5<br>Alla knappar</span></div>
+    <div class="scale-row"><span class="tok">--t-card</span><span class="s-cd">Ping Pong the Animation</span><span class="use">Grotesk 500 · 12/1.3<br>Korttitlar, klockslag</span></div>
+    <div class="scale-row"><span class="tok">--t-meta</span><span class="s-mt">Avsnitt 18 av 28 sedda · 10 kvar</span><span class="use">Grotesk 400 · 11/1.5<br>Sekundär rad, chips, hjälptext</span></div>
+    <div class="scale-row"><span class="tok">--t-micro</span><span class="s-mi">Pågår · Väntar · Sett · Släppt</span><span class="use">Grotesk 500 · 10,5 · +0,16em<br>Flikar och etiketter</span></div>
+    <div class="scale-row"><span class="tok">--t-nano</span><span class="s-na">Nytt avsnitt · för tre timmar sedan</span><span class="use">Grotesk 500 · 9,5 · +0,22em<br>Kicker, minsta etiketter</span></div>
+  </div>
+  <div class="two" style="margin-top:16px">
+    <div class="note" style="margin:0"><b>Siffror</b>Allt numeriskt sätts med <code>font-variant-numeric: tabular-nums</code>. Avsnittsräknare, betyg och klockslag byter bredd annars när 9 blir 10, vilket syns direkt i kortrutnätet.</div>
+    <div class="note" style="margin:0"><b>Kursiv</b>Mincho kursiv används på exakt ett ställe: originaltiteln i detaljvyn. Det ger variation utan ett fjärde snitt.</div>
+  </div>
+</section>
+
+<!-- ---------------- 05 ---------------- -->
+<section id="s5">
+  <div class="sec-h"><span class="no">05</span><h2>Rutnät och rytm</h2><span class="rule"></span></div>
+  <p class="intro">Allt avstånd är en multipel av 4, med 8 som grundsteg. Sidmarginalen i appen är 26 px, vilket är det enda undantaget och finns för att kortrutnätet ska landa jämnt på 1440 px bredd.</p>
+  <div class="two">
+    <div class="card-box">
+      <h3 class="sub" style="margin-top:0">Avståndsskala</h3>
+      <div class="spacer-demo" style="height:96px">
+        <div style="width:26px;height:4px"><span>4</span></div>
+        <div style="width:26px;height:8px"><span>8</span></div>
+        <div style="width:26px;height:12px"><span>12</span></div>
+        <div style="width:26px;height:16px"><span>16</span></div>
+        <div style="width:26px;height:24px"><span>24</span></div>
+        <div style="width:26px;height:32px"><span>32</span></div>
+        <div style="width:26px;height:48px"><span>48</span></div>
+        <div style="width:26px;height:64px"><span>64</span></div>
+      </div>
+      <p style="margin:34px 0 0;font:var(--t-meta);color:var(--faint)">4 inuti komponenter, 8–16 mellan komponenter, 24–32 mellan grupper, 48–64 mellan sektioner.</p>
+    </div>
+    <div class="card-box">
+      <h3 class="sub" style="margin-top:0">Kolumner</h3>
+      <div class="gridviz"><div class="bar"></div></div>
+      <table style="margin-top:14px">
+        <tr><th>Bredd</th><th>Kolumner</th><th>Kortbredd</th></tr>
+        <tr><td><b>≥ 1600</b></td><td>7</td><td>~198 px</td></tr>
+        <tr><td><b>1280–1599</b></td><td>6</td><td>~192 px</td></tr>
+        <tr><td><b>1024–1279</b></td><td>5</td><td>~184 px</td></tr>
+        <tr><td><b>768–1023</b></td><td>4</td><td>~168 px</td></tr>
+        <tr><td><b>&lt; 768</b></td><td>2</td><td>flexibel, hero staplas</td></tr>
+      </table>
+    </div>
+  </div>
+  <h3 class="sub">Radier</h3>
+  <div class="radii">
+    <div style="border-radius:4px">4 · chips inuti kort</div>
+    <div style="border-radius:7px">7 · knappar, fält</div>
+    <div style="border-radius:11px">11 · kort</div>
+    <div style="border-radius:12px">12 · paneler</div>
+    <div style="border-radius:16px">16 · hero, dialoger</div>
+    <div style="border-radius:999px">999 · taggar, notiser</div>
+  </div>
+  <div class="note"><b>Proportioner</b>Omslag i kort visas i 3:2 landskap som beskärning av AniLists porträttbild, 132 px höjd vid 192 px bredd. Miniatyrer i listor och schema är 3:4 porträtt, 32×44 px. Hero är 268 px hög oavsett bredd.</div>
+</section>
+
+<!-- ---------------- 06 ---------------- -->
+<section id="s6">
+  <div class="sec-h"><span class="no">06</span><h2>Ytor och djup</h2><span class="rule"></span></div>
+  <p class="intro">Djup byggs med tre medel i den här ordningen: yta, linje, skugga. Glöd är ett fjärde medel som bara får användas när något faktiskt är aktivt.</p>
+  <table>
+    <tr><th>Nivå</th><th>Yta</th><th>Linje</th><th>Skugga</th><th>Exempel</th></tr>
+    <tr><td><b>0 · rummet</b></td><td class="mono">--bg</td><td>—</td><td>—</td><td>Appens bakgrund</td></tr>
+    <tr><td><b>1 · kort</b></td><td class="mono">--card</td><td class="mono">--line</td><td class="mono">--sh-1</td><td>Serier i rutnätet, paneler i statistik</td></tr>
+    <tr><td><b>2 · lyft</b></td><td class="mono">--card-hover</td><td class="mono">--line-lit</td><td class="mono">--sh-3 + glöd</td><td>Kort under pekaren</td></tr>
+    <tr><td><b>3 · överlägg</b></td><td class="mono">--bg-elevated</td><td class="mono">--line-lit</td><td class="mono">--sh-2</td><td>Detaljvy, dialoger, notiser</td></tr>
+    <tr><td><b>4 · hero</b></td><td>omslag + gradient</td><td>crimson 28 %</td><td>glöd 48 px</td><td>Ett per skärm, aldrig fler</td></tr>
+  </table>
+  <div class="note"><b>Oskärpa används sparsamt</b><code>backdrop-filter: blur(6px)</code> finns på exakt tre ställen: överläggets bakgrund, notisen och plusknappen på kort. Det är dyrt att rendera och blir grumligt om det staplas.</div>
+</section>
+
+<!-- ---------------- 07 ---------------- -->
+<section id="s7">
+  <div class="sec-h"><span class="no">07</span><h2>Ikonografi</h2><span class="rule"></span></div>
+  <p class="intro">Ett streck, aldrig fyllning. 24 px rityta, 1,5 px streck, runda ändar och hörn, inga detaljer under 2 px. Ikoner är alltid <code>--dim</code> i vila och <code>--text</code> eller <code>--crimson-lit</code> i hover, aldrig flerfärgade.</p>
+  <div class="icons">
+    <figure><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><figcaption>sök</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><figcaption>lägg till</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg><figcaption>avisering</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><figcaption>schema</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><figcaption>statistik</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg><figcaption>import</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 3h16"/></svg><figcaption>export</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg><figcaption>filter</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/></svg><figcaption>sortera</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><figcaption>klar</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg><figcaption>stäng</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M12 3.5 14.6 9l6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.8l6-.8Z"/></svg><figcaption>betyg</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M12 2C6 9 5 16 9 21c1 1 1 2 1 2 0-4-3-11 2-21Z"/><path d="M12 2c6 7 7 14 3 19-1 1-1 2-1 2 0-4 3-11-2-21Z"/></svg><figcaption>märket</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4l3 2"/></svg><figcaption>historik</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg><figcaption>ta bort</figcaption></figure>
+    <figure><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg><figcaption>inställningar</figcaption></figure>
+  </div>
+</section>
+
+<!-- ---------------- 08 ---------------- -->
+<section id="s8">
+  <div class="sec-h"><span class="no">08</span><h2>Komponenter</h2><span class="rule"></span></div>
+  <p class="intro">Allt nedan är levande. Hovra, tabba och jämför. Varje komponent har en definierad vila, hover, fokus och avstängt läge, plus de tillstånd som är specifika för appen.</p>
+
+  <div class="demo">
+    <div class="lbl">Knappar · fyra nivåer</div>
+    <div class="row">
+      <button class="btn btn-primary">Markera avsnitt sett</button>
+      <button class="btn btn-ghost">Öppna serien</button>
+      <button class="btn btn-quiet">Avbryt</button>
+      <button class="btn btn-danger">Släpp serien</button>
+      <button class="btn btn-primary load">Sparar</button>
+      <button class="btn btn-primary" disabled>Avstängd</button>
+    </div>
+    <p style="margin:16px 0 0;font:var(--t-meta);color:var(--faint)">Primär finns i högst en instans per vy. Fokus är alltid en 2 px crimson ring med 2 px offset, oavsett knapptyp.</p>
+  </div>
+
+  <div class="demo">
+    <div class="lbl">Fält, chips och taggar</div>
+    <div class="row" style="margin-bottom:16px">
+      <span class="field"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Filtrera titel eller anteckning<kbd>/</kbd></span>
+      <span class="field focus" style="min-width:200px">Frieren<kbd>esc</kbd></span>
+    </div>
+    <div class="row" style="margin-bottom:16px">
+      <button class="chip on x">Fantasy</button><button class="chip">Drama</button><button class="chip">Slice of life</button>
+      <button class="chip">Alla format</button><button class="chip">Betyg ↓</button>
+    </div>
+    <div class="row">
+      <span class="tag new">Nytt avsnitt</span><span class="tag air">Sänds nu</span><span class="tag done">Avklarad</span><span class="tag drop">Släppt</span>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="lbl">Flikar</div>
+    <div class="tabs">
+      <button class="on">Pågår <b>6</b></button><button>Väntar <b>38</b></button><button>Sett <b>212</b></button>
+      <button>Släppt <b>9</b></button><button>Schema</button><button>Upptäck</button><button>Statistik</button>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="lbl">Seriekort · fem tillstånd</div>
+    <div class="cards">
+      <div class="c"><div class="art" style="background:linear-gradient(150deg,#4a5580,#1e2440)"><span class="dot"></span></div><span class="plus">＋</span><div class="meta"><h4>Frieren</h4><div class="r"><em>18 / 28</em><span>9,0</span></div><div class="track"><i style="width:64%"></i></div></div></div>
+      <div class="c"><div class="art" style="background:linear-gradient(150deg,#96434c,#3d1f2a)"></div><span class="plus">＋</span><div class="meta"><h4>Vinland Saga</h4><div class="r"><em>12 / 24</em><span>8,0</span></div><div class="track"><i style="width:50%"></i></div></div></div>
+      <div class="c state-done"><div class="art" style="background:linear-gradient(150deg,#3f7a78,#182f36)"></div><div class="meta"><h4>Mushishi</h4><div class="r"><em>26 / 26</em><span>10</span></div><div class="track"><i style="width:100%"></i></div></div></div>
+      <div class="c state-drop"><div class="art" style="background:linear-gradient(150deg,#6b6193,#2c2748)"></div><div class="meta"><h4>Shiki</h4><div class="r"><em>11 / 22</em><span>—</span></div><div class="track"><i style="width:50%"></i></div></div></div>
+    </div>
+    <div class="cards" style="margin-top:15px">
+      <div class="c skeleton"><div class="art"></div><div class="meta"><h4>&nbsp;</h4><div class="r"><em>0 / 0</em><span>—</span></div><div class="track"></div></div></div>
+      <div style="grid-column:span 3;display:flex;align-items:center;font:var(--t-meta);color:var(--faint);padding-left:6px">
+        Skelett visas medan biblioteket läses in, aldrig längre än 400 ms innan riktig data ersätter det. Ingen spinner i rutnätet.
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="lbl">Återkoppling</div>
+    <div class="row" style="gap:18px;align-items:flex-start">
+      <span class="toast">Frieren avsnitt 19 markerat sett<button>Ångra</button></span>
+      <span class="tip">Markera avsnitt 19 sett</span>
+    </div>
+    <div class="row" style="margin-top:18px;gap:18px;align-items:flex-start">
+      <div class="dialog">
+        <h4>Släppa Shiki?</h4>
+        <p>Serien flyttas till Släppt. Dina 11 sedda avsnitt och ditt betyg sparas.</p>
+        <div class="row"><button class="btn btn-danger">Släpp serien</button><button class="btn btn-quiet">Behåll</button></div>
+      </div>
+      <div class="empty-demo" style="flex:1">
+        <b>Inget här ännu</b>
+        <p>Lägg till en serie från AniList eller importera din lista från MyAnimeList.</p>
+        <div class="row" style="justify-content:center"><button class="btn btn-primary">Lägg till serie</button><button class="btn btn-quiet">Importera</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------- 09 ---------------- -->
+<section id="s9">
+  <div class="sec-h"><span class="no">09</span><h2>Omslag och bild</h2><span class="rule"></span></div>
+  <p class="intro">Omslagen kommer utifrån och kan inte styras. Behandlingen är därför en del av profilen: den gör tolv olika bildvärldar till ett rutnät.</p>
+  <div class="covers">
+    <div class="cov raw"><div class="im" style="background:linear-gradient(150deg,#7a4ad6,#ff5f6d 55%,#ffd166)"></div><div class="scrim"></div><div class="cap">Obehandlad<span>så här inte</span></div></div>
+    <div class="cov rest"><div class="im" style="background:linear-gradient(150deg,#7a4ad6,#ff5f6d 55%,#ffd166)"></div><div class="scrim"></div><div class="cap">Vila<span>saturate .66 · brightness .9</span></div></div>
+    <div class="cov hot"><div class="im" style="background:linear-gradient(150deg,#7a4ad6,#ff5f6d 55%,#ffd166)"></div><div class="scrim"></div><div class="cap">Hover<span>saturate .96 · 420 ms</span></div></div>
+    <div class="cov fallback"><div class="fb"><b>F</b><span>omslag saknas</span></div></div>
+  </div>
+  <table>
+    <tr><th>Regel</th><th>Värde</th></tr>
+    <tr><td><b>Vila</b></td><td class="mono">filter: saturate(.66) brightness(.9) contrast(1.05)</td></tr>
+    <tr><td><b>Hover</b></td><td class="mono">filter: saturate(.96) brightness(1) contrast(1.03) · 420 ms</td></tr>
+    <tr><td><b>Övertoning över omslag</b></td><td class="mono">linear-gradient(transparent 50%, rgba(20,24,33,.95))</td></tr>
+    <tr><td><b>Hero-övertoning</b></td><td class="mono">linear-gradient(100deg, rgba(12,14,19,.94) 24%, rgba(12,14,19,.68) 52%, rgba(12,14,19,.35))</td></tr>
+    <tr><td><b>Saknat omslag</b></td><td>Mincho-initial i 22 % opacitet på plattyta, aldrig en tom ruta eller en generisk ikon</td></tr>
+  </table>
+  <div class="note warn"><b>Det här är profilens känsligaste punkt</b>Behandlingen är avstämd mot gradienter i skisserna. Den måste provas mot ditt eget bibliotek innan bygget, särskilt mot ljusa och vita omslag, där <code>brightness(.9)</code> kan behöva sänkas till <code>.82</code>.</div>
+</section>
+
+<!-- ---------------- 10 ---------------- -->
+<section id="s10">
+  <div class="sec-h"><span class="no">10</span><h2>Rörelse</h2><span class="rule"></span></div>
+  <p class="intro">Tre kurvor, fem tider, en regel: rörelsen ska tala om vad som hände, inte om att appen kan animera. Hovra rutorna nedan för att jämföra kurvorna.</p>
+  <div class="motion-lab">
+    <div class="mcell"><div class="name">Utgång</div><div class="spec">cubic-bezier(.2, 1, .3, 1)</div><div class="stage"><i class="dotmove"></i></div><p style="margin:0;font:var(--t-meta);color:var(--faint)">Standard. Kortlyft, överlägg, progress.</p></div>
+    <div class="mcell spring"><div class="name">Fjädrande</div><div class="spec">cubic-bezier(.2, 1.5, .3, 1)</div><div class="stage"><i class="dotmove"></i></div><p style="margin:0;font:var(--t-meta);color:var(--faint)">Endast plusknappen och belöningar.</p></div>
+    <div class="mcell inout"><div class="name">In och ut</div><div class="spec">cubic-bezier(.4, 0, .2, 1)</div><div class="stage"><i class="dotmove"></i></div><p style="margin:0;font:var(--t-meta);color:var(--faint)">Färg- och opacitetsbyten, flikar.</p></div>
+  </div>
+  <table>
+    <tr><th>Händelse</th><th>Tid</th><th>Kurva</th><th>Vad som rör sig</th></tr>
+    <tr><td><b>Hover på kort</b></td><td class="mono">380 ms</td><td class="mono">--e-out</td><td>Lyft 5 px, linje ritas, omslag får färg, plusknapp in</td></tr>
+    <tr><td><b>Fokusring</b></td><td class="mono">120 ms</td><td class="mono">--e-inout</td><td>Ring tonar in, ingen förflyttning</td></tr>
+    <tr><td><b>Flikbyte</b></td><td class="mono">200 ms</td><td class="mono">--e-inout</td><td>Färg och understreck, innehållet byts utan animation</td></tr>
+    <tr><td><b>+1 avsnitt</b></td><td class="mono">280 ms + 1,1 s</td><td class="mono">--e-spring</td><td>Progress växer, crimson ring vid pekaren, notis in</td></tr>
+    <tr><td><b>Serie avklarad</b></td><td class="mono">2,4 s</td><td class="mono">--e-out</td><td>Ring plus en fjäder som seglar nedåt från kortet</td></tr>
+    <tr><td><b>Överlägg öppnas</b></td><td class="mono">340 ms</td><td class="mono">--e-out</td><td>Opacitet plus 14 px uppåt och skala 0,985 till 1</td></tr>
+    <tr><td><b>Notis</b></td><td class="mono">300 ms in, 4,2 s kvar</td><td class="mono">--e-out</td><td>Glider upp underifrån, försvinner av sig själv</td></tr>
+  </table>
+  <div class="note"><b>Förbjudet</b>Blixt, skärmskakning, glitch, parallax som följer musen, animerade siffror som räknar upp, allt över 2,5 sekunder, och rörelse som blockerar en klickyta.</div>
+</section>
+
+<!-- ---------------- 11 ---------------- -->
+<section id="s11">
+  <div class="sec-h"><span class="no">11</span><h2>Atmosfär</h2><span class="rule"></span></div>
+  <p class="intro">Fyra lager, i den här ordningen bakifrån: månglöd, blomkrona, löv och fjädrar, kornighet och vinjett. Sammanlagd rörlig yta är liten med avsikt, och allt går att stänga av.</p>
+  <div class="two">
+    <div class="card-box">
+      <h3 class="sub" style="margin-top:0">Levande exempel</h3>
+      <div class="leafdemo">
+        <div style="position:absolute;inset:0;background:radial-gradient(300px 160px at 88% -30%,rgba(176,196,222,.16),transparent 68%)"></div>
+        <div style="position:absolute;inset:0 0 auto 0;height:90px;background:radial-gradient(90px 40px at 16% -14%,rgba(194,86,79,.3),transparent 72%),radial-gradient(110px 46px at 62% -18%,rgba(194,86,79,.2),transparent 72%);filter:blur(14px)"></div>
+        <i style="left:14%;animation-duration:11s"></i><i style="left:38%;animation-duration:14s;animation-delay:3s"></i>
+        <i style="left:63%;animation-duration:12s;animation-delay:6s"></i><i style="left:86%;animation-duration:15s;animation-delay:9s"></i>
+        <div class="feather-demo" style="left:46%">
+          <svg viewBox="0 0 24 66"><path d="M12 3 C4.5 17 3.2 34 9 47 C11.4 52.5 11.8 57 12 60 C12 51 5.5 34 12 3 Z" fill="#232935" opacity=".95"/><path d="M12 3 C19.5 17 20.8 34 15 47 C12.6 52.5 12.2 57 12 60 C12 51 18.5 34 12 3 Z" fill="#1a1f29"/><path d="M12 4 C12 22 12 44 12 64" stroke="#c2564f" stroke-opacity=".5" stroke-width=".9"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="card-box">
+      <h3 class="sub" style="margin-top:0">Parametrar</h3>
+      <table style="margin-top:0">
+        <tr><th>Lager</th><th>Antal</th><th>Tid</th><th>Opacitet</th></tr>
+        <tr><td><b>Löv</b></td><td>5</td><td>19–27 s</td><td>0,26–0,40</td></tr>
+        <tr><td><b>Fjäder, ambient</b></td><td>1 var 42:a s</td><td>26–36 s</td><td>0,22–0,30</td></tr>
+        <tr><td><b>Fjäder, belöning</b></td><td>1 per avklarad serie</td><td>2,4 s</td><td>0,95</td></tr>
+        <tr><td><b>Månglöd</b></td><td>1</td><td>statisk</td><td>0,17</td></tr>
+        <tr><td><b>Blomkrona</b></td><td>4 fält</td><td>statisk, blur 24</td><td>0,19–0,30</td></tr>
+      </table>
+      <div class="note" style="margin-bottom:0"><b>Tre nivåer</b><code>data-decor="on | half | off"</code>. Halv sänker opacitet till 45 %, av tar bort löv, fjädrar och blomkrona men behåller månglöd och vinjett. <code>prefers-reduced-motion</code> tvingar av.</div>
+    </div>
+  </div>
+  <div class="note warn"><b>Prestandabudget</b>Max sex animerade element samtidigt, alla på <code>transform</code> och <code>opacity</code>. Inga animerade <code>filter</code> eller <code>box-shadow</code> i loop, eftersom det målar om hela lagret varje bildruta och märks direkt på en äldre laptop.</div>
+</section>
+
+<!-- ---------------- 12 ---------------- -->
+<section id="s12">
+  <div class="sec-h"><span class="no">12</span><h2>Språk och ton</h2><span class="rule"></span></div>
+  <p class="intro">Appen talar lugnt, kort och i sak. Den beskriver vad som hänt, aldrig hur duktig du är. Inga utropstecken, inga emoji, ingen uppmuntran.</p>
+  <table>
+    <tr><th>Situation</th><th>Så här</th><th>Inte så här</th></tr>
+    <tr><td><b>Avsnitt markerat</b></td><td>Frieren avsnitt 19 markerat sett</td><td><span class="bad">Snyggt jobbat! 🎉 Ett avsnitt närmare!</span></td></tr>
+    <tr><td><b>Serie avklarad</b></td><td>Mushishi avklarad · flyttad till Sett</td><td><span class="bad">Grattis, du klarade hela serien!</span></td></tr>
+    <tr><td><b>Nytt avsnitt</b></td><td>Nytt avsnitt · för tre timmar sedan</td><td><span class="bad">Missa inte detta!</span></td></tr>
+    <tr><td><b>Tomt läge</b></td><td>Inget här ännu</td><td><span class="bad">Hoppsan, det ser tomt ut här!</span></td></tr>
+    <tr><td><b>Fel</b></td><td>Kunde inte nå AniList. Din lista är oförändrad.</td><td><span class="bad">Något gick fel :(</span></td></tr>
+    <tr><td><b>Destruktivt</b></td><td>Serien flyttas till Släppt. Dina sedda avsnitt sparas.</td><td><span class="bad">Är du säker?</span></td></tr>
+  </table>
+  <div class="note warn"><b>Ett beslut kvar till dig</b>Appen är i dag på engelska (Watching, Add Anime), medan alla skisser här är på svenska. Profilen fungerar i båda, men det måste bestämmas innan bygget eftersom vissa etiketter är längre på svenska och flikraden ligger nära sin bredd. Mitt förslag är engelska i appen, eftersom serietitlarna och AniList-data är engelska och blandspråk läser sämre än ett konsekvent val.</div>
+</section>
+
+<!-- ---------------- 13 ---------------- -->
+<section id="s13">
+  <div class="sec-h"><span class="no">13</span><h2>Tillgänglighet</h2><span class="rule"></span></div>
+  <div class="two">
+    <div class="card-box">
+      <h3 class="sub" style="margin-top:0">Fokus</h3>
+      <div style="padding:14px 0 22px"><span class="focusring">Öppna serien</span></div>
+      <p style="margin:0;font:var(--t-meta);color:var(--faint);line-height:1.6">2 px crimson ring, 2 px offset, samma överallt. Fokus visas bara vid tangentbord (<code>:focus-visible</code>), och tas aldrig bort utan ersättning. Klickytor är minst 28×28 px, helst 32.</p>
+    </div>
+    <div class="card-box">
+      <h3 class="sub" style="margin-top:0">Krav som är uppfyllda</h3>
+      <table style="margin-top:0">
+        <tr><td><b>Text mot bakgrund</b></td><td><span class="ok">16,0:1</span></td></tr>
+        <tr><td><b>Sekundär text</b></td><td><span class="ok">8,3:1</span></td></tr>
+        <tr><td><b>Etiketter</b></td><td><span class="ok">5,1:1</span></td></tr>
+        <tr><td><b>Vit på crimson</b></td><td><span class="ok">4,56:1</span></td></tr>
+        <tr><td><b>Crimson som text</b></td><td><span class="bad">förbjuden, använd ljus crimson</span></td></tr>
+      </table>
+    </div>
+  </div>
+  <h3 class="sub">Tangentbord</h3>
+  <div class="keys">
+    <div><kbd>/</kbd>Fokusera filterfältet</div>
+    <div><kbd>n</kbd>Lägg till serie</div>
+    <div><kbd>1–7</kbd>Byt flik</div>
+    <div><kbd>j / k</kbd>Nästa och föregående kort</div>
+    <div><kbd>space</kbd>Markera avsnitt sett</div>
+    <div><kbd>enter</kbd>Öppna serien</div>
+    <div><kbd>esc</kbd>Stäng överlägg</div>
+    <div><kbd>?</kbd>Visa genvägar</div>
+  </div>
+  <div class="note"><b>Färg är aldrig enda bäraren</b>Nytt avsnitt visas med både crimson punkt och texten "Nytt avsnitt". Avklarad visas med både stålfärgad progress och 26/26. Släppt visas med både sänkt opacitet och en tagg.</div>
+</section>
+
+<!-- ---------------- 14 ---------------- -->
+<section id="s14">
+  <div class="sec-h"><span class="no">14</span><h2>Tokens som kod</h2><span class="rule"></span></div>
+  <p class="intro">Klart att klistra in. Passar appens befintliga mönster, där <code>styles.css</code> redan har ett <code>:root</code> och teman som <code>[data-color-theme]</code>.</p>
+  <pre><span class="c">/* moonlit-shrine.css · tema och skala */</span>
+<span class="k">[data-color-theme="moonlit-shrine"]</span> {
+  <span class="c">/* ytor */</span>
+  --bg:<span class="v">#0c0e13</span>; --bg-deep:<span class="v">#080a0e</span>; --bg-elevated:<span class="v">#12161e</span>;
+  --card:<span class="v">#141821</span>; --card-hover:<span class="v">#181d27</span>;
+  --line:<span class="v">#212734</span>; --line-lit:<span class="v">#38424f</span>;
+  <span class="c">/* text */</span>
+  --text:<span class="v">#ece8e3</span>; --dim:<span class="v">#a2aab7</span>; --faint:<span class="v">#7b8494</span>; --faint-deco:<span class="v">#6a7280</span>;
+  <span class="c">/* accent och status */</span>
+  --crimson:<span class="v">#d43f4a</span>; --crimson-lit:<span class="v">#ea6b70</span>; --crimson-soft:<span class="v">rgba(212,63,74,.11)</span>; --crimson-deep:<span class="v">#8f2730</span>;
+  --moon:<span class="v">#b0c4de</span>; --steel:<span class="v">#8098b5</span>; --sage:<span class="v">#8fa88f</span>; --amber:<span class="v">#c9a05b</span>; --leaf:<span class="v">#c2564f</span>;
+  <span class="c">/* form */</span>
+  --radius-xs:<span class="v">4px</span>; --radius-sm:<span class="v">7px</span>; --radius:<span class="v">12px</span>; --radius-lg:<span class="v">16px</span>;
+  --sh-1:<span class="v">0 2px 8px -2px rgba(0,0,0,.5)</span>;
+  --sh-2:<span class="v">0 12px 28px -14px rgba(0,0,0,.8)</span>;
+  --sh-3:<span class="v">0 22px 42px -22px rgba(0,0,0,.95)</span>;
+  --sh-glow:<span class="v">0 0 30px -18px rgba(212,63,74,.5)</span>;
+  <span class="c">/* typsnitt */</span>
+  --display:<span class="v">"Zen Old Mincho", Georgia, serif</span>;
+  --ui:<span class="v">"Schibsted Grotesk", system-ui, sans-serif</span>;
+  --t-display-l:<span class="v">600 30px/1.16 var(--display)</span>;
+  --t-display-m:<span class="v">600 21px/1.24 var(--display)</span>;
+  --t-display-s:<span class="v">600 19px/1.2 var(--display)</span>;
+  --t-body:<span class="v">400 13px/1.62 var(--ui)</span>;
+  --t-action:<span class="v">500 12.5px/1 var(--ui)</span>;
+  --t-card:<span class="v">500 12px/1.3 var(--ui)</span>;
+  --t-meta:<span class="v">400 11px/1.5 var(--ui)</span>;
+  --t-micro:<span class="v">500 10.5px/1 var(--ui)</span>;
+  --t-nano:<span class="v">500 9.5px/1 var(--ui)</span>;
+  --tr-display:<span class="v">.015em</span>; --tr-brand:<span class="v">.055em</span>; --tr-micro:<span class="v">.16em</span>; --tr-nano:<span class="v">.22em</span>;
+  <span class="c">/* rörelse */</span>
+  --e-out:<span class="v">cubic-bezier(.2,1,.3,1)</span>;
+  --e-spring:<span class="v">cubic-bezier(.2,1.5,.3,1)</span>;
+  --e-inout:<span class="v">cubic-bezier(.4,0,.2,1)</span>;
+  --d-1:<span class="v">120ms</span>; --d-2:<span class="v">200ms</span>; --d-3:<span class="v">280ms</span>; --d-4:<span class="v">380ms</span>; --d-5:<span class="v">800ms</span>;
+  <span class="c">/* rytm */</span>
+  --sp-1:<span class="v">4px</span>; --sp-2:<span class="v">8px</span>; --sp-3:<span class="v">12px</span>; --sp-4:<span class="v">16px</span>;
+  --sp-6:<span class="v">24px</span>; --sp-8:<span class="v">32px</span>; --sp-12:<span class="v">48px</span>; --sp-16:<span class="v">64px</span>;
+}
+<span class="k">@media</span> (prefers-reduced-motion: reduce) {
+  <span class="k">*</span>, <span class="k">*::before</span>, <span class="k">*::after</span> { animation: none !important; transition: none !important; }
+}</pre>
+  <pre><span class="c">/* public/fonts/zen-old-mincho.css · samma mönster som inter.css */</span>
+<span class="k">@font-face</span> {
+  font-family: <span class="v">"Zen Old Mincho"</span>;
+  src: <span class="v">url("/fonts/zen-old-mincho-600.woff2") format("woff2")</span>;
+  font-weight: <span class="v">600</span>; font-display: <span class="v">swap</span>;
+  unicode-range: <span class="v">U+0000-00FF, U+0131, U+2000-206F, U+2212</span>; <span class="c">/* latinsk delmängd */</span>
+}</pre>
+</section>
+
+<!-- ---------------- 15 ---------------- -->
+<section id="s15">
+  <div class="sec-h"><span class="no">15</span><h2>Överlämning</h2><span class="rule"></span></div>
+  <p class="intro">Vad som är klart, vad som saknas och i vilken ordning bygget bör ske. Profilen räcker för att bygga bibliotek, schema, statistik och detaljvy. Två vyer är inte designade än.</p>
+  <div class="two">
+    <div class="card-box">
+      <h3 class="sub" style="margin-top:0">Klart att bygga</h3>
+      <table style="margin-top:0">
+        <tr><td>Tokens, palett, typografi</td><td class="ok">klart</td></tr>
+        <tr><td>Header, flikar, filterrad</td><td class="ok">klart</td></tr>
+        <tr><td>Hero, två lägen</td><td class="ok">klart</td></tr>
+        <tr><td>Seriekort, fem tillstånd</td><td class="ok">klart</td></tr>
+        <tr><td>Detaljvy</td><td class="ok">klart</td></tr>
+        <tr><td>Schema, statistik</td><td class="ok">klart</td></tr>
+        <tr><td>Notiser, dialoger, tomt läge</td><td class="ok">klart</td></tr>
+        <tr><td>Atmosfär och rörelse</td><td class="ok">klart</td></tr>
+      </table>
+    </div>
+    <div class="card-box">
+      <h3 class="sub" style="margin-top:0">Inte designat än</h3>
+      <table style="margin-top:0">
+        <tr><td><b>Upptäck</b></td><td>Informationstät, störst risk för profilen</td></tr>
+        <tr><td><b>Import från MyAnimeList</b></td><td>Flerstegsflöde med granskningstabell</td></tr>
+        <tr><td><b>Skärmdump till serie</b></td><td>OCR-resultat och rättning</td></tr>
+        <tr><td><b>Massmarkering</b></td><td>Kräver ett urvalsläge på kortet</td></tr>
+        <tr><td><b>Ljust läge</b></td><td>Finns inte, crimson behöver mörkare nyans</td></tr>
+      </table>
+    </div>
+  </div>
+  <h3 class="sub">Föreslagen ordning för bygget</h3>
+  <table>
+    <tr><th>Steg</th><th>Innehåll</th><th>Varför först</th></tr>
+    <tr><td><b>1</b></td><td>Typsnitt lokalt, tokens i <code>styles.css</code> som nytt <code>[data-color-theme]</code></td><td>Ingen risk, går att slå av. Allt annat vilar på detta.</td></tr>
+    <tr><td><b>2</b></td><td>Header, flikar, kort och hero</td><td>Nittio procent av tiden i appen ligger här.</td></tr>
+    <tr><td><b>3</b></td><td>Detaljvy, notiser, dialoger, tomt läge</td><td>Gör appen sammanhållen innan finlir.</td></tr>
+    <tr><td><b>4</b></td><td>Atmosfär, rörelse, dekornivåer</td><td>Sist, eftersom det är enda delen som kan tas bort utan att något går sönder.</td></tr>
+    <tr><td><b>5</b></td><td>Schema, statistik, sedan Upptäck och import</td><td>Upptäck bör designas mot verklig data först.</td></tr>
+  </table>
+  <div class="note warn"><b>Två saker att prova mot din egen data innan steg 2</b>Först omslagsbehandlingen mot ljusa omslag, där <code>brightness(.9)</code> kan behöva bli <code>.82</code>. Sedan flikradens bredd på svenska, eftersom Väntar, Släppt och Statistik tillsammans ligger nära kanten på en 1280 px skärm.</div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

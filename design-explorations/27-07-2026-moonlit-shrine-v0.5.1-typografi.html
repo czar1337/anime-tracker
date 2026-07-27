@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anime Tracker – Moonlit Shrine v0.5.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;600;700&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   MOONLIT SHRINE · v0.5.1
+   Typografi: Zen Old Mincho (display) + Schibsted Grotesk (gränssnitt)
+   Regel: mincho bär bara stora rubriker och varumärket. Allt i versaler,
+   all mikrotext och alla siffror ligger i grotesk, eftersom minchons
+   latinska versaler blir platta i småtext.
+   ===================================================================== */
+:root {
+  /* ---------- färg ---------- */
+  --bg:            #0c0e13;
+  --bg-deep:       #080a0e;
+  --bg-elevated:   #12161e;
+  --card:          #141821;
+  --card-hover:    #181d27;
+  --line:          #212734;
+  --line-lit:      #38424f;
+  --text:          #ece8e3;
+  --dim:           #a2aab7;
+  --faint:         #6a7280;
+  --crimson:       #d43f4a;
+  --crimson-lit:   #ea6b70;
+  --crimson-soft:  rgba(212,63,74,.11);
+  --leaf:          #c2564f;
+  --moon:          #b0c4de;
+  --steel:         #8098b5;
+  --sage:          #8fa88f;
+  --radius:        12px;
+  --radius-sm:     7px;
+  --ease:          cubic-bezier(.2,1,.3,1);
+
+  /* ---------- typsnitt ---------- */
+  --display: "Zen Old Mincho", Georgia, "Times New Roman", serif;
+  --ui:      "Schibsted Grotesk", system-ui, -apple-system, sans-serif;
+
+  /* ---------- typografisk skala ----------
+     namn            storlek / radavstånd / vikt / spärrning / snitt
+     display-l       hero-titel
+     display-m       detaljtitel, serif-rubrik i vyer
+     display-s       varumärke
+     body            löptext och anteckningar
+     action          knappar
+     card            korttitel
+     meta            sekundär rad, hjälptext
+     micro           flikar, etiketter (versaler)
+     nano            kicker över hero (versaler)                        */
+  --t-display-l: 600 30px/1.16 var(--display);
+  --t-display-m: 600 21px/1.24 var(--display);
+  --t-display-s: 600 19px/1.2  var(--display);
+  --t-body:      400 13px/1.62 var(--ui);
+  --t-action:    500 12.5px/1  var(--ui);
+  --t-card:      500 12px/1.3  var(--ui);
+  --t-meta:      400 11px/1.5  var(--ui);
+  --t-micro:     500 10.5px/1  var(--ui);
+  --t-nano:      500 9.5px/1   var(--ui);
+  --tr-display:  .015em;
+  --tr-brand:    .055em;
+  --tr-body:     0;
+  --tr-micro:    .16em;
+  --tr-nano:     .22em;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #07080b; color: var(--text); font: var(--t-body); }
+button { font-family: var(--ui); cursor: pointer; }
+.num { font-family: var(--ui); font-variant-numeric: tabular-nums; }
+
+/* ---------- sidram ---------- */
+.stage { padding: 28px 28px 80px; max-width: 1560px; margin: 0 auto; }
+.stage-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.stage-head h1 { font: var(--t-display-m); letter-spacing: var(--tr-display); margin: 0; }
+.stage-head .v { font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; color: var(--crimson-lit); border: 1px solid rgba(212,63,74,.4); border-radius: 999px; padding: 4px 10px; }
+.stage-head p { margin: 0 0 0 auto; font: var(--t-meta); color: var(--faint); }
+
+.app { position: relative; height: 820px; overflow: hidden; border-radius: 14px; background: var(--bg);
+  box-shadow: 0 30px 70px -24px rgba(0,0,0,.95); border: 1px solid var(--line); display: flex; flex-direction: column; }
+
+/* ---------- atmosfär ---------- */
+.atmo { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.atmo .moonglow { position: absolute; width: 620px; height: 380px; right: -120px; top: -180px; background: radial-gradient(ellipse at center, rgba(176,196,222,.17), transparent 66%); }
+.atmo .canopy { position: absolute; inset: 0 0 auto 0; height: 240px; background:
+    radial-gradient(180px 84px at 12% -12%, rgba(194,86,79,.30), transparent 72%),
+    radial-gradient(210px 96px at 46% -16%, rgba(194,86,79,.19), transparent 72%),
+    radial-gradient(190px 90px at 84% -10%, rgba(194,86,79,.26), transparent 72%),
+    radial-gradient(150px 70px at 66% -6%,  rgba(176,196,222,.10), transparent 72%); filter: blur(24px); }
+.atmo .vign { position: absolute; inset: 0; background: radial-gradient(125% 95% at 50% 38%, transparent 52%, rgba(0,0,0,.6)); }
+.atmo .grain { position: absolute; inset: 0; opacity: .5; background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.013) 0 1px, transparent 1px 3px); }
+.leaf { position: absolute; top: -24px; border-radius: 60% 40% 60% 40%; opacity: 0; background: linear-gradient(150deg, #d8574e, #94363a); animation: leafFall linear infinite; }
+@keyframes leafFall {
+  0% { transform: translate(0,-24px) rotate(0deg); opacity: 0 }
+  10% { opacity: .40 }
+  50% { transform: translate(var(--dx1,40px), 42vh) rotate(160deg) }
+  86% { opacity: .26 }
+  100% { transform: translate(var(--dx2,86px), 108vh) rotate(320deg); opacity: 0 }
+}
+.feather { position: absolute; top: -70px; width: 20px; opacity: 0; animation: featherFall var(--dur,30s) linear forwards; }
+.feather svg { display: block; width: 100%; height: auto; }
+@keyframes featherFall {
+  0% { transform: translate(0,-70px) rotate(-8deg); opacity: 0 }
+  8% { opacity: .30 }
+  25% { transform: translate(38px, 24vh) rotate(16deg) }
+  50% { transform: translate(-14px, 48vh) rotate(-14deg) }
+  75% { transform: translate(44px, 72vh) rotate(20deg) }
+  92% { opacity: .22 }
+  100% { transform: translate(10px, 106vh) rotate(-6deg); opacity: 0 }
+}
+[data-decor="half"] .leaf, [data-decor="half"] .feather { filter: opacity(.45); }
+[data-decor="off"] .leaf, [data-decor="off"] .feather, [data-decor="off"] .canopy { display: none; }
+
+/* ---------- header ---------- */
+.hdr { position: relative; z-index: 5; display: flex; align-items: center; padding: 18px 26px 0; flex: 0 0 auto; }
+.brand { display: flex; align-items: center; gap: 11px; font: var(--t-display-s); letter-spacing: var(--tr-brand); }
+.brand .mark { width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 13px rgba(212,63,74,.9); }
+.hdr .acts { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.icn { width: 31px; height: 31px; border: 1px solid var(--line); border-radius: 50%; background: rgba(255,255,255,.02);
+  display: grid; place-items: center; color: var(--dim); font-size: 13px; transition: border-color .22s, color .22s, background .22s; }
+.icn:hover { border-color: var(--crimson); color: var(--crimson-lit); background: var(--crimson-soft); }
+.icn.wide { width: auto; border-radius: 999px; padding: 0 14px; font: var(--t-meta); height: 31px; }
+.btn-primary { border: 0; border-radius: var(--radius-sm); background: var(--crimson); color: #fff; font: var(--t-action);
+  padding: 10px 16px; box-shadow: 0 10px 26px -12px rgba(212,63,74,.95); transition: transform .2s, filter .2s; }
+.btn-primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.btn-ghost { border: 1px solid var(--line-lit); background: rgba(255,255,255,.05); color: var(--text); font: var(--t-action);
+  border-radius: var(--radius-sm); padding: 10px 16px; transition: border-color .2s, background .2s; }
+.btn-ghost:hover { border-color: var(--crimson); background: var(--crimson-soft); }
+.save { font: var(--t-meta); color: var(--faint); margin-right: 4px; }
+.save i { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--sage); margin-right: 6px; vertical-align: 1px; }
+
+/* ---------- nav ---------- */
+.nav { position: relative; z-index: 5; display: flex; gap: 24px; padding: 16px 26px 0; margin-top: 14px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+.nav button { background: none; border: 0; padding: 0 0 12px; color: var(--faint); font: var(--t-micro);
+  letter-spacing: var(--tr-micro); text-transform: uppercase; border-bottom: 1px solid transparent; transition: color .22s, border-color .22s; }
+.nav button:hover { color: var(--dim); }
+.nav button[aria-selected="true"] { color: var(--text); border-color: var(--crimson); }
+.nav button b { font-weight: 500; color: var(--faint); margin-left: 6px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.nav .right { margin-left: auto; display: flex; gap: 8px; align-items: center; padding-bottom: 8px; }
+.pillsel { font: var(--t-meta); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; background: none; }
+.pillsel:hover { border-color: var(--line-lit); color: var(--text); }
+
+/* ---------- main ---------- */
+.main { position: relative; z-index: 4; flex: 1 1 auto; overflow: hidden; padding: 20px 26px 0; }
+
+.hero { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid rgba(212,63,74,.28);
+  box-shadow: 0 0 48px -24px rgba(212,63,74,.6); height: 268px; }
+.hero.calm { border-color: var(--line); box-shadow: 0 20px 44px -26px rgba(0,0,0,.9); }
+.hero .bg { position: absolute; inset: 0; filter: saturate(.8) contrast(1.06) brightness(.86); transform: scale(1.04); }
+.hero .bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(12,14,19,.94) 24%, rgba(12,14,19,.68) 52%, rgba(12,14,19,.35)); }
+.hero .in { position: relative; height: 100%; padding: 26px 28px; display: flex; flex-direction: column; justify-content: center; max-width: 640px; }
+.hero .kick { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--crimson-lit);
+  margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.hero.calm .kick { color: var(--steel); }
+.hero .kick i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.hero h2 { font: var(--t-display-l); letter-spacing: var(--tr-display); margin: 0 0 8px; }
+.hero .sub { font: var(--t-meta); font-size: 12px; color: var(--dim); margin-bottom: 20px; }
+.hero .sub em { font-style: normal; color: var(--faint); }
+.hero .track { height: 3px; background: rgba(255,255,255,.13); position: relative; max-width: 380px; margin-bottom: 10px; }
+.hero .track i { position: absolute; left: 0; top: 0; height: 3px; background: var(--crimson); box-shadow: 0 0 12px rgba(212,63,74,.85); transition: width .8s var(--ease); }
+.hero .n { font: var(--t-meta); font-variant-numeric: tabular-nums; color: var(--faint); margin-bottom: 20px; }
+.hero .cta { display: flex; gap: 9px; }
+
+.shelf-lbl { display: flex; align-items: baseline; gap: 12px; margin: 22px 0 12px; }
+.shelf-lbl h3 { margin: 0; font: var(--t-micro); letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+.shelf-lbl .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+.shelf-lbl .hint { font: var(--t-meta); color: var(--faint); }
+
+.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; }
+.card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+  text-align: left; padding: 0; color: inherit; transition: transform .38s var(--ease), border-color .38s, box-shadow .38s, background .38s; }
+.card::before { content: ""; position: absolute; z-index: 3; top: 0; left: 0; right: 100%; height: 1px; background: var(--crimson); transition: right .45s var(--ease); }
+.card:hover { transform: translateY(-5px); background: var(--card-hover); border-color: var(--line-lit);
+  box-shadow: 0 22px 42px -22px rgba(0,0,0,.95), 0 0 30px -18px rgba(212,63,74,.5); }
+.card:hover::before { right: 0; }
+.card:focus-visible { outline: 1px solid var(--crimson); outline-offset: 2px; }
+.card .art { height: 132px; position: relative; filter: saturate(.66) brightness(.9) contrast(1.05); transition: filter .42s; }
+.card:hover .art { filter: saturate(.96) brightness(1) contrast(1.03); }
+.card .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 50%, rgba(20,24,33,.95)); }
+.card .new { position: absolute; z-index: 2; top: 9px; left: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--crimson);
+  box-shadow: 0 0 0 3px rgba(212,63,74,.2), 0 0 12px rgba(212,63,74,.95); }
+.card .plus { position: absolute; z-index: 4; right: 9px; bottom: 46px; width: 27px; height: 27px; border-radius: 50%;
+  border: 1px solid var(--crimson); background: rgba(12,14,19,.86); color: var(--crimson-lit); display: grid; place-items: center;
+  font-size: 14px; opacity: 0; transform: scale(.85); transition: .28s cubic-bezier(.2,1.5,.3,1); backdrop-filter: blur(4px); }
+.card:hover .plus { opacity: 1; transform: none; }
+.card .plus:hover { background: var(--crimson); color: #fff; }
+.card .meta { padding: 10px 11px 12px; }
+.card h4 { margin: 0 0 5px; font: var(--t-card); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .row { display: flex; justify-content: space-between; font: var(--t-meta); font-size: 10.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.card .row em { font-style: normal; color: var(--dim); }
+.card .track { height: 2px; background: rgba(255,255,255,.08); margin-top: 9px; position: relative; }
+.card .track i { position: absolute; left: 0; top: 0; height: 2px; background: var(--crimson); transition: width .7s var(--ease); }
+
+.tonight { position: relative; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 26px;
+  border-top: 1px solid var(--line); padding: 13px 0 16px; flex: 0 0 auto; }
+.tonight .lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.tonight .chip { font: var(--t-meta); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; }
+.tonight .chip b { color: var(--crimson-lit); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tonight .r { margin-left: auto; font: var(--t-meta); color: var(--faint); }
+
+/* ---------- schema ---------- */
+.sched { display: grid; gap: 22px; }
+.sday h4 { margin: 0 0 10px; font: var(--t-display-m); font-size: 17px; letter-spacing: var(--tr-display); }
+.sday h4 span { font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; color: var(--faint); margin-left: 10px; }
+.srow { display: grid; grid-template-columns: 66px 40px 1fr 130px; gap: 16px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.srow .t { font: var(--t-card); color: var(--crimson-lit); font-variant-numeric: tabular-nums; }
+.srow .th { width: 32px; height: 44px; border-radius: 4px; filter: saturate(.7) brightness(.9); }
+.srow .ti { font: var(--t-body); font-size: 13px; }
+.srow .ti span { display: block; font: var(--t-nano); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
+.srow .rt { font: var(--t-meta); color: var(--faint); text-align: right; }
+
+/* ---------- statistik ---------- */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 26px; }
+.kpi { border: 1px solid var(--line); border-radius: var(--radius); padding: 17px 19px; background: rgba(255,255,255,.018); }
+.kpi b { display: block; font: var(--t-display-l); font-size: 31px; margin-bottom: 9px; letter-spacing: var(--tr-display); }
+.kpi span { font: var(--t-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.panel { grid-column: span 2; border: 1px solid var(--line); border-radius: var(--radius); padding: 17px 19px; }
+.panel h4 { margin: 0 0 15px; font: var(--t-micro); letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+.gbar { display: grid; grid-template-columns: 96px 1fr 34px; gap: 12px; align-items: center; margin-bottom: 9px; font: var(--t-meta); }
+.gbar .bar { height: 5px; background: rgba(255,255,255,.07); position: relative; }
+.gbar .bar i { position: absolute; left: 0; top: 0; height: 5px; background: linear-gradient(90deg, var(--crimson), rgba(212,63,74,.35)); }
+.gbar .v { text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; }
+.months { display: flex; align-items: flex-end; gap: 7px; height: 96px; }
+.months div { flex: 1; background: linear-gradient(180deg, rgba(212,63,74,.85), rgba(212,63,74,.18)); border-radius: 2px 2px 0 0; position: relative; }
+.months div span { position: absolute; bottom: -19px; left: 0; right: 0; text-align: center; font: var(--t-nano); letter-spacing: .08em; color: var(--faint); }
+
+.empty { border: 1px dashed var(--line-lit); border-radius: var(--radius); padding: 46px; text-align: center; }
+.empty b { display: block; font: var(--t-display-m); letter-spacing: var(--tr-display); margin-bottom: 8px; }
+.empty p { margin: 0 0 18px; font: var(--t-meta); font-size: 12.5px; color: var(--faint); }
+
+/* ---------- detaljvy ---------- */
+.overlay { position: absolute; inset: 0; z-index: 20; background: rgba(6,7,10,.72); backdrop-filter: blur(6px);
+  display: grid; place-items: center; padding: 34px; opacity: 0; pointer-events: none; transition: opacity .28s; }
+.overlay.open { opacity: 1; pointer-events: auto; }
+.sheet { width: 100%; max-width: 880px; background: var(--bg-elevated); border: 1px solid var(--line-lit); border-radius: 14px;
+  overflow: hidden; display: grid; grid-template-columns: 300px 1fr; transform: translateY(14px) scale(.985); transition: transform .34s var(--ease); }
+.overlay.open .sheet { transform: none; }
+.sheet .side { position: relative; }
+.sheet .side .cov { position: absolute; inset: 0; filter: saturate(.8) brightness(.9); }
+.sheet .side .cov::after { content: ""; position: absolute; inset: 0; background: linear-gradient(200deg, rgba(18,22,30,.15), rgba(18,22,30,.9)); }
+.sheet .side .sc { position: absolute; bottom: 18px; left: 20px; right: 20px; }
+.sheet .side .sc b { display: block; font: var(--t-display-m); font-size: 27px; letter-spacing: var(--tr-display); }
+.sheet .side .sc span { font: var(--t-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.sheet .body { padding: 22px 24px 24px; }
+.sheet .body h3 { font: var(--t-display-m); letter-spacing: var(--tr-display); margin: 0 0 6px; }
+.sheet .body .m { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 18px; }
+.sheet .body .quote { font-family: var(--display); font-style: italic; font-size: 13.5px; color: var(--dim); margin: 0 0 18px; }
+.sheet .lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); margin: 0 0 9px; }
+.eps { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 18px; }
+.eps i { width: 15px; height: 15px; border-radius: 3px; background: rgba(255,255,255,.07); font-style: normal;
+  font: var(--t-nano); font-size: 8px; display: grid; place-items: center; color: transparent; transition: .2s; }
+.eps i.f { background: rgba(212,63,74,.8); }
+.eps i.n { background: rgba(212,63,74,.28); box-shadow: inset 0 0 0 1px var(--crimson); animation: blip 2.4s ease-in-out infinite; }
+.eps i:hover { background: var(--crimson); color: #fff; }
+@keyframes blip { 50% { background: rgba(212,63,74,.6) } }
+.sheet .split { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 20px; }
+.scorepick { display: flex; gap: 4px; }
+.scorepick button { width: 26px; height: 26px; border-radius: 5px; border: 1px solid var(--line); background: none; color: var(--faint); font: var(--t-meta); font-variant-numeric: tabular-nums; }
+.scorepick button.on { border-color: var(--crimson); color: var(--crimson-lit); background: var(--crimson-soft); }
+.scorepick button:hover { color: var(--text); }
+.statuspick { display: flex; flex-wrap: wrap; gap: 5px; }
+.statuspick button { font: var(--t-meta); border: 1px solid var(--line); background: none; color: var(--dim); border-radius: 999px; padding: 5px 12px; }
+.statuspick button.on { border-color: var(--crimson); color: var(--crimson-lit); background: var(--crimson-soft); }
+.note { width: 100%; background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  color: var(--text); font: var(--t-body); padding: 10px 12px; resize: none; height: 60px; }
+.note:focus { outline: none; border-color: var(--line-lit); }
+.sheet .foot { display: flex; gap: 9px; margin-top: 18px; }
+.sheet .foot .danger { margin-left: auto; border: 1px solid rgba(212,63,74,.4); background: none; color: var(--crimson-lit);
+  border-radius: var(--radius-sm); font: var(--t-action); padding: 10px 14px; }
+.sheet .foot .danger:hover { background: var(--crimson-soft); }
+.closeX { position: absolute; top: 14px; right: 16px; z-index: 3; width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--line-lit); background: rgba(12,14,19,.7); color: var(--dim); font-size: 15px; }
+.closeX:hover { border-color: var(--crimson); color: var(--crimson-lit); }
+
+/* ---------- toast ---------- */
+.toast { position: absolute; z-index: 30; left: 50%; bottom: 26px; transform: translate(-50%, 20px); opacity: 0;
+  display: flex; align-items: center; gap: 14px; background: rgba(18,22,30,.96); border: 1px solid var(--line-lit);
+  border-radius: 999px; padding: 11px 12px 11px 18px; font: var(--t-body); font-size: 12.5px; transition: .3s var(--ease); backdrop-filter: blur(8px); }
+.toast.show { transform: translate(-50%, 0); opacity: 1; }
+.toast .u { border: 0; background: none; color: var(--crimson-lit); font: var(--t-action); padding: 4px 10px; border-radius: 999px; }
+.toast .u:hover { background: var(--crimson-soft); }
+
+.fx-feather { position: absolute; z-index: 25; width: 26px; pointer-events: none; animation: fxFeather 2.4s cubic-bezier(.25,.6,.3,1) forwards; }
+@keyframes fxFeather {
+  0% { transform: translate(0,0) rotate(-14deg) scale(.7); opacity: 0 }
+  12% { opacity: .95 }
+  100% { transform: translate(var(--fdx,60px), 240px) rotate(150deg) scale(1); opacity: 0 }
+}
+.ripple { position: absolute; z-index: 24; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--crimson);
+  pointer-events: none; animation: ripple 1.1s cubic-bezier(.2,.75,.2,1) forwards; }
+@keyframes ripple { 0% { transform: scale(0); opacity: .9 } 100% { transform: scale(10); opacity: 0 } }
+
+/* ---------- skalprov och noter ---------- */
+.docs { max-width: 1100px; margin: 44px auto 0; }
+.docs h2 { font: var(--t-micro); letter-spacing: .22em; text-transform: uppercase; color: var(--faint); margin: 0 0 16px; }
+.scale { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.scale .r { display: grid; grid-template-columns: 118px 1fr 300px; gap: 20px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.scale .r:last-child { border-bottom: 0; }
+.scale .r:nth-child(odd) { background: rgba(255,255,255,.014); }
+.scale .tok { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; color: #c3b6ba; }
+.scale .spc { color: var(--text); }
+.scale .use { font: var(--t-meta); color: var(--faint); }
+.s-dl { font: var(--t-display-l); letter-spacing: var(--tr-display); }
+.s-dm { font: var(--t-display-m); letter-spacing: var(--tr-display); }
+.s-ds { font: var(--t-display-s); letter-spacing: var(--tr-brand); }
+.s-bd { font: var(--t-body); }
+.s-ac { font: var(--t-action); }
+.s-cd { font: var(--t-card); }
+.s-mt { font: var(--t-meta); }
+.s-mi { font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; }
+.s-na { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 30px; margin-top: 16px; }
+.i { font: var(--t-body); color: #8d939e; border-left: 2px solid var(--line); padding-left: 13px; }
+.i b { display: block; color: #d5d1cc; font-weight: 600; font-size: 12.5px; margin-bottom: 2px; }
+.i.warn { border-left-color: rgba(212,63,74,.5); }
+code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 12px; color: #c3b6ba; background: rgba(255,255,255,.05); padding: 1px 5px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="stage-head">
+    <h1>Moonlit Shrine</h1>
+    <span class="v">v0.5.1 · typografi</span>
+    <p>Zen Old Mincho i rubriker, Schibsted Grotesk i gränssnittet. Allt annat som i 0.5.</p>
+  </div>
+
+  <div class="app" id="app" data-decor="on">
+    <div class="atmo" id="atmo">
+      <div class="moonglow"></div><div class="canopy"></div><div class="grain"></div><div class="vign"></div>
+    </div>
+
+    <div class="hdr">
+      <span class="brand"><i class="mark"></i>Anime Tracker</span>
+      <div class="acts">
+        <span class="save"><i></i>Sparat</span>
+        <button class="icn" title="Sök på AniList">⌕</button>
+        <button class="icn" title="Aviseringar">✦</button>
+        <button class="icn" id="decor" title="Dekor: på / halv / av">❋</button>
+        <button class="icn wide" title="Backup">Backup</button>
+        <button class="btn-primary" id="addBtn">Lägg till serie</button>
+      </div>
+    </div>
+
+    <div class="nav" id="nav" role="tablist">
+      <button role="tab" data-view="watching" aria-selected="true">Pågår <b id="c-watching">6</b></button>
+      <button role="tab" data-view="watchlist" aria-selected="false">Väntar <b>38</b></button>
+      <button role="tab" data-view="watched" aria-selected="false">Sett <b>212</b></button>
+      <button role="tab" data-view="dropped" aria-selected="false">Släppt <b>9</b></button>
+      <button role="tab" data-view="schedule" aria-selected="false">Schema</button>
+      <button role="tab" data-view="discover" aria-selected="false">Upptäck</button>
+      <button role="tab" data-view="stats" aria-selected="false">Statistik</button>
+      <div class="right">
+        <button class="pillsel">Betyg ↓</button>
+        <button class="pillsel">Alla format</button>
+        <button class="pillsel">Alla genrer</button>
+      </div>
+    </div>
+
+    <div class="main" id="main"></div>
+    <div class="tonight" id="tonight"></div>
+
+    <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+    <div class="toast" id="toast"><span id="toastTxt"></span><button class="u" id="undo">Ångra</button></div>
+  </div>
+
+  <div class="docs">
+    <h2>Typografisk skala</h2>
+    <div class="scale">
+      <div class="r"><span class="tok">--t-display-l</span><span class="spc s-dl">Frieren: Beyond Journey's End</span><span class="use">Mincho 600 · 30/1.16 · +0,015em · hero-titel, stora tal i statistik</span></div>
+      <div class="r"><span class="tok">--t-display-m</span><span class="spc s-dm">Vinland Saga</span><span class="use">Mincho 600 · 21/1.24 · +0,015em · detaljtitel, rubrik i vy, tomt läge</span></div>
+      <div class="r"><span class="tok">--t-display-s</span><span class="spc s-ds">Anime Tracker</span><span class="use">Mincho 600 · 19/1.2 · +0,055em · varumärket, bara där</span></div>
+      <div class="r"><span class="tok">--t-body</span><span class="spc s-bd">Långsam på rätt sätt. Sparar sista bågen till helgen.</span><span class="use">Grotesk 400 · 13/1.62 · anteckningar, löptext, notiser</span></div>
+      <div class="r"><span class="tok">--t-action</span><span class="spc s-ac">Markera avsnitt 19 sett</span><span class="use">Grotesk 500 · 12,5 · alla knappar</span></div>
+      <div class="r"><span class="tok">--t-card</span><span class="spc s-cd">Ping Pong the Animation</span><span class="use">Grotesk 500 · 12/1.3 · korttitlar, klockslag i schema</span></div>
+      <div class="r"><span class="tok">--t-meta</span><span class="spc s-mt">Avsnitt 18 av 28 sedda · 10 kvar</span><span class="use">Grotesk 400 · 11/1.5 · sekundär rad, chips, hjälptext</span></div>
+      <div class="r"><span class="tok">--t-micro</span><span class="spc s-mi">Pågår · Väntar · Sett · Släppt</span><span class="use">Grotesk 500 · 10,5 · +0,16em · flikar och etiketter</span></div>
+      <div class="r"><span class="tok">--t-nano</span><span class="spc s-na">Nytt avsnitt · för tre timmar sedan</span><span class="use">Grotesk 500 · 9,5 · +0,22em · kicker, minsta etiketter</span></div>
+    </div>
+
+    <h2 style="margin-top:34px">Regler och nästa steg</h2>
+    <div class="cols">
+      <div class="i"><b>Mincho bara stort</b>Zen Old Mincho används i tre storlekar och aldrig under 17 px, aldrig i versaler. Skälet är att minchons latinska versaler blir platta och att seriferna slammar igen i småtext. Grotesken bär allt annat.</div>
+      <div class="i"><b>Nio tokens, inga lösa värden</b>Varje textelement i appen pekar på en token. Det gör att en ändring av skalan slår igenom överallt istället för att behöva jagas i 2 400 rader CSS.</div>
+      <div class="i"><b>Siffror är tabulära överallt</b>Avsnittsräknare, betyg och klockslag har samma teckenbredd, så inget hoppar när 9 blir 10. Det syns tydligast i kortrutnätet vid +1.</div>
+      <div class="i"><b>Kursiv mincho som krydda</b>Detaljvyn har nu en kursiv rad för originaltiteln. Det ger variation utan ett fjärde snitt, och det är enda stället kursiv används.</div>
+      <div class="i warn"><b>Filerna som ska laddas ner</b><code>zen-old-mincho-600.woff2</code> och <code>-700</code> (latinsk delmängd, cirka 28 kB styck) samt <code>schibsted-grotesk-400/500/600.woff2</code> (cirka 30 kB styck). Läggs i <code>public/fonts</code> med egna <code>@font-face</code> som <code>inter.css</code>. Förhandsvisningen här hämtar från Google Fonts, det följer inte med in i appen.</div>
+      <div class="i warn"><b>Japanska titlar</b>Zen Old Mincho klarar kanji och kana, men bara om den fulla japanska uppsättningen laddas, flera megabyte. Förslag: latinsk delmängd som standard, japansk delmängd hämtas först när du slår på originaltitlar.</div>
+      <div class="i"><b>Sora och Inter kan tas bort</b>Två snitt in, två ut, så bundlens storlek står i stort sett still. Inter kan behöva stanna en release om något ställe fortfarande refererar den direkt.</div>
+      <div class="i"><b>Nu väntar jag på din 0.5-feedback</b>Skalan ligger på plats, så 0.6 kan fokusera på det du reagerar på: filterraden, Upptäck, hero-fallbacket och fjäderns frekvens.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FEATHER = `<svg viewBox="0 0 24 66" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#2b3140"/><stop offset=".55" stop-color="#1a1f29"/><stop offset="1" stop-color="#3a2630"/>
+  </linearGradient></defs>
+  <path d="M12 3 C4.5 17 3.2 34 9 47 C11.4 52.5 11.8 57 12 60 C12 51 5.5 34 12 3 Z" fill="url(#fg)" opacity=".92"/>
+  <path d="M12 3 C19.5 17 20.8 34 15 47 C12.6 52.5 12.2 57 12 60 C12 51 18.5 34 12 3 Z" fill="url(#fg)" opacity=".72"/>
+  <path d="M12 4 C12 22 12 44 12 64" stroke="#c2564f" stroke-opacity=".5" stroke-width=".9" fill="none"/>
+</svg>`;
+
+const lib = [
+  { id:1, title:"Frieren: Beyond Journey's End", jp:"葬送のフリーレン", short:"Frieren", genre:"Fantasy", format:"TV", year:2023, ep:18, total:28, score:9, cover:"linear-gradient(150deg,#4a5580,#1e2440)", newEp:true, air:"Fredag 18:00", note:"Långsam på rätt sätt. Sparar sista bågen till helgen." },
+  { id:2, title:"Mushishi", jp:"蟲師", short:"Mushishi", genre:"Slice of life", format:"TV", year:2005, ep:21, total:26, score:10, cover:"linear-gradient(150deg,#3f7a78,#182f36)", newEp:false, air:null, note:"Ett avsnitt i taget, aldrig fler." },
+  { id:3, title:"Vinland Saga", jp:"ヴィンランド・サガ", short:"Vinland Saga", genre:"Drama", format:"TV", year:2019, ep:12, total:24, score:8, cover:"linear-gradient(150deg,#96434c,#3d1f2a)", newEp:false, air:null, note:"" },
+  { id:4, title:"Monogatari Series", jp:"物語シリーズ", short:"Monogatari", genre:"Mystik", format:"TV", year:2009, ep:5, total:15, score:null, cover:"linear-gradient(150deg,#6b6193,#2c2748)", newEp:false, air:null, note:"Behöver koncentration, inte bakgrundstittande." },
+  { id:5, title:"Odd Taxi", jp:"オッドタクシー", short:"Odd Taxi", genre:"Thriller", format:"TV", year:2021, ep:7, total:13, score:null, cover:"linear-gradient(150deg,#a8763f,#4a2c1c)", newEp:false, air:null, note:"" },
+  { id:6, title:"Kaiju No. 8", jp:"怪獣8号", short:"Kaiju No. 8", genre:"Action", format:"TV", year:2024, ep:9, total:12, score:7.5, cover:"linear-gradient(150deg,#546f92,#22303f)", newEp:false, air:"Ikväll 21:00", note:"" },
+  { id:7, title:"Ping Pong the Animation", jp:"ピンポン", short:"Ping Pong", genre:"Sport", format:"TV", year:2014, ep:3, total:11, score:8.5, cover:"linear-gradient(150deg,#8a5570,#3c2038)", newEp:false, air:null, note:"" },
+  { id:8, title:"Hyouka", jp:"氷菓", short:"Hyouka", genre:"Mystik", format:"TV", year:2012, ep:14, total:22, score:9.5, cover:"linear-gradient(150deg,#8f7f4d,#3f3418)", newEp:false, air:null, note:"" },
+  { id:9, title:"Mob Psycho 100", jp:"モブサイコ100", short:"Mob Psycho 100", genre:"Action", format:"TV", year:2016, ep:6, total:12, score:9, cover:"linear-gradient(150deg,#3f7a78,#182f36)", newEp:false, air:"Ikväll 23:30", note:"" },
+  { id:10, title:"Kids on the Slope", jp:"坂道のアポロン", short:"Kids on the Slope", genre:"Drama", format:"TV", year:2012, ep:2, total:12, score:null, cover:"linear-gradient(150deg,#4a5580,#1e2440)", newEp:false, air:null, note:"" },
+  { id:11, title:"Shiki", jp:"屍鬼", short:"Shiki", genre:"Skräck", format:"TV", year:2010, ep:11, total:22, score:8, cover:"linear-gradient(150deg,#6b6193,#2c2748)", newEp:false, air:null, note:"" },
+  { id:12, title:"Rurouni Kenshin", jp:"るろうに剣心", short:"Rurouni Kenshin", genre:"Action", format:"TV", year:2023, ep:4, total:24, score:null, cover:"linear-gradient(150deg,#96434c,#3d1f2a)", newEp:false, air:"Lördag 17:00", note:"" }
+];
+
+let view = "watching", openId = null, lastAction = null, decor = "on", yearEpisodes = 318;
+const $ = s => document.querySelector(s);
+const app = $("#app"), main = $("#main"), atmo = $("#atmo");
+
+function seedLeaves() {
+  [[9,7,19,0],[27,6,24,4],[48,7,21,9],[66,6,27,14],[87,7,23,19]].forEach(([left,size,dur,delay]) => {
+    const l = document.createElement("div");
+    l.className = "leaf";
+    l.style.cssText = `left:${left}%;width:${size}px;height:${size+2}px;animation-duration:${dur}s;animation-delay:${delay}s;--dx1:${20+Math.random()*40}px;--dx2:${50+Math.random()*60}px`;
+    atmo.appendChild(l);
+  });
+}
+function dropFeather() {
+  if (decor === "off") return;
+  const f = document.createElement("div");
+  f.className = "feather";
+  f.style.cssText = `left:${8 + Math.random()*80}%;--dur:${26 + Math.random()*10}s`;
+  f.innerHTML = FEATHER;
+  atmo.appendChild(f);
+  setTimeout(() => f.remove(), 40000);
+}
+seedLeaves();
+setTimeout(dropFeather, 2500);
+setInterval(dropFeather, 42000);
+
+$("#decor").addEventListener("click", () => {
+  decor = decor === "on" ? "half" : decor === "half" ? "off" : "on";
+  app.dataset.decor = decor;
+  toast(`Dekor: ${decor === "on" ? "på" : decor === "half" ? "halv" : "av"}`, false);
+});
+
+const watching = () => lib.filter(a => a.ep < a.total);
+const heroPick = () => watching().find(a => a.newEp) || watching().slice().sort((a,b) => b.ep/b.total - a.ep/a.total)[0];
+
+function render() {
+  $("#c-watching").textContent = watching().length;
+  if (view === "watching") renderLibrary();
+  else if (view === "schedule") renderSchedule();
+  else if (view === "stats") renderStats();
+  else renderEmpty();
+  renderTonight();
+}
+
+function renderLibrary() {
+  const h = heroPick(), isNew = !!h.newEp;
+  const rest = watching().filter(a => a.id !== h.id);
+  main.innerHTML = `
+    <div class="hero ${isNew ? "" : "calm"}">
+      <div class="bg" style="background:${h.cover}"></div>
+      <div class="in">
+        <div class="kick"><i></i>${isNew ? "Nytt avsnitt · för tre timmar sedan" : "Fortsätt där du var"}</div>
+        <h2>${h.title}</h2>
+        <div class="sub">${h.genre} · ${h.format} · ${h.year}${h.score ? ` · <em>ditt betyg</em> ${String(h.score).replace(".",",")}` : ""}</div>
+        <div class="track"><i style="width:${h.ep/h.total*100}%"></i></div>
+        <div class="n">Avsnitt ${h.ep} av ${h.total} sedda · ${h.total-h.ep} kvar</div>
+        <div class="cta">
+          <button class="btn-primary" data-plus="${h.id}">Markera avsnitt ${h.ep+1} sett</button>
+          <button class="btn-ghost" data-open="${h.id}">Öppna serien</button>
+        </div>
+      </div>
+    </div>
+    <div class="shelf-lbl"><h3>Resten av pågår</h3><span class="rule"></span><span class="hint">Hovra för att markera avsnitt · klicka för detaljer</span></div>
+    <div class="grid">
+      ${rest.map(a => `
+        <button class="card" data-open="${a.id}">
+          <div class="art" style="background:${a.cover}">${a.newEp ? '<span class="new"></span>' : ""}</div>
+          <span class="plus" data-plus="${a.id}" title="Markera avsnitt ${a.ep+1} sett">＋</span>
+          <div class="meta">
+            <h4>${a.short}</h4>
+            <div class="row"><em>${a.ep} / ${a.total}</em><span>${a.score ? String(a.score).replace(".",",") : "—"}</span></div>
+            <div class="track"><i style="width:${a.ep/a.total*100}%"></i></div>
+          </div>
+        </button>`).join("")}
+    </div>`;
+}
+
+function renderTonight() {
+  const air = lib.filter(a => a.air && a.air.startsWith("Ikväll"));
+  $("#tonight").innerHTML = `
+    <span class="lbl">I kväll</span>
+    ${air.map(a => `<span class="chip"><b>${a.air.replace("Ikväll ","")}</b> ${a.short} avsnitt ${a.ep+1}</span>`).join("")}
+    <span class="r">${watching().length} pågår · ${yearEpisodes} avsnitt i år · sparat lokalt</span>`;
+}
+
+function renderSchedule() {
+  const days = [
+    { d: "Idag", s: "måndag 27 juli", rows: [["21:00",6],["23:30",9]] },
+    { d: "Onsdag", s: "29 juli", rows: [["19:00",3]] },
+    { d: "Fredag", s: "31 juli", rows: [["18:00",1]] },
+    { d: "Lördag", s: "1 augusti", rows: [["17:00",12]] }
+  ];
+  main.innerHTML = `<div class="sched">${days.map(g => `
+    <div class="sday">
+      <h4>${g.d}<span>${g.s}</span></h4>
+      ${g.rows.map(([t,id]) => { const a = lib.find(x => x.id === id); return `
+        <div class="srow">
+          <span class="t">${t}</span>
+          <span class="th" style="background:${a.cover}"></span>
+          <span class="ti">${a.title}<span>Avsnitt ${a.ep+1} av ${a.total}</span></span>
+          <span class="rt">${a.genre} · ${a.year}</span>
+        </div>`; }).join("")}
+    </div>`).join("")}</div>`;
+}
+
+function renderStats() {
+  const genres = {};
+  lib.forEach(a => genres[a.genre] = (genres[a.genre] || 0) + a.ep);
+  const top = Object.entries(genres).sort((a,b) => b[1]-a[1]).slice(0,6);
+  const max = top[0][1];
+  const months = [22,31,27,18,35,29,41,26,33,38,24,14];
+  const names = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+  const mmax = Math.max(...months);
+  const scored = lib.filter(a => a.score);
+  const avg = (scored.reduce((s,a) => s+a.score, 0) / scored.length).toFixed(1).replace(".",",");
+  main.innerHTML = `
+    <div class="stats">
+      <div class="kpi"><b>${yearEpisodes}</b><span>avsnitt i år</span></div>
+      <div class="kpi"><b>212</b><span>sedda serier</span></div>
+      <div class="kpi"><b>${avg}</b><span>snittbetyg</span></div>
+      <div class="kpi"><b>${watching().length}</b><span>pågår nu</span></div>
+      <div class="panel"><h4>Avsnitt per genre</h4>
+        ${top.map(([g,v]) => `<div class="gbar"><span>${g}</span><span class="bar"><i style="width:${v/max*100}%"></i></span><span class="v">${v}</span></div>`).join("")}
+      </div>
+      <div class="panel"><h4>Avsnitt per månad</h4>
+        <div class="months">${months.map((m,i) => `<div style="height:${m/mmax*100}%"><span>${names[i]}</span></div>`).join("")}</div>
+      </div>
+    </div>`;
+}
+
+function renderEmpty() {
+  main.innerHTML = `<div class="empty"><b>Den här vyn är inte gjord ännu</b>
+    <p>Väntar, Sett, Släppt och Upptäck kommer i 0.6. Testa Pågår, Schema och Statistik.</p>
+    <button class="btn-ghost" onclick="document.querySelector('[data-view=watching]').click()">Tillbaka till Pågår</button></div>`;
+}
+
+$("#nav").addEventListener("click", e => {
+  const b = e.target.closest("button[data-view]");
+  if (!b) return;
+  document.querySelectorAll("#nav button[data-view]").forEach(x => x.setAttribute("aria-selected", x === b));
+  view = b.dataset.view;
+  render();
+});
+
+document.addEventListener("click", e => {
+  const plus = e.target.closest("[data-plus]");
+  if (plus) { e.preventDefault(); e.stopPropagation(); markWatched(+plus.dataset.plus, plus); return; }
+  const open = e.target.closest("[data-open]");
+  if (open) { openDetail(+open.dataset.open); return; }
+});
+
+function markWatched(id, originEl) {
+  const a = lib.find(x => x.id === id);
+  if (!a || a.ep >= a.total) return;
+  lastAction = { id, ep: a.ep, newEp: a.newEp };
+  a.ep++; a.newEp = false; yearEpisodes++;
+  const finished = a.ep >= a.total;
+  effect(originEl, finished);
+  toast(finished ? `${a.short} avklarad · flyttad till Sett` : `${a.short} avsnitt ${a.ep} markerat sett`, true);
+  render();
+  if (openId === id) openDetail(id);
+}
+
+$("#undo").addEventListener("click", () => {
+  if (!lastAction) return;
+  const a = lib.find(x => x.id === lastAction.id);
+  a.ep = lastAction.ep; a.newEp = lastAction.newEp; yearEpisodes--;
+  lastAction = null; hideToast(); render();
+  if (openId) openDetail(openId);
+});
+
+function effect(el, big) {
+  const r = app.getBoundingClientRect();
+  const b = el ? el.getBoundingClientRect() : { left: r.left + r.width/2, top: r.top + r.height/2, width: 0, height: 0 };
+  const x = b.left - r.left + b.width/2, y = b.top - r.top + b.height/2;
+  const ring = document.createElement("div");
+  ring.className = "ripple";
+  ring.style.cssText = `left:${x-8}px;top:${y-8}px`;
+  app.appendChild(ring);
+  setTimeout(() => ring.remove(), 1200);
+  if (big && decor !== "off") {
+    const f = document.createElement("div");
+    f.className = "fx-feather";
+    f.style.cssText = `left:${x-13}px;top:${y-20}px;--fdx:${40+Math.random()*50}px`;
+    f.innerHTML = FEATHER;
+    app.appendChild(f);
+    setTimeout(() => f.remove(), 2600);
+  }
+}
+
+let toastTimer;
+function toast(msg, undoable) {
+  $("#toastTxt").textContent = msg;
+  $("#undo").style.display = undoable ? "" : "none";
+  $("#toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 4200);
+}
+function hideToast() { $("#toast").classList.remove("show"); }
+
+function openDetail(id) {
+  const a = lib.find(x => x.id === id);
+  openId = id;
+  const dots = Array.from({ length: a.total }, (_, i) => `<i class="${i < a.ep ? "f" : i === a.ep ? "n" : ""}">${i+1}</i>`).join("");
+  $("#sheet").innerHTML = `
+    <button class="closeX" data-close>×</button>
+    <div class="side">
+      <div class="cov" style="background:${a.cover}"></div>
+      <div class="sc"><b>${a.score ? String(a.score).replace(".",",") : "—"}</b><span>${a.score ? "ditt betyg" : "ej betygsatt"}</span></div>
+    </div>
+    <div class="body">
+      <h3>${a.title}</h3>
+      <div class="m">${a.genre} · ${a.format} · ${a.year} · ${a.ep} av ${a.total} sedda</div>
+      <p class="quote">${a.jp}</p>
+      <p class="lbl">Avsnitt</p>
+      <div class="eps">${dots}</div>
+      <div class="split">
+        <div>
+          <p class="lbl">Betyg</p>
+          <div class="scorepick">${[6,7,8,9,10].map(n => `<button class="${a.score === n ? "on" : ""}">${n}</button>`).join("")}</div>
+        </div>
+        <div>
+          <p class="lbl">Status</p>
+          <div class="statuspick"><button class="on">Pågår</button><button>Väntar</button><button>Sett</button><button>Släppt</button></div>
+        </div>
+      </div>
+      <p class="lbl">Anteckning</p>
+      <textarea class="note" placeholder="Egna anteckningar…">${a.note}</textarea>
+      <div class="foot">
+        <button class="btn-primary" data-plus="${a.id}">＋ Avsnitt ${Math.min(a.ep+1, a.total)}</button>
+        <button class="btn-ghost" data-close>Stäng</button>
+        <button class="danger">Släpp serien</button>
+      </div>
+    </div>`;
+  $("#overlay").classList.add("open");
+}
+$("#overlay").addEventListener("click", e => {
+  if (e.target.id === "overlay" || e.target.closest("[data-close]")) closeDetail();
+});
+function closeDetail() { $("#overlay").classList.remove("open"); openId = null; }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDetail(); });
+$("#addBtn").addEventListener("click", () => toast("Sökrutan för AniList kommer i 0.6", false));
+
+render();
+</script>
+</body>
+</html>

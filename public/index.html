@@ -6,13 +6,24 @@
 <title>Anime Tracker</title>
 <link rel="stylesheet" href="/fonts/inter.css">
 <link rel="stylesheet" href="/fonts/sora.css">
+<!-- Moonlit Shrine typefaces (design/moonlit-shrine-design-system.md §4).
+     inter.css/sora.css stay linked for now — --font-heading (see styles.css's
+     Phase 1 bridge block) still falls back to Sora/Inter for a couple of
+     components sized below Mincho's 17px floor. Removed once Phase 2
+     migrates every consumer to --display/--ui and nothing references them. -->
+<link rel="stylesheet" href="/fonts/zen-old-mincho.css">
+<link rel="stylesheet" href="/fonts/schibsted-grotesk.css">
 <link rel="stylesheet" href="/styles.css">
 <script>
   // Applied synchronously, before the stylesheet paints anything, so the
   // page never flashes the fallback theme before switching to a saved one —
   // same reasoning as the old light/dark toggle, just a bigger visual delta
   // now that themes are full color identities instead of light vs dark.
-  document.documentElement.dataset.colorTheme = localStorage.getItem('anime-tracker-color-theme') || 'holo-deck';
+  document.documentElement.dataset.colorTheme = localStorage.getItem('anime-tracker-color-theme') || 'moonlit-shrine';
+  // Text size/weight (design/moonlit-shrine-design-system.md §4.2) — same
+  // synchronous-before-paint treatment as the theme above, so nothing jumps.
+  document.documentElement.dataset.textSize = localStorage.getItem('anime-tracker-text-size') || 's';
+  document.documentElement.dataset.textWeight = localStorage.getItem('anime-tracker-text-weight') || 'normal';
 </script>
 </head>
 <body>

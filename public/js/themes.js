@@ -46,10 +46,12 @@ export const COLOR_THEMES = [
 ];
 
 export const STORAGE_KEY = 'anime-tracker-color-theme';
-// Holo Deck was the original full "Status Window" execution that won the
-// first round of exploration — everything else is refinements/variety asked
-// for afterward, so it's the natural default for anyone who hasn't chosen yet.
-export const DEFAULT_THEME_ID = 'holo-deck';
+// Moonlit Shrine (design/moonlit-shrine-design-system.md) is the new default
+// for anyone who hasn't chosen a theme yet. Holo Deck and the rest of the
+// old "Status Window" set stay fully selectable — every old key still
+// resolves via public/moonlit-shrine-themes.css — so a theme saved before
+// this change keeps working exactly as it did.
+export const DEFAULT_THEME_ID = 'moonlit-shrine';
 
 export function getCurrentThemeId() {
   return document.documentElement.dataset.colorTheme || DEFAULT_THEME_ID;
