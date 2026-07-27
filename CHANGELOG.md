@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.9.0
+## 2.0.0
 
 **Moonlit Shrine — a full visual redesign.** New default theme (moon-and-shrine palette, warm red accent), 45 color themes total, two new typefaces (Zen Old Mincho for headings, Schibsted Grotesk for everything else), and user controls for text size, text weight, and decoration level. Nothing about the data model, storage format, or server changed — this is the visual layer only.
 
