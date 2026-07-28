@@ -129,14 +129,26 @@ body {
 
 /* ---------- Atmosphere ----------
    design/moonlit-shrine-design-system.md §11. Built once by atmosphere.js
-   and inserted as body's first child; z-index:-1 keeps it behind every bit
-   of real content regardless of paint order, with no need to touch #app's
-   own stacking. Moon glow + vignette are unconditional; canopy/leaves/
-   feathers are only ever populated by JS when decoration is actually
-   allowed (see atmosphere.js's decorativeLayerAllowed) — the [data-decor]
-   rules below only handle the "half" opacity case, since "off" is instead
-   handled by JS never creating those elements in the first place. */
-#atmosphere { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+   and inserted as body's first child. Moon glow + vignette are
+   unconditional; canopy/leaves/feathers are only ever populated by JS when
+   decoration is actually allowed (see atmosphere.js's
+   decorativeLayerAllowed) — the [data-decor] rules below only handle the
+   "half" opacity case, since "off" is instead handled by JS never creating
+   those elements in the first place.
+
+   A negative z-index (behind #app's content, showing only through its
+   transparent gaps) never actually painted anywhere, verified several
+   ways, including giving #app isolation:isolate — content inside a
+   negative-stacked sibling of #app simply didn't composite through #app's
+   empty areas in this browser, for reasons not worth chasing further. So
+   instead this sits *above* everything at low opacity, the same way an
+   ambient rain/snow overlay conventionally works in a lot of software —
+   pointer-events:none keeps it from ever intercepting a click, and only
+   .atmo-vignette (a static, very soft edge-darken) and the low-opacity
+   leaves/feathers actually cover any content; moon glow only ever touches
+   the header area. z-index sits just below every overlay (100) so a
+   dialog is never dimmed by it. */
+#atmosphere { position: fixed; inset: 0; z-index: 90; overflow: hidden; pointer-events: none; }
 
 .atmo-moon {
   position: absolute;
@@ -534,6 +546,10 @@ kbd {
   .card:hover:not(:focus-within) .card-cover-wrap img { filter: var(--cover-filter); }
   .card:hover:not(:focus-within) .plus { opacity: 0; transform: scale(0.85); }
   .btn-primary:hover { transform: none; filter: none; }
+  /* No hover affordance exists to reveal .plus on a touch device — without
+     this it's only reachable via keyboard focus, effectively invisible on
+     the devices most likely to rely on this media query. */
+  .plus { opacity: .85; transform: none; }
 }
 
 /* ---------- Main / toolbar ---------- */
@@ -908,6 +924,7 @@ kbd {
 }
 .discover-controls { display: flex; align-items: center; gap: 14px; }
 .discover-age { font-size: 12px; color: var(--faint); white-space: nowrap; }
+.discover-media-filter { margin: -12px 0 12px; align-items: center; }
 .discover-genre-filter { margin: -12px 0 24px; align-items: center; }
 .discover-genre-filter-label { font-size: 12px; color: var(--faint); margin-right: 2px; }
 .discover-genre-chip.active { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
@@ -1234,17 +1251,17 @@ kbd {
   position: absolute;
   overflow: hidden;
   z-index: 4;
-  right: 9px;
-  bottom: calc(46px * var(--text-scale));
-  width: 27px;
-  height: 27px;
+  right: 10px;
+  bottom: calc(50px * var(--text-scale));
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 1px solid var(--accent);
   background: color-mix(in srgb, var(--bg-deep) 86%, transparent);
   color: var(--accent-lit);
   display: grid;
   place-items: center;
-  font-size: 14px;
+  font-size: 19px;
   line-height: 1;
   opacity: 0;
   transform: scale(0.85);
@@ -2273,10 +2290,40 @@ kbd {
 /* 900px rather than the old 720px: the previous threshold left tablet-portrait
    widths (~768px) in a gap where the header could neither fit on one line nor
    wrap, clipping the tab bar. */
+/* ---------- Mobile nav menu (hamburger) ----------
+   Hidden on wide viewports — the tab row already works fine there. Below
+   900px the tab row used to wrap into a cramped, horizontally-scrolling
+   strip that clipped the header's own trailing controls; a menu behind a
+   single button is more reliable at phone widths than trying to keep a
+   7-item tab row legible in the same space. */
+.nav-hamburger { display: none; }
+.nav-menu-panel { max-width: 320px; }
+.nav-menu-list { display: flex; flex-direction: column; gap: 2px; }
+.nav-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  color: var(--dim);
+  font: var(--t-body);
+  cursor: pointer;
+  transition: background var(--d-2), color var(--d-2);
+}
+.nav-menu-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
+.nav-menu-item.on { color: var(--text); background: var(--accent-soft); }
+.nav-menu-item b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--faint); font-weight: 500; }
+
 @media (max-width: 900px) {
   .app-header { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
   .app-main { padding: 16px; }
-  .tabs { order: 3; flex: 1 1 100%; overflow-x: auto; }
+  .tabs { display: none; }
+  .nav-hamburger { display: flex; }
+  .header-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 @media (max-width: 720px) {
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }

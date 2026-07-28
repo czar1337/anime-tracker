@@ -2,7 +2,7 @@ import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
 import { Airing } from './airing.js';
-import { pickSeeds, buildGenreProfile, filterOwned } from './recommendLogic.js';
+import { pickSeeds, buildGenreProfile, filterOwned, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
 import { rankUpcoming } from './scheduleLogic.js';
 
 const PAGE_SIZE = 20;
@@ -102,10 +102,22 @@ async function loadCacheFromServer() {
   }
 }
 
+function mediaFilters() {
+  return Store.state.preferences.scheduleFilters;
+}
+
 export function getScheduleState() {
   scheduleState.pool = filterLiveItems(scheduleState.pool);
-  scheduleState.visibleCount = Math.min(scheduleState.visibleCount || PAGE_SIZE, scheduleState.pool.length);
-  return { ...scheduleState, items: scheduleState.pool, week: Airing.getWeekSchedule() };
+  const items = applyMediaFilters(scheduleState.pool, mediaFilters());
+  scheduleState.visibleCount = Math.min(scheduleState.visibleCount || PAGE_SIZE, items.length);
+  return {
+    ...scheduleState,
+    items,
+    week: Airing.getWeekSchedule(),
+    availableStudios: poolStudios(scheduleState.pool),
+    availableFormats: poolFormats(scheduleState.pool),
+    filters: mediaFilters(),
+  };
 }
 
 // Called every time the Schedule tab is opened: always shows whatever it
@@ -117,9 +129,34 @@ export function ensureFreshOnOpen() {
   }
 }
 
+// Mirrors discover.js's bindMediaFilterControls — same filter shape, same
+// regenerate-in-full-on-every-render markup, different preference key.
+function bindMediaFilterControls(container, persist) {
+  container.addEventListener('change', (e) => {
+    const target = e.target;
+    if (target.id === 'schedule-format-filter') {
+      Store.setPreference(['scheduleFilters', 'format'], target.value);
+    } else if (target.id === 'schedule-studio-filter') {
+      Store.setPreference(['scheduleFilters', 'studio'], target.value);
+    } else if (target.id === 'schedule-airing-status-filter') {
+      Store.setPreference(['scheduleFilters', 'airingStatus'], target.value);
+    } else if (target.id === 'schedule-duration-min') {
+      Store.setPreference(['scheduleFilters', 'durationMin'], target.value ? Number(target.value) : null);
+    } else if (target.id === 'schedule-duration-max') {
+      Store.setPreference(['scheduleFilters', 'durationMax'], target.value ? Number(target.value) : null);
+    } else {
+      return;
+    }
+    scheduleState.visibleCount = PAGE_SIZE;
+    renderNow();
+    persist();
+  });
+}
+
 export function initSchedule({ persistFn } = {}) {
   const persist = persistFn || (() => {});
   const container = document.getElementById('schedule-view');
+  bindMediaFilterControls(container, persist);
 
   container.addEventListener('click', (e) => {
     if (e.target.closest('#schedule-refresh-btn')) {
@@ -163,6 +200,8 @@ export function initSchedule({ persistFn } = {}) {
         duration: media.duration,
         genres: media.genres,
         averageScore: media.averageScore,
+        studio: Api.extractStudio(media),
+        airingStatus: media.status || null,
         listStatus: 'watchlist',
         relatedIds: Api.extractRelatedIds(media),
       });

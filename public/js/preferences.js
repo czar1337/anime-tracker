@@ -17,12 +17,14 @@
 export const TEXT_SIZES = ['xs', 's', 'm', 'l', 'xl'];
 export const TEXT_WEIGHTS = ['light', 'normal', 'clear', 'bold'];
 export const DECOR_LEVELS = ['on', 'half', 'off'];
+export const DECOR_DENSITIES = ['few', 'normal', 'many'];
 export const ORIGINAL_TITLES_MODES = ['off', 'details', 'everywhere'];
 
 const KEYS = {
   textSize: 'anime-tracker-text-size',
   textWeight: 'anime-tracker-text-weight',
   decor: 'anime-tracker-decor',
+  decorDensity: 'anime-tracker-decor-density',
   originalTitles: 'anime-tracker-original-titles',
 };
 
@@ -40,6 +42,17 @@ function attrPref(attr, storageKey, valid, def) {
 const textSizePref = attrPref('textSize', KEYS.textSize, TEXT_SIZES, 's');
 const textWeightPref = attrPref('textWeight', KEYS.textWeight, TEXT_WEIGHTS, 'normal');
 const decorPref = attrPref('decor', KEYS.decor, DECOR_LEVELS, 'on');
+
+// Not a data-attribute, same reasoning as original-titles below — only
+// atmosphere.js's JS reads this, nothing in CSS needs to select on it.
+function getDecorDensity() {
+  const v = localStorage.getItem(KEYS.decorDensity);
+  return DECOR_DENSITIES.includes(v) ? v : 'normal';
+}
+function setDecorDensity(density) {
+  if (!DECOR_DENSITIES.includes(density)) return;
+  localStorage.setItem(KEYS.decorDensity, density);
+}
 
 // Not a data-attribute — nothing in CSS needs to select on it, it only
 // changes what render.js chooses to put in the markup.
@@ -59,6 +72,8 @@ export const Preferences = {
   setTextWeight: textWeightPref.set,
   getDecor: decorPref.get,
   setDecor: decorPref.set,
+  getDecorDensity,
+  setDecorDensity,
   getOriginalTitlesMode,
   setOriginalTitlesMode,
 };

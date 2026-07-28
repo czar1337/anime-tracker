@@ -253,6 +253,8 @@ export function initScreenshotImport() {
         duration: media.duration,
         genres: media.genres,
         averageScore: media.averageScore,
+        studio: Api.extractStudio(media),
+        airingStatus: media.status || null,
         listStatus,
         // See the matching comment in events.js's handleSetStatus / addFromSearchResult.
         episodesWatched: listStatus === 'watched' && media.episodes ? media.episodes : 0,

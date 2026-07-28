@@ -12,7 +12,7 @@ export const COLOR_THEMES = [
   { id: 'moss-shrine', name: 'Moss Shrine', accent1: '#7bb964', accent2: '#a7cb9a' },
   { id: 'cedar', name: 'Cedar', accent1: '#54ab7a', accent2: '#88bfa0' },
   { id: 'wisteria', name: 'Wisteria', accent1: '#a98ecc', accent2: '#cfc2e0' },
-  { id: 'clean-interface', name: 'Clean Interface', accent1: '#8fd4ff', accent2: '#4a7ba8' },
+  { id: 'clean-interface', name: 'Clean Interface', accent1: '#8fd4ff', accent2: '#4a7ba8', light: true },
   { id: 'arcane-ward', name: 'Arcane Ward', accent1: '#c9a3ff', accent2: '#f0c975' },
   { id: 'holo-deck', name: 'Holo Deck', accent1: '#57e9ff', accent2: '#ff5fc4' },
   { id: 'verdant', name: 'Verdant', accent1: '#6eeaa0', accent2: '#fef6e4' },
@@ -38,7 +38,7 @@ export const COLOR_THEMES = [
   { id: 'wildfire', name: 'Wildfire', accent1: '#ff7a29', accent2: '#ffe066' },
   { id: 'static', name: 'Static', accent1: '#d8dee6', accent2: '#7d8899' },
   { id: 'phantom', name: 'Phantom', accent1: '#a6a0c9', accent2: '#6f5fa8' },
-  { id: 'radiant', name: 'Radiant', accent1: '#ffe27a', accent2: '#ffb84d' },
+  { id: 'radiant', name: 'Radiant', accent1: '#ffe27a', accent2: '#ffb84d', light: true },
   { id: 'venom', name: 'Venom', accent1: '#9dff3b', accent2: '#ff3b8f' },
   { id: 'eclipse', name: 'Eclipse', accent1: '#ff8c42', accent2: '#c9a4ff' },
   { id: 'mystic', name: 'Mystic', accent1: '#4dd9c0', accent2: '#b06bff' },
@@ -50,8 +50,18 @@ export const COLOR_THEMES = [
   { id: 'ashen', name: 'Ashen', accent1: '#d0d0d0', accent2: '#ff5f4d' },
   { id: 'cobalt', name: 'Cobalt', accent1: '#4d7cff', accent2: '#ff9f4d' },
   { id: 'viridian', name: 'Viridian', accent1: '#3ddc97', accent2: '#ffe66d' },
-  { id: 'daybreak', name: 'Daybreak', accent1: '#2f6fed', accent2: '#ff7a45' },
-  { id: 'parchment', name: 'Parchment', accent1: '#3a7d5c', accent2: '#b8860b' },
+  { id: 'daybreak', name: 'Daybreak', accent1: '#2f6fed', accent2: '#ff7a45', light: true },
+  { id: 'parchment', name: 'Parchment', accent1: '#3a7d5c', accent2: '#b8860b', light: true },
+  // Added after the initial 45 (scripts/generate-themes.js), per a user
+  // request for more variety and more light options.
+  { id: 'olive-grove', name: 'Olive Grove', accent1: '#99b851', accent2: '#b5c889' },
+  { id: 'amberlight', name: 'Amberlight', accent1: '#d2a741', accent2: '#876a26', light: true },
+  { id: 'rosequartz', name: 'Rose Quartz', accent1: '#d18a9b', accent2: '#b04f67', light: true },
+  { id: 'marigold', name: 'Marigold', accent1: '#dca538', accent2: '#e2bf79' },
+  { id: 'abyssal', name: 'Abyssal', accent1: '#697abf', accent2: '#9fa9d0' },
+  { id: 'orchid-veil', name: 'Orchid Veil', accent1: '#d373b0', accent2: '#e1adce' },
+  { id: 'seafoam', name: 'Seafoam', accent1: '#70cdba', accent2: '#a8dbd1' },
+  { id: 'cinderglass', name: 'Cinderglass', accent1: '#cc3e50', accent2: '#b23849', light: true },
 ];
 
 export const STORAGE_KEY = 'anime-tracker-color-theme';

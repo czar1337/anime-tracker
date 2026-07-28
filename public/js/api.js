@@ -153,6 +153,7 @@ query ($search: String) {
       genres
       status
       season
+      studios(isMain: true) { nodes { name } }
       ${RELATIONS_FIELD}
     }
   }
@@ -174,6 +175,7 @@ query ($idMalIn: [Int]) {
       genres
       status
       season
+      studios(isMain: true) { nodes { name } }
       ${RELATIONS_FIELD}
     }
   }
@@ -189,6 +191,13 @@ function extractRelatedIds(media) {
   return edges
     .filter((e) => e.node.type === 'ANIME' && GROUPING_RELATIONS.has(e.relationType))
     .map((e) => e.node.id);
+}
+
+// The main studio only (isMain:true, requested in every query that feeds
+// this) — a title's secondary/production-committee studios aren't useful
+// for a filter, just the one people actually mean by "which studio made this".
+function extractStudio(media) {
+  return media.studios?.nodes?.[0]?.name || null;
 }
 
 class RateLimitError extends Error {
@@ -280,6 +289,7 @@ query ($page: Int) {
       popularity
       episodes
       duration
+      studios(isMain: true) { nodes { name } }
       ${RELATIONS_FIELD}
     }
   }
@@ -333,6 +343,8 @@ function recommendationsBatchQuery(ids, perPage) {
               format
               episodes
               duration
+              status
+              studios(isMain: true) { nodes { name } }
               ${RELATIONS_FIELD}
             }
           }
@@ -404,5 +416,6 @@ export const Api = {
   getUpcomingCache,
   saveUpcomingCache,
   extractRelatedIds,
+  extractStudio,
   RateLimitError,
 };

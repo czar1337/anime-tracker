@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion } from './recommendLogic.js';
+import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
 
 const SEED_BATCH_SIZE = 5;
 const RECS_PER_SEED = 25;
@@ -157,16 +157,28 @@ function excludedGenres() {
   return Store.state.preferences.discoverExcludedGenres || [];
 }
 
+function mediaFilters() {
+  return Store.state.preferences.discoverFilters;
+}
+
 export function getDiscoverState() {
   discoverState.pool = filterLiveItems(discoverState.pool);
   const excluded = excludedGenres();
-  const items = applyGenreExclusion(discoverState.pool, excluded);
+  const items = applyMediaFilters(applyGenreExclusion(discoverState.pool, excluded), mediaFilters());
   // Never shrink visibleCount just because it now exceeds a page — that's
   // the normal "Load more" state. Only clamp it down when the visible set
   // got smaller (an add/dismiss/exclude removed something), so the grid
   // never tries to render past the end of the array.
   discoverState.visibleCount = Math.min(discoverState.visibleCount || PAGE_SIZE, items.length);
-  return { ...discoverState, items, availableGenres: poolGenres(discoverState.pool), excludedGenres: excluded };
+  return {
+    ...discoverState,
+    items,
+    availableGenres: poolGenres(discoverState.pool),
+    excludedGenres: excluded,
+    availableStudios: poolStudios(discoverState.pool),
+    availableFormats: poolFormats(discoverState.pool),
+    filters: mediaFilters(),
+  };
 }
 
 // Called every time the Discover tab is opened: always shows whatever it
@@ -179,9 +191,35 @@ export function ensureFreshOnOpen() {
   }
 }
 
+// Media filter controls (format/studio/status/duration) are regenerated in
+// full on every render — see render.js's mediaFilterBarHtml — so they're
+// bound once here via delegation rather than re-attached per render.
+function bindMediaFilterControls(container, persist) {
+  container.addEventListener('change', (e) => {
+    const target = e.target;
+    if (target.id === 'discover-format-filter') {
+      Store.setPreference(['discoverFilters', 'format'], target.value);
+    } else if (target.id === 'discover-studio-filter') {
+      Store.setPreference(['discoverFilters', 'studio'], target.value);
+    } else if (target.id === 'discover-airing-status-filter') {
+      Store.setPreference(['discoverFilters', 'airingStatus'], target.value);
+    } else if (target.id === 'discover-duration-min') {
+      Store.setPreference(['discoverFilters', 'durationMin'], target.value ? Number(target.value) : null);
+    } else if (target.id === 'discover-duration-max') {
+      Store.setPreference(['discoverFilters', 'durationMax'], target.value ? Number(target.value) : null);
+    } else {
+      return;
+    }
+    discoverState.visibleCount = PAGE_SIZE;
+    renderNow();
+    persist();
+  });
+}
+
 export function initDiscover({ persistFn } = {}) {
   const persist = persistFn || (() => {});
   const container = document.getElementById('discover-view');
+  bindMediaFilterControls(container, persist);
 
   container.addEventListener('click', (e) => {
     if (e.target.closest('#discover-refresh-btn, #discover-refresh-btn-end')) {
@@ -235,6 +273,8 @@ export function initDiscover({ persistFn } = {}) {
         duration: media.duration,
         genres: media.genres,
         averageScore: media.averageScore,
+        studio: Api.extractStudio(media),
+        airingStatus: media.status || null,
         listStatus: 'watchlist',
         relatedIds: Api.extractRelatedIds(media),
       });

@@ -680,14 +680,24 @@ function bindFilterBar() {
     persist();
   });
 
-  document.getElementById('year-min').addEventListener('change', (e) => {
-    Store.setPreference(['filters', activeList, 'yearMin'], e.target.value ? Number(e.target.value) : null);
+  document.getElementById('studio-filter').addEventListener('change', (e) => {
+    Store.setPreference(['filters', activeList, 'studio'], e.target.value);
+    Render.renderAll(activeList);
+    persist();
+  });
+  document.getElementById('airing-status-filter').addEventListener('change', (e) => {
+    Store.setPreference(['filters', activeList, 'airingStatus'], e.target.value);
+    Render.renderAll(activeList);
+    persist();
+  });
+  document.getElementById('duration-min').addEventListener('change', (e) => {
+    Store.setPreference(['filters', activeList, 'durationMin'], e.target.value ? Number(e.target.value) : null);
     Render.renderFilterBar(activeList);
     Render.renderGrid(activeList);
     persist();
   });
-  document.getElementById('year-max').addEventListener('change', (e) => {
-    Store.setPreference(['filters', activeList, 'yearMax'], e.target.value ? Number(e.target.value) : null);
+  document.getElementById('duration-max').addEventListener('change', (e) => {
+    Store.setPreference(['filters', activeList, 'durationMax'], e.target.value ? Number(e.target.value) : null);
     Render.renderFilterBar(activeList);
     Render.renderGrid(activeList);
     persist();
@@ -739,16 +749,20 @@ function bindFilterBar() {
     let touchesPersistedState = true;
 
     if (key === '__clear_all') {
-      Store.setPreference(['filters', activeList], { genres: [], format: '', yearMin: null, yearMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false });
+      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false });
       Store.setTitleFilter(activeList, '');
     } else if (key.startsWith('genre:')) {
       const genre = key.slice('genre:'.length);
       filters.genres = filters.genres.filter((g) => g !== genre);
     } else if (key === 'format') {
       filters.format = '';
-    } else if (key === 'year') {
-      filters.yearMin = null;
-      filters.yearMax = null;
+    } else if (key === 'studio') {
+      filters.studio = '';
+    } else if (key === 'airingStatus') {
+      filters.airingStatus = '';
+    } else if (key === 'duration') {
+      filters.durationMin = null;
+      filters.durationMax = null;
     } else if (key === 'unrated') {
       filters.unratedOnly = false;
     } else if (key === 'myscore') {
@@ -817,6 +831,8 @@ async function addFromSearchResult(anilistId, listStatus) {
     duration: media.duration,
     genres: media.genres,
     averageScore: media.averageScore,
+    studio: Api.extractStudio(media),
+    airingStatus: media.status || null,
     listStatus,
     // Added straight into Watched (no Watching progress-tracking pass first)
     // — see the matching comment in handleSetStatus for why this matters.
@@ -1194,6 +1210,27 @@ function bindHome() {
   document.getElementById('stats-view').addEventListener('click', navClickHandler);
 }
 
+// Mobile-only hamburger menu — see the matching CSS comment for why the
+// tab row gets replaced below 900px instead of trying to keep it scrollable.
+function bindNavMenu() {
+  document.getElementById('nav-hamburger').addEventListener('click', () => {
+    openOverlay('nav-menu-overlay');
+    Render.renderNavMenu(document.getElementById('nav-menu-list'), currentView);
+  });
+
+  document.getElementById('nav-menu-list').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-nav-menu]');
+    if (!item) return;
+    const key = item.dataset.navMenu;
+    if (key === 'home') showHomeView();
+    else if (key === 'stats') showStatsView();
+    else if (key === 'discover') showDiscoverView();
+    else if (key === 'schedule') showScheduleView();
+    else showListView(key);
+    closeAllOverlays();
+  });
+}
+
 // The hero's "Mark episode watched" button isn't inside a .card (it's a
 // standalone banner, on both Home and the Watching list), so it needs its
 // own handler rather than relying on bindGridEvents' .card-scoped one —
@@ -1271,6 +1308,11 @@ function bindSettingsPanel() {
   });
 
   body.addEventListener('click', (e) => {
+    if (e.target.closest('#theme-view-more-btn, #theme-view-fewer-btn')) {
+      Render.toggleThemesExpanded();
+      Render.renderSettingsPanel(body, Themes.getCurrentThemeId());
+      return;
+    }
     const swatch = e.target.closest('.themegrid button');
     if (swatch) {
       // Pass the clicked id directly rather than reading it back via
@@ -1290,6 +1332,10 @@ function bindSettingsPanel() {
     if (seg === 'textSize') Preferences.setTextSize(value);
     else if (seg === 'textWeight') Preferences.setTextWeight(value);
     else if (seg === 'decor') Preferences.setDecor(value);
+    else if (seg === 'decorDensity') {
+      Preferences.setDecorDensity(value);
+      Atmosphere.resyncDensity();
+    }
     else if (seg === 'originalTitles') {
       Preferences.setOriginalTitlesMode(value);
       Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
@@ -1407,6 +1453,7 @@ export function initEvents({ initialList, persistFn }) {
   persist = persistFn;
   bindTabs();
   bindHome();
+  bindNavMenu();
   bindHero();
   bindDetailOverlay();
   bindGridEvents();

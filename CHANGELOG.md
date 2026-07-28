@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.1.0
+
+**Feedback pass on the Moonlit Shrine redesign.** A review-and-polish round on top of 2.0, driven by hands-on testing plus a round of user feedback — no visual identity changes, just fixes, more control, and more filtering.
+
+- **Fix: the atmosphere layer (falling leaves, drifting feathers) was completely invisible.** A stacking-context regression from the 2.0 redesign put it fully behind the app with no way to show through. Now sits as a low-opacity overlay above content, just under modals — the same approach many apps use for ambient rain/snow.
+- **Fix: the "mark next episode watched" button was too small to hit reliably**, especially on touch. Enlarged, and it's now always visible on touch devices instead of hover-only.
+- **New: control how many leaves and feathers fall.** Settings → Decoration amount (Few/Normal/Many).
+- **8 new color themes (53 total)**, and the Settings theme grid now shows the 12 most relevant up front with a "View more" — no more scrolling past 45+ swatches to reach the rest.
+- **New: mobile navigation menu.** Below 900px width, the tab row is replaced by a hamburger menu covering every list plus Schedule/Discover/Statistics, freeing up header space that previously clipped the "Add series" button on narrow screens.
+- **Filter overhaul**: removed the Year filter (rarely useful, per feedback); added Studio, Duration, and Airing status filters to every list; more genre quick-chips visible before needing "All genres". Studio and Airing status are now also fetched for every newly added series.
+- **Discover and Schedule get real filter bars.** Format, Studio, Airing status, and Duration filters now narrow "Coming soon"/suggestions the same way the main lists do — previously Discover only had genre exclusion and Schedule had none at all.
+
 ## 2.0.0
 
 **Moonlit Shrine — a full visual redesign.** New default theme (moon-and-shrine palette, warm red accent), 45 color themes total, two new typefaces (Zen Old Mincho for headings, Schibsted Grotesk for everything else), and user controls for text size, text weight, and decoration level. Nothing about the data model, storage format, or server changed — this is the visual layer only.

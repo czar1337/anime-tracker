@@ -35,6 +35,9 @@
 <div id="app">
 
   <header class="app-header">
+    <button id="nav-hamburger" class="icn nav-hamburger" title="Menu" aria-label="Open navigation menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
     <button id="brand-home" class="brand" title="Go to Home"><i></i>Anime Tracker</button>
 
     <nav class="tabs" role="tablist" aria-label="Lists">
@@ -106,11 +109,17 @@
           <select id="format-filter" class="sel" aria-label="Filter by format">
             <option value="">All formats</option>
           </select>
+          <select id="studio-filter" class="sel" aria-label="Filter by studio">
+            <option value="">All studios</option>
+          </select>
+          <select id="airing-status-filter" class="sel" aria-label="Filter by airing status">
+            <option value="">Any status</option>
+          </select>
           <span class="range">
-            <span>Year</span>
-            <input type="number" id="year-min" class="year-input" aria-label="Year from">
+            <span>Duration</span>
+            <input type="number" id="duration-min" class="year-input" aria-label="Duration from (minutes)">
             <i>–</i>
-            <input type="number" id="year-max" class="year-input" aria-label="Year to">
+            <input type="number" id="duration-max" class="year-input" aria-label="Duration to (minutes)">
           </span>
           <span class="range">
             <span>Score</span>
@@ -135,6 +144,16 @@
     <div class="overlay-panel detail-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <div id="detail-content"></div>
+    </div>
+  </div>
+
+  <!-- Mobile navigation menu, behind the header's hamburger button (hidden
+       on wide viewports, where the tab row already works). -->
+  <div id="nav-menu-overlay" class="overlay" hidden>
+    <div class="overlay-panel nav-menu-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Menu</h2>
+      <nav id="nav-menu-list" class="nav-menu-list"></nav>
     </div>
   </div>
 

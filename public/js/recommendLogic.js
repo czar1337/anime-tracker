@@ -116,6 +116,41 @@ export function applyGenreExclusion(items, excludedGenres) {
   return items.filter((it) => !(it.media.genres || []).some((g) => excluded.has(g)));
 }
 
+// Shared by Discover and Schedule's "Coming soon" pool — both work over the
+// same { media } item shape, straight from AniList, rather than the stored
+// Store.getEntry shape the main lists filter against.
+export function applyMediaFilters(items, filters) {
+  let out = items;
+  if (filters.format) out = out.filter((it) => it.media.format === filters.format);
+  if (filters.studio) out = out.filter((it) => extractStudioName(it.media) === filters.studio);
+  if (filters.airingStatus) out = out.filter((it) => it.media.status === filters.airingStatus);
+  if (filters.durationMin != null) out = out.filter((it) => it.media.duration != null && it.media.duration >= filters.durationMin);
+  if (filters.durationMax != null) out = out.filter((it) => it.media.duration != null && it.media.duration <= filters.durationMax);
+  return out;
+}
+
+function extractStudioName(media) {
+  return media.studios?.nodes?.[0]?.name || null;
+}
+
+// Studios present anywhere in a pool — mirrors poolGenres, used to populate
+// the Discover/Schedule filter dropdowns with only options that could
+// actually match something right now.
+export function poolStudios(items) {
+  const set = new Set();
+  for (const it of items) {
+    const name = extractStudioName(it.media);
+    if (name) set.add(name);
+  }
+  return [...set].sort();
+}
+
+export function poolFormats(items) {
+  const set = new Set();
+  for (const it of items) if (it.media.format) set.add(it.media.format);
+  return [...set].sort();
+}
+
 // Fisher-Yates, returns a new array. `rng` is injectable so tests can pass a
 // fixed sequence instead of relying on Math.random.
 export function shuffle(arr, rng = Math.random) {

@@ -67,7 +67,17 @@ const themes = [
   {key:"wraith",name:"Wraith",fam:"void",base:[228,8],accent:[228,24,70],glow:[232,18,82],deco:[224,20,58]},
   {key:"ashen",name:"Ashen",fam:"void",base:[26,8],accent:[28,26,66],glow:[34,20,80],deco:[22,22,56]},
   {key:"cobalt",name:"Cobalt",fam:"void",base:[224,26],accent:[220,58,58],glow:[224,44,78],deco:[212,46,56]},
-  {key:"daybreak",name:"Daybreak",fam:"void",base:[214,10],accent:[220,44,46],glow:[214,26,64],deco:[204,32,52],light:true}
+  {key:"daybreak",name:"Daybreak",fam:"void",base:[214,10],accent:[220,44,46],glow:[214,26,64],deco:[204,32,52],light:true},
+  // Added after the initial 45, per a user request for more variety and
+  // more light options — same four-number recipe, nothing hand-tuned.
+  {key:"olive-grove",name:"Olive Grove",fam:"jade",base:[75,14],accent:[78,42,52],glow:[85,32,74],deco:[65,38,50]},
+  {key:"amberlight",name:"Amberlight",fam:"lantern",base:[46,18],accent:[42,62,54],glow:[48,48,78],deco:[36,50,50],light:true},
+  {key:"rosequartz",name:"Rose Quartz",fam:"sakura",base:[340,10],accent:[345,44,68],glow:[335,30,84],deco:[350,36,62],light:true},
+  {key:"marigold",name:"Marigold",fam:"ember",base:[34,20],accent:[40,70,54],glow:[46,52,76],deco:[28,58,50]},
+  {key:"abyssal",name:"Abyssal",fam:"void",base:[230,16],accent:[228,40,58],glow:[224,30,78],deco:[236,34,54]},
+  {key:"orchid-veil",name:"Orchid Veil",fam:"iris",base:[318,18],accent:[322,52,64],glow:[310,38,82],deco:[330,42,58]},
+  {key:"seafoam",name:"Seafoam",fam:"frost",base:[172,16],accent:[168,48,62],glow:[176,36,80],deco:[160,40,56]},
+  {key:"cinderglass",name:"Cinderglass",fam:"ash",base:[358,14],accent:[352,58,52],glow:[344,36,72],deco:[8,44,48],light:true}
 ];
 
 /* ---------- colour maths ---------- */

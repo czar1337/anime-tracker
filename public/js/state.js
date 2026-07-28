@@ -8,13 +8,15 @@ const DEFAULT_PREFERENCES = () => ({
   sort: { watching: 'addedAt', watchlist: 'addedAt', watched: 'completedAt', dropped: 'updatedAt' },
   sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc' },
   filters: {
-    watching: { genres: [], format: '', yearMin: null, yearMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    watchlist: { genres: [], format: '', yearMin: null, yearMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    watched: { genres: [], format: '', yearMin: null, yearMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    dropped: { genres: [], format: '', yearMin: null, yearMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    watching: { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    watchlist: { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    watched: { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    dropped: { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
   },
   activeTab: 'watching',
   discoverExcludedGenres: [],
+  discoverFilters: { format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null },
+  scheduleFilters: { format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null },
   notifyNewEpisodes: false,
 });
 
@@ -36,6 +38,8 @@ function ensurePreferenceShape() {
   }
   state.preferences.activeTab = state.preferences.activeTab || 'watching';
   state.preferences.discoverExcludedGenres = Array.isArray(state.preferences.discoverExcludedGenres) ? state.preferences.discoverExcludedGenres : [];
+  state.preferences.discoverFilters = { ...defaults.discoverFilters, ...(state.preferences.discoverFilters || {}) };
+  state.preferences.scheduleFilters = { ...defaults.scheduleFilters, ...(state.preferences.scheduleFilters || {}) };
   state.preferences.notifyNewEpisodes = Boolean(state.preferences.notifyNewEpisodes);
 }
 
@@ -106,6 +110,8 @@ function addEntry(entry) {
     duration: entry.duration || null,
     genres: entry.genres || [],
     averageScore: entry.averageScore ?? null,
+    studio: entry.studio || null,
+    airingStatus: entry.airingStatus || null,
     listStatus: entry.listStatus || 'watchlist',
     episodesWatched: entry.episodesWatched || 0,
     myScore: entry.myScore ?? null,
@@ -300,11 +306,17 @@ function getGroupedFilteredSorted(list) {
   if (filters.format) {
     groups = groups.filter((g) => g.some((e) => e.format === filters.format));
   }
-  if (filters.yearMin) {
-    groups = groups.filter((g) => g[0].year && g[0].year >= filters.yearMin);
+  if (filters.studio) {
+    groups = groups.filter((g) => g.some((e) => e.studio === filters.studio));
   }
-  if (filters.yearMax) {
-    groups = groups.filter((g) => g[0].year && g[0].year <= filters.yearMax);
+  if (filters.airingStatus) {
+    groups = groups.filter((g) => g.some((e) => e.airingStatus === filters.airingStatus));
+  }
+  if (filters.durationMin != null) {
+    groups = groups.filter((g) => g.some((e) => e.duration != null && e.duration >= filters.durationMin));
+  }
+  if (filters.durationMax != null) {
+    groups = groups.filter((g) => g.some((e) => e.duration != null && e.duration <= filters.durationMax));
   }
   if (filters.unratedOnly) {
     groups = groups.filter((g) => groupMyScore(g) == null);
@@ -347,6 +359,14 @@ function allFormats() {
   return [...set].sort();
 }
 
+function allStudios() {
+  const set = new Set();
+  for (const e of state.entries) {
+    if (e.studio) set.add(e.studio);
+  }
+  return [...set].sort();
+}
+
 export const Store = {
   LISTS,
   state,
@@ -368,6 +388,7 @@ export const Store = {
   getTitleFilter,
   allGenres,
   allFormats,
+  allStudios,
   getDismissedIds,
   getDismissedItems,
   addDismissedItem,

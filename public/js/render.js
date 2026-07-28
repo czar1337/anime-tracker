@@ -10,14 +10,27 @@ const statsHeader = document.getElementById('stats-header');
 const titleFilterEl = document.getElementById('title-filter');
 const genreFilterEl = document.getElementById('genre-filter');
 const formatFilterEl = document.getElementById('format-filter');
-const yearMinEl = document.getElementById('year-min');
-const yearMaxEl = document.getElementById('year-max');
+const studioFilterEl = document.getElementById('studio-filter');
+const airingStatusFilterEl = document.getElementById('airing-status-filter');
+const durationMinEl = document.getElementById('duration-min');
+const durationMaxEl = document.getElementById('duration-max');
 const myScoreMinEl = document.getElementById('myscore-min');
 const myScoreMaxEl = document.getElementById('myscore-max');
 const unratedOnlyEl = document.getElementById('unrated-only');
 const sortSelectEl = document.getElementById('sort-select');
 const sortDirBtn = document.getElementById('sort-dir');
 const activeFilterChipsEl = document.getElementById('active-filter-chips');
+
+const AIRING_STATUS_OPTIONS = [
+  { value: 'RELEASING', label: 'Airing' },
+  { value: 'FINISHED', label: 'Finished' },
+  { value: 'NOT_YET_RELEASED', label: 'Not yet released' },
+  { value: 'HIATUS', label: 'On hiatus' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
+function airingStatusLabel(value) {
+  return AIRING_STATUS_OPTIONS.find((o) => o.value === value)?.label || value;
+}
 const selectModeBtn = document.getElementById('select-mode-toggle');
 const bulkActionBarEl = document.getElementById('bulk-action-bar');
 
@@ -448,11 +461,13 @@ function activeFilterChips(list) {
   const chips = [];
   for (const g of filters.genres) chips.push({ key: `genre:${g}`, label: `Genre: ${g}` });
   if (filters.format) chips.push({ key: 'format', label: `Format: ${filters.format}` });
-  if (filters.yearMin || filters.yearMax) {
-    const label = filters.yearMin && filters.yearMax
-      ? `Year: ${filters.yearMin}–${filters.yearMax}`
-      : filters.yearMin ? `Year ≥ ${filters.yearMin}` : `Year ≤ ${filters.yearMax}`;
-    chips.push({ key: 'year', label });
+  if (filters.studio) chips.push({ key: 'studio', label: `Studio: ${filters.studio}` });
+  if (filters.airingStatus) chips.push({ key: 'airingStatus', label: `Status: ${airingStatusLabel(filters.airingStatus)}` });
+  if (filters.durationMin || filters.durationMax) {
+    const label = filters.durationMin && filters.durationMax
+      ? `Duration: ${filters.durationMin}–${filters.durationMax}m`
+      : filters.durationMin ? `Duration ≥ ${filters.durationMin}m` : `Duration ≤ ${filters.durationMax}m`;
+    chips.push({ key: 'duration', label });
   }
   if (filters.unratedOnly) {
     chips.push({ key: 'unrated', label: 'Unrated only' });
@@ -481,11 +496,11 @@ function renderActiveFilterChips(list) {
   `;
 }
 
-// Only five genre chips are shown at rest — the rest sit behind "All
-// genres N" — but a genre the user has already filtered by must never
-// become hidden/unreachable just because it isn't one of the five most
+// Only the ten most common genre chips are shown at rest — the rest sit
+// behind "All genres N" — but a genre the user has already filtered by must
+// never become hidden/unreachable just because it isn't one of the ten most
 // common, so the active ones are always folded into the visible set even
-// if that pushes it past five.
+// if that pushes it past ten.
 function topGenresByFrequency(list, n) {
   const counts = {};
   for (const e of Store.getEntriesByList(list)) {
@@ -503,7 +518,7 @@ function genreChipHtml(g, active) {
 function renderGenreFilter(list) {
   const filters = Store.state.preferences.filters[list];
   const allGenresList = Store.allGenres();
-  const frequent = new Set(topGenresByFrequency(list, 5));
+  const frequent = new Set(topGenresByFrequency(list, 10));
   for (const g of filters.genres) frequent.add(g); // active filters are never hidden
   const visible = allGenresList.filter((g) => frequent.has(g));
   const overflow = allGenresList.filter((g) => !frequent.has(g));
@@ -527,8 +542,13 @@ function renderFilterBar(list) {
   const formats = Store.allFormats();
   formatFilterEl.innerHTML = `<option value="">All formats</option>` + formats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(f)}</option>`).join('');
 
-  yearMinEl.value = filters.yearMin || '';
-  yearMaxEl.value = filters.yearMax || '';
+  const studios = Store.allStudios();
+  studioFilterEl.innerHTML = `<option value="">All studios</option>` + studios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+
+  airingStatusFilterEl.innerHTML = `<option value="">Any status</option>` + AIRING_STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${filters.airingStatus === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+
+  durationMinEl.value = filters.durationMin || '';
+  durationMaxEl.value = filters.durationMax || '';
   myScoreMinEl.value = filters.myScoreMin || '';
   myScoreMaxEl.value = filters.myScoreMax || '';
   unratedOnlyEl.checked = filters.unratedOnly;
@@ -905,6 +925,36 @@ function discoverCardHtml(item, index = 0) {
   `;
 }
 
+// Shared by Discover and Schedule — both filter over the same { media }
+// item shape (see recommendLogic.js's applyMediaFilters), so one markup
+// generator with an id prefix avoids duplicating it twice. Regenerated in
+// full on every render (same as discoverGenreFilterHtml below), so callers
+// must bind these via event delegation rather than direct listeners.
+function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios) {
+  if (!availableFormats.length && !availableStudios.length) return '';
+  return `
+    <div class="filter-group discover-media-filter">
+      <select id="${prefix}-format-filter" class="sel" aria-label="Filter by format">
+        <option value="">All formats</option>
+        ${availableFormats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(f)}</option>`).join('')}
+      </select>
+      <select id="${prefix}-studio-filter" class="sel" aria-label="Filter by studio">
+        <option value="">All studios</option>
+        ${availableStudios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
+      </select>
+      <select id="${prefix}-airing-status-filter" class="sel" aria-label="Filter by airing status">
+        <option value="">Any status</option>
+        ${AIRING_STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${filters.airingStatus === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+      </select>
+      <span class="range">
+        <span>Duration</span>
+        <input type="number" id="${prefix}-duration-min" class="year-input" value="${filters.durationMin || ''}" aria-label="Duration from (minutes)">
+        <i>–</i>
+        <input type="number" id="${prefix}-duration-max" class="year-input" value="${filters.durationMax || ''}" aria-label="Duration to (minutes)">
+      </span>
+    </div>`;
+}
+
 function discoverGenreFilterHtml(availableGenres, excludedGenres) {
   if (!availableGenres.length) return '';
   return `
@@ -917,7 +967,7 @@ function discoverGenreFilterHtml(availableGenres, excludedGenres) {
 }
 
 function renderDiscoverPage(container, viewState) {
-  const { status, items, visibleCount, generatedAt, offline, progressText, availableGenres = [], excludedGenres = [] } = viewState;
+  const { status, items, visibleCount, generatedAt, offline, progressText, availableGenres = [], excludedGenres = [], availableFormats = [], availableStudios = [], filters = {} } = viewState;
   const age = relativeAgeText(generatedAt);
 
   const banner = `
@@ -932,6 +982,7 @@ function renderDiscoverPage(container, viewState) {
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'New suggestions'}</button>
       </div>
     </div>
+    ${mediaFilterBarHtml('discover', filters, availableFormats, availableStudios)}
     ${discoverGenreFilterHtml(availableGenres, excludedGenres)}
   `;
 
@@ -947,8 +998,9 @@ function renderDiscoverPage(container, viewState) {
     container.innerHTML = `${banner}<div class="empty-state"><h2>Could not load suggestions</h2><p>${escapeHtml(progressText || 'Check your internet connection and try refreshing.')}</p></div>`;
     return;
   }
-  if (items.length === 0 && excludedGenres.length) {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>Nothing left after excluding genres</h2><p>Every suggestion we found matches an excluded genre. Remove one above to see results again.</p></div>`;
+  const hasActiveMediaFilter = filters.format || filters.studio || filters.airingStatus || filters.durationMin != null || filters.durationMax != null;
+  if (items.length === 0 && (excludedGenres.length || hasActiveMediaFilter)) {
+    container.innerHTML = `${banner}<div class="empty-state"><h2>Nothing matches your filters</h2><p>Every suggestion we found is excluded by a genre or filter above. Loosen one to see results again.</p></div>`;
     return;
   }
   if (items.length === 0) {
@@ -1038,7 +1090,7 @@ function scheduleCardHtml(item, index = 0) {
 }
 
 function renderSchedulePage(container, viewState) {
-  const { status, items, visibleCount, generatedAt, offline, progressText, week } = viewState;
+  const { status, items, visibleCount, generatedAt, offline, progressText, week, availableFormats = [], availableStudios = [], filters = {} } = viewState;
   const age = relativeAgeText(generatedAt);
 
   const banner = `
@@ -1051,7 +1103,8 @@ function renderSchedulePage(container, viewState) {
         ${age ? `<span class="discover-age">${escapeHtml(age)}${offline ? ' · offline, showing cached results' : ''}</span>` : ''}
         <button class="text-btn primary" id="schedule-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh'}</button>
       </div>
-    </div>`;
+    </div>
+    ${mediaFilterBarHtml('schedule', filters, availableFormats, availableStudios)}`;
 
   const thisWeekSection = `
     <div class="schedule-section">
@@ -1259,6 +1312,33 @@ function clearError() {
 
 // Shared by the MAL and screenshot import flows (design system: "Three
 // steps: pick the file, check the matches, done").
+// Mobile-only nav menu behind the header's hamburger (design request: a
+// three-line menu that reaches every tab without the tab row's own
+// horizontal-scroll cramping at phone widths). Counts are read fresh every
+// open rather than kept in sync with the tab row's own badges — simpler
+// than teaching renderTabCounts to update two copies of the same number.
+const NAV_MENU_ITEMS = [
+  { key: 'home', label: 'Home' },
+  { key: 'watching', label: 'Watching', list: true },
+  { key: 'watchlist', label: 'Watchlist', list: true },
+  { key: 'watched', label: 'Watched', list: true },
+  { key: 'dropped', label: 'Dropped', list: true },
+  { key: 'schedule', label: 'Schedule' },
+  { key: 'discover', label: 'Discover' },
+  { key: 'stats', label: 'Statistics' },
+];
+
+function renderNavMenu(container, activeView) {
+  const counts = Store.getCounts();
+  container.innerHTML = NAV_MENU_ITEMS.map(
+    (item) => `
+    <button class="nav-menu-item ${activeView === item.key ? 'on' : ''}" data-nav-menu="${item.key}">
+      <span>${escapeHtml(item.label)}</span>
+      ${item.list ? `<b>${counts[item.key]}</b>` : ''}
+    </button>`
+  ).join('');
+}
+
 function stepsHtml(current, labels) {
   return `<div class="steps">${labels
     .map((label, i) => {
@@ -1411,14 +1491,35 @@ function segHtml(name, options, current) {
     .join('')}</div>`;
 }
 
+const THEME_PREVIEW_COUNT = 12;
+// Persists for the session, same reasoning as render.js's own genre-chip
+// overflow toggle — reopening Settings shouldn't collapse it back down
+// right after a user expanded it. Also auto-expands if the active theme
+// happens to be one of the ones collapsed away, so "which theme is this"
+// is never hidden from its own owner.
+let themesExpanded = false;
+
+function toggleThemesExpanded() {
+  themesExpanded = !themesExpanded;
+}
+
 function themeGridHtml(currentId) {
-  return `<div class="themegrid">${COLOR_THEMES.map(
-    (t) => `
+  const currentIndex = COLOR_THEMES.findIndex((t) => t.id === currentId);
+  const expanded = themesExpanded || currentIndex >= THEME_PREVIEW_COUNT;
+  const visible = expanded ? COLOR_THEMES : COLOR_THEMES.slice(0, THEME_PREVIEW_COUNT);
+  const swatches = visible
+    .map(
+      (t) => `
     <button class="${t.id === currentId ? 'on' : ''}" data-theme-id="${t.id}" title="${escapeHtml(t.name)}">
       <span class="sw2" style="background:${t.accent1}"><i style="background:${t.accent2}"></i></span>
       <span class="nm">${escapeHtml(t.name)}</span>
     </button>`
-  ).join('')}</div>`;
+    )
+    .join('');
+  const toggle = expanded
+    ? (COLOR_THEMES.length > THEME_PREVIEW_COUNT ? `<button class="btn btn-quiet sm" id="theme-view-fewer-btn" style="margin-top:8px">Show fewer</button>` : '')
+    : `<p style="margin:10px 0 0;font:var(--t-meta);color:var(--faint)">Showing ${THEME_PREVIEW_COUNT} of ${COLOR_THEMES.length}. <button class="btn btn-quiet sm" id="theme-view-more-btn">View more</button></p>`;
+  return `<div class="themegrid">${swatches}</div>${toggle}`;
 }
 
 // Settings panel (design/HANDOVER.md §4 Phase 3: "theme grid, text size,
@@ -1426,7 +1527,7 @@ function themeGridHtml(currentId) {
 // theme-picker-only overlay — same trigger/id, see events.js's bindThemePicker.
 function renderSettingsPanel(container, currentThemeId) {
   container.innerHTML = `
-    ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. Four are light.`, themeGridHtml(currentThemeId))}
+    ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, themeGridHtml(currentThemeId))}
     ${settingsRowHtml(
       'Text size',
       'Changes every size in the app at once.',
@@ -1441,6 +1542,11 @@ function renderSettingsPanel(container, currentThemeId) {
       'Decoration',
       'Falling leaves, feathers and the glow behind the header.<span class="note">Turns off by itself if your system asks for less motion.</span>',
       segHtml('decor', [['on', 'On'], ['half', 'Half'], ['off', 'Off']], Preferences.getDecor())
+    )}
+    ${settingsRowHtml(
+      'Decoration amount',
+      'How many leaves and feathers fall.',
+      segHtml('decorDensity', [['few', 'Few'], ['normal', 'Normal'], ['many', 'Many']], Preferences.getDecorDensity())
     )}
     ${settingsRowHtml(
       'Original titles',
@@ -1548,7 +1654,9 @@ export const Render = {
   toggleSelected,
   getSelectedIds,
   renderBulkActionBar,
+  renderNavMenu,
   stepsHtml,
+  toggleThemesExpanded,
   renderSettingsPanel,
   renderHelpPanel,
   setHelpTab,
