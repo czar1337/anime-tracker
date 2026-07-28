@@ -7,8 +7,10 @@ Quick follow-up to 2.1.0's filter overhaul, based on hands-on feedback after try
 - **Fix: cover images looked stretched and low-resolution** in the detail view and other large display spots. The app was only ever requesting AniList's "large" cover size (~230px wide) — fine for small card thumbnails, but visibly blurry once upscaled into a bigger frame. Now requests "extraLarge" too and prefers it wherever a bigger image is shown.
 - **Removed the Duration and Airing-status filters.** They shipped in 2.1.0 but turned out broken/not useful in practice — the duration input's spinner could break the whole filter bar. Studio and Format filters stay.
 - **Discover's genre chips now support include as well as exclude.** Click cycles a genre through neutral → only this genre → never this genre → neutral, instead of exclude being the only option.
-- **Format names in filter dropdowns are readable now** ("TV Short" instead of "TV_SHORT").
+- **Format names in filter dropdowns are readable now** ("TV Short" instead of "TV_SHORT", "ONA"/"OVA" kept as real acronyms instead of "Ona"/"Ova").
 - **Discover and Schedule filter bars gained a "Reset filters" button** (and Discover's genre row a "Reset genres" button) — there was previously no way to clear them short of picking "All" on every control individually.
+- **Replaced the My Rating range filter** (two number inputs with native spinners, the same broken UI pattern the Duration filter had) **with a single "minimum rating" dropdown.**
+- **Fix: picking a color theme in Settings scrolled the whole panel back to the top**, making it hard to compare two themes near the bottom of the grid. The theme grid is rebuilt on every pick, which silently loses its own internal scroll position (and briefly disturbs the panel's) unless that's explicitly restored — now it is.
 
 ## 2.1.0
 

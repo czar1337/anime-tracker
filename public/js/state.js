@@ -8,10 +8,10 @@ const DEFAULT_PREFERENCES = () => ({
   sort: { watching: 'addedAt', watchlist: 'addedAt', watched: 'completedAt', dropped: 'updatedAt' },
   sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc' },
   filters: {
-    watching: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    watchlist: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    watched: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    dropped: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    watching: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
+    watchlist: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
+    watched: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
+    dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
   },
   activeTab: 'watching',
   discoverExcludedGenres: [],
@@ -313,13 +313,10 @@ function getGroupedFilteredSorted(list) {
   }
   if (filters.unratedOnly) {
     groups = groups.filter((g) => groupMyScore(g) == null);
-  } else if (filters.myScoreMin != null || filters.myScoreMax != null) {
+  } else if (filters.myScoreMin != null) {
     groups = groups.filter((g) => {
       const score = groupMyScore(g);
-      if (score == null) return false;
-      if (filters.myScoreMin != null && score < filters.myScoreMin) return false;
-      if (filters.myScoreMax != null && score > filters.myScoreMax) return false;
-      return true;
+      return score != null && score >= filters.myScoreMin;
     });
   }
 

@@ -686,14 +686,8 @@ function bindFilterBar() {
     persist();
   });
 
-  document.getElementById('myscore-min').addEventListener('change', (e) => {
+  document.getElementById('myscore-filter').addEventListener('change', (e) => {
     Store.setPreference(['filters', activeList, 'myScoreMin'], e.target.value ? Number(e.target.value) : null);
-    Render.renderFilterBar(activeList);
-    Render.renderGrid(activeList);
-    persist();
-  });
-  document.getElementById('myscore-max').addEventListener('change', (e) => {
-    Store.setPreference(['filters', activeList, 'myScoreMax'], e.target.value ? Number(e.target.value) : null);
     Render.renderFilterBar(activeList);
     Render.renderGrid(activeList);
     persist();
@@ -732,7 +726,7 @@ function bindFilterBar() {
     let touchesPersistedState = true;
 
     if (key === '__clear_all') {
-      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false });
+      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false });
       Store.setTitleFilter(activeList, '');
     } else if (key.startsWith('genre:')) {
       const genre = key.slice('genre:'.length);
@@ -745,7 +739,6 @@ function bindFilterBar() {
       filters.unratedOnly = false;
     } else if (key === 'myscore') {
       filters.myScoreMin = null;
-      filters.myScoreMax = null;
     } else if (key === 'title') {
       Store.setTitleFilter(activeList, ''); // not persisted — nothing to save
       touchesPersistedState = false;
@@ -1293,12 +1286,6 @@ function bindSettingsPanel() {
     }
     const swatch = e.target.closest('.themegrid button');
     if (swatch) {
-      // Pass the clicked id directly rather than reading it back via
-      // Themes.getCurrentThemeId() — setColorTheme applies through
-      // document.startViewTransition when available, which runs its
-      // callback asynchronously, so reading the "current" theme back
-      // immediately after calling it would still see the *previous* theme
-      // and highlight the wrong swatch for one click (always one step behind).
       Themes.setColorTheme(swatch.dataset.themeId);
       Render.renderSettingsPanel(body, swatch.dataset.themeId);
       return;

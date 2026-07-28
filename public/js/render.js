@@ -12,8 +12,7 @@ const titleFilterEl = document.getElementById('title-filter');
 const genreFilterEl = document.getElementById('genre-filter');
 const formatFilterEl = document.getElementById('format-filter');
 const studioFilterEl = document.getElementById('studio-filter');
-const myScoreMinEl = document.getElementById('myscore-min');
-const myScoreMaxEl = document.getElementById('myscore-max');
+const myScoreFilterEl = document.getElementById('myscore-filter');
 const unratedOnlyEl = document.getElementById('unrated-only');
 const sortSelectEl = document.getElementById('sort-select');
 const sortDirBtn = document.getElementById('sort-dir');
@@ -452,11 +451,8 @@ function activeFilterChips(list) {
   if (filters.studio) chips.push({ key: 'studio', label: `Studio: ${filters.studio}` });
   if (filters.unratedOnly) {
     chips.push({ key: 'unrated', label: 'Unrated only' });
-  } else if (filters.myScoreMin != null || filters.myScoreMax != null) {
-    const label = filters.myScoreMin != null && filters.myScoreMax != null
-      ? `Rating: ${filters.myScoreMin}–${filters.myScoreMax}`
-      : filters.myScoreMin != null ? `Rating ≥ ${filters.myScoreMin}` : `Rating ≤ ${filters.myScoreMax}`;
-    chips.push({ key: 'myscore', label });
+  } else if (filters.myScoreMin != null) {
+    chips.push({ key: 'myscore', label: `Rating ${filters.myScoreMin}+` });
   }
   if (titleQuery) chips.push({ key: 'title', label: `Title: "${titleQuery}"` });
   return chips;
@@ -526,11 +522,9 @@ function renderFilterBar(list) {
   const studios = Store.allStudios();
   studioFilterEl.innerHTML = `<option value="">All studios</option>` + studios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 
-  myScoreMinEl.value = filters.myScoreMin || '';
-  myScoreMaxEl.value = filters.myScoreMax || '';
+  myScoreFilterEl.value = filters.myScoreMin || '';
   unratedOnlyEl.checked = filters.unratedOnly;
-  myScoreMinEl.disabled = filters.unratedOnly;
-  myScoreMaxEl.disabled = filters.unratedOnly;
+  myScoreFilterEl.disabled = filters.unratedOnly;
   document.getElementById('unrated-toggle-label').classList.toggle('on', filters.unratedOnly);
 
   const currentSort = Store.state.preferences.sort[list];
@@ -1334,8 +1328,15 @@ function stepsHtml(current, labels) {
     .join('')}</div>`;
 }
 
+// AniList's MediaFormat enum mixes real acronyms (TV, OVA, ONA) with plain
+// words (MOVIE, SPECIAL) — naive per-word title-casing turns "TV" into "Tv",
+// which reads as a typo. Acronyms get an explicit label; anything else
+// (including status enums like RELEASING, which also go through this
+// helper) falls back to the generic title-case.
+const FORMAT_ACRONYMS = { TV: 'TV', TV_SHORT: 'TV Short', OVA: 'OVA', ONA: 'ONA' };
 function formatEnumLabel(value) {
   if (!value) return null;
+  if (FORMAT_ACRONYMS[value]) return FORMAT_ACRONYMS[value];
   return value.toLowerCase().split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 }
 
@@ -1510,6 +1511,20 @@ function themeGridHtml(currentId) {
 // text weight, decoration, original titles"). Replaces the old
 // theme-picker-only overlay — same trigger/id, see events.js's bindThemePicker.
 function renderSettingsPanel(container, currentThemeId) {
+  // Every control in here re-renders the whole panel on change (simplest way
+  // to keep every row in sync with whatever just changed), but that means
+  // TWO scroll positions get lost on every click, not one: the outer
+  // .overlay-panel (whose content is replaced wholesale, which can disturb
+  // its scroll when the clicked/now-removed element held focus) AND the
+  // .themegrid itself (its own `overflow-y: auto` box, max-height 280px) —
+  // the grid element is entirely rebuilt by themeGridHtml() below, so it's
+  // always a brand new node with scrollTop back at 0, guaranteed, on every
+  // single swatch click. That second one is what made picking between two
+  // themes in the grid's bottom rows feel like the panel kept jumping back
+  // to the top — restoring only the outer scroll wouldn't have touched it.
+  const scroller = container.closest('.overlay-panel') || container;
+  const scrollTop = scroller.scrollTop;
+  const themeGridScrollTop = container.querySelector('.themegrid')?.scrollTop || 0;
   container.innerHTML = `
     ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, themeGridHtml(currentThemeId))}
     ${settingsRowHtml(
@@ -1538,6 +1553,19 @@ function renderSettingsPanel(container, currentThemeId) {
       segHtml('originalTitles', [['off', 'Off'], ['details', 'In details only'], ['everywhere', 'Everywhere']], Preferences.getOriginalTitlesMode())
     )}
   `;
+  scroller.scrollTop = scrollTop;
+  const newGrid = container.querySelector('.themegrid');
+  if (newGrid) newGrid.scrollTop = themeGridScrollTop;
+  // Belt-and-suspenders: a real (not synthetic) click focuses the button
+  // being clicked before this handler even runs; when that button is gone a
+  // moment later, the browser's own focus-recovery can re-scroll the nearest
+  // scroller on the next frame, undoing the synchronous restores above.
+  // Re-assert once after that settles.
+  requestAnimationFrame(() => {
+    scroller.scrollTop = scrollTop;
+    const grid = container.querySelector('.themegrid');
+    if (grid) grid.scrollTop = themeGridScrollTop;
+  });
 }
 
 const HELP_TOUR = [
