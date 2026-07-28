@@ -261,7 +261,7 @@ export function initScreenshotImport() {
         relatedIds: Api.extractRelatedIds(media),
       });
       added += 1;
-      toDownload.push({ anilistId: media.id, url: media.coverImage.large });
+      toDownload.push({ anilistId: media.id, url: Api.bestCoverUrl(media) });
     }
     overlay.hidden = true;
     document.dispatchEvent(new CustomEvent('library-imported', { detail: { added } }));

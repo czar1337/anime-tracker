@@ -927,8 +927,13 @@ kbd {
 .discover-media-filter { margin: -12px 0 12px; align-items: center; }
 .discover-genre-filter { margin: -12px 0 24px; align-items: center; }
 .discover-genre-filter-label { font-size: 12px; color: var(--faint); margin-right: 2px; }
-.discover-genre-chip.active { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
-.discover-genre-chip.active:hover { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
+/* include = "only this genre" (accent-fill, same as any other selected
+   chip); exclude = "never this genre" (warning tint + strikethrough) — two
+   visually distinct states so a three-way cycle reads clearly at a glance. */
+.discover-genre-chip.include { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
+.discover-genre-chip.include:hover { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
+.discover-genre-chip.exclude { background: color-mix(in srgb, var(--warning) 14%, transparent); border-color: color-mix(in srgb, var(--warning) 55%, transparent); color: var(--warning); text-decoration: line-through; }
+.discover-genre-chip.exclude:hover { background: color-mix(in srgb, var(--warning) 20%, transparent); border-color: var(--warning); }
 .discover-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .discover-load-more-row { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 28px 0 8px; }
 .discover-count { font-size: 12px; color: var(--faint); }

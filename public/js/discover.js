@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
+import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion, applyGenreInclusion, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
 
 const SEED_BATCH_SIZE = 5;
 const RECS_PER_SEED = 25;
@@ -157,6 +157,10 @@ function excludedGenres() {
   return Store.state.preferences.discoverExcludedGenres || [];
 }
 
+function includedGenres() {
+  return Store.state.preferences.discoverIncludedGenres || [];
+}
+
 function mediaFilters() {
   return Store.state.preferences.discoverFilters;
 }
@@ -164,7 +168,9 @@ function mediaFilters() {
 export function getDiscoverState() {
   discoverState.pool = filterLiveItems(discoverState.pool);
   const excluded = excludedGenres();
-  const items = applyMediaFilters(applyGenreExclusion(discoverState.pool, excluded), mediaFilters());
+  const included = includedGenres();
+  const genreFiltered = applyGenreInclusion(applyGenreExclusion(discoverState.pool, excluded), included);
+  const items = applyMediaFilters(genreFiltered, mediaFilters());
   // Never shrink visibleCount just because it now exceeds a page — that's
   // the normal "Load more" state. Only clamp it down when the visible set
   // got smaller (an add/dismiss/exclude removed something), so the grid
@@ -174,6 +180,7 @@ export function getDiscoverState() {
     ...discoverState,
     items,
     availableGenres: poolGenres(discoverState.pool),
+    includedGenres: included,
     excludedGenres: excluded,
     availableStudios: poolStudios(discoverState.pool),
     availableFormats: poolFormats(discoverState.pool),
@@ -191,9 +198,9 @@ export function ensureFreshOnOpen() {
   }
 }
 
-// Media filter controls (format/studio/status/duration) are regenerated in
-// full on every render — see render.js's mediaFilterBarHtml — so they're
-// bound once here via delegation rather than re-attached per render.
+// Media filter controls (format/studio) are regenerated in full on every
+// render — see render.js's mediaFilterBarHtml — so they're bound once here
+// via delegation rather than re-attached per render.
 function bindMediaFilterControls(container, persist) {
   container.addEventListener('change', (e) => {
     const target = e.target;
@@ -201,18 +208,27 @@ function bindMediaFilterControls(container, persist) {
       Store.setPreference(['discoverFilters', 'format'], target.value);
     } else if (target.id === 'discover-studio-filter') {
       Store.setPreference(['discoverFilters', 'studio'], target.value);
-    } else if (target.id === 'discover-airing-status-filter') {
-      Store.setPreference(['discoverFilters', 'airingStatus'], target.value);
-    } else if (target.id === 'discover-duration-min') {
-      Store.setPreference(['discoverFilters', 'durationMin'], target.value ? Number(target.value) : null);
-    } else if (target.id === 'discover-duration-max') {
-      Store.setPreference(['discoverFilters', 'durationMax'], target.value ? Number(target.value) : null);
     } else {
       return;
     }
     discoverState.visibleCount = PAGE_SIZE;
     renderNow();
     persist();
+  });
+
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('#discover-reset-filters')) {
+      Store.setPreference(['discoverFilters'], { format: '', studio: '' });
+      discoverState.visibleCount = PAGE_SIZE;
+      renderNow();
+      persist();
+    } else if (e.target.closest('#discover-reset-genres')) {
+      Store.setPreference(['discoverIncludedGenres'], []);
+      Store.setPreference(['discoverExcludedGenres'], []);
+      discoverState.visibleCount = PAGE_SIZE;
+      renderNow();
+      persist();
+    }
   });
 }
 
@@ -243,11 +259,21 @@ export function initDiscover({ persistFn } = {}) {
 
     const genreChip = e.target.closest('.discover-genre-chip');
     if (genreChip) {
+      // Three-way cycle: neutral -> include -> exclude -> neutral. A genre
+      // only ever lives in one of the two arrays at a time.
       const genre = genreChip.dataset.genre;
-      const current = Store.state.preferences.discoverExcludedGenres;
-      const idx = current.indexOf(genre);
-      if (idx === -1) current.push(genre);
-      else current.splice(idx, 1);
+      const included = Store.state.preferences.discoverIncludedGenres;
+      const excluded = Store.state.preferences.discoverExcludedGenres;
+      const inIdx = included.indexOf(genre);
+      const exIdx = excluded.indexOf(genre);
+      if (inIdx === -1 && exIdx === -1) {
+        included.push(genre);
+      } else if (inIdx !== -1) {
+        included.splice(inIdx, 1);
+        excluded.push(genre);
+      } else {
+        excluded.splice(exIdx, 1);
+      }
       discoverState.visibleCount = PAGE_SIZE; // a narrower/wider result set starting from page one is less surprising than keeping an arbitrary large count
       renderNow();
       persist();
@@ -283,7 +309,7 @@ export function initDiscover({ persistFn } = {}) {
       Render.renderTabCounts();
       persist();
       Render.showToast(`Added "${media.title.romaji}" to Watchlist`);
-      Api.downloadCover(media.id, media.coverImage.large)
+      Api.downloadCover(media.id, Api.bestCoverUrl(media))
         .then((file) => Store.updateEntry(media.id, { coverFile: file }))
         .then(() => persist())
         .catch(() => {});

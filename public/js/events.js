@@ -478,7 +478,7 @@ async function applyReplaceMatch(oldId, media) {
   persist();
   Render.showToast(`Fixed match: "${oldTitle}" → "${media.title.romaji}"`);
   try {
-    const file = await Api.downloadCover(media.id, media.coverImage.large);
+    const file = await Api.downloadCover(media.id, Api.bestCoverUrl(media));
     Store.updateEntry(media.id, { coverFile: file });
     refreshView();
     persist();
@@ -685,23 +685,6 @@ function bindFilterBar() {
     Render.renderAll(activeList);
     persist();
   });
-  document.getElementById('airing-status-filter').addEventListener('change', (e) => {
-    Store.setPreference(['filters', activeList, 'airingStatus'], e.target.value);
-    Render.renderAll(activeList);
-    persist();
-  });
-  document.getElementById('duration-min').addEventListener('change', (e) => {
-    Store.setPreference(['filters', activeList, 'durationMin'], e.target.value ? Number(e.target.value) : null);
-    Render.renderFilterBar(activeList);
-    Render.renderGrid(activeList);
-    persist();
-  });
-  document.getElementById('duration-max').addEventListener('change', (e) => {
-    Store.setPreference(['filters', activeList, 'durationMax'], e.target.value ? Number(e.target.value) : null);
-    Render.renderFilterBar(activeList);
-    Render.renderGrid(activeList);
-    persist();
-  });
 
   document.getElementById('myscore-min').addEventListener('change', (e) => {
     Store.setPreference(['filters', activeList, 'myScoreMin'], e.target.value ? Number(e.target.value) : null);
@@ -749,7 +732,7 @@ function bindFilterBar() {
     let touchesPersistedState = true;
 
     if (key === '__clear_all') {
-      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false });
+      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false });
       Store.setTitleFilter(activeList, '');
     } else if (key.startsWith('genre:')) {
       const genre = key.slice('genre:'.length);
@@ -758,11 +741,6 @@ function bindFilterBar() {
       filters.format = '';
     } else if (key === 'studio') {
       filters.studio = '';
-    } else if (key === 'airingStatus') {
-      filters.airingStatus = '';
-    } else if (key === 'duration') {
-      filters.durationMin = null;
-      filters.durationMax = null;
     } else if (key === 'unrated') {
       filters.unratedOnly = false;
     } else if (key === 'myscore') {
@@ -849,7 +827,7 @@ async function addFromSearchResult(anilistId, listStatus) {
   Render.showToast(`Added "${media.title.romaji}" to ${listStatus}`);
 
   try {
-    const file = await Api.downloadCover(media.id, media.coverImage.large);
+    const file = await Api.downloadCover(media.id, Api.bestCoverUrl(media));
     Store.updateEntry(media.id, { coverFile: file });
     refreshView();
     persist();

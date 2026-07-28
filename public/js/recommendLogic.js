@@ -116,6 +116,14 @@ export function applyGenreExclusion(items, excludedGenres) {
   return items.filter((it) => !(it.media.genres || []).some((g) => excluded.has(g)));
 }
 
+// Opposite of applyGenreExclusion: only keeps candidates that have every
+// included genre — same AND semantics as the main lists' genre filter
+// (state.js's getGroupedFilteredSorted), so the two behave the same way.
+export function applyGenreInclusion(items, includedGenres) {
+  if (!includedGenres || includedGenres.length === 0) return items;
+  return items.filter((it) => includedGenres.every((g) => (it.media.genres || []).includes(g)));
+}
+
 // Shared by Discover and Schedule's "Coming soon" pool — both work over the
 // same { media } item shape, straight from AniList, rather than the stored
 // Store.getEntry shape the main lists filter against.
@@ -123,9 +131,6 @@ export function applyMediaFilters(items, filters) {
   let out = items;
   if (filters.format) out = out.filter((it) => it.media.format === filters.format);
   if (filters.studio) out = out.filter((it) => extractStudioName(it.media) === filters.studio);
-  if (filters.airingStatus) out = out.filter((it) => it.media.status === filters.airingStatus);
-  if (filters.durationMin != null) out = out.filter((it) => it.media.duration != null && it.media.duration >= filters.durationMin);
-  if (filters.durationMax != null) out = out.filter((it) => it.media.duration != null && it.media.duration <= filters.durationMax);
   return out;
 }
 

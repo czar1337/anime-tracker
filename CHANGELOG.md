@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.1
+
+Quick follow-up to 2.1.0's filter overhaul, based on hands-on feedback after trying it for real.
+
+- **Fix: cover images looked stretched and low-resolution** in the detail view and other large display spots. The app was only ever requesting AniList's "large" cover size (~230px wide) — fine for small card thumbnails, but visibly blurry once upscaled into a bigger frame. Now requests "extraLarge" too and prefers it wherever a bigger image is shown.
+- **Removed the Duration and Airing-status filters.** They shipped in 2.1.0 but turned out broken/not useful in practice — the duration input's spinner could break the whole filter bar. Studio and Format filters stay.
+- **Discover's genre chips now support include as well as exclude.** Click cycles a genre through neutral → only this genre → never this genre → neutral, instead of exclude being the only option.
+- **Format names in filter dropdowns are readable now** ("TV Short" instead of "TV_SHORT").
+- **Discover and Schedule filter bars gained a "Reset filters" button** (and Discover's genre row a "Reset genres" button) — there was previously no way to clear them short of picking "All" on every control individually.
+
 ## 2.1.0
 
 **Feedback pass on the Moonlit Shrine redesign.** A review-and-polish round on top of 2.0, driven by hands-on testing plus a round of user feedback — no visual identity changes, just fixes, more control, and more filtering.

@@ -138,15 +138,17 @@ function bindMediaFilterControls(container, persist) {
       Store.setPreference(['scheduleFilters', 'format'], target.value);
     } else if (target.id === 'schedule-studio-filter') {
       Store.setPreference(['scheduleFilters', 'studio'], target.value);
-    } else if (target.id === 'schedule-airing-status-filter') {
-      Store.setPreference(['scheduleFilters', 'airingStatus'], target.value);
-    } else if (target.id === 'schedule-duration-min') {
-      Store.setPreference(['scheduleFilters', 'durationMin'], target.value ? Number(target.value) : null);
-    } else if (target.id === 'schedule-duration-max') {
-      Store.setPreference(['scheduleFilters', 'durationMax'], target.value ? Number(target.value) : null);
     } else {
       return;
     }
+    scheduleState.visibleCount = PAGE_SIZE;
+    renderNow();
+    persist();
+  });
+
+  container.addEventListener('click', (e) => {
+    if (!e.target.closest('#schedule-reset-filters')) return;
+    Store.setPreference(['scheduleFilters'], { format: '', studio: '' });
     scheduleState.visibleCount = PAGE_SIZE;
     renderNow();
     persist();
@@ -210,7 +212,7 @@ export function initSchedule({ persistFn } = {}) {
       Render.renderTabCounts();
       persist();
       Render.showToast(`Added "${media.title.romaji}" to Watchlist`);
-      Api.downloadCover(media.id, media.coverImage.large)
+      Api.downloadCover(media.id, Api.bestCoverUrl(media))
         .then((file) => Store.updateEntry(media.id, { coverFile: file }))
         .then(() => persist())
         .catch(() => {});

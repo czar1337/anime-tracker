@@ -274,7 +274,7 @@ export function initMalImport() {
       Store.addEntry(mediaToEntryPatch(media, malEntry));
       lastImportedIds.push(media.id);
       added += 1;
-      toDownload.push({ anilistId: media.id, url: media.coverImage.large });
+      toDownload.push({ anilistId: media.id, url: Api.bestCoverUrl(media) });
     });
     document.dispatchEvent(new CustomEvent('library-imported', { detail: { added } }));
     // Firing all of these at once (previously: no await, no limit) floods the

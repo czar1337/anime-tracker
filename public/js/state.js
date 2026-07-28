@@ -8,15 +8,16 @@ const DEFAULT_PREFERENCES = () => ({
   sort: { watching: 'addedAt', watchlist: 'addedAt', watched: 'completedAt', dropped: 'updatedAt' },
   sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc' },
   filters: {
-    watching: { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    watchlist: { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    watched: { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
-    dropped: { genres: [], format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null, myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    watching: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    watchlist: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    watched: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false },
+    dropped: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false },
   },
   activeTab: 'watching',
   discoverExcludedGenres: [],
-  discoverFilters: { format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null },
-  scheduleFilters: { format: '', studio: '', airingStatus: '', durationMin: null, durationMax: null },
+  discoverIncludedGenres: [],
+  discoverFilters: { format: '', studio: '' },
+  scheduleFilters: { format: '', studio: '' },
   notifyNewEpisodes: false,
 });
 
@@ -38,6 +39,7 @@ function ensurePreferenceShape() {
   }
   state.preferences.activeTab = state.preferences.activeTab || 'watching';
   state.preferences.discoverExcludedGenres = Array.isArray(state.preferences.discoverExcludedGenres) ? state.preferences.discoverExcludedGenres : [];
+  state.preferences.discoverIncludedGenres = Array.isArray(state.preferences.discoverIncludedGenres) ? state.preferences.discoverIncludedGenres : [];
   state.preferences.discoverFilters = { ...defaults.discoverFilters, ...(state.preferences.discoverFilters || {}) };
   state.preferences.scheduleFilters = { ...defaults.scheduleFilters, ...(state.preferences.scheduleFilters || {}) };
   state.preferences.notifyNewEpisodes = Boolean(state.preferences.notifyNewEpisodes);
@@ -308,15 +310,6 @@ function getGroupedFilteredSorted(list) {
   }
   if (filters.studio) {
     groups = groups.filter((g) => g.some((e) => e.studio === filters.studio));
-  }
-  if (filters.airingStatus) {
-    groups = groups.filter((g) => g.some((e) => e.airingStatus === filters.airingStatus));
-  }
-  if (filters.durationMin != null) {
-    groups = groups.filter((g) => g.some((e) => e.duration != null && e.duration >= filters.durationMin));
-  }
-  if (filters.durationMax != null) {
-    groups = groups.filter((g) => g.some((e) => e.duration != null && e.duration <= filters.durationMax));
   }
   if (filters.unratedOnly) {
     groups = groups.filter((g) => groupMyScore(g) == null);

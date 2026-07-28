@@ -144,7 +144,7 @@ query ($search: String) {
       id
       idMal
       title { romaji english }
-      coverImage { large }
+      coverImage { large extraLarge }
       episodes
       duration
       format
@@ -166,7 +166,7 @@ query ($idMalIn: [Int]) {
       id
       idMal
       title { romaji english }
-      coverImage { large }
+      coverImage { large extraLarge }
       episodes
       duration
       format
@@ -198,6 +198,14 @@ function extractRelatedIds(media) {
 // for a filter, just the one people actually mean by "which studio made this".
 function extractStudio(media) {
   return media.studios?.nodes?.[0]?.name || null;
+}
+
+// AniList's `large` (~230px wide) looks visibly blurry once upscaled into a
+// big display spot (the detail overlay's cover panel, the Watching hero
+// banner) — `extraLarge` is the actual high-res upload when AniList has one,
+// falling back to the same file `large` would have served when it doesn't.
+function bestCoverUrl(media) {
+  return media.coverImage?.extraLarge || media.coverImage?.large || null;
 }
 
 class RateLimitError extends Error {
@@ -280,7 +288,7 @@ query ($page: Int) {
     media(status: NOT_YET_RELEASED, type: ANIME, sort: POPULARITY_DESC) {
       id
       title { romaji english }
-      coverImage { large }
+      coverImage { large extraLarge }
       format
       genres
       seasonYear
@@ -305,7 +313,7 @@ query ($idIn: [Int]) {
   Page(page: 1, perPage: 50) {
     media(id_in: $idIn, type: ANIME) {
       id
-      coverImage { large }
+      coverImage { large extraLarge }
     }
   }
 }`;
@@ -336,7 +344,7 @@ function recommendationsBatchQuery(ids, perPage) {
             mediaRecommendation {
               id
               title { romaji english }
-              coverImage { large }
+              coverImage { large extraLarge }
               genres
               averageScore
               seasonYear
@@ -371,7 +379,7 @@ query ($id: Int) {
     id
     title { romaji english native }
     description(asHtml: false)
-    coverImage { large }
+    coverImage { large extraLarge }
     bannerImage
     genres
     averageScore
@@ -417,5 +425,6 @@ export const Api = {
   saveUpcomingCache,
   extractRelatedIds,
   extractStudio,
+  bestCoverUrl,
   RateLimitError,
 };

@@ -3,6 +3,7 @@ import { Airing } from './airing.js';
 import { COLOR_THEMES } from './themes.js';
 import { formatReleaseDate } from './scheduleLogic.js';
 import { Preferences } from './preferences.js';
+import { Api } from './api.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -11,9 +12,6 @@ const titleFilterEl = document.getElementById('title-filter');
 const genreFilterEl = document.getElementById('genre-filter');
 const formatFilterEl = document.getElementById('format-filter');
 const studioFilterEl = document.getElementById('studio-filter');
-const airingStatusFilterEl = document.getElementById('airing-status-filter');
-const durationMinEl = document.getElementById('duration-min');
-const durationMaxEl = document.getElementById('duration-max');
 const myScoreMinEl = document.getElementById('myscore-min');
 const myScoreMaxEl = document.getElementById('myscore-max');
 const unratedOnlyEl = document.getElementById('unrated-only');
@@ -21,16 +19,6 @@ const sortSelectEl = document.getElementById('sort-select');
 const sortDirBtn = document.getElementById('sort-dir');
 const activeFilterChipsEl = document.getElementById('active-filter-chips');
 
-const AIRING_STATUS_OPTIONS = [
-  { value: 'RELEASING', label: 'Airing' },
-  { value: 'FINISHED', label: 'Finished' },
-  { value: 'NOT_YET_RELEASED', label: 'Not yet released' },
-  { value: 'HIATUS', label: 'On hiatus' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-];
-function airingStatusLabel(value) {
-  return AIRING_STATUS_OPTIONS.find((o) => o.value === value)?.label || value;
-}
 const selectModeBtn = document.getElementById('select-mode-toggle');
 const bulkActionBarEl = document.getElementById('bulk-action-bar');
 
@@ -460,15 +448,8 @@ function activeFilterChips(list) {
   const titleQuery = Store.getTitleFilter(list);
   const chips = [];
   for (const g of filters.genres) chips.push({ key: `genre:${g}`, label: `Genre: ${g}` });
-  if (filters.format) chips.push({ key: 'format', label: `Format: ${filters.format}` });
+  if (filters.format) chips.push({ key: 'format', label: `Format: ${formatEnumLabel(filters.format)}` });
   if (filters.studio) chips.push({ key: 'studio', label: `Studio: ${filters.studio}` });
-  if (filters.airingStatus) chips.push({ key: 'airingStatus', label: `Status: ${airingStatusLabel(filters.airingStatus)}` });
-  if (filters.durationMin || filters.durationMax) {
-    const label = filters.durationMin && filters.durationMax
-      ? `Duration: ${filters.durationMin}–${filters.durationMax}m`
-      : filters.durationMin ? `Duration ≥ ${filters.durationMin}m` : `Duration ≤ ${filters.durationMax}m`;
-    chips.push({ key: 'duration', label });
-  }
   if (filters.unratedOnly) {
     chips.push({ key: 'unrated', label: 'Unrated only' });
   } else if (filters.myScoreMin != null || filters.myScoreMax != null) {
@@ -540,15 +521,11 @@ function renderFilterBar(list) {
   renderGenreFilter(list);
 
   const formats = Store.allFormats();
-  formatFilterEl.innerHTML = `<option value="">All formats</option>` + formats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(f)}</option>`).join('');
+  formatFilterEl.innerHTML = `<option value="">All formats</option>` + formats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(formatEnumLabel(f))}</option>`).join('');
 
   const studios = Store.allStudios();
   studioFilterEl.innerHTML = `<option value="">All studios</option>` + studios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 
-  airingStatusFilterEl.innerHTML = `<option value="">Any status</option>` + AIRING_STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${filters.airingStatus === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
-
-  durationMinEl.value = filters.durationMin || '';
-  durationMaxEl.value = filters.durationMax || '';
   myScoreMinEl.value = filters.myScoreMin || '';
   myScoreMaxEl.value = filters.myScoreMax || '';
   unratedOnlyEl.checked = filters.unratedOnly;
@@ -930,44 +907,51 @@ function discoverCardHtml(item, index = 0) {
 // generator with an id prefix avoids duplicating it twice. Regenerated in
 // full on every render (same as discoverGenreFilterHtml below), so callers
 // must bind these via event delegation rather than direct listeners.
-function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios) {
+function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios, showReset) {
   if (!availableFormats.length && !availableStudios.length) return '';
   return `
     <div class="filter-group discover-media-filter">
       <select id="${prefix}-format-filter" class="sel" aria-label="Filter by format">
         <option value="">All formats</option>
-        ${availableFormats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(f)}</option>`).join('')}
+        ${availableFormats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(formatEnumLabel(f))}</option>`).join('')}
       </select>
       <select id="${prefix}-studio-filter" class="sel" aria-label="Filter by studio">
         <option value="">All studios</option>
         ${availableStudios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
       </select>
-      <select id="${prefix}-airing-status-filter" class="sel" aria-label="Filter by airing status">
-        <option value="">Any status</option>
-        ${AIRING_STATUS_OPTIONS.map((o) => `<option value="${o.value}" ${filters.airingStatus === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
-      </select>
-      <span class="range">
-        <span>Duration</span>
-        <input type="number" id="${prefix}-duration-min" class="year-input" value="${filters.durationMin || ''}" aria-label="Duration from (minutes)">
-        <i>–</i>
-        <input type="number" id="${prefix}-duration-max" class="year-input" value="${filters.durationMax || ''}" aria-label="Duration to (minutes)">
-      </span>
+      ${showReset ? `<button class="text-btn" id="${prefix}-reset-filters">Reset filters</button>` : ''}
     </div>`;
 }
 
-function discoverGenreFilterHtml(availableGenres, excludedGenres) {
+// Each genre chip cycles neutral → include → exclude → neutral (data-action
+// on the row tells the click handler which state to move to next), so one
+// row covers both "only these" and "never these" without two separate
+// lists. Mirrors the main lists' genre filter (AND semantics — see
+// applyGenreInclusion) rather than introducing a second, different rule.
+function discoverGenreChipState(g, includedGenres, excludedGenres) {
+  if (includedGenres.includes(g)) return 'include';
+  if (excludedGenres.includes(g)) return 'exclude';
+  return 'neutral';
+}
+
+function discoverGenreFilterHtml(availableGenres, includedGenres, excludedGenres) {
   if (!availableGenres.length) return '';
+  const hasActive = includedGenres.length || excludedGenres.length;
   return `
     <div class="filter-group discover-genre-filter">
-      <span class="discover-genre-filter-label">Exclude:</span>
+      <span class="discover-genre-filter-label">Genres:</span>
       ${availableGenres
-        .map((g) => `<button class="genre-chip discover-genre-chip ${excludedGenres.includes(g) ? 'active' : ''}" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</button>`)
+        .map((g) => {
+          const st = discoverGenreChipState(g, includedGenres, excludedGenres);
+          return `<button class="genre-chip discover-genre-chip ${st}" data-genre="${escapeHtml(g)}" title="${st === 'neutral' ? 'Click to include only this genre' : st === 'include' ? 'Click to exclude this genre instead' : 'Click to clear'}">${escapeHtml(g)}</button>`;
+        })
         .join('')}
+      ${hasActive ? `<button class="text-btn" id="discover-reset-genres">Reset genres</button>` : ''}
     </div>`;
 }
 
 function renderDiscoverPage(container, viewState) {
-  const { status, items, visibleCount, generatedAt, offline, progressText, availableGenres = [], excludedGenres = [], availableFormats = [], availableStudios = [], filters = {} } = viewState;
+  const { status, items, visibleCount, generatedAt, offline, progressText, availableGenres = [], includedGenres = [], excludedGenres = [], availableFormats = [], availableStudios = [], filters = {} } = viewState;
   const age = relativeAgeText(generatedAt);
 
   const banner = `
@@ -982,8 +966,8 @@ function renderDiscoverPage(container, viewState) {
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'New suggestions'}</button>
       </div>
     </div>
-    ${mediaFilterBarHtml('discover', filters, availableFormats, availableStudios)}
-    ${discoverGenreFilterHtml(availableGenres, excludedGenres)}
+    ${mediaFilterBarHtml('discover', filters, availableFormats, availableStudios, Boolean(filters.format || filters.studio))}
+    ${discoverGenreFilterHtml(availableGenres, includedGenres, excludedGenres)}
   `;
 
   if (status === 'loading' && items.length === 0) {
@@ -998,8 +982,8 @@ function renderDiscoverPage(container, viewState) {
     container.innerHTML = `${banner}<div class="empty-state"><h2>Could not load suggestions</h2><p>${escapeHtml(progressText || 'Check your internet connection and try refreshing.')}</p></div>`;
     return;
   }
-  const hasActiveMediaFilter = filters.format || filters.studio || filters.airingStatus || filters.durationMin != null || filters.durationMax != null;
-  if (items.length === 0 && (excludedGenres.length || hasActiveMediaFilter)) {
+  const hasActiveMediaFilter = filters.format || filters.studio || includedGenres.length || excludedGenres.length;
+  if (items.length === 0 && hasActiveMediaFilter) {
     container.innerHTML = `${banner}<div class="empty-state"><h2>Nothing matches your filters</h2><p>Every suggestion we found is excluded by a genre or filter above. Loosen one to see results again.</p></div>`;
     return;
   }
@@ -1104,7 +1088,7 @@ function renderSchedulePage(container, viewState) {
         <button class="text-btn primary" id="schedule-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh'}</button>
       </div>
     </div>
-    ${mediaFilterBarHtml('schedule', filters, availableFormats, availableStudios)}`;
+    ${mediaFilterBarHtml('schedule', filters, availableFormats, availableStudios, Boolean(filters.format || filters.studio))}`;
 
   const thisWeekSection = `
     <div class="schedule-section">
@@ -1435,7 +1419,7 @@ function renderDetailOverlay(container, state) {
 
   container.innerHTML = `
     <div class="detail-side">
-      <div class="detail-cover" style="background-image:url('${escapeHtml(m.coverImage.large)}')"></div>
+      <div class="detail-cover" style="background-image:url('${escapeHtml(Api.bestCoverUrl(m))}')"></div>
       <div class="detail-score">
         <b>${local?.myScore != null ? local.myScore : '—'}</b>
         <span>${local?.myScore != null ? 'your score' : 'not rated'}</span>
