@@ -52,7 +52,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P1.1 Backup, verify, restore, export | done | 2026-08-02 | this session, see "P1.1 implementation session", "P1.1 review-fixes session" and "P1.1 close out (COMPLETE-B)" below | — |
 | P1.2 Storage classes and concurrency | done | 2026-08-02 | this session, see "P1.2 implementation session", "P1.2 independent review session" and "P1.2 close out" below | — |
 | P1.3 Settings schema and transactional migration | done | 2026-08-02 | this session, see "P1.3 implementation session" and "P1.3 close out" below | — |
-| P1.4 Token layer, tuning config, inventory | in progress | 2026-08-02 | this session, see "P1.4 implementation session" below | all six acceptance criteria have full evidence this same session (no new UI shipped — infrastructure only); awaiting user review, close-out commit and merge into `main` |
+| P1.4 Token layer, tuning config, inventory | done | 2026-08-02 | this session, see "P1.4 implementation session" and "P1.4 close out" below | — |
 | P1.5 Event log v1 | not started | — | — | — |
 | P1.6 Copy registry, new v2 surfaces only | not started | — | — | — |
 | P1.7 Lists, collections, tags, achievement hook | not started | — | — | — |
@@ -1481,3 +1481,16 @@ full evidence in this same session — this substep shipped no new UI, so
 there is no user-blocking screen-reader step to wait on. Not yet merged
 into `main`; awaiting user review before a `v2(P1.4): close out` commit and
 merge, per the spec's own pattern.
+
+## P1.4 close out
+
+No code changed in this session before this evidence-only commit. The user
+reviewed this session's implementation evidence (all six acceptance
+criteria already fully evidenced, no user-blocking step since no new UI
+shipped) and confirmed to proceed with close-out and merge into `main`.
+Note: the user asked to hold off pushing to `origin` until further commits
+land — this merge stays local until that instruction changes.
+
+**Status: P1.4 done.** All six acceptance criteria satisfied. Merged into
+`main` in this session's close-out (see the merge commit immediately
+following); `v2/P1.4` retained, not deleted, per the spec's branching rule.
