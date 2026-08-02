@@ -36,6 +36,13 @@ const LOCAL_MODULES = [
   { requireLine: "require('./datadir.js')", file: 'datadir.js', varName: '__datadirModule' },
   { requireLine: "require('./migrations.js')", file: 'migrations.js', varName: '__migrationsModule' },
   { requireLine: "require('./snapshots.js')", file: 'snapshots.js', varName: '__snapshotsModule' },
+  // P1.2: libraryEtag.js requires datadir.js (canonicalJSON), so it must stay
+  // after datadir.js in this list. writeLock.js/classBEviction.js/
+  // diskQuota.js have no local requires of their own.
+  { requireLine: "require('./libraryEtag.js')", file: 'libraryEtag.js', varName: '__libraryEtagModule' },
+  { requireLine: "require('./writeLock.js')", file: 'writeLock.js', varName: '__writeLockModule' },
+  { requireLine: "require('./classBEviction.js')", file: 'classBEviction.js', varName: '__classBEvictionModule' },
+  { requireLine: "require('./diskQuota.js')", file: 'diskQuota.js', varName: '__diskQuotaModule' },
 ];
 
 function inlineLocalModules(serverSource) {
