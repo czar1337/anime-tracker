@@ -227,6 +227,137 @@ async function run() {
   });
 
   // -------------------------------------------------------------------------
+  // config/tuning.js (P1.4) — the central tuning config, pure/no-DOM,
+  // loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('config/tuning.js');
+  const tuningUrl = 'file:///' + path.join(__dirname, '..', 'config', 'tuning.js').replace(/\\/g, '/');
+  const { TYPOGRAPHY_STEPS, RECOMMENDATIONS, ACHIEVEMENTS, SCORE_SCALE, MIN_EFFECTIVE_FONT_SIZE_PX, RADIUS_SURFACE_CAP_PX } =
+    await import(tuningUrl);
+
+  await test('every typography step array has exactly 10 entries (one per step 1-10)', () => {
+    for (const [name, arr] of Object.entries(TYPOGRAPHY_STEPS)) {
+      assert.equal(arr.length, 10, `${name} should have 10 entries, has ${arr.length}`);
+    }
+  });
+
+  await test('typography arrays are transcribed verbatim from the Tuning table (spot-check both ends)', () => {
+    assert.deepEqual(
+      [TYPOGRAPHY_STEPS.fontScale[0], TYPOGRAPHY_STEPS.fontScale[9]],
+      [0.82, 1.35]
+    );
+    assert.deepEqual([TYPOGRAPHY_STEPS.radiusSurface[0], TYPOGRAPHY_STEPS.radiusSurface[9]], [0, 24]);
+    assert.deepEqual([TYPOGRAPHY_STEPS.fontWeightBase[0], TYPOGRAPHY_STEPS.fontWeightBase[9]], [300, 800]);
+  });
+
+  await test('MIN_EFFECTIVE_FONT_SIZE_PX / RADIUS_SURFACE_CAP_PX match the spec', () => {
+    assert.equal(MIN_EFFECTIVE_FONT_SIZE_PX, 12);
+    assert.equal(RADIUS_SURFACE_CAP_PX, 24);
+  });
+
+  await test('SCORE_SCALE matches the spec\'s canonical 1-10, one-decimal scale', () => {
+    assert.deepEqual(SCORE_SCALE, { min: 1, max: 10, decimalPlaces: 1 });
+  });
+
+  await test('PRIMARY_GENRE_PRIORITY lists all 19 real AniList genres, no duplicates', () => {
+    const list = RECOMMENDATIONS.primaryGenrePriority;
+    assert.equal(list.length, 19);
+    assert.equal(new Set(list).size, 19, 'must not contain duplicates');
+    assert.ok(list.includes('Mecha') && list.includes('Drama'), 'sanity: known genres present');
+  });
+
+  await test('corpusTargetSize is the user-confirmed 3,000 from the P0.4 approval gate', () => {
+    assert.equal(RECOMMENDATIONS.corpusTargetSize, 3000);
+  });
+
+  await test('scorerWeights preserves the spec\'s exact w_/p_ naming and values', () => {
+    assert.deepEqual(RECOMMENDATIONS.scorerWeights, {
+      wGenre: 1.0,
+      wTag: 1.2,
+      wStudio: 0.5,
+      wStaff: 0.4,
+      wGlobal: 0.8,
+      wRecent: 0.3,
+      pLength: 0.6,
+      pSimilar: 0.9,
+      pSeen: 1.5,
+    });
+  });
+
+  await test('ACHIEVEMENTS point/level-curve values match the spec', () => {
+    assert.deepEqual(ACHIEVEMENTS.pointsByRarity, { common: 5, uncommon: 10, rare: 25, legendary: 50, cursed: 100 });
+    assert.equal(ACHIEVEMENTS.levelCurveK, 7);
+    assert.equal(ACHIEVEMENTS.maxLevel, 20);
+    // level 20 = k * 19^2
+    assert.equal(ACHIEVEMENTS.levelCurveK * 19 ** 2, 2527);
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/tokens.js (P1.4) — the token module, pure aside from the DOM
+  // calls in apply*() themselves, loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('tokens.js');
+  const tokensUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'tokens.js').replace(/\\/g, '/');
+  const { computeTypographyTokens, applyTypographyStep, setColorTokens, TYPOGRAPHY_TOKEN_NAMES, COLOR_TOKEN_NAMES } =
+    await import(tokensUrl);
+
+  function fakeStyleTarget() {
+    const props = {};
+    return { props, style: { setProperty: (name, value) => { props[name] = value; } } };
+  }
+
+  await test('computeTypographyTokens(1) matches step-1 array values', () => {
+    const tokens = computeTypographyTokens(1);
+    assert.equal(tokens['--font-scale'], 0.82);
+    assert.equal(tokens['--font-weight-base'], 300);
+    assert.equal(tokens['--radius-surface'], '0px');
+    assert.equal(tokens['--radius-control'], '0px');
+  });
+
+  await test('computeTypographyTokens(10): --radius-control is capped well below --radius-surface (never turns inputs into pills)', () => {
+    const tokens = computeTypographyTokens(10);
+    assert.equal(tokens['--radius-surface'], '24px');
+    assert.equal(tokens['--radius-control'], '12px');
+  });
+
+  await test('computeTypographyTokens rejects an out-of-range or non-integer step rather than silently clamping', () => {
+    assert.throws(() => computeTypographyTokens(0), RangeError);
+    assert.throws(() => computeTypographyTokens(11), RangeError);
+    assert.throws(() => computeTypographyTokens(5.5), RangeError);
+  });
+
+  await test('applyTypographyStep sets every owned typography property on the given target', () => {
+    const target = fakeStyleTarget();
+    applyTypographyStep(5, target);
+    for (const name of TYPOGRAPHY_TOKEN_NAMES) {
+      assert.ok(name in target.props, `${name} should have been set`);
+    }
+  });
+
+  await test('setColorTokens only applies known token names, silently ignoring an unrecognized one', () => {
+    const target = fakeStyleTarget();
+    const applied = setColorTokens({ '--accent': '#ff0000', '--not-a-real-token': 'x' }, target);
+    assert.deepEqual(applied, ['--accent']);
+    assert.equal(target.props['--accent'], '#ff0000');
+    assert.equal('--not-a-real-token' in target.props, false);
+  });
+
+  await test('COLOR_TOKEN_NAMES matches the spec\'s exact 10 colour roles', () => {
+    assert.deepEqual(COLOR_TOKEN_NAMES, [
+      '--background',
+      '--surface',
+      '--border',
+      '--text-primary',
+      '--text-secondary',
+      '--accent',
+      '--accent-foreground',
+      '--success',
+      '--warning',
+      '--danger',
+    ]);
+  });
+
+  // -------------------------------------------------------------------------
   // Store (public/js/state.js) — pure, no DOM access, loaded via dynamic import().
   // -------------------------------------------------------------------------
   console.log('state.js');
