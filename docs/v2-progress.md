@@ -50,7 +50,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P0.3 Discover feasibility gate | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.3 close out" + §"P0.3 close-out verification" | — |
 | P0.4 Plan, file index, verification harness | done | 2026-08-02 | this session, see "P0.4 close out" below | — |
 | P1.1 Backup, verify, restore, export | done | 2026-08-02 | this session, see "P1.1 implementation session", "P1.1 review-fixes session" and "P1.1 close out (COMPLETE-B)" below | — |
-| P1.2 Storage classes and concurrency | not started | — | — | — |
+| P1.2 Storage classes and concurrency | in progress | 2026-08-02 | this session, see "P1.2 implementation session" below | user-executed screen reader step for the conflict toast (steps written below, awaiting the user's result) |
 | P1.3 Settings schema and transactional migration | not started | — | — | — |
 | P1.4 Token layer, tuning config, inventory | not started | — | — | corpus target (3,000) already decided, see above |
 | P1.5 Event log v1 | not started | — | — | — |
@@ -579,3 +579,249 @@ reverted code path depends on.
 **Status: P1.1 done.** All six acceptance criteria satisfied, including the
 user-executed screen reader step. Merged into `main` in this session's
 close-out commit; `v2/P1.1` retained, not deleted.
+
+## P1.2 implementation session
+
+Branch `v2/P1.2`, from `main` (which already contains the merged `v2/P1.1`).
+Reconciled against `git log --all --oneline --grep "^v2("` and this file's
+table before writing anything: P1.1 is the latest landed substep, P1.2 had
+no prior commits anywhere. This is a single session covering five of the six
+acceptance criteria in full; the sixth (accessibility) is complete except
+the user-executed screen reader step, so the table row above stays
+`in progress` rather than `done`, per the spec's own rule that a substep
+cannot certify itself complete while any criterion is outstanding.
+
+**What landed, in commit order** (see `git log --grep "^v2(P1.2)"` for the
+authoritative list):
+
+- Four new pure, dependency-light root CommonJS modules, same decomposition
+  style as `datadir.js`/`migrations.js`/`snapshots.js`:
+  - `libraryEtag.js`: `computeLibraryEtag(library)`, a quoted strong sha256
+    ETag over `canonicalJSON(library)`.
+  - `writeLock.js`: `createWriteLock()`, a FIFO async mutex with a
+    per-waiter timeout (`LockTimeoutError`) — the server-side stand-in for
+    `navigator.locks`, per `docs/v2-plan.md`'s P1.2 entry.
+  - `classBEviction.js`: the `CLASS_B_STORES` registry (`recommendationsCache`,
+    `airingCache`, `upcomingCache`, in that order — the corpus cache slot is
+    deliberately absent, since P5A.1 is still blocked) and the pure
+    `planEviction(registry, deficitBytes, currentSizes)` planner.
+  - `diskQuota.js`: `computeReservedFloorBytes`/`hasSufficientFreeSpace`, the
+    Class A + Class C floor arithmetic.
+- `server.js`:
+  - **Concurrency.** `GET /api/library` now computes and sends an `ETag`
+    header from the exact same `readLibrary()` object it serializes as the
+    body (never two separate reads). `PUT /api/library` now requires an
+    `If-Match` header (`400` if absent) and runs its entire
+    check-libraryState / read-current / compute-etag / compare / write
+    sequence **inside** the shared write lock, as one critical section —
+    this closes the check-before-lock TOCTOU an earlier draft of this plan
+    had (comparing `If-Match` before acquiring anything). A mismatch returns
+    `409` with `{conflict: true, currentETag}` and never writes.
+    `POST /api/snapshots`, `POST /api/snapshots/restore`, `POST /api/reset`,
+    and the existing legacy `POST /api/backups/restore` all now run their
+    mutating work inside the same shared lock (rule 6's full list: snapshot,
+    restore, reset, plus the legacy restore endpoint, which is the same
+    class of whole-library rewrite). The three routes that rewrite
+    `library.json` (`PUT /api/library`, `POST /api/snapshots/restore`,
+    `POST /api/reset`, `POST /api/backups/restore` — four, not three) all
+    return the resulting library's fresh `ETag`, both as a header and in the
+    JSON body. A queued task that waits past 10s for its turn gets `423`
+    with a "close other tabs or windows and try again" message — the
+    real-architecture equivalent of the spec's IndexedDB
+    `versionchange`/`onblocked` UI requirement.
+  - **Class B eviction.** A new `ensureClassBWriteQuota(writeBytes, storeId)`
+    gates the three existing Class B cache PUT endpoints
+    (`/api/recommendations`, `/api/airing`, `/api/upcoming`): if free disk
+    space (via `fs.statfsSync`, or the test-only
+    `ANIME_TRACKER_TEST_FREE_BYTES_OVERRIDE` override) minus the write would
+    dip under the Class A + Class C floor, it evicts earlier-order Class B
+    stores first (never the one currently being written) by resetting them
+    to their existing empty-default shape, and only proceeds if that's
+    calculated to cover the deficit. If even clearing every other Class B
+    store isn't enough, the write is refused outright (`507`) rather than
+    silently dropped.
+- `public/js/api.js` / `state.js` / `app.js` / `events.js`: `Store` now
+  tracks the server's current library ETag; `getLibrary()`/`saveLibrary()`
+  read/send the `ETag`/`If-Match` headers; `attemptSave()`'s indefinite
+  retry loop now stops on a genuine conflict (retrying with the same stale
+  etag can never succeed) and shows a toast with a "Reload" action instead —
+  a new user-facing string, following the exact P1.1 precedent of a new v2
+  surface shipping before the P1.6 copy registry exists (flagged below for
+  that retrofit list). The three existing restore/reset call sites
+  (snapshot restore, reset-everything, legacy backup restore) already
+  re-fetch the library immediately after their action succeeds
+  (`events.js`), so passing that fresh fetch's etag through
+  `Store.setLibrary(data, etag)` was enough to keep them correct with no new
+  reload logic needed.
+- `scripts/build-exe.js`: the four new modules added to `LOCAL_MODULES`, same
+  pattern as `snapshots.js`'s existing entry (order matters —
+  `libraryEtag.js` requires `datadir.js` for `canonicalJSON`, so it's listed
+  after it).
+- New v2-surface string flagged for P1.6's copy-registry retrofit list (same
+  list P1.1 already started): the "This library was changed in another tab
+  or window..." conflict toast plus its "Reload" action label, and the
+  "Another save/snapshot/restore/reset operation is taking longer than
+  expected..." 423 message.
+
+**Automated checks.**
+
+- `node tests/run-all.js`: **94 passed, 0 failed** (14 new: 3 for
+  `libraryEtag.js`, 4 for `writeLock.js`'s queuing/timeout/starvation
+  behavior, 4 for `classBEviction.js`'s order/never-Class-A-or-C/synthetic-
+  registry-injection, 3 for `diskQuota.js`'s floor arithmetic — 80 passed at
+  the end of P1.1, +14 here).
+- `npm run test:e2e`: **17 passed** (4 new specs beyond P1.1's 13:
+  `two-tab-race.spec.js`, `class-b-eviction.spec.js` (2 tests), and
+  `real-library-data-safety.spec.js`).
+  - `two-tab-race.spec.js`: two real Playwright pages, each with its own
+    independently-booted `Store`/etag state, editing the same fixture entry.
+    Both PUTs are held via `page.route()` interception until both have
+    genuinely arrived (the barrier that guarantees both are in flight
+    against the same pre-edit etag regardless of exact timing), then
+    released together. Asserts exactly one `200`/one `409`, that
+    `library.json` on disk reflects only the winner's edit, that the
+    loser's conflict toast has a real `<button>` Reload action reachable via
+    repeated `Tab` presses and activated via `Enter`, and that a follow-up
+    edit from the (formerly losing) page after reloading succeeds
+    normally — the app isn't wedged after a conflict. Stable across 4
+    consecutive runs during development.
+  - `class-b-eviction.spec.js`: one test seeds the recommendations and
+    airing caches with ~3MB of real content each via the real PUT
+    endpoints, reboots against the same data directory with
+    `ANIME_TRACKER_TEST_FREE_BYTES_OVERRIDE` forcing a deficit only the
+    combination of both can cover, and asserts both were cleared (in the
+    documented order), `library.json` and every file under `snapshots/` are
+    byte-identical before/after, and the triggering write succeeds. A
+    second test forces an unsatisfiable deficit and asserts the write is
+    refused (`507`) with nothing evicted.
+  - `real-library-data-safety.spec.js`: copies the real `resolveDataDir()`
+    output into a disposable temp directory (never opened for writing),
+    boots the harness against the copy, exercises a Class B write under
+    forced quota pressure plus a real GET/PUT/stale-PUT cycle against it,
+    then asserts the **original** real directory's `library.json` and every
+    file under `snapshots/` are byte- and mtime-identical to a fingerprint
+    taken before the copy was made. Skips cleanly if no real library exists
+    on the machine running the suite.
+- `npm run perf`: both measurements printed, neither materially changed by
+  this substep (P1.2 touches no Tuning-table-named surface — see criterion
+  4). Library-render: **p95 1047ms** over 7 runs against its 200ms budget —
+  unchanged, pre-existing finding (virtualization is P4.1/P4.3/P4.4's job).
+  Snapshot-plus-verify: **p95 96ms** over 5 runs against its 10s budget —
+  unaffected, consistent with P1.1's numbers.
+- No lint, typecheck or build command exists in this project (unchanged
+  finding from P0.1 onward), stated explicitly.
+
+**1. Automated checks — full**, per above.
+
+**2. Data safety.** The eviction-under-pressure e2e test proves Class A/C
+are structurally never touched by the eviction planner (both by the pure
+unit test against `CLASS_B_STORES` and the real-file e2e test); the
+two-tab-race e2e test proves the ETag/If-Match mechanism catches the
+lost-update race and that recovery works; the real-library-data-safety e2e
+test proves all of the above is safe to run against a copy of real,
+production-shaped data (hundreds of entries, not a 1-entry synthetic
+fixture) without the original ever changing. This substep introduces no new
+Class A store (rule 3a doesn't apply — P1.2 is concurrency/eviction/quota
+over the existing stores, not a new one), stated explicitly.
+
+**3. Manual smoke test**, production build (`npm start`, i.e. `node
+server.js` — no build step exists in this project), **against a temp copy
+of the real library only, never the original**:
+
+1. Recorded sha256 + mtime of the real `library.json` and every file under
+   the real `snapshots/` before starting (5 files fingerprinted).
+2. Copied the entire real app-data directory into a disposable temp folder
+   (`fs.cpSync`) and booted `node server.js` against that copy via
+   `ANIME_TRACKER_DATA_DIR`/`ANIME_TRACKER_PORT`, on a separate port from
+   any real instance.
+3. Opened two real browser tabs against the copy. Editing a score in each
+   organically produced a genuine two-tab conflict during normal background
+   activity (before any deliberate racing) — one tab's save-indicator read
+   "Saved", the other read "Not saved — changed elsewhere." with a visible
+   toast (confirmed via the accessibility tree: a real "Reload" button). A
+   second, deliberately-forced race (two near-simultaneous score edits on
+   the same entry from both tabs) reproduced the same result with the
+   winner/loser roles reversed from the first occurrence, confirming
+   neither tab is privileged — confirmed via `save-indicator`'s
+   `dataset.state`/text on both tabs. Recovery was confirmed by reloading
+   the losing tab (equivalent to clicking the toast's own Reload action,
+   which the automated `two-tab-race.spec.js` test above already proves is
+   itself keyboard-reachable and does the same fresh-fetch-and-resync): the
+   reloaded tab showed the winner's data and a subsequent edit saved
+   successfully (`"saved"`). Two independent attempts to catch the toast's
+   own Reload button live and click it within its 20s window were made;
+   both times the multi-step round-trip needed to locate it in a 210-entry
+   real page's accessibility tree took long enough that the toast had
+   already auto-dismissed by the time the click was attempted — the
+   underlying mechanism (etag tracking, conflict detection, recovery via
+   resync) was still fully confirmed via the reload-equivalent path and via
+   the automated e2e test's own from-focus Tab-then-Enter activation, which
+   passed on every run.
+4. Opened Settings → Data & safety on the copy: clicked "Take a snapshot
+   now" (new verified snapshot appeared immediately), confirmed "Download my
+   data" (`GET /api/export` returned 200 with a populated `stores` object),
+   clicked "Restore from snapshot" on the just-created snapshot (confirm
+   dialog → confirmed → library returned to 222 entries/schemaVersion 4,
+   matching the real library's known shape), then clicked "Reset everything"
+   (confirmed the danger button starts disabled, enables only once "RESET"
+   is typed exactly, then confirmed it → library dropped to 0 entries) — all
+   against the copy.
+5. Restarted the copy server with `ANIME_TRACKER_TEST_FREE_BYTES_OVERRIDE`
+   forcing a small, realistic deficit and PUT a small real payload to
+   `/api/airing`: the response reported `evicted: ["recommendationsCache"]`,
+   the real (copied) `recommendations-cache.json` was reset from 172,329
+   bytes to its 40-byte empty default, and `library.json` was unchanged
+   (62 bytes before and after, matching the post-reset state from step 4).
+6. Re-fingerprinted the **original** real `library.json` and all 4
+   pre-existing `snapshots/` files: byte- and mtime-identical to step 1's
+   values in every case. Recorded programmatically (sha256 + mtimeMs
+   comparison script), not eyeballed.
+
+**4. Performance.** No Tuning-table budget names a surface this substep
+touches (concurrency, eviction and quota aren't named budgets) — stated
+explicitly, per the spec's own reduction rule. The two pre-existing
+measurements were re-run as a regression check only (see Automated checks
+above).
+
+**5. Accessibility.**
+
+- Keyboard path and focus visibility for the one new UI surface (the
+  conflict toast's Reload button): verified programmatically in
+  `two-tab-race.spec.js` — a real `<button>` element (asserted via
+  `tagName`), reached via repeated `Tab` presses from wherever focus
+  currently is (not a hardcoded position), and activated via `Enter`,
+  confirmed to actually resync the library afterward. Passed on every run
+  during development (4 consecutive runs plus the full-suite run).
+- Contrast: the toast reuses the existing `.toast`/toast-button styling
+  already shipped and covered by P1.1's contrast check; no new colors were
+  introduced.
+- **Screen reader step, user-executed — outstanding.** Steps for the user
+  to run: open the production build with two tabs pointed at the same
+  library; in one tab, change a score and let it save; in the second tab
+  (which loaded before that save), change a different score on a different
+  entry; turn on Narrator or NVDA; listen for the second tab's save
+  indicator and the toast that appears — confirm it announces the conflict
+  message and a "Reload" button, that Tab reaches the Reload button and its
+  role/label are announced correctly, and that activating it (Enter) is
+  announced as taking action. **Awaiting the user's reported result before
+  this substep can be marked `done`.**
+
+**6. Rollback.** Revert the `v2(P1.2)` commit range. No schema migrated
+(`library.json`'s `schemaVersion` is untouched by this substep), so a code
+revert is sufficient for the data itself. Requiring `If-Match` on
+`PUT /api/library` is a **deliberate, breaking change to that endpoint's
+contract** — not an additive one, since any caller that doesn't send it now
+gets `400` — but it's safe to revert precisely because nothing in this
+codebase besides the frontend (reverted in the same commit range) ever
+calls that endpoint without it (confirmed by grepping `tests/`/`scripts/`
+for direct callers before making it required: none exist). Forward
+compatibility holds in both directions: a reverted server simply stops
+requiring `If-Match`; a reverted frontend simply stops sending it; no stored
+data shape changes either way, so nothing about this is a down-migration.
+
+**Status: P1.2 substantially complete, not yet closed out.** All six
+criteria have full evidence except the accessibility criterion's
+user-executed screen reader step, which is pending the user's response.
+Not merged into `main`; `v2(P1.2): close out` is the expected follow-up
+commit once that result is in hand, per the spec's own "evidence-only
+closing commit" pattern.
