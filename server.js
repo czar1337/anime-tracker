@@ -22,6 +22,10 @@ const sea = require('node:sea');
 const { resolveDataDir, migrateLegacyDataDir, resolveSnapshotsDir } = require('./datadir.js');
 const { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility } = require('./migrations.js');
 const Snapshots = require('./snapshots.js');
+const { computeLibraryEtag } = require('./libraryEtag.js');
+const { createWriteLock, LockTimeoutError } = require('./writeLock.js');
+const { CLASS_B_STORES, planEviction } = require('./classBEviction.js');
+const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuota.js');
 
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
@@ -93,6 +97,64 @@ const dirsToEnsure = IS_SEA
   : [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR];
 for (const dir of dirsToEnsure) {
   fs.mkdirSync(dir, { recursive: true });
+}
+
+// ---------------------------------------------------------------------------
+// Concurrency (P1.2): single-writer lock for every Class-A-mutating route,
+// plus the disk-quota floor and Class B eviction knobs the cache endpoints
+// use below. docs/v2-plan.md's P1.2 entry: no navigator.locks/IndexedDB here,
+// so this is a server-side FIFO write lock (writeLock.js) instead — it wraps
+// PUT /api/library, POST /api/snapshots, POST /api/snapshots/restore,
+// POST /api/reset and POST /api/backups/restore (rule 6's "migration,
+// snapshot, restore, import, reset" list; migration itself only ever runs
+// once at startup, before any request is served, so it isn't reachable via
+// HTTP and needs no lock of its own).
+// ---------------------------------------------------------------------------
+
+const libraryWriteLock = createWriteLock();
+
+// Test-only override for the disk-quota check below (same
+// ANIME_TRACKER_TEST_* fault-injection convention as P1.1's snapshot/restore
+// fault vars): lets the e2e suite force a low-free-space condition
+// deterministically and cross-platform, since actually filling a real disk
+// in a test is neither reliable nor safe. Unset in normal use.
+const TEST_FREE_BYTES_OVERRIDE =
+  process.env.ANIME_TRACKER_TEST_FREE_BYTES_OVERRIDE !== undefined
+    ? Number(process.env.ANIME_TRACKER_TEST_FREE_BYTES_OVERRIDE)
+    : null;
+
+// A fixed safety margin on top of Class A + Class C's own measured size, so
+// a Class B write can't leave exactly zero headroom for the very next
+// library save or snapshot. Small and constant, not a tuning-table value —
+// this is an implementation safety constant, not a product choice.
+const DISK_QUOTA_MARGIN_BYTES = 5 * 1024 * 1024;
+
+function getFreeDiskBytes() {
+  if (TEST_FREE_BYTES_OVERRIDE !== null) return TEST_FREE_BYTES_OVERRIDE;
+  const stats = fs.statfsSync(DATA_DIR);
+  return stats.bavail * stats.bsize;
+}
+
+function fileSizeBytes(filePath) {
+  try {
+    return fs.statSync(filePath).size;
+  } catch {
+    return 0;
+  }
+}
+
+function dirSizeBytes(dirPath) {
+  let total = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dirPath);
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    total += fileSizeBytes(path.join(dirPath, entry));
+  }
+  return total;
 }
 
 // ---------------------------------------------------------------------------
@@ -333,6 +395,77 @@ function readAiringCache() {
   } catch {
     return { generatedAt: null, entries: {} };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Class B eviction + disk quota (P1.2) — see classBEviction.js/diskQuota.js
+// for the pure planning logic. This section is the only place that actually
+// touches disk on their behalf.
+// ---------------------------------------------------------------------------
+
+const CLASS_B_STORE_FILES = {
+  recommendationsCache: RECS_CACHE_FILE,
+  airingCache: AIRING_CACHE_FILE,
+  upcomingCache: UPCOMING_CACHE_FILE,
+};
+
+// Resets a Class B store to the exact empty shape its own read function
+// already falls back to for a corrupt file — eviction reuses that existing
+// "corrupt = empty, just recompute" path rather than inventing a new one.
+const CLASS_B_STORE_RESETTERS = {
+  recommendationsCache: () => writeRecsCacheAtomic({ generatedAt: null, items: [] }),
+  airingCache: () => writeAiringCacheAtomic({ generatedAt: null, entries: {} }),
+  upcomingCache: () => writeUpcomingCacheAtomic({ generatedAt: null, items: [] }),
+};
+
+// `excludeStoreId`'s size is reported as 0 so planEviction never selects the
+// very store currently being written — evicting it wouldn't free anything
+// useful (it's about to be overwritten anyway) and would just needlessly
+// destroy the data the caller is in the middle of saving.
+function currentClassBSizes(excludeStoreId) {
+  const sizes = {};
+  for (const store of CLASS_B_STORES) {
+    sizes[store.id] = store.id === excludeStoreId ? 0 : fileSizeBytes(CLASS_B_STORE_FILES[store.id]);
+  }
+  return sizes;
+}
+
+// Quota gate for a Class B cache write (rule 5: "quota is calculated before
+// writing, not discovered by failing"). `writeBytes` is the size of the new
+// content about to be written for `storeId`. If free disk space (real, or
+// the test override) minus this write would dip under the reserved Class A +
+// Class C floor, this evicts earlier-order Class B stores first (never the
+// one currently being written) and proceeds only if that eviction's own
+// arithmetic — based on the other stores' real on-disk sizes, not a
+// re-query of free space afterward — already covers the deficit. If even
+// clearing every other Class B store wouldn't be enough, the write is
+// refused outright rather than silently dropped (rule 5), and nothing is
+// evicted for no benefit. Class A/C are never candidates here at all (rule
+// 4) — structurally impossible, since planEviction only ever draws from
+// CLASS_B_STORES.
+function ensureClassBWriteQuota(writeBytes, storeId) {
+  const reservedFloor = computeReservedFloorBytes({
+    libraryBytes: fileSizeBytes(LIBRARY_FILE),
+    snapshotsBytes: dirSizeBytes(SNAPSHOTS_DIR),
+    marginBytes: DISK_QUOTA_MARGIN_BYTES,
+  });
+  const free = getFreeDiskBytes();
+  if (hasSufficientFreeSpace(free, writeBytes, reservedFloor)) {
+    return { ok: true };
+  }
+  const deficit = reservedFloor + writeBytes - free;
+  const sizes = currentClassBSizes(storeId);
+  const { plan, satisfied } = planEviction(CLASS_B_STORES, deficit, sizes);
+  if (!satisfied) {
+    return {
+      ok: false,
+      error: `Not enough disk space to save this cache (need ${deficit} more bytes free, even after clearing every regenerable cache). Free up disk space and try again.`,
+    };
+  }
+  for (const { id } of plan) {
+    CLASS_B_STORE_RESETTERS[id]();
+  }
+  return { ok: true, evicted: plan.map((p) => p.id) };
 }
 
 checkStartupIntegrity();
@@ -613,12 +746,13 @@ checkForUpdateIfDue(); // fire-and-forget; never delays server startup
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-function sendJson(res, status, body) {
+function sendJson(res, status, body, extraHeaders = {}) {
   const json = JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(json),
     'Cache-Control': 'no-store', // dynamic data — a cached /api/library response is stale data
+    ...extraHeaders,
   });
   res.end(json);
 }
@@ -792,7 +926,14 @@ function downloadImage(url, destPath, redirectsLeft = 5) {
 // /api/library — operating on any of them while two data folders are
 // ambiguous is just as unsafe as the /api/library case this guard originally
 // covered alone.
-const CONFLICT_GUARDED_PATHS = new Set(['/api/library', '/api/export', '/api/snapshots', '/api/snapshots/restore', '/api/reset']);
+const CONFLICT_GUARDED_PATHS = new Set([
+  '/api/library',
+  '/api/export',
+  '/api/snapshots',
+  '/api/snapshots/restore',
+  '/api/reset',
+  '/api/backups/restore',
+]);
 
 const server = http.createServer(async (req, res) => {
   let url;
@@ -833,7 +974,13 @@ const server = http.createServer(async (req, res) => {
         });
         return;
       }
-      sendJson(res, 200, readLibrary());
+      // Read once, and derive both the ETag header and the response body
+      // from that exact same object — never two separate reads, so the
+      // header can never describe different content than the body actually
+      // sent (a write landing between two reads would otherwise be able to
+      // produce exactly that mismatch).
+      const library = readLibrary();
+      sendJson(res, 200, library, { ETag: computeLibraryEtag(library) });
       return;
     }
 
@@ -843,25 +990,57 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'Body must be a library object with an entries array.' });
         return;
       }
-      if (libraryState.corrupt) {
-        sendJson(res, 409, {
-          error: 'library.json is corrupt on disk. Restore a backup before saving.',
-          backups: listBackups(),
-        });
+      // Required, not optional: a P1.2 contract change to this endpoint (see
+      // docs/v2-progress.md's P1.2 section for why this is safe to require
+      // rather than additive). Checked before the lock — this alone can't
+      // race anything, since it doesn't depend on any shared state.
+      const ifMatch = req.headers['if-match'];
+      if (!ifMatch) {
+        sendJson(res, 400, { error: 'Missing If-Match header. Reload the library and try again.' });
         return;
       }
-      if (libraryState.tooNew) {
-        sendJson(res, 409, {
-          error: `This library was saved by a newer version of Anime Tracker (schemaVersion ${libraryState.dataVersion}). Update the app before making changes.`,
-          tooNew: true,
-          dataVersion: libraryState.dataVersion,
-          appVersion: SCHEMA_VERSION,
-        });
-        return;
-      }
-      body.schemaVersion = body.schemaVersion || SCHEMA_VERSION;
-      writeLibraryAtomic(body);
-      sendJson(res, 200, { ok: true });
+      // Everything from here on runs inside the single shared write lock,
+      // as one critical section: check libraryState, read the library fresh
+      // from disk, compute its etag, compare against If-Match, and (only on
+      // a match) write — all without releasing the lock in between. This is
+      // what closes the check-before-lock TOCTOU: without it, two requests
+      // could each independently read "current", each decide their stale
+      // If-Match still matches, and each go on to write.
+      const result = await libraryWriteLock.run(async () => {
+        if (libraryState.corrupt) {
+          return {
+            status: 409,
+            body: { error: 'library.json is corrupt on disk. Restore a backup before saving.', backups: listBackups() },
+          };
+        }
+        if (libraryState.tooNew) {
+          return {
+            status: 409,
+            body: {
+              error: `This library was saved by a newer version of Anime Tracker (schemaVersion ${libraryState.dataVersion}). Update the app before making changes.`,
+              tooNew: true,
+              dataVersion: libraryState.dataVersion,
+              appVersion: SCHEMA_VERSION,
+            },
+          };
+        }
+        const current = readLibrary();
+        const currentEtag = computeLibraryEtag(current);
+        if (ifMatch !== currentEtag) {
+          return {
+            status: 409,
+            body: {
+              error: 'This library was changed since you last loaded it — reload to see the latest version before saving again.',
+              conflict: true,
+              currentETag: currentEtag,
+            },
+          };
+        }
+        body.schemaVersion = body.schemaVersion || SCHEMA_VERSION;
+        writeLibraryAtomic(body);
+        return { status: 200, body: { ok: true }, etag: computeLibraryEtag(body) };
+      });
+      sendJson(res, result.status, result.body, result.etag ? { ETag: result.etag } : {});
       return;
     }
 
@@ -882,21 +1061,26 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 404, { error: 'Backup not found.' });
         return;
       }
-      let restored;
-      try {
-        restored = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
-      } catch (err) {
-        sendJson(res, 500, { error: `Backup file itself is corrupt: ${err.message}` });
-        return;
-      }
-      // Preserve the broken file for forensics instead of silently discarding it.
-      if (fs.existsSync(LIBRARY_FILE)) {
-        const quarantine = path.join(BACKUPS_DIR, `pre-restore-${timestampForBackup(new Date())}.json`);
-        fs.copyFileSync(LIBRARY_FILE, quarantine);
-      }
-      libraryState = { corrupt: false, error: null };
-      writeLibraryAtomic(restored, { skipBackup: true });
-      sendJson(res, 200, { ok: true });
+      // Rule 6: a legacy backup restore is the same class of whole-library
+      // rewrite as a snapshot restore or reset, and races the same way if
+      // two tabs fire it concurrently — same shared write lock.
+      const result = await libraryWriteLock.run(async () => {
+        let restored;
+        try {
+          restored = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+        } catch (err) {
+          return { status: 500, body: { error: `Backup file itself is corrupt: ${err.message}` } };
+        }
+        // Preserve the broken file for forensics instead of silently discarding it.
+        if (fs.existsSync(LIBRARY_FILE)) {
+          const quarantine = path.join(BACKUPS_DIR, `pre-restore-${timestampForBackup(new Date())}.json`);
+          fs.copyFileSync(LIBRARY_FILE, quarantine);
+        }
+        libraryState = { corrupt: false, error: null };
+        writeLibraryAtomic(restored, { skipBackup: true });
+        return { status: 200, body: { ok: true }, etag: computeLibraryEtag(restored) };
+      });
+      sendJson(res, result.status, result.body, result.etag ? { ETag: result.etag } : {});
       return;
     }
 
@@ -944,12 +1128,18 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 409, { error: 'Library is not in a readable state; cannot take a snapshot right now.' });
         return;
       }
-      try {
-        const result = await createSnapshotNow({ pinned: false });
-        sendJson(res, 200, { ok: true, ...result });
-      } catch (err) {
-        sendJson(res, 500, { error: `Could not create a verified snapshot: ${err.message}` });
-      }
+      // Doesn't touch library.json (Class A) at all, only writes a new
+      // Class C file — but rule 6 still names "snapshot" explicitly in its
+      // single-writer list, since a snapshot racing a concurrent restore/
+      // reset/PUT is exactly the two-tabs scenario that rule exists for.
+      await libraryWriteLock.run(async () => {
+        try {
+          const result = await createSnapshotNow({ pinned: false });
+          sendJson(res, 200, { ok: true, ...result });
+        } catch (err) {
+          sendJson(res, 500, { error: `Could not create a verified snapshot: ${err.message}` });
+        }
+      });
       return;
     }
 
@@ -1000,58 +1190,72 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 500, { error: `Cannot restore this snapshot: ${err.message}` });
         return;
       }
-      // Bypasses the corrupt guard the same way the legacy restore above
-      // does: restoring *from* a broken state is the primary use case. If
-      // the write below fails partway, this optimistic value is corrected
-      // by refreshLibraryStateFromDisk() in the catch block rather than left
-      // in place uncorrected (review finding 6 — libraryState must never
-      // report healthy on the strength of an intention rather than a
-      // completed, verified write).
-      libraryState = { corrupt: false, error: null, tooNew: false, dataVersion: null };
-      try {
-        // Test-only fault injection (see TEST_CORRUPT_SNAPSHOT_AFTER_WRITE
-        // above): simulates the write itself failing partway through, after
-        // corrupting library.json on disk to stand in for a real partial
-        // write, so the libraryState-recovery path below can be exercised
-        // deterministically. Unset in normal use.
-        if (process.env.ANIME_TRACKER_TEST_FAIL_RESTORE_WRITE === '1') {
-          fs.writeFileSync(LIBRARY_FILE, 'CORRUPTED-BY-TEST-MID-RESTORE');
-          throw new Error('Forced restore write failure (test-only).');
+      // The write itself, plus the post-restore verification, run inside the
+      // shared write lock (rule 6) — a concurrent PUT/reset/legacy-restore
+      // must not be able to interleave with this one.
+      const result = await libraryWriteLock.run(async () => {
+        // Bypasses the corrupt guard the same way the legacy restore above
+        // does: restoring *from* a broken state is the primary use case. If
+        // the write below fails partway, this optimistic value is corrected
+        // by refreshLibraryStateFromDisk() in the catch block rather than left
+        // in place uncorrected (review finding 6 — libraryState must never
+        // report healthy on the strength of an intention rather than a
+        // completed, verified write).
+        libraryState = { corrupt: false, error: null, tooNew: false, dataVersion: null };
+        try {
+          // Test-only fault injection (see TEST_CORRUPT_SNAPSHOT_AFTER_WRITE
+          // above): simulates the write itself failing partway through, after
+          // corrupting library.json on disk to stand in for a real partial
+          // write, so the libraryState-recovery path below can be exercised
+          // deterministically. Unset in normal use.
+          if (process.env.ANIME_TRACKER_TEST_FAIL_RESTORE_WRITE === '1') {
+            fs.writeFileSync(LIBRARY_FILE, 'CORRUPTED-BY-TEST-MID-RESTORE');
+            throw new Error('Forced restore write failure (test-only).');
+          }
+          writeLibraryAtomic(restored);
+        } catch (err) {
+          refreshLibraryStateFromDisk();
+          return {
+            status: 500,
+            body: {
+              error: `Restore failed while writing library.json: ${err.message}. The library state has been re-checked against what is actually on disk.`,
+              libraryState: { corrupt: libraryState.corrupt, tooNew: libraryState.tooNew },
+            },
+          };
         }
-        writeLibraryAtomic(restored);
-      } catch (err) {
-        refreshLibraryStateFromDisk();
-        sendJson(res, 500, {
-          error: `Restore failed while writing library.json: ${err.message}. The library state has been re-checked against what is actually on disk.`,
-          libraryState: { corrupt: libraryState.corrupt, tooNew: libraryState.tooNew },
-        });
-        return;
-      }
-      // Post-restore verification (rule 7.4/7.8): re-read what's actually on
-      // disk now, rebuild its snapshot representation, and confirm every
-      // store's checksum matches the snapshot just restored from — not
-      // merely that the re-read data is internally self-consistent.
-      const rebuilt = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: readLibrary() }, { pinned: snapshot.pinned });
-      const rebuiltCheck = Snapshots.verifySnapshotStores(rebuilt, CLASS_A_STORES);
-      const mismatches = Object.keys(snapshot.stores).filter(
-        (id) => !rebuilt.stores[id] || rebuilt.stores[id].checksum !== snapshot.stores[id].checksum
-      );
-      if (!rebuiltCheck.valid || mismatches.length > 0) {
-        // Force the app into the same corrupt-state recovery path the error
-        // message describes, rather than silently returning to normal
-        // operation with a library.json this code just said not to trust.
-        libraryState = {
-          corrupt: true,
-          error: `Restore verification mismatch after write (stores: ${mismatches.join(', ') || rebuiltCheck.errors.join('; ')}).`,
-          tooNew: false,
-          dataVersion: null,
+        // Post-restore verification (rule 7.4/7.8): re-read what's actually on
+        // disk now, rebuild its snapshot representation, and confirm every
+        // store's checksum matches the snapshot just restored from — not
+        // merely that the re-read data is internally self-consistent.
+        const rebuilt = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: readLibrary() }, { pinned: snapshot.pinned });
+        const rebuiltCheck = Snapshots.verifySnapshotStores(rebuilt, CLASS_A_STORES);
+        const mismatches = Object.keys(snapshot.stores).filter(
+          (id) => !rebuilt.stores[id] || rebuilt.stores[id].checksum !== snapshot.stores[id].checksum
+        );
+        if (!rebuiltCheck.valid || mismatches.length > 0) {
+          // Force the app into the same corrupt-state recovery path the error
+          // message describes, rather than silently returning to normal
+          // operation with a library.json this code just said not to trust.
+          libraryState = {
+            corrupt: true,
+            error: `Restore verification mismatch after write (stores: ${mismatches.join(', ') || rebuiltCheck.errors.join('; ')}).`,
+            tooNew: false,
+            dataVersion: null,
+          };
+          return {
+            status: 500,
+            body: {
+              error: `Restore wrote data that does not match the verified snapshot (stores: ${mismatches.join(', ') || rebuiltCheck.errors.join('; ')}). The previous library.json was rotated into backups/ — do not trust the current library.json until this is investigated.`,
+            },
+          };
+        }
+        return {
+          status: 200,
+          body: { ok: true, verified: true, restoredFrom: file },
+          etag: computeLibraryEtag(readLibrary()),
         };
-        sendJson(res, 500, {
-          error: `Restore wrote data that does not match the verified snapshot (stores: ${mismatches.join(', ') || rebuiltCheck.errors.join('; ')}). The previous library.json was rotated into backups/ — do not trust the current library.json until this is investigated.`,
-        });
-        return;
-      }
-      sendJson(res, 200, { ok: true, verified: true, restoredFrom: file });
+      });
+      sendJson(res, result.status, result.body, result.etag ? { ETag: result.etag } : {});
       return;
     }
 
@@ -1067,15 +1271,20 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 409, { error: 'Library is not in a readable state; restore a backup or snapshot before resetting.' });
         return;
       }
-      let snapshotResult;
-      try {
-        snapshotResult = await createSnapshotNow({ pinned: false });
-      } catch (err) {
-        sendJson(res, 500, { error: `Could not create a safety snapshot before reset, so nothing was changed: ${err.message}` });
-        return;
-      }
-      writeLibraryAtomic(defaultLibrary());
-      sendJson(res, 200, { ok: true, snapshotFile: snapshotResult.file });
+      // Safety snapshot + the reset write itself both run inside the shared
+      // write lock (rule 6) — a concurrent PUT/restore must not interleave.
+      const result = await libraryWriteLock.run(async () => {
+        let snapshotResult;
+        try {
+          snapshotResult = await createSnapshotNow({ pinned: false });
+        } catch (err) {
+          return { status: 500, body: { error: `Could not create a safety snapshot before reset, so nothing was changed: ${err.message}` } };
+        }
+        const fresh = defaultLibrary();
+        writeLibraryAtomic(fresh);
+        return { status: 200, body: { ok: true, snapshotFile: snapshotResult.file }, etag: computeLibraryEtag(fresh) };
+      });
+      sendJson(res, result.status, result.body, result.etag ? { ETag: result.etag } : {});
       return;
     }
 
@@ -1101,8 +1310,14 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'Body must include an items array.' });
         return;
       }
-      writeRecsCacheAtomic({ generatedAt: body.generatedAt || new Date().toISOString(), items: body.items });
-      sendJson(res, 200, { ok: true });
+      const data = { generatedAt: body.generatedAt || new Date().toISOString(), items: body.items };
+      const quota = ensureClassBWriteQuota(Buffer.byteLength(JSON.stringify(data)), 'recommendationsCache');
+      if (!quota.ok) {
+        sendJson(res, 507, { error: quota.error });
+        return;
+      }
+      writeRecsCacheAtomic(data);
+      sendJson(res, 200, { ok: true, evicted: quota.evicted || [] });
       return;
     }
 
@@ -1117,8 +1332,14 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'Body must include an entries object.' });
         return;
       }
-      writeAiringCacheAtomic({ generatedAt: body.generatedAt || new Date().toISOString(), entries: body.entries });
-      sendJson(res, 200, { ok: true });
+      const data = { generatedAt: body.generatedAt || new Date().toISOString(), entries: body.entries };
+      const quota = ensureClassBWriteQuota(Buffer.byteLength(JSON.stringify(data)), 'airingCache');
+      if (!quota.ok) {
+        sendJson(res, 507, { error: quota.error });
+        return;
+      }
+      writeAiringCacheAtomic(data);
+      sendJson(res, 200, { ok: true, evicted: quota.evicted || [] });
       return;
     }
 
@@ -1133,8 +1354,14 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'Body must include an items array.' });
         return;
       }
-      writeUpcomingCacheAtomic({ generatedAt: body.generatedAt || new Date().toISOString(), items: body.items });
-      sendJson(res, 200, { ok: true });
+      const data = { generatedAt: body.generatedAt || new Date().toISOString(), items: body.items };
+      const quota = ensureClassBWriteQuota(Buffer.byteLength(JSON.stringify(data)), 'upcomingCache');
+      if (!quota.ok) {
+        sendJson(res, 507, { error: quota.error });
+        return;
+      }
+      writeUpcomingCacheAtomic(data);
+      sendJson(res, 200, { ok: true, evicted: quota.evicted || [] });
       return;
     }
 
@@ -1190,6 +1417,16 @@ const server = http.createServer(async (req, res) => {
 
     sendJson(res, 404, { error: 'Not found' });
   } catch (err) {
+    if (err instanceof LockTimeoutError) {
+      // The real-architecture equivalent of the spec's "close other tabs to
+      // continue" — a queued save/snapshot/restore/reset waited its full
+      // timeout for another one to finish and gave up rather than hang.
+      sendJson(res, 423, {
+        error: 'Another save/snapshot/restore/reset operation is taking longer than expected — close other tabs or windows and try again.',
+        locked: true,
+      });
+      return;
+    }
     console.error('[server] Unhandled error:', err);
     sendJson(res, 500, { error: err.message || 'Internal server error' });
   }

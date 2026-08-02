@@ -1294,7 +1294,13 @@ function renderBackupList(container, backups) {
 // single most recent one, and only for as long as its toast is still up.
 let lastUndoBtn = null;
 
-function showToast(message, { actionLabel, onAction, duration = 5000 } = {}) {
+// `trackUndo` (default true, preserving every existing call site's behavior):
+// whether this toast's own action button becomes the ctrl+z target. An
+// action that isn't semantically an undo (P1.2's stale-write conflict
+// toast's "Reload", which discards local state and re-fetches from the
+// server) must not hijack ctrl+z away from whatever real undo toast is
+// already showing — pass `trackUndo: false` for those.
+function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true } = {}) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = 'toast';
@@ -1306,7 +1312,7 @@ function showToast(message, { actionLabel, onAction, duration = 5000 } = {}) {
       toast.remove();
       if (lastUndoBtn === btn) lastUndoBtn = null;
     });
-    lastUndoBtn = btn;
+    if (trackUndo) lastUndoBtn = btn;
   }
   container.appendChild(toast);
   setTimeout(() => {

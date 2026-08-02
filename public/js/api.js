@@ -4,6 +4,9 @@
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 
+// Returns { data, etag } — `etag` (P1.2's concurrency reframe) is the value
+// callers must feed back into saveLibrary()'s If-Match so a stale write gets
+// caught rather than silently overwriting whatever another tab saved since.
 async function getLibrary() {
   const res = await fetch('/api/library');
   const body = await res.json();
@@ -20,7 +23,7 @@ async function getLibrary() {
     err.backups = body.backups;
     throw err;
   }
-  return body;
+  return { data: body, etag: res.headers.get('ETag') };
 }
 
 async function getVersionInfo() {
@@ -29,20 +32,28 @@ async function getVersionInfo() {
   return res.json();
 }
 
-async function saveLibrary(data) {
+// `etag` is required: the server rejects a PUT with no If-Match header
+// (P1.2's concurrency reframe). A 409 with `err.conflict` means another tab
+// or window saved changes since this one last loaded/saved — not that
+// library.json itself is corrupt (that's still a 409, but without
+// `conflict` set, per server.js's own distinction between the two cases).
+async function saveLibrary(data, etag) {
   const res = await fetch('/api/library', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'If-Match': etag },
     body: JSON.stringify(data),
   });
   const body = await res.json();
   if (!res.ok) {
     const err = new Error(body.error || 'Failed to save library');
-    err.corrupt = res.status === 409;
+    err.conflict = Boolean(body.conflict);
+    err.corrupt = res.status === 409 && !err.conflict;
+    err.locked = res.status === 423;
+    err.currentETag = body.currentETag;
     err.backups = body.backups;
     throw err;
   }
-  return body;
+  return { ...body, etag: res.headers.get('ETag') };
 }
 
 async function listBackups() {
@@ -58,7 +69,7 @@ async function restoreBackup(file) {
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body.error || 'Restore failed');
-  return body;
+  return { ...body, etag: res.headers.get('ETag') };
 }
 
 async function getRecommendationsCache() {
