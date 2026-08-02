@@ -212,6 +212,48 @@ if reopening this decision.
   2,000-entry fixture, against the Tuning table's "Snapshot plus verify... under
   10s" budget.
 
+**P1.1 review-fixes session (same substep, hardening pass — see
+`docs/v2-progress.md`'s "P1.1 review-fixes session" for the full findings
+list):**
+- `snapshots.js`: `verifySnapshotStores(snapshot, registry)` now takes the
+  live registry and requires exact store-id coverage (missing/extra/
+  duplicate all rejected) plus a `manifestChecksum` covering `schemaVersion`/
+  `createdAt`/`pinned`/the store-id-to-checksum map, so top-level metadata
+  and whole-store removal are both checksummed, not just each store that
+  happens to still be present. New `buildRestoredLibrary(registry, snapshot)`:
+  registry-driven restore, walking each store's new `restoreTarget` rather
+  than assuming every store becomes a same-named `library.json` field; fails
+  closed (throws) for an unsupported/missing target instead of guessing.
+- `public/js/exportRegistry.js`: each `CLASS_A_STORES` entry gained a
+  `restoreTarget` (`{ kind: 'libraryField', field: <id> }` for all three
+  today, since every current store lives inside `library.json`).
+- `server.js`: `libraryFromSnapshot()` removed, replaced by
+  `Snapshots.buildRestoredLibrary()`. `ensurePinnedSnapshot()` no longer
+  swallows a creation/read-back failure on a healthy library — it throws,
+  and the startup IIFE now `process.exit(1)`s before `server.listen()` if it
+  does (corrupt/too-new libraries still skip quietly, unchanged). Its
+  "already pinned" check now requires `verifySnapshotStores()` to pass, not
+  just a stored `pinned: true` flag. `createSnapshotNow()` quarantines
+  (renames to `<file>.invalid`) a snapshot that fails read-back verification
+  instead of leaving it under its normal restorable-looking name. The
+  restore endpoint wraps its write in try/catch and calls a new
+  `refreshLibraryStateFromDisk()` on failure, rather than leaving its
+  pre-write optimistic `libraryState` assignment uncorrected. Two new
+  test-only fault-injection env vars,
+  `ANIME_TRACKER_TEST_CORRUPT_SNAPSHOT_AFTER_WRITE` (`pinned`|`rotating`) and
+  `ANIME_TRACKER_TEST_FAIL_RESTORE_WRITE`, follow the existing
+  `ANIME_TRACKER_DATA_DIR`/`ANIME_TRACKER_PORT` pattern — unset in normal
+  use.
+- `tests/e2e/harness.js`: `startFixtureServer()` gained an optional
+  `opts.env`; new `startProcessExpectingExit()` for asserting a server
+  process exits without ever listening.
+- New `tests/e2e/pinned-snapshot-bootstrap-failure.spec.js`,
+  `tests/e2e/snapshot-write-failure-cleanup.spec.js`,
+  `tests/e2e/restore-write-failure-state.spec.js`.
+- `tests/run-all.js`: new regression tests for whole-store removal, extra/
+  unknown stores, flipped `schemaVersion`/`pinned`, flipped store `kind`,
+  and `buildRestoredLibrary`'s registry-walk/fail-closed behavior.
+
 **P1.2 Storage classes and concurrency.** Restructures without copying data.
 - `server.js`: server-side write lock (or ETag/If-Match) replacing the
   spec's `navigator.locks` design per the concurrency reframe above; Class B

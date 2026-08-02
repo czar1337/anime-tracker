@@ -713,14 +713,14 @@ async function run() {
     const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
     assert.equal(snapshot.pinned, false);
     assert.equal(snapshot.stores.entries.rowCount, 2);
-    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot);
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
     assert.equal(valid, true, errors.join('; '));
   });
 
   await test('verifySnapshotStores is registry-driven: a synthetic 4th store still round-trips', () => {
     const syntheticRegistry = [...sampleRegistry, { id: 'tags', kind: 'records', recordId: 'id', get: () => [{ id: 'a' }, { id: 'b' }] }];
     const snapshot = Snapshots.buildSnapshotStores(syntheticRegistry, sampleSources, { pinned: false });
-    const { valid } = Snapshots.verifySnapshotStores(snapshot);
+    const { valid } = Snapshots.verifySnapshotStores(snapshot, syntheticRegistry);
     assert.equal(valid, true);
     assert.equal(snapshot.stores.tags.rowCount, 2);
   });
@@ -728,7 +728,7 @@ async function run() {
   await test('tampering with a record after building makes verification fail', () => {
     const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
     snapshot.stores.entries.records[0].myScore = 999; // mutated without recomputing the checksum
-    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot);
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
     assert.equal(valid, false);
     assert.ok(errors.some((e) => e.includes('entries')));
   });
@@ -736,15 +736,107 @@ async function run() {
   await test('tampering with a stored checksum directly (not the data) also fails verification', () => {
     const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
     snapshot.stores.preferences.checksum = 'not-a-real-checksum';
-    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot);
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
     assert.equal(valid, false);
     assert.ok(errors.some((e) => e.includes('preferences')));
   });
 
   await test('verifySnapshotStores rejects a non-snapshot object rather than throwing', () => {
-    const { valid, errors } = Snapshots.verifySnapshotStores({ not: 'a snapshot' });
+    const { valid, errors } = Snapshots.verifySnapshotStores({ not: 'a snapshot' }, sampleRegistry);
     assert.equal(valid, false);
     assert.ok(errors.length > 0);
+  });
+
+  // ---- Review findings regression coverage --------------------------------
+
+  await test('verifySnapshotStores rejects a snapshot with a whole registered store removed', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    delete snapshot.stores.preferences; // simulates a store dropped entirely, not just tampered
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('Missing registered store') && e.includes('preferences')));
+  });
+
+  await test('verifySnapshotStores rejects a snapshot with an extra store not in the registry', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    snapshot.stores.somethingElse = { kind: 'blob', blob: { x: 1 }, checksum: 'whatever' };
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('Unknown/unexpected store') && e.includes('somethingElse')));
+  });
+
+  await test('verifySnapshotStores rejects a flipped schemaVersion via the manifest checksum', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    snapshot.schemaVersion = 999; // per-store checksums are all still individually correct
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('manifest checksum')));
+  });
+
+  await test('verifySnapshotStores rejects a flipped pinned flag via the manifest checksum', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    snapshot.pinned = true; // per-store checksums are all still individually correct
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('manifest checksum')));
+  });
+
+  await test('verifySnapshotStores rejects a store whose kind was flipped from what the registry declares', () => {
+    const crypto = require('node:crypto');
+    const { canonicalJSON } = require('../datadir.js');
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    // Flip a 'records' store to a self-consistent 'blob' shape (correct own
+    // checksum) and update the manifest to match, so only the registry-kind
+    // cross-check — not a checksum or manifest mismatch — can catch this.
+    const originalRecords = snapshot.stores.entries.records;
+    const blobChecksum = crypto.createHash('sha256').update(canonicalJSON(originalRecords)).digest('hex');
+    snapshot.stores.entries = { kind: 'blob', blob: originalRecords, checksum: blobChecksum };
+    snapshot.manifestChecksum = crypto
+      .createHash('sha256')
+      .update(
+        canonicalJSON({
+          schemaVersion: snapshot.schemaVersion,
+          createdAt: snapshot.createdAt,
+          pinned: snapshot.pinned,
+          stores: { entries: blobChecksum, preferences: snapshot.stores.preferences.checksum },
+        })
+      )
+      .digest('hex');
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('kind mismatch')));
+  });
+
+  await test('buildRestoredLibrary walks the registry generically, including a synthetic store', () => {
+    const syntheticRegistry = [
+      ...sampleRegistry.map((s) => ({ ...s, restoreTarget: { kind: 'libraryField', field: s.id } })),
+      {
+        id: 'tags',
+        kind: 'records',
+        recordId: 'id',
+        get: () => [{ id: 'a' }],
+        restoreTarget: { kind: 'libraryField', field: 'tags' },
+      },
+    ];
+    const snapshot = Snapshots.buildSnapshotStores(syntheticRegistry, sampleSources, { pinned: false });
+    const library = Snapshots.buildRestoredLibrary(syntheticRegistry, snapshot);
+    assert.deepEqual(library.entries, sampleSources.library.entries);
+    assert.deepEqual(library.preferences, sampleSources.library.preferences);
+    assert.deepEqual(library.tags, [{ id: 'a' }]);
+  });
+
+  await test('buildRestoredLibrary fails closed for a store with no supported restore target', () => {
+    const registryWithBadTarget = [
+      { id: 'entries', kind: 'records', recordId: 'anilistId', get: (s) => s.library.entries, restoreTarget: { kind: 'somewhereElse' } },
+    ];
+    const snapshot = Snapshots.buildSnapshotStores(registryWithBadTarget, sampleSources, { pinned: false });
+    assert.throws(() => Snapshots.buildRestoredLibrary(registryWithBadTarget, snapshot), /no supported restore target/);
+  });
+
+  await test('buildRestoredLibrary fails closed for a store missing a restoreTarget entirely', () => {
+    const registryWithNoTarget = [{ id: 'entries', kind: 'records', recordId: 'anilistId', get: (s) => s.library.entries }];
+    const snapshot = Snapshots.buildSnapshotStores(registryWithNoTarget, sampleSources, { pinned: false });
+    assert.throws(() => Snapshots.buildRestoredLibrary(registryWithNoTarget, snapshot), /no supported restore target/);
   });
 
   await test('selectSnapshotsToPrune always keeps the pinned snapshot', () => {

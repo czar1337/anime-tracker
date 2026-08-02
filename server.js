@@ -232,6 +232,37 @@ function readLibrary() {
   return JSON.parse(raw);
 }
 
+// Re-derives libraryState from whatever is actually on disk right now,
+// instead of assuming a value. Used only when a write that a caller had
+// already optimistically marked "healthy" (to bypass writeLibraryAtomic's own
+// corrupt guard, since restoring *from* a corrupt state is the normal case)
+// turns out to have failed (review finding 6) — the caller cannot know from
+// the exception alone whether the failure happened before or after the file
+// on disk actually changed, so this re-reads and re-classifies it the same
+// way checkStartupIntegrity() would, rather than leaving the earlier
+// optimistic "healthy" assumption in place uncorrected. No migration is
+// attempted here; that only ever runs once, at startup.
+function refreshLibraryStateFromDisk() {
+  if (!fs.existsSync(LIBRARY_FILE)) {
+    libraryState = { corrupt: true, error: 'library.json is missing.', tooNew: false, dataVersion: null };
+    return;
+  }
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(LIBRARY_FILE, 'utf8'));
+  } catch (err) {
+    libraryState = { corrupt: true, error: err.message, tooNew: false, dataVersion: null };
+    return;
+  }
+  const dataVersion = data.schemaVersion || 1;
+  const compat = checkVersionCompatibility(dataVersion, SCHEMA_VERSION);
+  if (compat === 'too-new') {
+    libraryState = { corrupt: false, error: null, tooNew: true, dataVersion };
+    return;
+  }
+  libraryState = { corrupt: false, error: null, tooNew: false, dataVersion: null };
+}
+
 // The recommendations cache is fully regenerable (just a snapshot of an
 // AniList computation) — atomic write for crash-safety, but no backup
 // rotation and no corrupt-refusal, since there's nothing irreplaceable to
@@ -401,67 +432,113 @@ function pruneSnapshots() {
   }
 }
 
+// Test-only fault injection, same pattern/spirit as the existing
+// ANIME_TRACKER_DATA_DIR/ANIME_TRACKER_PORT harness overrides (docs/v2-plan.md):
+// unset in normal use, so production behavior is unchanged. Corrupting the
+// just-written file on disk (rather than throwing directly) is what lets the
+// e2e suite exercise the *read-back* verification path deterministically and
+// cross-platform, instead of relying on OS-specific filesystem-permission
+// tricks to simulate disk-level corruption between write and reread.
+// 'pinned' targets the automatic startup snapshot (review finding 1's fail-
+// closed regression test); 'rotating' targets an explicit "take a snapshot
+// now" call (review finding 3's quarantine regression test) without ever
+// touching the startup bootstrap.
+const TEST_CORRUPT_SNAPSHOT_AFTER_WRITE = process.env.ANIME_TRACKER_TEST_CORRUPT_SNAPSHOT_AFTER_WRITE || null;
+
+// Renames a snapshot file that failed read-back verification so it stops
+// being treated as a snapshot at all (isValidSnapshotFilename requires an
+// exact ".json" ending, which ".invalid" breaks) — it's excluded from
+// listing, pruning and the pinned-bootstrap's "already have one" check
+// without being deleted, preserving it on disk for forensics (review finding
+// 3: "invalid files must never count as anchors", not "silently discard the
+// evidence").
+function quarantineSnapshotFile(file) {
+  try {
+    const from = path.join(SNAPSHOTS_DIR, file);
+    const to = path.join(SNAPSHOTS_DIR, `${file}.invalid`);
+    fs.renameSync(from, to);
+    console.error(`[snapshots] Quarantined a snapshot that failed verification: ${file} -> ${path.basename(to)}`);
+  } catch (renameErr) {
+    console.error(`[snapshots] Could not quarantine failed snapshot file ${file}:`, renameErr.message);
+  }
+}
+
 // Builds a fresh snapshot from the current on-disk library, verifies it
 // immediately (rule 7.4 — "an unverified snapshot is not a backup"), writes
 // it, reads it back from disk and verifies again (catches disk-level
 // corruption the in-memory verify above can't see), and prunes old rotating
-// snapshots. Throws rather than writing anything if build/verify ever fails.
+// snapshots. Throws rather than counting anything as a valid snapshot if
+// build/verify ever fails; a file that fails the read-back check is
+// quarantined (renamed out of the accepted shape) rather than left behind
+// under a name that would make it look like a real, restorable snapshot.
 async function createSnapshotNow({ pinned = false } = {}) {
   const { CLASS_A_STORES } = await loadExportRegistryModule();
   const library = readLibrary();
   const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library }, { pinned });
-  const selfCheck = Snapshots.verifySnapshotStores(snapshot);
+  const selfCheck = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
   if (!selfCheck.valid) {
+    // Nothing was written yet, so there's nothing to clean up here.
     throw new Error(`Snapshot failed self-verification immediately after building: ${selfCheck.errors.join('; ')}`);
   }
   const file = nextSnapshotFilename();
   writeSnapshotFileAtomic(file, snapshot);
-  const reread = readSnapshotFile(file);
-  const rereadCheck = Snapshots.verifySnapshotStores(reread);
-  if (!rereadCheck.valid) {
-    throw new Error(`Snapshot written to disk failed verification on read-back: ${rereadCheck.errors.join('; ')}`);
+  if (TEST_CORRUPT_SNAPSHOT_AFTER_WRITE === (pinned ? 'pinned' : 'rotating')) {
+    fs.appendFileSync(path.join(SNAPSHOTS_DIR, file), 'CORRUPTED-BY-TEST');
+  }
+  try {
+    const reread = readSnapshotFile(file);
+    const rereadCheck = Snapshots.verifySnapshotStores(reread, CLASS_A_STORES);
+    if (!rereadCheck.valid) {
+      throw new Error(rereadCheck.errors.join('; '));
+    }
+  } catch (err) {
+    // Whether the file failed to even parse or parsed but failed checksum
+    // verification, both are "the file on disk is not a trustworthy
+    // snapshot" — reported uniformly so callers never have to distinguish.
+    quarantineSnapshotFile(file);
+    throw new Error(`Snapshot written to disk failed verification on read-back: ${err.message}`);
   }
   if (!pinned) pruneSnapshots();
   return { file, createdAt: snapshot.createdAt, pinned: snapshot.pinned };
 }
 
-// Reconstructs a library.json-shaped object from a verified snapshot's
-// stores. Generic over whatever stores the snapshot actually contains (kind:
-// 'records' -> array field, kind: 'blob' -> object field) rather than
-// hardcoding entries/preferences/dismissedItems, so it doesn't need editing
-// every time a substep adds a Class A store per rule 3a — only the registry
-// (exportRegistry.js) does.
-function libraryFromSnapshot(snapshot) {
-  const library = { schemaVersion: snapshot.schemaVersion || SCHEMA_VERSION };
-  for (const [id, store] of Object.entries(snapshot.stores)) {
-    library[id] = store.kind === 'records' ? store.records : store.blob;
-  }
-  return library;
-}
-
 // Runs once at startup, before the server accepts any connection. Creates the
 // one immutable, never-rotated snapshot rule 10 requires, automatically — a
 // user should never have to click a button in order to be protected by it.
-// Idempotent: a no-op once a pinned snapshot exists, so it's safe to run on
-// every boot. Skipped while the library is corrupt/too-new (nothing safe to
-// snapshot yet) — it retries on the next healthy boot instead of blocking
-// startup on a problem this function can't fix.
+// Idempotent: a no-op once a *verified* pinned snapshot exists, so it's safe
+// to run on every boot. Skipped while the library is corrupt/too-new (nothing
+// safe to snapshot yet) — that recovery path is intentional: there is no
+// healthy data to anchor, and creating one here would either snapshot nothing
+// useful or block a corrupt-library user from ever reaching the restore UI,
+// so it retries on the next healthy boot instead.
+//
+// A healthy library is a different story: per the approved plan, a healthy
+// library must have a read-back-verified pinned anchor before the server
+// starts serving anything. This function therefore does NOT swallow a
+// creation/read-back failure on a healthy library — it throws, and the
+// startup sequence below refuses to call listen() when it does (review
+// finding 1). It only ever returns quietly for the corrupt/too-new cases
+// above, never for a genuine failure on a healthy library.
 async function ensurePinnedSnapshot() {
   if (libraryState.corrupt || libraryState.tooNew) return;
+  // Trusting a stored `pinned: true` flag alone would let a corrupt or
+  // tampered pinned file suppress creation of a real anchor forever (review
+  // finding 2) — only a fully verified pinned snapshot counts as "already
+  // have one". A corrupt pre-existing pinned file is left in place
+  // (untouched, unquarantined) as forensic evidence; a fresh valid pinned
+  // snapshot is created alongside it.
+  const { CLASS_A_STORES } = await loadExportRegistryModule();
   const alreadyPinned = listSnapshotFiles().some((file) => {
     try {
-      return Boolean(readSnapshotFile(file).pinned);
+      const snap = readSnapshotFile(file);
+      return Boolean(snap.pinned) && Snapshots.verifySnapshotStores(snap, CLASS_A_STORES).valid;
     } catch {
       return false;
     }
   });
   if (alreadyPinned) return;
-  try {
-    await createSnapshotNow({ pinned: true });
-    console.log('[snapshots] Created the initial pinned snapshot.');
-  } catch (err) {
-    console.error('[snapshots] Could not create the initial pinned snapshot (will retry next launch):', err.message);
-  }
+  await createSnapshotNow({ pinned: true });
+  console.log('[snapshots] Created the initial pinned snapshot.');
 }
 
 // ---------------------------------------------------------------------------
@@ -834,9 +911,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/snapshots' && req.method === 'GET') {
-      // Actually re-verifies every snapshot (recomputes checksums) rather
-      // than trusting stored metadata — the UI must not call something
-      // "verified" because a header claims so.
+      // Actually re-verifies every snapshot (recomputes checksums, and checks
+      // it against the live registry) rather than trusting stored metadata —
+      // the UI must not call something "verified" because a header claims
+      // so. Same registry GET/list, restore, and startup all use, per review
+      // finding 4.
+      const { CLASS_A_STORES } = await loadExportRegistryModule();
       const list = listSnapshotFiles().map((file) => {
         let snapshot;
         try {
@@ -844,7 +924,7 @@ const server = http.createServer(async (req, res) => {
         } catch (err) {
           return { file, createdAt: null, schemaVersion: null, pinned: false, verified: false, errors: [`Could not read file: ${err.message}`] };
         }
-        const { valid, errors } = Snapshots.verifySnapshotStores(snapshot);
+        const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
         return {
           file,
           createdAt: snapshot.createdAt,
@@ -901,37 +981,73 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 500, { error: `Snapshot file itself is corrupt: ${err.message}` });
         return;
       }
-      const check = Snapshots.verifySnapshotStores(snapshot);
+      const { CLASS_A_STORES } = await loadExportRegistryModule();
+      const check = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
       if (!check.valid) {
         sendJson(res, 409, { error: 'Snapshot failed verification. Refusing to restore from it.', errors: check.errors });
         return;
       }
-      const restored = libraryFromSnapshot(snapshot);
+      // Registry-driven (review finding 5): walks CLASS_A_STORES and asks
+      // each store where its own data goes, rather than assuming every store
+      // id becomes a same-named library.json field. A store declaring an
+      // unsupported/missing restore target fails this closed instead of
+      // silently landing in library.json — and libraryState is never
+      // touched for this failure, since nothing was written.
+      let restored;
+      try {
+        restored = Snapshots.buildRestoredLibrary(CLASS_A_STORES, snapshot);
+      } catch (err) {
+        sendJson(res, 500, { error: `Cannot restore this snapshot: ${err.message}` });
+        return;
+      }
       // Bypasses the corrupt guard the same way the legacy restore above
-      // does: restoring *from* a broken state is the primary use case.
+      // does: restoring *from* a broken state is the primary use case. If
+      // the write below fails partway, this optimistic value is corrected
+      // by refreshLibraryStateFromDisk() in the catch block rather than left
+      // in place uncorrected (review finding 6 — libraryState must never
+      // report healthy on the strength of an intention rather than a
+      // completed, verified write).
       libraryState = { corrupt: false, error: null, tooNew: false, dataVersion: null };
-      writeLibraryAtomic(restored);
+      try {
+        // Test-only fault injection (see TEST_CORRUPT_SNAPSHOT_AFTER_WRITE
+        // above): simulates the write itself failing partway through, after
+        // corrupting library.json on disk to stand in for a real partial
+        // write, so the libraryState-recovery path below can be exercised
+        // deterministically. Unset in normal use.
+        if (process.env.ANIME_TRACKER_TEST_FAIL_RESTORE_WRITE === '1') {
+          fs.writeFileSync(LIBRARY_FILE, 'CORRUPTED-BY-TEST-MID-RESTORE');
+          throw new Error('Forced restore write failure (test-only).');
+        }
+        writeLibraryAtomic(restored);
+      } catch (err) {
+        refreshLibraryStateFromDisk();
+        sendJson(res, 500, {
+          error: `Restore failed while writing library.json: ${err.message}. The library state has been re-checked against what is actually on disk.`,
+          libraryState: { corrupt: libraryState.corrupt, tooNew: libraryState.tooNew },
+        });
+        return;
+      }
       // Post-restore verification (rule 7.4/7.8): re-read what's actually on
       // disk now, rebuild its snapshot representation, and confirm every
       // store's checksum matches the snapshot just restored from — not
       // merely that the re-read data is internally self-consistent.
-      const { CLASS_A_STORES } = await loadExportRegistryModule();
       const rebuilt = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: readLibrary() }, { pinned: snapshot.pinned });
+      const rebuiltCheck = Snapshots.verifySnapshotStores(rebuilt, CLASS_A_STORES);
       const mismatches = Object.keys(snapshot.stores).filter(
         (id) => !rebuilt.stores[id] || rebuilt.stores[id].checksum !== snapshot.stores[id].checksum
       );
-      if (mismatches.length > 0) {
+      if (!rebuiltCheck.valid || mismatches.length > 0) {
         // Force the app into the same corrupt-state recovery path the error
         // message describes, rather than silently returning to normal
         // operation with a library.json this code just said not to trust.
         libraryState = {
           corrupt: true,
-          error: `Restore verification mismatch after write (stores: ${mismatches.join(', ')}).`,
+          error: `Restore verification mismatch after write (stores: ${mismatches.join(', ') || rebuiltCheck.errors.join('; ')}).`,
           tooNew: false,
           dataVersion: null,
         };
         sendJson(res, 500, {
-          error: `Restore wrote data that does not match the verified snapshot (stores: ${mismatches.join(', ')}). The previous library.json was rotated into backups/ — do not trust the current library.json until this is investigated.`,
+          error: `Restore wrote data that does not match the verified snapshot (stores: ${mismatches.join(', ') || rebuiltCheck.errors.join('; ')}). The previous library.json was rotated into backups/ — do not trust the current library.json until this is investigated.`,
         });
         return;
       }
@@ -1112,8 +1228,21 @@ server.on('error', (err) => {
 // accepts a connection — not just mutating ones — until the one immutable
 // Class C anchor (rule 10) exists. It's a single JSON hash pass over a
 // personal library, so the added startup latency is negligible.
+//
+// A healthy library with no working pinned anchor is exactly the situation
+// rule 10 exists to prevent, so this refuses to call listen() at all rather
+// than serve a library with no verified backup (review finding 1). The
+// corrupt/too-new cases are unaffected: ensurePinnedSnapshot() returns
+// quietly for those (see its own comment) and startup proceeds normally so
+// the user can reach the restore UI.
 (async () => {
-  await ensurePinnedSnapshot();
+  try {
+    await ensurePinnedSnapshot();
+  } catch (err) {
+    console.error('[snapshots] Could not create the initial pinned snapshot for a healthy library. Refusing to start.', err.message);
+    process.exit(1);
+    return;
+  }
   server.listen(PORT, '127.0.0.1', () => {
     console.log(`Anime Tracker running at http://localhost:${PORT}`);
     if (libraryState.corrupt) {
