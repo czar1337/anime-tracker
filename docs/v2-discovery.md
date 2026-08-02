@@ -1014,3 +1014,367 @@ real automated-check result). The one open item — the ToS bulk-caching
 question — is by design **not** resolved here; it's carried to the backlog
 as user-decision-required, per the spec's explicit instruction for this
 item. Nothing else outstanding.
+
+---
+
+# v2 Discovery — P0.3 Discover feasibility gate
+
+Owner: P0.3. Appends to the file P0.1 created and P0.2 extended. Change no
+production code in this substep. None was changed. This is a go/no-go gate:
+every number below is measured against AniList's real, live API this
+session, not assumed or carried over from memory.
+
+## Reconciliation, before anything was written
+
+- `git log --all --oneline --grep "^v2("` → `ef56256 v2(P0.2): close out`,
+  `c2bc7d9 v2(P0.2): verify AniList integration`, `d77be05 Merge branch
+  'v2/P0.1' into main`, `f4e2434 v2(P0.1): close out`, `eb5614e v2(P0.1):
+  codebase and data audit`. **No `v2(P0.3)` commit exists anywhere.** Both
+  P0.1 and P0.2 are merged to `main`.
+- `git status --porcelain` at session start → clean tree.
+- `git switch main && git pull --ff-only` → already up to date (local `main`
+  was 7 commits ahead of `origin/main`, nothing to pull). Branched `v2/P0.3`
+  from `main`.
+
+## Method
+
+All measurement used a throwaway, uncommitted Node script (Node v24's
+built-in `fetch`, no dependencies) run directly against the real
+`https://graphql.anilist.co` endpoint — the same live-probe approach P0.2
+used for its fixtures, extended here to sustained/bulk load rather than
+P0.2's light, spaced-out probe. The query requested the full field set a
+corpus entry would need for scoring and grouping (genres, tags, studios,
+staff, popularity, averageScore, duration, episodes, format, status,
+season/seasonYear, `nextAiringEpisode`, relations), sorted
+`POPULARITY_DESC`, `perPage: 50`. Raw responses and logs are saved under
+`docs/v2-discovery-fixtures/anilist/`:
+`CORPUS_QUERY_page1.json` (one full live page, unedited),
+`P0.3-ratelimit-burst-log.json` (per-request header log from the burst
+test), `P0.3-measurement-report.json` (all computed numbers below, machine-
+readable).
+
+**Caveat on sample bias, stated up front:** the sample is the top 1,500
+titles by `POPULARITY_DESC` — the head of the distribution, not a random
+cross-section. The Tuning table's "hidden gem" definition explicitly wants
+*low*-popularity titles (`members < 50,000`), which is the opposite tail
+from what this sample covers. Field-coverage numbers below should be read
+as "coverage among popular titles, confirmed high" rather than "coverage
+across the whole eventual corpus" — see the recommendation section for how
+this affects go/no-go.
+
+## 1. API calls per 1,000 titles
+
+**Confirmed: AniList honors `perPage: 50` exactly** — requested 50, received
+exactly 50, `pageInfo` reported `perPage: 50, total: 5000, lastPage: 100`
+for the `ANIME` type collection. 50 is AniList's real, live-confirmed page
+size ceiling for this query shape (not silently capped lower).
+
+- **Calls per 1,000 titles: 20** (`ceil(1000 / 50)`).
+- **Calls per 3,000 titles: 60.**
+- **Calls per 5,000 titles: 100.**
+
+## 2. Payload size per title, raw and pruned
+
+From the first live page (50 titles, `CORPUS_QUERY_page1.json`, 185,107
+raw response bytes):
+
+- **Raw bytes/title: ≈ 3,702.1 bytes** (185,107 ÷ 50).
+- **Pruned bytes/title: ≈ 1,878.1 bytes** — pruning kept only the fields the
+  Tuning table's scorer weights and shelf grouping actually reference
+  (`id`, `format`, `status`, `seasonYear`, `episodes`, `duration`, `genres`,
+  `averageScore`, `popularity`, main studio name, a trimmed `tags` array,
+  a trimmed `staff` array, and `relatedIds`) and re-serializing: 93,903
+  bytes for the same 50 titles.
+- Pruning cuts payload roughly in half (49.3% of raw), driven mostly by
+  dropping `coverImage` URLs (already redundant — covers are cached
+  separately via the existing `covers/` mechanism, per P0.1 item 2) and the
+  full nested `staff`/`tags` objects down to just the fields used.
+
+## 3. Wall-clock time for a 100-title seed, extrapolated
+
+**Measured, 2 sequential calls (pages 1-2, 100 titles, no artificial
+pacing): 2,431 ms** (page 1: 1,292 ms; page 2: 1,139 ms) — this is raw
+AniList response latency with no rate-limit backoff needed, since 2 calls
+is far under the observed 30/min ceiling (item 4).
+
+**Extrapolated at the Tuning table's 70%-of-observed-limit safety margin**
+(70% of the observed 30/min = 21 requests/min, i.e. one call per ≈2.857 s —
+see item 4 for why this, not the documented 90/min, is the correct base):
+
+| Corpus target | API calls | Extrapolated wall-clock at 21 req/min |
+| --- | --- | --- |
+| 1,000 titles | 20 | ≈ 57 s |
+| 3,000 titles | 60 | ≈ 2 min 51 s |
+| 5,000 titles | 100 | ≈ 4 min 46 s |
+
+All of these are well inside the Tuning table's "usable degraded Discover
+within 5 s" budget's spirit for a *first-run seed* — none of this needs to
+block first paint, consistent with the spec's own "background, never
+blocks app use, interruptible, resumable" requirement for the full seed
+(P5A.1's budget row). Even the largest measured target (5,000) finishes
+under 5 minutes of background work.
+
+## 4. Observed rate limit under sustained use
+
+**Confirmed: a hard ceiling of exactly 30 requests per rolling window —
+not a soft/advisory number.** P0.2 observed `x-ratelimit-limit: 30` across
+8 requests spaced 800 ms apart (light load, headers consistent but never
+tested to exhaustion). This substep fired requests back-to-back with **no
+artificial delay** to find the real ceiling:
+
+- `x-ratelimit-remaining` decremented by exactly 1 per request, request 1
+  through 30: `29, 28, 27, ..., 1, 0` (full log:
+  `P0.3-ratelimit-burst-log.json`, plus request 1's own header, `page1Headers`
+  in `P0.3-measurement-report.json`, confirming `remaining: 29` on the very
+  first request of the session's burst).
+- **Request 31 returned HTTP 429** with `Retry-After: 27`.
+- The 30 successful requests completed in **≈23.6 s of pure request time**
+  (sum of measured per-request latencies: 1,292 + 1,139 + 21,214 ms) when
+  sent back-to-back — i.e., AniList's server can physically answer 30 of
+  these heavy requests in under 24 seconds; **the limiter, not server
+  capacity, is what throttles beyond 30/window.**
+
+This **confirms and hardens P0.2's number**: the documented 90/min
+(`https://docs.anilist.co/guide/rate-limiting`) does not match live
+behavior; the real, currently-enforced ceiling is **30 requests per
+window**, now confirmed by exhaustion rather than inferred from consistent
+headers under light load. **P0.3 supersedes P0.2's number for anything
+pacing-related** — treat 30/min, not 90/min, as the base for the Tuning
+table's "70% of the observed limit" rule (item 3's math above already uses
+this).
+
+## 5. Projected local disk size at 1,000 / 3,000 / 5,000 titles
+
+**Reframed per P0.1's headline finding: there is no IndexedDB in this app,
+so "projected IndexedDB size" is measured and reported here as a projected
+flat JSON cache file on local disk**, following the exact pattern
+`recommendations-cache.json` / `airing-cache.json` / `upcoming-cache.json`
+already use (P0.1 item 2). Using the pruned per-title size from item 2
+(≈1,878.1 bytes):
+
+| Corpus target | Pruned size (this app's actual storage shape) | Raw size, for reference |
+| --- | --- | --- |
+| 1,000 titles | ≈ 1.79 MB | ≈ 3.53 MB |
+| 3,000 titles | ≈ 5.37 MB | ≈ 10.58 MB |
+| 5,000 titles | ≈ 8.96 MB | ≈ 17.65 MB |
+
+**Against the Tuning table's 150 MB corpus storage ceiling: all three
+targets, even unpruned at 5,000 titles, use under 12% of the ceiling.**
+Cross-referenced against P0.1's measured existing usage
+(`%APPDATA%\anime-tracker\` = 47 MB total, of which `library.json` itself is
+156 KB): a corpus cache at any of these sizes is a small addition to a
+47 MB baseline, not a meaningful jump.
+
+**The eviction-pressure framing in "Storage classes and data safety" rule 2
+("shipping up to 150 MB of Class B on the same origin raises eviction
+pressure") assumes browser-storage eviction, which does not apply here.**
+Per P0.1's headline finding (no IndexedDB, no `navigator.storage.persist()`
+call anywhere, local Node server writing to a local file), there is no
+browser storage quota or browser-eviction mechanism in play for this app's
+actual architecture — the real constraint is ordinary local disk space,
+which is not remotely close to binding at any of these targets. **Flagged
+for the backlog**, consistent with P0.1's own flag that every later P1.x
+substep referencing "the existing IndexedDB database" or browser eviction
+needs to be read against the real architecture instead.
+
+## 6. CORS behavior, live-verified from the app's real origin
+
+**Confirmed live, not just inferred from code comments.** Started the app's
+real dev server (`node server.js`, `http://localhost:4321`, via the
+committed `.claude/launch.json` config) and executed a `fetch()` against
+`https://graphql.anilist.co` from that page's own JS context (browser
+console, same origin the shipped app actually runs from):
+
+```json
+{
+  "ok": true,
+  "origin": "http://localhost:4321",
+  "status": 200,
+  "bodySnippet": "{\"data\":{\"Page\":{\"media\":[{\"id\":1,\"title\":{\"romaji\":\"Cowboy Bebop\"}}]}}}"
+}
+```
+
+The request succeeded end-to-end (status 200, real data body read back) —
+if CORS had blocked it, the `fetch()` promise itself would have rejected
+with a `TypeError` before any status or body was readable, which did not
+happen. (Note: `res.headers.get('access-control-allow-origin')` read back
+as `null` in this same call — that is expected browser behavior, not a
+failure signal: `Access-Control-Allow-Origin` is not in the default
+JS-exposed response-header safelist unless the server adds it to
+`Access-Control-Expose-Headers`. The successful fetch-and-read is the real
+proof, consistent with P0.2's code-comment finding that AniList's endpoint
+"sends permissive CORS headers" and the browser calls it directly with no
+server proxy.)
+
+**Terms of service, quoted again from the source P0.2 already cited**
+(`https://docs.anilist.co/guide/terms-of-use`, mirror
+`https://anilist.gitbook.io/anilist-apiv2-docs/docs/guide/terms-of-use`) —
+repeated here because P0.3 is where a concrete corpus size makes the
+bulk-caching question concrete rather than hypothetical: applications may
+not use the API as **"a backup or data storage service"** and may not
+engage in **"mass collection of data,"** with a stated exception for
+**"purely educational projects."** **No verdict is rendered here** — per
+the spec's explicit instruction for this item, this is recorded as
+**user decision required**, now with real numbers attached: at the default
+3,000-title target, seeding costs 60 API calls (≈2 min 51 s at the safety
+margin) and the resulting cache is ≈5.4 MB pruned, refreshed on whatever
+cadence P5A.1 chooses. Whether that pattern is "mass collection" under
+AniList's terms is not this substep's call to make.
+
+## 7. Coverage: tags, relations, staff, durations
+
+Across the same 1,500-title sample (top 1,500 by popularity, pages 1-30,
+`POPULARITY_DESC`, `type: ANIME`):
+
+| Field | Present | Coverage |
+| --- | --- | --- |
+| `tags` (non-empty) | 1,500 / 1,500 | **100.0%** |
+| `relations` (non-empty) | 1,471 / 1,500 | **98.1%** |
+| `staff` (non-empty, `perPage: 5`) | 1,500 / 1,500 | **100.0%** |
+| `duration` (non-null) | 1,497 / 1,500 | **99.8%** |
+
+All four fields clear the item 7's own stated viability bar by a wide
+margin (its example: "not viable if missing for a third of titles," i.e.
+below ≈66.7% coverage — every field here is at 98% or better). **Caveat
+restated from "Method" above: this is coverage among popular titles.** The
+corpus's own design explicitly wants a "hidden gem" tail
+(`members < 50,000`, Tuning table) that this sample does not reach, so
+these percentages should not be assumed to hold at the low-popularity end
+without a follow-up spot check once P5A.1 actually selects that tail.
+
+## Recommendation
+
+**Go.** Nothing measured here blocks proceeding to P5A.1's corpus build,
+subject to the caveats stated inline above. Specifically:
+
+- **Corpus target size:** the Tuning table's provisional default of
+  **3,000** is well inside every measured budget — ≈2 min 51 s to seed at
+  the safety-margin pace, ≈5.4 MB pruned on disk (≈3.6% of the 150 MB
+  ceiling). There is substantial headroom above 3,000 if the user wants a
+  larger corpus for variety: even 5,000 stays under 9 MB pruned, and disk
+  size is not the binding constraint at any target size measured. **This
+  substep does not choose the number** — per the spec, the user applies the
+  final target at the P0.4 approval gate — but the measured numbers show
+  the provisional default has room to move up, not just down, if desired.
+  The more relevant constraint than disk is the **AniList rate limit**
+  (item 4) for the initial seed and for whatever refresh cadence P5A.1
+  picks — larger targets and more frequent refreshes both consume the same
+  30/min budget.
+- **Go/no-go per shelf, stated generically:** per the scope note above (this
+  session did not read the P5A.4/P5B.1 shelf definitions, only this
+  substep's own section, per CLAUDE.md's reading restriction), the go/no-go
+  is reported at the field-coverage level rather than against named shelf
+  IDs. **Shelves depending on relations: GO** (98.1% coverage, popular-title
+  sample). **Shelves depending on staff: GO** (100%). **Shelves depending on
+  tags, including any demographic-tag-based logic** (relevant to the two
+  achievement definitions P0.2 flagged at `v2-spec.md:904,914`): **GO**
+  (100%). **Shelves depending on duration/episode-length: GO** (99.8%).
+  Whoever implements P5A.4/P5B.1 should map this substep's field-level
+  numbers onto their specific shelf list, and should re-check relations/tag
+  coverage specifically against the low-popularity tail once the actual
+  corpus selection (not just this popularity-sorted sample) is built.
+- **Degraded-mode shelf set:** no field-coverage reason to place any shelf
+  category in degraded mode for the *popular* tier of the corpus — coverage
+  is uniformly high. The one open question is the untested hidden-gem tail
+  (see caveat, item 7); if a follow-up spot check at P5A.1 time finds lower
+  coverage there, shelves depending on relations are the most exposed
+  (98.1% vs. 100% for tags/staff), and would be the first candidate for a
+  degraded/fallback presentation for that specific tier.
+
+## For the backlog
+
+- **Storage classes and data safety rule 2's eviction-pressure language
+  assumes browser storage; this app has none (see item 5 above and P0.1's
+  headline finding).** Whoever designs the actual Class B corpus cache
+  storage in P5A.1 should read "keep the corpus target conservative because
+  of eviction pressure" as "keep it conservative because of AniList rate
+  limit cost for seeding/refresh," not disk or browser quota — disk has
+  wide headroom at every measured target.
+- **Hidden-gem-tail field coverage (low `popularity`, `members < 50,000`)
+  is not verified by this substep's sample**, which is popularity-sorted
+  and therefore samples the opposite tail. P5A.1 should spot-check
+  relations/tags/staff/duration coverage specifically among the titles that
+  will actually populate the hidden-gem shelf tier before assuming this
+  substep's 98-100% numbers extend there.
+- **Rate limit is a hard, exhaustible ceiling of exactly 30/min, confirmed
+  by triggering a real 429** (this substep), not just consistently-observed
+  headers under light load (P0.2). Any later substep building the "one
+  cached, rate-limited client with a documented safety margin" (Global
+  constraints) should treat 30, not 90, as the number to margin against, and
+  should expect the ceiling to be a real wall reachable in well under 30
+  seconds of unthrottled requests, not a theoretical limit.
+- **AniList ToS "no mass collection of data" / "not a backup or data
+  storage service," now with a concrete corpus size and cost attached**
+  (item 6): carried forward again as a blocking, user-decision-required
+  flag for whoever approves P5A.1's scope — same flag P0.2 raised, now with
+  real numbers instead of a hypothetical.
+
+## Acceptance criteria (P0.3 — see spec's "How the criteria reduce for P0.1
+to P0.3")
+
+1. **Automated checks.** `node tests/run-all.js` run verbatim on this
+   branch, no production code changed: results recorded in the close-out
+   section below. No lint, typecheck, or build script exists in this
+   project (unchanged from P0.1/P0.2's finding).
+2. **Not applicable.** Nothing was persisted; no production code or user
+   data was written to. All AniList calls were read-only GET/POST requests
+   against AniList's public API; the CORS check read the app's own served
+   origin without touching any app state or the real `library.json`.
+3. **Restated as: what the user can check in the written findings.** Open
+   `docs/v2-discovery-fixtures/anilist/CORPUS_QUERY_page1.json` and confirm
+   it's a real, live 50-title page (not hand-written). Open
+   `P0.3-ratelimit-burst-log.json` and confirm the remaining-count sequence
+   30→0 followed by a real 429/Retry-After. Open
+   `P0.3-measurement-report.json` for every computed number in this
+   section, machine-readable.
+4. **Applies — this is the one P0 substep where it does, per the spec's own
+   carve-out.** Every Tuning-table-relevant number this section names
+   (calls/1,000, payload/title, wall-clock at the safety margin, observed
+   rate limit, projected disk size, coverage percentages) is a real
+   measurement recorded above, not an estimate.
+5. **Not applicable.** No UI was touched.
+6. **Rollback:** revert the `v2(P0.3)` commit(s). No data or production
+   code was touched, so this is a pure docs-and-fixtures revert with no
+   forward-compatibility concern.
+
+## P0.3 close out
+
+1. **Automated checks — applies.** `node tests/run-all.js` run verbatim on
+   `v2/P0.3` with no production code changes:
+
+   ```
+   59 passed, 0 failed
+   ```
+
+   (Full output tail covers `scheduleLogic.js`, `screenshotLogic.js`, and
+   `datadir.js`'s legacy-migration tests, all passing — unchanged from
+   P0.1/P0.2, as expected since no production code was touched.) No lint,
+   typecheck, or build command exists in this project.
+2. **Data safety — not applicable.** Nothing was persisted by this substep.
+   All AniList probes were read-only against a public API; the CORS check
+   read from the app's own already-served origin without writing app state;
+   no user data (`library.json` or otherwise) was read or written.
+3. **Manual smoke test — restated as a plain-language check of the written
+   findings.** What you can verify yourself: open
+   `docs/v2-discovery-fixtures/anilist/P0.3-measurement-report.json` and
+   confirm the numbers (30/30/0 rate-limit exhaustion, 98-100% coverage,
+   sub-2MB-to-9MB projected corpus sizes); open
+   `P0.3-ratelimit-burst-log.json` and confirm the 429 on request 31 with a
+   real `Retry-After` value.
+4. **Performance — applies, and is fully addressed above.** This is P0.3,
+   the substep the spec carves out specifically for corpus/perf budget
+   measurement; every relevant Tuning-table number is recorded with its
+   measurement method.
+5. **Accessibility — not applicable.** No UI was touched.
+6. **Rollback — revert the docs-and-fixtures commit(s).** Revert
+   `v2(P0.3): discover feasibility gate` (and its close-out commit, if
+   landed separately). Both are docs-and-fixtures only; no data or
+   production code is at risk.
+
+**Status: P0.3 complete.** All six criteria addressed above (three as
+explicit not-applicable, two as real measurement results, one as a
+document walkthrough). The recommendation is **go**, with two flags carried
+to the backlog rather than resolved here: the untested hidden-gem-tail
+coverage question, and the ToS "mass collection" question, both explicitly
+user-decision-required per the spec's own instruction not to render a
+verdict on either.
