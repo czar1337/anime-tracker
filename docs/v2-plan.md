@@ -166,17 +166,93 @@ redundant. Confirm this reading with the user before spending effort on it
 if reopening this decision.
 - `server.js`: new snapshot writer/verifier/restore/export/reset endpoints;
   new `snapshots/` directory alongside `datadir.js`'s existing `covers/`/
-  `backups/`.
-- `datadir.js`: helper for the new `snapshots/` path.
-- New `public/js/exportRegistry.js`: the store-registry pattern the export
-  and snapshot writer both walk (so later substeps register new Class A
-  stores here instead of hand-editing a field list).
+  `backups/`. The pinned, never-rotated snapshot (rule 10) is created
+  automatically at startup (`ensurePinnedSnapshot()`, run before
+  `server.listen()`), not gated behind any button — idempotent across
+  restarts.
+- `datadir.js`: `resolveSnapshotsDir()` helper for the new `snapshots/` path.
+- New `public/js/exportRegistry.js`: the store-registry pattern (`CLASS_A_STORES`,
+  `buildExport()`) the export and snapshot writer both walk (so later
+  substeps register new Class A stores here instead of hand-editing a field
+  list). Zero Node dependencies — the browser imports it directly, and
+  `server.js`/the unit-test suite load it via a dynamic `import()` of its
+  actual source bytes (works identically in dev and in a packaged SEA build).
+  Requires `public/package.json` (`{"type":"module"}`, new file) so Node
+  resolves it as an ES module.
+- New root `snapshots.js` (CommonJS, **not originally listed above** — added
+  during implementation for the same reason `datadir.js`/`migrations.js` are
+  already split out of `server.js`: `node:crypto` can't be imported by the
+  browser-loaded `exportRegistry.js`, and this pure build/verify/prune/
+  filename-validation logic needs to be unit-testable without a real server.
+  `scripts/build-exe.js`'s `LOCAL_MODULES` inlining was extended to cover it
+  (it itself requires `datadir.js`).
 - New `public/js/backupClient.js`: frontend calls to the new endpoints.
-- `render.js` / `events.js`: minimal Settings-panel shell for restore/
-  download/reset (existing `renderSettingsPanel()`/`bindSettingsPanel()`,
-  `render.js:1513`/`events.js:1273`).
+- `render.js` / `events.js`: new Settings-panel "Data & safety" section
+  (existing `renderSettingsPanel()`/`bindSettingsPanel()`,
+  `render.js:1513`/`events.js:1273`) — snapshot list (with a `verified` badge
+  per snapshot, restore disabled for anything that fails re-verification),
+  take-a-snapshot-now, download-my-data, reset-everything. `confirmDialog()`
+  (`events.js:70`) extended with an optional `requireTypedPhrase` param for
+  the reset flow's type-to-confirm; `index.html`'s shared `#confirm-overlay`
+  gained a hidden-by-default text input for it.
 - New `tests/e2e/backup-restore.spec.js`: the real round-trip test (export,
-  wipe a fixture, restore, verify byte-identical) using `tests/e2e/harness.js`.
+  snapshot, wipe a fixture's `library.json` directly, restore, verify
+  byte-identical, post-restore verification) using `tests/e2e/harness.js`.
+- New `tests/e2e/snapshot-restore-security.spec.js`: restore rejects
+  traversal/absolute-path/separator filenames; a snapshot hand-tampered with
+  on disk is rejected and the live library is left unchanged.
+- New `tests/e2e/pinned-snapshot-restart.spec.js`: the pinned snapshot
+  survives a restart against the same data directory without duplicating.
+  Required extending `tests/e2e/harness.js`'s `startFixtureServer()`/`stop()`
+  with an optional `dataDir`/`keepDataDir` pair so a test can reuse the same
+  directory across two boots instead of always getting a fresh temp one.
+- New `tests/e2e/class-b-corruption.spec.js`: the Global constraints' required
+  "Class A survival under Class B corruption" test.
+- `scripts/perf.js`: second measurement, `POST /api/snapshots` against the
+  2,000-entry fixture, against the Tuning table's "Snapshot plus verify... under
+  10s" budget.
+
+**P1.1 review-fixes session (same substep, hardening pass — see
+`docs/v2-progress.md`'s "P1.1 review-fixes session" for the full findings
+list):**
+- `snapshots.js`: `verifySnapshotStores(snapshot, registry)` now takes the
+  live registry and requires exact store-id coverage (missing/extra/
+  duplicate all rejected) plus a `manifestChecksum` covering `schemaVersion`/
+  `createdAt`/`pinned`/the store-id-to-checksum map, so top-level metadata
+  and whole-store removal are both checksummed, not just each store that
+  happens to still be present. New `buildRestoredLibrary(registry, snapshot)`:
+  registry-driven restore, walking each store's new `restoreTarget` rather
+  than assuming every store becomes a same-named `library.json` field; fails
+  closed (throws) for an unsupported/missing target instead of guessing.
+- `public/js/exportRegistry.js`: each `CLASS_A_STORES` entry gained a
+  `restoreTarget` (`{ kind: 'libraryField', field: <id> }` for all three
+  today, since every current store lives inside `library.json`).
+- `server.js`: `libraryFromSnapshot()` removed, replaced by
+  `Snapshots.buildRestoredLibrary()`. `ensurePinnedSnapshot()` no longer
+  swallows a creation/read-back failure on a healthy library — it throws,
+  and the startup IIFE now `process.exit(1)`s before `server.listen()` if it
+  does (corrupt/too-new libraries still skip quietly, unchanged). Its
+  "already pinned" check now requires `verifySnapshotStores()` to pass, not
+  just a stored `pinned: true` flag. `createSnapshotNow()` quarantines
+  (renames to `<file>.invalid`) a snapshot that fails read-back verification
+  instead of leaving it under its normal restorable-looking name. The
+  restore endpoint wraps its write in try/catch and calls a new
+  `refreshLibraryStateFromDisk()` on failure, rather than leaving its
+  pre-write optimistic `libraryState` assignment uncorrected. Two new
+  test-only fault-injection env vars,
+  `ANIME_TRACKER_TEST_CORRUPT_SNAPSHOT_AFTER_WRITE` (`pinned`|`rotating`) and
+  `ANIME_TRACKER_TEST_FAIL_RESTORE_WRITE`, follow the existing
+  `ANIME_TRACKER_DATA_DIR`/`ANIME_TRACKER_PORT` pattern — unset in normal
+  use.
+- `tests/e2e/harness.js`: `startFixtureServer()` gained an optional
+  `opts.env`; new `startProcessExpectingExit()` for asserting a server
+  process exits without ever listening.
+- New `tests/e2e/pinned-snapshot-bootstrap-failure.spec.js`,
+  `tests/e2e/snapshot-write-failure-cleanup.spec.js`,
+  `tests/e2e/restore-write-failure-state.spec.js`.
+- `tests/run-all.js`: new regression tests for whole-store removal, extra/
+  unknown stores, flipped `schemaVersion`/`pinned`, flipped store `kind`,
+  and `buildRestoredLibrary`'s registry-walk/fail-closed behavior.
 
 **P1.2 Storage classes and concurrency.** Restructures without copying data.
 - `server.js`: server-side write lock (or ETag/If-Match) replacing the

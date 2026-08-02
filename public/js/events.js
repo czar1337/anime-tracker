@@ -11,6 +11,7 @@ import { Preferences } from './preferences.js';
 import { Atmosphere } from './atmosphere.js';
 import { computeLibraryStats } from './statsLogic.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsExport.js';
+import { BackupClient } from './backupClient.js';
 
 let activeList = 'watching';
 let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
@@ -67,16 +68,38 @@ function trapOverlayFocus(e) {
 // The danger button uses onclick (not addEventListener) because this one
 // dialog element is reused by every call site; onclick replaces the
 // previous handler instead of stacking a new listener on top of it each time.
-function confirmDialog({ title, body, confirmLabel, onConfirm }) {
+// `requireTypedPhrase` (optional): for the small set of actions destructive
+// enough to want typing, not just clicking, as the confirmation (currently
+// only "Reset everything") — shows a text input and keeps the danger button
+// disabled until it matches exactly. Omitted everywhere else, so all existing
+// call sites keep their plain click-to-confirm behavior unchanged.
+function confirmDialog({ title, body, confirmLabel, onConfirm, requireTypedPhrase }) {
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-body').textContent = body;
   const dangerBtn = document.getElementById('confirm-danger-btn');
   dangerBtn.textContent = confirmLabel;
+  const typeRow = document.getElementById('confirm-type-row');
+  const typeInput = document.getElementById('confirm-type-input');
+  const typeLabel = document.getElementById('confirm-type-label');
+  if (requireTypedPhrase) {
+    typeRow.hidden = false;
+    typeLabel.textContent = `Type "${requireTypedPhrase}" to confirm`;
+    typeInput.value = '';
+    dangerBtn.disabled = true;
+    typeInput.oninput = () => {
+      dangerBtn.disabled = typeInput.value !== requireTypedPhrase;
+    };
+  } else {
+    typeRow.hidden = true;
+    typeInput.oninput = null;
+    dangerBtn.disabled = false;
+  }
   dangerBtn.onclick = () => {
     closeAllOverlays();
     onConfirm();
   };
   openOverlay('confirm-overlay');
+  if (requireTypedPhrase) typeInput.focus();
 }
 
 // Shared by openOverlay and closeAllOverlays — hides every overlay and
@@ -1270,26 +1293,133 @@ function bindDetailOverlay() {
 // default) color theme/text-size/text-weight/decor before first paint —
 // this wires up the Settings panel to change any of them afterward, same
 // as the old theme-only picker did for just the theme.
+// Cached separately from the rest of the settings panel because it loads
+// async (a fetch) while everything else in the panel is synchronous local
+// state — without a cache, every unrelated click in the panel (a theme
+// swatch, a text-size step) would rebuild the whole panel via
+// renderSettingsPanel() and flash "Loading…" in the snapshot section on every
+// one of them, refetching for no reason.
+let cachedSnapshots = null;
+
+function paintSnapshotList() {
+  const list = document.getElementById('snapshot-list');
+  if (list && cachedSnapshots) Render.renderSnapshotList(list, cachedSnapshots);
+}
+
+async function refreshSnapshotList() {
+  try {
+    cachedSnapshots = await BackupClient.getSnapshots();
+  } catch (err) {
+    cachedSnapshots = null;
+    const list = document.getElementById('snapshot-list');
+    if (list) list.innerHTML = `<li class="backup-empty">Could not load snapshots: ${Render.escapeHtml(err.message)}</li>`;
+    return;
+  }
+  paintSnapshotList();
+}
+
 function bindSettingsPanel() {
   const body = document.getElementById('settings-body');
 
+  // Every renderSettingsPanel() call below rebuilds the whole panel from
+  // scratch (see that function's own comment on scroll restoration) — this
+  // repaints the snapshot section from the cache right after, so it doesn't
+  // fall back to a bare "Loading…" placeholder on every unrelated click.
+  function repaintSettings(themeId) {
+    Render.renderSettingsPanel(body, themeId);
+    paintSnapshotList();
+  }
+
   document.getElementById('theme-toggle').addEventListener('click', () => {
     openOverlay('theme-picker-overlay');
-    Render.renderSettingsPanel(body, Themes.getCurrentThemeId());
+    repaintSettings(Themes.getCurrentThemeId());
+    refreshSnapshotList();
   });
 
-  body.addEventListener('click', (e) => {
+  body.addEventListener('click', async (e) => {
     if (e.target.closest('#theme-view-more-btn, #theme-view-fewer-btn')) {
       Render.toggleThemesExpanded();
-      Render.renderSettingsPanel(body, Themes.getCurrentThemeId());
+      repaintSettings(Themes.getCurrentThemeId());
       return;
     }
     const swatch = e.target.closest('.themegrid button');
     if (swatch) {
       Themes.setColorTheme(swatch.dataset.themeId);
-      Render.renderSettingsPanel(body, swatch.dataset.themeId);
+      repaintSettings(swatch.dataset.themeId);
       return;
     }
+
+    const createBtn = e.target.closest('#snapshot-create-btn');
+    if (createBtn) {
+      createBtn.disabled = true;
+      try {
+        await BackupClient.createSnapshot();
+        await refreshSnapshotList();
+        Render.showToast('Snapshot created.');
+      } catch (err) {
+        Render.showToast(`Could not create snapshot: ${err.message}`);
+      } finally {
+        createBtn.disabled = false;
+      }
+      return;
+    }
+
+    const downloadBtn = e.target.closest('#download-export-btn');
+    if (downloadBtn) {
+      try {
+        await BackupClient.downloadExport();
+      } catch (err) {
+        Render.showToast(`Could not download your data: ${err.message}`);
+      }
+      return;
+    }
+
+    const restoreBtn = e.target.closest('[data-restore-snapshot]');
+    if (restoreBtn) {
+      const file = restoreBtn.dataset.restoreSnapshot;
+      confirmDialog({
+        title: `Restore "${file}"?`,
+        body: 'Replaces your current library with this snapshot. Your current library is not deleted — it is kept in the automatic backups list.',
+        confirmLabel: 'Restore this snapshot',
+        onConfirm: async () => {
+          try {
+            await BackupClient.restoreSnapshot(file);
+            const data = await Api.getLibrary();
+            Store.setLibrary(data);
+            refreshView();
+            await refreshSnapshotList();
+            Render.showToast('Restored from snapshot.');
+          } catch (err) {
+            Render.showToast(`Restore failed: ${err.message}`);
+          }
+        },
+      });
+      return;
+    }
+
+    const resetBtn = e.target.closest('#reset-everything-btn');
+    if (resetBtn) {
+      confirmDialog({
+        title: 'Reset everything?',
+        body: 'Deletes every entry, note and score from your library. A verified snapshot of your current data is taken automatically first and can be restored from this same panel.',
+        confirmLabel: 'Reset everything',
+        requireTypedPhrase: 'RESET',
+        onConfirm: async () => {
+          try {
+            await BackupClient.resetEverything('RESET');
+            const data = await Api.getLibrary();
+            Store.setLibrary(data);
+            refreshView();
+            await refreshSnapshotList();
+            Render.showToast('Everything has been reset. A snapshot of your previous data was saved and can be restored from Settings.');
+          } catch (err) {
+            Render.showToast(`Reset failed: ${err.message}`);
+          }
+        },
+      });
+      return;
+    }
+
     const segBtn = e.target.closest('.seg button');
     if (!segBtn) return;
     const seg = segBtn.closest('.seg').dataset.seg;
@@ -1305,7 +1435,7 @@ function bindSettingsPanel() {
       Preferences.setOriginalTitlesMode(value);
       Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
     }
-    Render.renderSettingsPanel(body, Themes.getCurrentThemeId());
+    repaintSettings(Themes.getCurrentThemeId());
   });
 }
 

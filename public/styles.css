@@ -1909,6 +1909,21 @@ kbd {
 .dialog h4 { margin: 0 0 8px; font: var(--t-display-m); font-size: 18px; letter-spacing: var(--tr-display); }
 .dialog p { margin: 0 0 18px; font: var(--t-body); color: var(--dim); }
 .dialog-actions { justify-content: flex-end; }
+/* Type-to-confirm variant (currently only "Reset everything") — hidden by
+   default, shown by confirmDialog() when requireTypedPhrase is passed. */
+.confirm-type-row { margin: 0 0 18px; }
+.confirm-type-row label { display: block; font: var(--t-meta); color: var(--dim); margin-bottom: 6px; }
+.confirm-type-row input {
+  width: 100%;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font: var(--t-body);
+  color: var(--text);
+}
+.confirm-type-row input:focus { outline: none; border-color: var(--accent); }
 
 /* ---------- Settings panel ---------- */
 .set-row { display: grid; grid-template-columns: 170px 1fr; gap: 18px; align-items: start; padding: 14px 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }

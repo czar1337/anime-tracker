@@ -16,6 +16,13 @@ const FIXTURE = path.join(__dirname, '..', 'tests', 'fixtures', 'perf-library-20
 const BUDGET_MS = 200;
 const ITERATIONS = 7;
 
+// P1.1's Tuning-table budget: "Snapshot plus verify on the real library:
+// under 10s, and never blocking a user action silently." No browser needed —
+// this measures the server's own POST /api/snapshots (build, self-verify,
+// write, read back, re-verify) against the same 2,000-entry fixture.
+const SNAPSHOT_BUDGET_MS = 10000;
+const SNAPSHOT_ITERATIONS = 5;
+
 async function measureOnce() {
   const server = await startFixtureServer(FIXTURE);
   const browser = await chromium.launch();
@@ -37,6 +44,24 @@ function percentile(sorted, p) {
   return sorted[Math.min(rank, sorted.length) - 1];
 }
 
+// Times POST /api/snapshots alone, not server boot — the timer starts after
+// startFixtureServer() has already resolved (which itself waits past the
+// automatic pinned-snapshot bootstrap, so that one-time cost is never
+// counted here), isolating exactly the "take a snapshot" operation the
+// budget names.
+async function measureSnapshotOnce() {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    const start = Date.now();
+    const res = await fetch(`${server.url}/api/snapshots`, { method: 'POST' });
+    if (!res.ok) throw new Error(`POST /api/snapshots failed with status ${res.status}`);
+    await res.json();
+    return Date.now() - start;
+  } finally {
+    await server.stop();
+  }
+}
+
 async function main() {
   console.log(`Measuring "Library list render, 2,000 entries" over ${ITERATIONS} runs...`);
   const samples = [];
@@ -51,6 +76,21 @@ async function main() {
   console.log(`p95 first-paint time (2,000 entries): ${p95}ms`);
   console.log(`Budget (Tuning table): ${BUDGET_MS}ms`);
   console.log(p95 <= BUDGET_MS ? 'PASS — within budget.' : 'OVER BUDGET.');
+
+  console.log('');
+  console.log(`Measuring "Snapshot plus verify on the real library" over ${SNAPSHOT_ITERATIONS} runs (2,000 entries)...`);
+  const snapshotSamples = [];
+  for (let i = 0; i < SNAPSHOT_ITERATIONS; i += 1) {
+    const ms = await measureSnapshotOnce();
+    snapshotSamples.push(ms);
+    console.log(`  run ${i + 1}/${SNAPSHOT_ITERATIONS}: ${ms}ms`);
+  }
+  const snapshotSorted = [...snapshotSamples].sort((a, b) => a - b);
+  const snapshotP95 = percentile(snapshotSorted, 95);
+  console.log('');
+  console.log(`p95 snapshot-plus-verify time (2,000 entries): ${snapshotP95}ms`);
+  console.log(`Budget (Tuning table): ${SNAPSHOT_BUDGET_MS}ms`);
+  console.log(snapshotP95 <= SNAPSHOT_BUDGET_MS ? 'PASS — within budget.' : 'OVER BUDGET.');
 }
 
 main().catch((err) => {

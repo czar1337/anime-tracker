@@ -49,7 +49,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P0.2 Verify existing AniList integration | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.2 close out" | — |
 | P0.3 Discover feasibility gate | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.3 close out" + §"P0.3 close-out verification" | — |
 | P0.4 Plan, file index, verification harness | done | 2026-08-02 | this session, see "P0.4 close out" below | — |
-| P1.1 Backup, verify, restore, export | not started | — | — | — |
+| P1.1 Backup, verify, restore, export | done | 2026-08-02 | this session, see "P1.1 implementation session", "P1.1 review-fixes session" and "P1.1 close out (COMPLETE-B)" below | — |
 | P1.2 Storage classes and concurrency | not started | — | — | — |
 | P1.3 Settings schema and transactional migration | not started | — | — | — |
 | P1.4 Token layer, tuning config, inventory | not started | — | — | corpus target (3,000) already decided, see above |
@@ -235,3 +235,347 @@ on `v2/P0.4`, not amending prior commits, still not merged:
      uncommitted state, and `.claude/settings.local.json` does not appear.
 
 Not merged. Awaiting confirmation to merge `v2/P0.4` into `main`.
+
+## P1.1 implementation session (START-C, not a close-out)
+
+This is an implementation session (`docs/v2-prompts.md`'s START-C), not
+COMPLETE-B. The row above is marked `in progress`, not `done`, per the spec's
+own rule that a substep cannot certify itself complete while still being
+written. Full acceptance-criteria evidence (manual smoke test against the
+real library, the user-executed screen reader step, accessibility contrast
+check) is COMPLETE-B's job in a later session.
+
+**What landed this session**, in commit order (see `git log --grep "^v2(P1.1)"`
+for the authoritative list): the Class A store registry
+(`public/js/exportRegistry.js`), the pure Class C build/verify/prune/
+filename-validation module (`snapshots.js`, a root-level addition beyond
+`docs/v2-plan.md`'s original file list — see that file's updated P1.1 entry
+for why), `datadir.js`'s `resolveSnapshotsDir()`, `server.js`'s new
+`/api/export`, `/api/snapshots` (GET+POST), `/api/snapshots/restore` and
+`/api/reset` endpoints plus the automatic startup pinned-snapshot bootstrap,
+the frontend `backupClient.js` and the Settings panel's new "Data & safety"
+section (snapshot list with per-snapshot verified/invalid status, take-a-
+snapshot-now, download-my-data, reset-everything with type-to-confirm), and
+`scripts/build-exe.js`'s SEA-packaging update for the new module.
+
+**Deviations from the original plan, both incorporated after user review
+before implementation began** (see the approved plan in this session's
+transcript for the full reasoning):
+1. The pinned, never-rotated snapshot (rule 10) is created automatically at
+   server startup rather than waiting for a manual "take a snapshot" click —
+   verified end-to-end (`tests/e2e/pinned-snapshot-restart.spec.js`) to be
+   idempotent across a restart against the same data directory.
+2. Snapshot filenames are treated as untrusted input on the restore
+   endpoint: validated against an exact-shape regex and boundary-checked
+   against `snapshots/` before any filesystem access
+   (`tests/e2e/snapshot-restore-security.spec.js` covers traversal,
+   absolute-path and separator-containing rejection).
+3. `GET /api/snapshots` actually re-verifies every snapshot's checksums on
+   every call rather than trusting stored metadata; the Settings UI disables
+   the restore button for anything that comes back `verified: false`.
+4. An explicit tamper e2e test (hand-corrupt a snapshot on disk, confirm
+   restore is refused with a 409 and the live library is byte-for-byte
+   unchanged) sits alongside the happy-path round trip.
+5. `.gitignore` was checked, not assumed: `snapshots/` only ever lands inside
+   the repo during the legacy pre-migration `data/` folder case, which
+   `.gitignore` already excludes wholesale — no new entry was needed.
+6. This session records `in progress`, per the table row above.
+
+**Automated checks, this session** (not the full acceptance sweep —
+COMPLETE-B runs that formally):
+- `node tests/run-all.js`: **72 passed, 0 failed** (13 new: 3 for
+  `exportRegistry.js`'s `buildExport`, 10 for `snapshots.js`'s build/verify/
+  tamper-detection/prune/filename-validation logic, including a synthetic-
+  store injection test proving both are registry-driven rather than
+  hardcoding today's three known stores).
+- `npm run test:e2e`: **9 passed** (5 new specs: `backup-restore.spec.js`,
+  `snapshot-restore-security.spec.js`, `pinned-snapshot-restart.spec.js`,
+  `class-b-corruption.spec.js`, plus the pre-existing 3 harness tests and 1
+  smoke test unaffected).
+- `npm run perf`: two measurements now print. The pre-existing library-render
+  one is unchanged (**p95 994ms** over 7 runs, still over its 200ms budget —
+  expected, per P0.4's own note: virtualization is a later substep). The new
+  one, P1.1's own named budget ("Snapshot plus verify on the real library:
+  under 10s"): **p95 91ms** over 5 runs (89/88/88/91/86ms) against a
+  2,000-entry fixture — comfortably within budget.
+- Manual verification against the real app: booted `npm start` against the
+  real app-data directory via the Browser pane, confirmed the pinned snapshot
+  auto-created on boot, exercised "Take a snapshot now" and "Download my
+  data" for real (both succeeded, no console errors, `GET /api/export`
+  returned 200), and opened the "Reset everything" dialog to confirm the
+  type-to-confirm gating works (danger button starts disabled, enables only
+  once "RESET" is typed exactly) — **without ever confirming it**, since that
+  would have wiped the user's real library. Reset's actual wipe/snapshot/
+  restore path is covered instead by the e2e suite against disposable
+  fixtures.
+
+Not merged, not closed out. `v2(P1.1): close out` and the full six-criterion
+acceptance sweep are COMPLETE-B's job in a later session.
+
+## P1.1 review-fixes session (still not a close-out)
+
+An independent review session on the same branch found six blocking gaps
+between the previous session's implementation and the approved plan's data-
+safety guarantees. All six are fixed in this session, commit
+`v2(P1.1): harden snapshot manifest and pinned bootstrap`. The row above
+stays `in progress`; this is a hardening pass on P1.1's own deliverable, not
+COMPLETE-B's acceptance sweep.
+
+**Findings and fixes:**
+
+1. **Startup no longer serves on a healthy library with no verified pinned
+   anchor.** `ensurePinnedSnapshot()` (`server.js`) previously caught its own
+   creation/read-back failure, logged it, and returned — startup then called
+   `server.listen()` regardless. It now only swallows and returns quietly for
+   the two cases that were always meant to defer (library `corrupt` or
+   `tooNew` — there is nothing safe to anchor yet, and forcing one here would
+   block a corrupt-library user from ever reaching the restore UI, so that
+   recovery path is intentional and stays as-is). For a healthy library, it
+   now throws on a genuine creation/read-back failure, and the startup IIFE
+   at the bottom of `server.js` catches that, logs it, and calls
+   `process.exit(1)` **before** `server.listen()` runs. Regression test:
+   `tests/e2e/pinned-snapshot-bootstrap-failure.spec.js` ("a healthy library
+   whose initial pinned-snapshot creation fails never starts accepting
+   connections"), using a new test-only fault-injection env var
+   (`ANIME_TRACKER_TEST_CORRUPT_SNAPSHOT_AFTER_WRITE=pinned`) rather than an
+   OS-specific filesystem-permission trick, since Windows doesn't reliably
+   enforce directory write-protection through `fs.chmod`.
+2. **A corrupt/tampered pinned file no longer suppresses creation of a real
+   anchor.** `ensurePinnedSnapshot()`'s "already have one" check trusted a
+   stored `pinned: true` flag alone. It now additionally requires
+   `Snapshots.verifySnapshotStores(...)` to pass against the live registry.
+   The corrupt pre-existing file is left in place untouched (forensic
+   evidence), and a second, genuinely valid pinned snapshot is created
+   alongside it — so a library can legitimately end up with more than one
+   file flagged `pinned: true`, exactly one of which is `verified: true`.
+   Regression test: `pinned-snapshot-bootstrap-failure.spec.js` ("a corrupt
+   pre-existing pinned snapshot does not suppress creation of a valid one").
+3. **A snapshot that fails read-back verification is quarantined, not left
+   under its normal name.** `createSnapshotNow()` previously threw after
+   writing the file, leaving the bad file on disk under the exact filename
+   shape a real, restorable snapshot uses. It's now renamed to `<file>.invalid`
+   on any read-back failure (parse error or checksum mismatch, reported
+   uniformly) — `isValidSnapshotFilename()` requires an exact `.json` ending,
+   so the renamed file is invisible to listing, pruning, and the pinned-
+   bootstrap check, while the bytes stay on disk for forensics instead of
+   being deleted. Regression test:
+   `tests/e2e/snapshot-write-failure-cleanup.spec.js`, using the same
+   fault-injection env var scoped to `=rotating` so only an explicit "take a
+   snapshot now" call is affected, not the startup bootstrap.
+4. **`verifySnapshotStores()` now requires a registry and checks exact store
+   coverage plus a top-level manifest checksum**, not just each store that
+   happens to still be present. Previously, deleting a whole store key from
+   `snapshot.stores` passed verification outright (the loop only ever iterated
+   whatever keys existed), and nothing checksummed `schemaVersion`, `createdAt`,
+   or `pinned`. `buildSnapshotStores()` (`snapshots.js`) now also writes a
+   `manifestChecksum` — a hash over `{schemaVersion, createdAt, pinned, stores:
+   {id: checksum}}` — and `verifySnapshotStores(snapshot, registry)` recomputes
+   it and compares, plus separately diffs the registry's expected store ids
+   against the snapshot's actual ids (missing/extra/duplicate all reported)
+   and cross-checks each present store's `kind` against what the registry
+   declares. `GET /api/snapshots`, the restore endpoint, `createSnapshotNow()`'s
+   self-check and read-back check, and `ensurePinnedSnapshot()`'s
+   already-pinned check all now call this the same way, with the same live
+   `CLASS_A_STORES` registry. Regression tests, `tests/run-all.js`: whole
+   store removed, extra/unknown store, flipped `schemaVersion`, flipped
+   `pinned`, and a store's `kind` flipped while its own checksum stayed
+   internally consistent.
+5. **The restore path is now registry-driven with an explicit per-store
+   restore target, and fails closed for anything else.** Previously
+   `libraryFromSnapshot()` wrote every store in a snapshot into a same-named
+   top-level `library.json` field, unconditionally — a future Class A store
+   living in its own file (the event log, P1.5) would have been silently
+   written into `library.json` under the wrong shape. Each entry in
+   `public/js/exportRegistry.js`'s `CLASS_A_STORES` now declares a
+   `restoreTarget` (today, always `{ kind: 'libraryField', field: <id> }`,
+   since every current Class A store lives inside `library.json`). A new pure
+   function, `Snapshots.buildRestoredLibrary(registry, snapshot)`
+   (`snapshots.js`), walks the registry and asks each store where its data
+   goes; a store with no `restoreTarget`, or a `kind` this function doesn't
+   implement, throws instead of guessing — `server.js`'s restore endpoint
+   catches that and returns a 500 without touching `libraryState`, rather than
+   writing anything. Regression tests, `tests/run-all.js`:
+   `buildRestoredLibrary` walks a registry including a synthetic extra store
+   correctly, and fails closed both for an unsupported target kind and for a
+   store with no `restoreTarget` at all.
+6. **`libraryState` is corrected against actual disk contents if the restore
+   write itself fails, instead of staying at its earlier optimistic value.**
+   The restore endpoint has to mark `libraryState` healthy *before* writing
+   (to bypass `writeLibraryAtomic()`'s own corrupt guard — restoring *from* a
+   corrupt state is the normal case), but previously did nothing to correct
+   that if the write threw. A new `refreshLibraryStateFromDisk()` (`server.js`)
+   re-reads and re-classifies whatever is actually on disk (missing → corrupt;
+   unparseable → corrupt with the parse error; parses and too-new →
+   `tooNew`; otherwise healthy) — no migration is attempted, since that only
+   ever runs once, at startup. The restore endpoint now wraps the write in its
+   own try/catch and calls this on failure before responding, rather than
+   leaving the pre-write optimistic assignment in place uncorrected. Regression
+   test: `tests/e2e/restore-write-failure-state.spec.js`, using a new
+   `ANIME_TRACKER_TEST_FAIL_RESTORE_WRITE=1` fault-injection env var that
+   corrupts `library.json` on disk immediately before the (skipped) write, to
+   simulate a real partial write landing mid-restore, then confirms both the
+   restore response and a subsequent `GET /api/library` agree the library is
+   corrupt.
+
+All six fault-injection env vars follow the existing
+`ANIME_TRACKER_DATA_DIR`/`ANIME_TRACKER_PORT` pattern documented in this
+file's "Verification harness" section above: unset in normal use, so
+production behavior is unchanged; they exist because Windows does not
+reliably enforce directory/file write-protection through `fs.chmod`, so an
+OS-permission trick would not have been a portable way to simulate these
+failures deterministically.
+
+**Automated checks, this session:**
+- `node tests/run-all.js`: **80 passed, 0 failed** (8 new, all in
+  `snapshots.js`'s section: the finding-4 and finding-5 regression tests
+  listed above — 72 passed at the end of the previous session, +8 here).
+- `npm run test:e2e`: **13 passed** (4 new specs:
+  `pinned-snapshot-bootstrap-failure.spec.js` (2 tests),
+  `snapshot-write-failure-cleanup.spec.js`,
+  `restore-write-failure-state.spec.js`; the 9 pre-existing specs pass
+  unchanged). `tests/e2e/harness.js` gained an optional `opts.env` on
+  `startFixtureServer()` and a new `startProcessExpectingExit()` helper (races
+  a spawned server's own `exit` event against a bounded timeout, for the
+  finding-1 test where the server is expected to never listen at all).
+- `npm run perf`: both measurements printed. Library-render is unchanged
+  (**p95 1015ms** over 7 runs, still over its 200ms budget — pre-existing,
+  unrelated to this session, see P0.4's own note on virtualization). Snapshot
+  plus verify — now doing registry-coverage checks and a manifest checksum on
+  top of the previous session's per-record checksums — is still comfortably
+  within its 10s budget: **p95 92ms** over 5 runs (92/85/89/88/88ms) against
+  the same 2,000-entry fixture.
+- Full `main...HEAD` diff reviewed for data-safety regressions: no unrelated
+  behavior changed; every changed call site in `server.js` that previously
+  called `Snapshots.verifySnapshotStores(snapshot)` now passes the live
+  `CLASS_A_STORES` registry, `libraryFromSnapshot()` was removed (fully
+  replaced by `Snapshots.buildRestoredLibrary()`, confirmed no remaining
+  references), and the pre-existing round trip, traversal-rejection,
+  tamper-rejection, restart-idempotency, Class B corruption, rotation, SEA
+  build, and real-data-safety behavior from the previous session's evidence
+  are all still covered by their original tests, run unmodified except for
+  the added `registry` argument to `verifySnapshotStores()` calls inside
+  `tests/run-all.js`.
+
+Not merged, not closed out. `v2(P1.1): close out` and the full six-criterion
+acceptance sweep, including the manual smoke test against the real library
+and the user-executed screen reader step, remain COMPLETE-B's job.
+
+## P1.1 close out (COMPLETE-B)
+
+This session ran the full six-criterion acceptance sweep against the state
+left by the implementation and review-fixes sessions above (no code changed
+in this session before this evidence-only commit). All six pass.
+
+**1. Automated checks.**
+- `node tests/run-all.js`: **80 passed, 0 failed** (unchanged from the
+  review-fixes session — no code changed this session).
+- `npm run test:e2e`: **13 passed** — `backup-restore.spec.js` (boot creates
+  pinned snapshot; export/snapshot/wipe/restore byte-identical round trip),
+  `snapshot-restore-security.spec.js` (traversal/absolute/separator
+  rejection; tampered-snapshot rejection with live library unchanged),
+  `pinned-snapshot-restart.spec.js`, `pinned-snapshot-bootstrap-failure.spec.js`
+  (2 tests), `snapshot-write-failure-cleanup.spec.js`,
+  `restore-write-failure-state.spec.js`, `class-b-corruption.spec.js`, plus
+  the 3 pre-existing harness tests and 1 smoke test.
+- No lint, typecheck or build command exists in this project (unchanged
+  finding from P0.1 onward), stated explicitly.
+
+**2. Data safety.** The export/snapshot/wipe/restore byte-identical round
+trip, the coverage test, the tamper-rejection and traversal-rejection tests,
+and Class A survival under Class B corruption are all covered by the
+automated suite above (all green). P1.1 does not migrate `library.json`'s
+schema and does not introduce a new Class A store type (rule 3a's
+"introduced or extended" — P1.1 is the substep that builds the Class A/C
+backup infrastructure around the store that already existed; the next
+substep that actually adds a new Class A store, per the standing list in
+this file's intro, is P1.3), so no additional store-specific round trip
+beyond the one above is required.
+
+Additionally, an unplanned but real confirmation against production data
+this session: your actual `snapshots/` folder (real `AppData\Roaming\`
+data dir) held two snapshots from an earlier manual-testing session,
+written before the review-fixes session added `manifestChecksum`. On this
+session's server boot, the hardened verifier correctly flagged both
+`verified: false` via `GET /api/snapshots` (reason: "Top-level manifest
+checksum mismatch"), the Settings UI correctly disabled their restore
+buttons, and a fresh, genuinely valid pinned snapshot was created alongside
+them without touching either old file or `library.json` — the finding-2/
+finding-4 hardening-pass behavior, now proven against real data instead of
+only fixtures. `GET /api/library` confirmed `schemaVersion: 4` and 222
+entries throughout, unchanged before and after every action taken this
+session.
+
+**3. Manual smoke test**, production build (`npm start`), real library
+(your actual `AppData\Roaming\anime-tracker` data dir, 12 watching / 210
+watched / 222 total entries, matching the app's own counts):
+1. Booted the server against the real data dir; confirmed the app rendered
+   the real library (not a fixture).
+2. Opened Settings → Data & safety: the snapshot list rendered all 3 real
+   snapshots on disk, with correct Pinned/Invalid badges, and the restore
+   button correctly disabled on both unverified entries (see criterion 2).
+3. Clicked "Take a snapshot now": a new, verified snapshot appeared in the
+   list immediately, no console errors.
+4. Clicked "Download my data": `GET /api/export` returned 200, no console
+   errors.
+5. Opened "Reset everything": confirmed the danger button starts disabled;
+   confirmed via source (`public/js/events.js`'s `confirmDialog()`,
+   `dangerBtn.disabled = typeInput.value !== requireTypedPhrase`) that it
+   only enables on an exact `"RESET"` match. **Never typed the phrase or
+   confirmed it** — closed via "Keep it" instead, per the instruction not to
+   reset the real library. The live library was confirmed byte-for-byte
+   unchanged (schemaVersion 4, 222 entries) after this entire smoke test.
+
+**4. Performance.** This substep's named budget, "Snapshot plus verify on
+the real library: under 10s": **p95 93ms** over 5 runs (90/93/86/86/88ms)
+against the 2,000-entry fixture — comfortably within budget. The
+library-render budget (200ms, p95 measured at 992ms) belongs to P4.1/P4.3/
+P4.4, not this substep, and is unaffected by anything in P1.1 — stated for
+completeness, not counted against this close-out.
+
+**5. Accessibility.**
+- Keyboard path verified with real Tab/Shift+Tab key presses against the
+  live production build: focus reaches every control in the Data & safety
+  section in logical order (list → Take a snapshot now → Download my data
+  → Reset everything → panel close), and the two disabled (unverified)
+  snapshot restore buttons are correctly excluded from tab order entirely
+  — confirmed by landing on the enabled, newest snapshot's restore button
+  immediately after skipping both invalid ones.
+- Focus visibility: every focused control showed a clear 2px solid outline
+  with a 2px offset, measured via computed style, colour matching the
+  control's own accent (e.g. the danger-red outline on "Reset everything").
+- Contrast, measured against your actual active theme via computed
+  luminance from real rendered colours (not defaults): "Take a snapshot
+  now"/"Download my data" 17.36:1, "Reset everything" 6.42:1, "Invalid"
+  badge 7.84:1, "Pinned" badge 5.06:1 — all comfortably clear of WCAG AA's
+  4.5:1 floor for small text. Minor, non-blocking note: the Pinned/Invalid
+  badges render at 9.5px, smaller than the rest of the panel — an existing
+  badge-component convention shared with other parts of the app (e.g.
+  genre-filter pills), not something newly introduced by this substep.
+- **Screen reader step, user-executed.** Steps given: turn on Narrator or
+  NVDA; open the production build; Tab to "Choose a color theme" and open
+  Settings; Tab down to the Data & safety section; listen for the section's
+  heading/description, each snapshot row's time/status/filename, and
+  whether the two invalid entries announce as unavailable; Tab to "Reset
+  everything," activate it without typing "RESET" or confirming, and listen
+  for the dialog title, warning body, the "Type RESET to confirm" input
+  label, and the confirm button's disabled state; close via "Keep it" or
+  Escape. **User's reported result: "allt såg bra ut" ("everything looked
+  good") — pass, no issues reported against any step of the checklist.**
+
+**6. Rollback.** Revert, in reverse order: `6a7e663` (harden snapshot
+manifest and pinned bootstrap), `13a9df3` (tests, snapshot perf
+measurement, progress notes), `8dff61c` (backup client and Settings "Data &
+safety" panel), `000d7d0` (server endpoints, automatic pinned snapshot, SEA
+build support), `5500610` (Class A store registry, Class C snapshot module,
+datadir helper). P1.1 never migrated `library.json`'s schema (still v4
+throughout) and only added Class C snapshot files plus new endpoints, so a
+code revert is sufficient per the spec's own rule for code-only substeps.
+Forward compatibility holds in both directions: reverted (pre-hardening)
+code tolerates snapshot files carrying the newer `manifestChecksum` field
+it doesn't know about (unknown-field tolerance), and any snapshot files
+left on disk after a revert are inert, orphaned Class C data that no
+reverted code path depends on.
+
+**Status: P1.1 done.** All six acceptance criteria satisfied, including the
+user-executed screen reader step. Merged into `main` in this session's
+close-out commit; `v2/P1.1` retained, not deleted.

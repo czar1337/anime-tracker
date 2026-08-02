@@ -649,6 +649,253 @@ async function run() {
   });
 
   // -------------------------------------------------------------------------
+  // exportRegistry.js (public/js) — pure, zero Node dependencies, loaded via
+  // dynamic import() the same way server.js and the browser both load it.
+  // -------------------------------------------------------------------------
+  console.log('exportRegistry.js');
+  const exportRegistryUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'exportRegistry.js').replace(/\\/g, '/');
+  const { CLASS_A_STORES, buildExport } = await import(exportRegistryUrl);
+
+  await test("buildExport covers every registered store, including today's three", () => {
+    const library = {
+      schemaVersion: 4,
+      entries: [{ anilistId: 1 }],
+      preferences: { activeTab: 'watching' },
+      dismissedItems: [{ anilistId: 2 }],
+    };
+    const result = buildExport(CLASS_A_STORES, { library });
+    assert.deepEqual(Object.keys(result.stores).sort(), ['dismissedItems', 'entries', 'preferences']);
+    assert.deepEqual(result.stores.entries, library.entries);
+    assert.deepEqual(result.stores.preferences, library.preferences);
+    assert.deepEqual(result.stores.dismissedItems, library.dismissedItems);
+  });
+
+  await test('buildExport is registry-driven: a synthetic 4th store flows through with no code change', () => {
+    // The real coverage guard (docs/v2-spec.md rule 3a's "mechanical
+    // backstop"): proves buildExport() never hardcodes a store id, by
+    // injecting one it has never seen before into a *copy* of the registry,
+    // rather than re-checking today's three known stores.
+    const syntheticRegistry = [...CLASS_A_STORES, { id: 'syntheticStore', kind: 'blob', get: () => ({ hello: 'world' }) }];
+    const result = buildExport(syntheticRegistry, { library: { schemaVersion: 4, entries: [], preferences: {}, dismissedItems: [] } });
+    assert.deepEqual(result.stores.syntheticStore, { hello: 'world' });
+  });
+
+  await test('buildExport defaults missing library fields to empty rather than throwing', () => {
+    const result = buildExport(CLASS_A_STORES, { library: {} });
+    assert.deepEqual(result.stores.entries, []);
+    assert.deepEqual(result.stores.preferences, {});
+    assert.deepEqual(result.stores.dismissedItems, []);
+  });
+
+  // -------------------------------------------------------------------------
+  // snapshots.js — pure Class C build/verify/prune/filename-validation logic,
+  // no filesystem access, so these never touch a temp directory.
+  // -------------------------------------------------------------------------
+  console.log('snapshots.js');
+  const Snapshots = require('../snapshots.js');
+
+  const sampleRegistry = [
+    { id: 'entries', kind: 'records', recordId: 'anilistId', get: (s) => s.library.entries },
+    { id: 'preferences', kind: 'blob', get: (s) => s.library.preferences },
+  ];
+  const sampleSources = {
+    library: {
+      schemaVersion: 4,
+      entries: [
+        { anilistId: 1, myScore: 8 },
+        { anilistId: 2, myScore: 9 },
+      ],
+      preferences: { activeTab: 'watching' },
+    },
+  };
+
+  await test('buildSnapshotStores -> verifySnapshotStores round-trips clean', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    assert.equal(snapshot.pinned, false);
+    assert.equal(snapshot.stores.entries.rowCount, 2);
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, true, errors.join('; '));
+  });
+
+  await test('verifySnapshotStores is registry-driven: a synthetic 4th store still round-trips', () => {
+    const syntheticRegistry = [...sampleRegistry, { id: 'tags', kind: 'records', recordId: 'id', get: () => [{ id: 'a' }, { id: 'b' }] }];
+    const snapshot = Snapshots.buildSnapshotStores(syntheticRegistry, sampleSources, { pinned: false });
+    const { valid } = Snapshots.verifySnapshotStores(snapshot, syntheticRegistry);
+    assert.equal(valid, true);
+    assert.equal(snapshot.stores.tags.rowCount, 2);
+  });
+
+  await test('tampering with a record after building makes verification fail', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    snapshot.stores.entries.records[0].myScore = 999; // mutated without recomputing the checksum
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('entries')));
+  });
+
+  await test('tampering with a stored checksum directly (not the data) also fails verification', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    snapshot.stores.preferences.checksum = 'not-a-real-checksum';
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('preferences')));
+  });
+
+  await test('verifySnapshotStores rejects a non-snapshot object rather than throwing', () => {
+    const { valid, errors } = Snapshots.verifySnapshotStores({ not: 'a snapshot' }, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.length > 0);
+  });
+
+  // ---- Review findings regression coverage --------------------------------
+
+  await test('verifySnapshotStores rejects a snapshot with a whole registered store removed', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    delete snapshot.stores.preferences; // simulates a store dropped entirely, not just tampered
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('Missing registered store') && e.includes('preferences')));
+  });
+
+  await test('verifySnapshotStores rejects a snapshot with an extra store not in the registry', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    snapshot.stores.somethingElse = { kind: 'blob', blob: { x: 1 }, checksum: 'whatever' };
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('Unknown/unexpected store') && e.includes('somethingElse')));
+  });
+
+  await test('verifySnapshotStores rejects a flipped schemaVersion via the manifest checksum', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    snapshot.schemaVersion = 999; // per-store checksums are all still individually correct
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('manifest checksum')));
+  });
+
+  await test('verifySnapshotStores rejects a flipped pinned flag via the manifest checksum', () => {
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    snapshot.pinned = true; // per-store checksums are all still individually correct
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('manifest checksum')));
+  });
+
+  await test('verifySnapshotStores rejects a store whose kind was flipped from what the registry declares', () => {
+    const crypto = require('node:crypto');
+    const { canonicalJSON } = require('../datadir.js');
+    const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
+    // Flip a 'records' store to a self-consistent 'blob' shape (correct own
+    // checksum) and update the manifest to match, so only the registry-kind
+    // cross-check — not a checksum or manifest mismatch — can catch this.
+    const originalRecords = snapshot.stores.entries.records;
+    const blobChecksum = crypto.createHash('sha256').update(canonicalJSON(originalRecords)).digest('hex');
+    snapshot.stores.entries = { kind: 'blob', blob: originalRecords, checksum: blobChecksum };
+    snapshot.manifestChecksum = crypto
+      .createHash('sha256')
+      .update(
+        canonicalJSON({
+          schemaVersion: snapshot.schemaVersion,
+          createdAt: snapshot.createdAt,
+          pinned: snapshot.pinned,
+          stores: { entries: blobChecksum, preferences: snapshot.stores.preferences.checksum },
+        })
+      )
+      .digest('hex');
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.some((e) => e.includes('kind mismatch')));
+  });
+
+  await test('buildRestoredLibrary walks the registry generically, including a synthetic store', () => {
+    const syntheticRegistry = [
+      ...sampleRegistry.map((s) => ({ ...s, restoreTarget: { kind: 'libraryField', field: s.id } })),
+      {
+        id: 'tags',
+        kind: 'records',
+        recordId: 'id',
+        get: () => [{ id: 'a' }],
+        restoreTarget: { kind: 'libraryField', field: 'tags' },
+      },
+    ];
+    const snapshot = Snapshots.buildSnapshotStores(syntheticRegistry, sampleSources, { pinned: false });
+    const library = Snapshots.buildRestoredLibrary(syntheticRegistry, snapshot);
+    assert.deepEqual(library.entries, sampleSources.library.entries);
+    assert.deepEqual(library.preferences, sampleSources.library.preferences);
+    assert.deepEqual(library.tags, [{ id: 'a' }]);
+  });
+
+  await test('buildRestoredLibrary fails closed for a store with no supported restore target', () => {
+    const registryWithBadTarget = [
+      { id: 'entries', kind: 'records', recordId: 'anilistId', get: (s) => s.library.entries, restoreTarget: { kind: 'somewhereElse' } },
+    ];
+    const snapshot = Snapshots.buildSnapshotStores(registryWithBadTarget, sampleSources, { pinned: false });
+    assert.throws(() => Snapshots.buildRestoredLibrary(registryWithBadTarget, snapshot), /no supported restore target/);
+  });
+
+  await test('buildRestoredLibrary fails closed for a store missing a restoreTarget entirely', () => {
+    const registryWithNoTarget = [{ id: 'entries', kind: 'records', recordId: 'anilistId', get: (s) => s.library.entries }];
+    const snapshot = Snapshots.buildSnapshotStores(registryWithNoTarget, sampleSources, { pinned: false });
+    assert.throws(() => Snapshots.buildRestoredLibrary(registryWithNoTarget, snapshot), /no supported restore target/);
+  });
+
+  await test('selectSnapshotsToPrune always keeps the pinned snapshot', () => {
+    const metadata = [
+      { file: 'pinned.json', createdAt: '2020-01-01T00:00:00.000Z', pinned: true },
+      { file: 'a.json', createdAt: '2026-01-04T00:00:00.000Z', pinned: false },
+      { file: 'b.json', createdAt: '2026-01-03T00:00:00.000Z', pinned: false },
+      { file: 'c.json', createdAt: '2026-01-02T00:00:00.000Z', pinned: false },
+      { file: 'd.json', createdAt: '2026-01-01T00:00:00.000Z', pinned: false },
+    ];
+    const toPrune = Snapshots.selectSnapshotsToPrune(metadata);
+    assert.deepEqual(toPrune.map((m) => m.file), ['d.json']);
+    assert.ok(!toPrune.some((m) => m.pinned), 'must never select the pinned snapshot for deletion');
+  });
+
+  await test('selectSnapshotsToPrune keeps exactly the newest 3 non-pinned when there are more', () => {
+    const metadata = Array.from({ length: 6 }, (_, i) => ({
+      file: `s${i}.json`,
+      createdAt: `2026-01-0${i + 1}T00:00:00.000Z`,
+      pinned: false,
+    }));
+    const toPrune = Snapshots.selectSnapshotsToPrune(metadata);
+    assert.equal(toPrune.length, 3);
+    assert.deepEqual(toPrune.map((m) => m.file).sort(), ['s0.json', 's1.json', 's2.json']);
+  });
+
+  await test('selectSnapshotsToPrune prunes nothing when at or under the keep count', () => {
+    const metadata = [
+      { file: 'pinned.json', createdAt: '2020-01-01T00:00:00.000Z', pinned: true },
+      { file: 'a.json', createdAt: '2026-01-02T00:00:00.000Z', pinned: false },
+      { file: 'b.json', createdAt: '2026-01-01T00:00:00.000Z', pinned: false },
+    ];
+    assert.deepEqual(Snapshots.selectSnapshotsToPrune(metadata), []);
+  });
+
+  await test('isValidSnapshotFilename accepts only the exact generated shape', () => {
+    assert.equal(Snapshots.isValidSnapshotFilename('snapshot-20260802-164757.json'), true);
+    assert.equal(Snapshots.isValidSnapshotFilename('snapshot-20260802-164757-1.json'), true);
+  });
+
+  await test('isValidSnapshotFilename rejects path traversal, separators, absolute paths and wrong shapes', () => {
+    const malicious = [
+      '../../../etc/passwd',
+      '..\\..\\windows\\system32\\config',
+      '/etc/passwd',
+      'C:\\Windows\\system32\\evil.json',
+      'snapshot-20260802-164757.json/../../evil.json',
+      'library-20260802-164757.json', // right shape, wrong prefix (that's the legacy backups/ naming)
+      '',
+      null,
+      undefined,
+      42,
+    ];
+    for (const name of malicious) {
+      assert.equal(Snapshots.isValidSnapshotFilename(name), false, `should reject: ${JSON.stringify(name)}`);
+    }
+  });
+
+  // -------------------------------------------------------------------------
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
