@@ -36,6 +36,12 @@ const PORT = Number(process.env.ANIME_TRACKER_PORT) || 4321;
 const IS_SEA = sea.isSea();
 const APP_ROOT = IS_SEA ? path.dirname(process.execPath) : __dirname;
 const PUBLIC_DIR = path.join(__dirname, 'public'); // only meaningful outside SEA mode
+// P1.4: a second, narrower static root alongside PUBLIC_DIR, for
+// config/tuning.js — the one browser-loaded module the plan deliberately
+// placed outside public/js/ (docs/v2-plan.md's P1.4 file list). Also only
+// meaningful outside SEA mode; see serveAppAsset() below for the SEA-mode
+// embedded-asset equivalent.
+const CONFIG_DIR = path.join(__dirname, 'config');
 
 // User data lives in the OS's standard per-app data directory (not next to
 // the app itself), so it survives the app folder/exe being deleted and
@@ -881,14 +887,26 @@ function serveStatic(req, res, rootDir, urlPath, extraHeaders = {}) {
 // while everything still *looks* like it booted fine.
 const NO_CACHE_HEADERS = { 'Cache-Control': 'no-store' };
 
+// P1.4: config/tuning.js is the one browser-loaded module that lives
+// outside public/ (docs/v2-plan.md's file list puts it at the repo's
+// top-level config/, not public/js/, since it's meant as the single shared
+// tuning source rather than a frontend-only module). Requests under
+// /config/ resolve against CONFIG_DIR (dev) / a config/... asset key (SEA)
+// instead of PUBLIC_DIR/public/... — same boundary check, same MIME lookup,
+// same no-cache headers either way, just a second, equally-bounded root.
 function serveAppAsset(req, res, urlPath) {
+  const isConfigAsset = urlPath === '/config' || urlPath.startsWith('/config/');
+  const rootDir = isConfigAsset ? CONFIG_DIR : PUBLIC_DIR;
+  const assetPrefix = isConfigAsset ? 'config' : 'public';
+  const relativePath = isConfigAsset ? urlPath.slice('/config'.length) || '/' : urlPath;
+
   if (!IS_SEA) {
-    serveStatic(req, res, PUBLIC_DIR, urlPath, NO_CACHE_HEADERS);
+    serveStatic(req, res, rootDir, relativePath, NO_CACHE_HEADERS);
     return;
   }
-  const decoded = decodeURIComponent(urlPath);
+  const decoded = decodeURIComponent(relativePath);
   const safeSuffix = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '').replace(/\\/g, '/').replace(/^\/+/, '');
-  const key = `public/${safeSuffix}`;
+  const key = `${assetPrefix}/${safeSuffix}`;
   let buf;
   try {
     buf = sea.getRawAsset(key);
