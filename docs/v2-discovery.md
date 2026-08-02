@@ -963,9 +963,9 @@ own instruction not to render a verdict.
 to P0.3")
 
 1. **Automated checks.** `node tests/run-all.js` run verbatim on this
-   branch, no production code changed: result recorded in the close-out
-   commit below. No lint, typecheck, or build script exists in this project
-   (unchanged from P0.1's finding).
+   branch, no production code changed: **59 passed, 0 failed**, restated and
+   confirmed in the close-out section below. No lint, typecheck, or build
+   script exists in this project (unchanged from P0.1's finding).
 2. **Not applicable.** Nothing was persisted; no production code or user
    data was written to. The live AniList probe queries were read-only GET/POST
    requests against AniList's public API, not against any user data.
