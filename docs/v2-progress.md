@@ -51,7 +51,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P0.4 Plan, file index, verification harness | done | 2026-08-02 | this session, see "P0.4 close out" below | — |
 | P1.1 Backup, verify, restore, export | done | 2026-08-02 | this session, see "P1.1 implementation session", "P1.1 review-fixes session" and "P1.1 close out (COMPLETE-B)" below | — |
 | P1.2 Storage classes and concurrency | done | 2026-08-02 | this session, see "P1.2 implementation session", "P1.2 independent review session" and "P1.2 close out" below | — |
-| P1.3 Settings schema and transactional migration | in progress | 2026-08-02 | this session, see "P1.3 implementation session" below | all six acceptance criteria have full evidence this same session (no user-blocking step — no new UI surface shipped); awaiting user review, close-out commit and merge into `main` |
+| P1.3 Settings schema and transactional migration | done | 2026-08-02 | this session, see "P1.3 implementation session" and "P1.3 close out" below | — |
 | P1.4 Token layer, tuning config, inventory | not started | — | — | corpus target (3,000) already decided, see above |
 | P1.5 Event log v1 | not started | — | — | — |
 | P1.6 Copy registry, new v2 surfaces only | not started | — | — | — |
@@ -1301,3 +1301,13 @@ full evidence in this same session — unlike P1.1/P1.2, this substep shipped
 no new user-facing UI, so there is no user-blocking screen-reader step to
 wait on. Not yet merged into `main`; awaiting user review before a
 `v2(P1.3): close out` commit and merge, per the spec's own pattern.
+
+## P1.3 close out
+
+No code changed in this session before this evidence-only commit. The user
+reviewed the implementation session's evidence above and confirmed to
+proceed with close-out and merge.
+
+**Status: P1.3 done.** All six acceptance criteria satisfied. Merged into
+`main` in this session's close-out (see the merge commit immediately
+following); `v2/P1.3` retained, not deleted, per the spec's branching rule.
