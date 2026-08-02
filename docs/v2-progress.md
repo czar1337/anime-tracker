@@ -50,7 +50,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P0.3 Discover feasibility gate | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.3 close out" + §"P0.3 close-out verification" | — |
 | P0.4 Plan, file index, verification harness | done | 2026-08-02 | this session, see "P0.4 close out" below | — |
 | P1.1 Backup, verify, restore, export | done | 2026-08-02 | this session, see "P1.1 implementation session", "P1.1 review-fixes session" and "P1.1 close out (COMPLETE-B)" below | — |
-| P1.2 Storage classes and concurrency | in progress | 2026-08-02 | this session, see "P1.2 implementation session" and "P1.2 independent review session" below | user-executed screen reader step for the conflict toast (steps written below, awaiting the user's result) |
+| P1.2 Storage classes and concurrency | done | 2026-08-02 | this session, see "P1.2 implementation session", "P1.2 independent review session" and "P1.2 close out" below | — |
 | P1.3 Settings schema and transactional migration | not started | — | — | — |
 | P1.4 Token layer, tuning config, inventory | not started | — | — | corpus target (3,000) already decided, see above |
 | P1.5 Event log v1 | not started | — | — | — |
@@ -795,16 +795,16 @@ above).
 - Contrast: the toast reuses the existing `.toast`/toast-button styling
   already shipped and covered by P1.1's contrast check; no new colors were
   introduced.
-- **Screen reader step, user-executed — outstanding.** Steps for the user
-  to run: open the production build with two tabs pointed at the same
-  library; in one tab, change a score and let it save; in the second tab
-  (which loaded before that save), change a different score on a different
-  entry; turn on Narrator or NVDA; listen for the second tab's save
-  indicator and the toast that appears — confirm it announces the conflict
-  message and a "Reload" button, that Tab reaches the Reload button and its
-  role/label are announced correctly, and that activating it (Enter) is
-  announced as taking action. **Awaiting the user's reported result before
-  this substep can be marked `done`.**
+- **Screen reader step, user-executed.** Steps given: open the production
+  build with two tabs pointed at the same library; in one tab, change a
+  score and let it save; in the second tab (which loaded before that save),
+  change a different score on a different entry; turn on Narrator or NVDA;
+  listen for the second tab's save indicator and the toast that appears —
+  confirm it announces the conflict message and a "Reload" button, that Tab
+  reaches the Reload button and its role/label are announced correctly, and
+  that activating it (Enter) is announced as taking action. **User's
+  reported result: "allt godkännt" ("everything passed") — pass, no issues
+  reported against any step of the checklist.**
 
 **6. Rollback.** Revert the `v2(P1.2)` commit range. No schema migrated
 (`library.json`'s `schemaVersion` is untouched by this substep), so a code
@@ -1003,3 +1003,24 @@ correctness, data-safety, or packaging issues in the areas it examined. The
 accessibility criterion's user-executed screen reader step remains the only
 outstanding item before `v2(P1.2): close out` — still pending the user's
 response, unaffected by this session. Not merged into `main`.
+
+## P1.2 close out
+
+No code changed in this session before this evidence-only commit — the
+user ran the outstanding accessibility step and reported the result.
+
+**Accessibility criterion, completed.** The screen reader step above was
+executed by the user against a two-tab conflict on a live boot: a score
+change in tab 1 saved normally; a different score change in tab 2 (loaded
+before tab 1's save, so holding a now-stale etag) triggered the real
+conflict path. **User's reported result: "allt godkännt" ("everything
+passed")** — the conflict message and "Reload" button announced correctly,
+Tab reached the button, and activating it (Enter) was announced as taking
+action. No issues reported against any step. This was the only outstanding
+item from both the implementation session and the independent review
+session above; all six acceptance criteria now have full evidence.
+
+**Status: P1.2 done.** All six acceptance criteria satisfied, including the
+user-executed screen reader step. Merged into `main` in this session's
+close-out (see the merge commit immediately following); `v2/P1.2` retained,
+not deleted, per the spec's branching rule.
