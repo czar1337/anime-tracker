@@ -1378,3 +1378,56 @@ to the backlog rather than resolved here: the untested hidden-gem-tail
 coverage question, and the ToS "mass collection" question, both explicitly
 user-decision-required per the spec's own instruction not to render a
 verdict on either.
+
+## P0.3 close-out verification (separate session)
+
+Reconciled before writing anything: `git log --all --oneline --grep "^v2("`
+showed `dd0e59a v2(P0.3): discover feasibility gate` as the newest commit,
+still on top of the same P0.1/P0.2 history; no separate `v2(P0.3): close
+out` commit existed yet. `git status --porcelain` was clean on `v2/P0.3` at
+session start. This session changed no production code, consistent with
+every P0 substep.
+
+Re-verified, fresh this session, rather than assumed from the prior
+session's write-up:
+
+- `node tests/run-all.js` re-run verbatim: **59 passed, 0 failed**, same
+  result as when first recorded above.
+- All three P0.3 fixtures confirmed present and unchanged on disk:
+  `CORPUS_QUERY_page1.json` (420,573 bytes), `P0.3-measurement-report.json`
+  (5,675 bytes), `P0.3-ratelimit-burst-log.json` (4,511 bytes).
+
+**Acceptance criteria, restated explicitly per the reduced P0.1-P0.3 set,
+nothing skipped:**
+
+1. **Automated checks — a command applies.** `node tests/run-all.js`,
+   re-run verbatim this session: **59 passed, 0 failed.** No lint,
+   typecheck, or build command exists in this project, stated explicitly
+   rather than skipped.
+2. **Not applicable.** Nothing was persisted this session or the one that
+   produced the findings above — no production code and no user data
+   (`library.json` or otherwise) was written to at any point.
+3. **Restated as: what you can check in the written findings.** Open
+   `docs/v2-discovery-fixtures/anilist/P0.3-measurement-report.json` and
+   confirm the rate-limit exhaustion sequence, the coverage percentages,
+   and the projected corpus sizes; open `CORPUS_QUERY_page1.json` and
+   confirm it is a real, unedited 50-title AniList response; open
+   `P0.3-ratelimit-burst-log.json` and confirm the 429 with a real
+   `Retry-After` on request 31.
+4. **Not applicable, unless this substep is P0.3 — and it is, so it
+   applies.** This substep measured the corpus budgets: API calls per
+   1,000/3,000/5,000 titles, payload size per title, extrapolated
+   wall-clock seed time, the observed rate limit, and projected disk size,
+   all recorded with method above.
+5. **Not applicable.** No UI was touched, this session or the findings
+   session.
+6. **Rollback: revert the docs commit.** Revert `dd0e59a` (`v2(P0.3):
+   discover feasibility gate`) and this close-out commit
+   (`v2(P0.3): close out`). Both are docs-and-fixtures only — no data or
+   production code is at risk, and no forward-compatibility concern exists
+   since nothing downstream has been built on P0.3 yet.
+
+**Nothing is incomplete.** All findings, the recommendation, and every
+acceptance criterion (both the initial write-up above and this session's
+independent re-verification) are recorded. **P0.3 is finished**, pending
+the user's confirmation to merge `v2/P0.3` into `main`.
