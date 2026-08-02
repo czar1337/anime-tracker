@@ -924,8 +924,14 @@ function bindBackupOverlay() {
       const text = await file.text();
       const data = JSON.parse(text);
       if (!Array.isArray(data.entries)) throw new Error('File does not look like a library backup.');
-      const result = await Api.saveLibrary(data, Store.getEtag());
-      Store.setLibrary(data, result.etag);
+      await Api.saveLibrary(data, Store.getEtag());
+      // Re-fetch rather than trust the pre-upload local copy: the server may
+      // have just migrated it (an old exported file can carry an old
+      // schemaVersion — server.js's migrateIncomingLibrary, P1.3), so what
+      // actually landed on disk can differ from what this file contained.
+      const { data: saved, etag } = await Api.getLibrary();
+      Store.setLibrary(saved, etag);
+      Preferences.syncFromLibrary(saved.preferences);
       Render.renderAll(activeList);
       Render.showToast('Backup imported successfully.');
       closeAllOverlays();
@@ -951,6 +957,7 @@ function bindBackupOverlay() {
           // reflects a confirmed re-read of what's actually on disk now.
           const { data, etag } = await Api.getLibrary();
           Store.setLibrary(data, etag);
+          Preferences.syncFromLibrary(data.preferences);
           refreshView();
           Render.showToast('Restored from backup.');
         } catch (err) {
@@ -1349,6 +1356,10 @@ function bindSettingsPanel() {
     const swatch = e.target.closest('.themegrid button');
     if (swatch) {
       Themes.setColorTheme(swatch.dataset.themeId);
+      // P1.3: colorTheme is Class A too now — same reasoning as the
+      // segmented-control settings below.
+      Store.setPreference(['colorTheme'], swatch.dataset.themeId);
+      persist();
       repaintSettings(swatch.dataset.themeId);
       return;
     }
@@ -1390,6 +1401,7 @@ function bindSettingsPanel() {
             await BackupClient.restoreSnapshot(file);
             const { data, etag } = await Api.getLibrary();
             Store.setLibrary(data, etag);
+            Preferences.syncFromLibrary(data.preferences);
             refreshView();
             await refreshSnapshotList();
             Render.showToast('Restored from snapshot.');
@@ -1413,6 +1425,7 @@ function bindSettingsPanel() {
             await BackupClient.resetEverything('RESET');
             const { data, etag } = await Api.getLibrary();
             Store.setLibrary(data, etag);
+            Preferences.syncFromLibrary(data.preferences);
             refreshView();
             await refreshSnapshotList();
             Render.showToast('Everything has been reset. A snapshot of your previous data was saved and can be restored from Settings.');
@@ -1439,6 +1452,13 @@ function bindSettingsPanel() {
       Preferences.setOriginalTitlesMode(value);
       Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
     }
+    // P1.3: these 5 segments are all now Class A too (see settingsSchema.js)
+    // — keep library.json in sync the same way every other preference field
+    // change already does, alongside the existing localStorage/DOM update
+    // above (which stays authoritative for the immediate, synchronous UI
+    // update; this is what makes the choice survive backup/export/restore).
+    Store.setPreference([seg], value);
+    persist();
     repaintSettings(Themes.getCurrentThemeId());
   });
 }

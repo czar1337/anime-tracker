@@ -2,24 +2,14 @@
 // source of truth across restarts; this module is the source of truth within
 // a running session and is kept in sync via api.saveLibrary (debounced).
 
+import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
+
 const LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
 
-const DEFAULT_PREFERENCES = () => ({
-  sort: { watching: 'addedAt', watchlist: 'addedAt', watched: 'completedAt', dropped: 'updatedAt' },
-  sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc' },
-  filters: {
-    watching: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
-    watchlist: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
-    watched: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
-    dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
-  },
-  activeTab: 'watching',
-  discoverExcludedGenres: [],
-  discoverIncludedGenres: [],
-  discoverFilters: { format: '', studio: '' },
-  scheduleFilters: { format: '', studio: '' },
-  notifyNewEpisodes: false,
-});
+// P1.3: defaults/repair moved to settingsSchema.js (the single typed settings
+// object docs/v2-spec.md's P1.3 asks for) — this module is now a thin
+// consumer, same call sites as before.
+const DEFAULT_PREFERENCES = defaultSettings;
 
 const state = {
   schemaVersion: 1,
@@ -37,20 +27,7 @@ const state = {
 let currentEtag = null;
 
 function ensurePreferenceShape() {
-  const defaults = DEFAULT_PREFERENCES();
-  state.preferences = state.preferences || {};
-  state.preferences.sort = { ...defaults.sort, ...state.preferences.sort };
-  state.preferences.sortDir = { ...defaults.sortDir, ...state.preferences.sortDir };
-  state.preferences.filters = state.preferences.filters || {};
-  for (const list of LISTS) {
-    state.preferences.filters[list] = { ...defaults.filters[list], ...(state.preferences.filters[list] || {}) };
-  }
-  state.preferences.activeTab = state.preferences.activeTab || 'watching';
-  state.preferences.discoverExcludedGenres = Array.isArray(state.preferences.discoverExcludedGenres) ? state.preferences.discoverExcludedGenres : [];
-  state.preferences.discoverIncludedGenres = Array.isArray(state.preferences.discoverIncludedGenres) ? state.preferences.discoverIncludedGenres : [];
-  state.preferences.discoverFilters = { ...defaults.discoverFilters, ...(state.preferences.discoverFilters || {}) };
-  state.preferences.scheduleFilters = { ...defaults.scheduleFilters, ...(state.preferences.scheduleFilters || {}) };
-  state.preferences.notifyNewEpisodes = Boolean(state.preferences.notifyNewEpisodes);
+  state.preferences = ensureSettingsShape(state.preferences);
 }
 
 function setLibrary(data, etag = null) {

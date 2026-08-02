@@ -51,7 +51,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P0.4 Plan, file index, verification harness | done | 2026-08-02 | this session, see "P0.4 close out" below | — |
 | P1.1 Backup, verify, restore, export | done | 2026-08-02 | this session, see "P1.1 implementation session", "P1.1 review-fixes session" and "P1.1 close out (COMPLETE-B)" below | — |
 | P1.2 Storage classes and concurrency | done | 2026-08-02 | this session, see "P1.2 implementation session", "P1.2 independent review session" and "P1.2 close out" below | — |
-| P1.3 Settings schema and transactional migration | not started | — | — | — |
+| P1.3 Settings schema and transactional migration | done | 2026-08-02 | this session, see "P1.3 implementation session" and "P1.3 close out" below | — |
 | P1.4 Token layer, tuning config, inventory | not started | — | — | corpus target (3,000) already decided, see above |
 | P1.5 Event log v1 | not started | — | — | — |
 | P1.6 Copy registry, new v2 surfaces only | not started | — | — | — |
@@ -1024,3 +1024,290 @@ session above; all six acceptance criteria now have full evidence.
 user-executed screen reader step. Merged into `main` in this session's
 close-out (see the merge commit immediately following); `v2/P1.2` retained,
 not deleted, per the spec's branching rule.
+
+## P1.3 implementation session
+
+Branch `v2/P1.3`, from `main` (which already contains the merged P1.1 and
+P1.2 work). Reconciled against `git log --all --oneline --grep "^v2("` and
+this file's table before writing anything: P1.2 is the latest landed
+substep, P1.3 had no prior commits anywhere.
+
+Used plan mode before writing any code, per the spec's "Planning and
+tracking" rule. The plan was produced after a codebase-verification pass
+(confirmed every consumer of the app's cosmetic settings, the exact
+FOUC-prevention bootstrap script in `public/index.html`'s `<head>`, the
+`docs/v2-discovery.md` P0.1 finding on where settings live, and current
+test coverage) and an independent design review that **found and fixed one
+real, recurring data-loss bug in the initial design before any code was
+written**, plus recommended dropping one piece of gold-plating. Both are
+recorded here because they materially shaped what shipped.
+
+**What landed, in commit order** (see `git log --grep "^v2(P1.3)"` for the
+authoritative list):
+
+- New `public/js/settingsSchema.js`: the single typed settings object the
+  spec asks for — enum constants (`TITLE_LANGUAGES`, `CONTENT_TIERS`, plus
+  the 5 cosmetic-setting enums moved here from `preferences.js`), named
+  default constants (`DEFAULT_TEXT_SIZE` etc., imported one-directionally
+  from `themes.js` for `DEFAULT_THEME_ID`), `defaultSettings()` and
+  `ensureSettingsShape()` (additive/patch-based repair, consolidating what
+  used to be `state.js`'s own `DEFAULT_PREFERENCES`/`ensurePreferenceShape`).
+- `migrations.js`: `CURRENT_SCHEMA_VERSION` 4 → 5, new `migrate_4_to_5` —
+  adds `titleLanguage`/`contentTier`/`streamerMode` (new, inert, no consumer
+  yet — later substeps P1.6/P5B.5/P6.4 wire them up) plus promotes the 6
+  cosmetic settings that used to live only in `localStorage`
+  (`textSize`/`textWeight`/`decor`/`decorDensity`/`originalTitles`/
+  `colorTheme`) into the Class A `preferences` object, only where missing,
+  touching nothing else. Self-asserts the entry count is unchanged before
+  returning (defense in depth on top of the unit tests).
+- `server.js`: new `migrateIncomingLibrary(data)` helper, wired into the
+  three whole-library "replace" routes (`PUT /api/library`,
+  `POST /api/backups/restore`, `POST /api/snapshots/restore`) — see "Fixed a
+  pre-existing gap" below for why.
+- `public/js/preferences.js`: imports its enums/defaults from
+  `settingsSchema.js` instead of its own copies; adds `syncFromLibrary()`
+  (library wins, unconditional, for every restore-type action) and
+  `reconcileFirstBoot()` (the one-time marker-gated promotion — see "Design
+  review caught a real bug" below).
+- `public/js/state.js`: `DEFAULT_PREFERENCES`/`ensurePreferenceShape` now
+  thin wrappers around `settingsSchema.js`.
+- `public/js/app.js`: `boot()` calls `reconcileFirstBoot()` then
+  `syncFromLibrary()` right after its own `Store.setLibrary()`, persisting
+  if anything was promoted; `reloadAfterConflict()` calls `syncFromLibrary()`
+  too.
+- `public/js/events.js`: the other 4 whole-library-replace call sites
+  (legacy backup restore, snapshot restore, reset-everything,
+  import-backup-file) each call `syncFromLibrary()` after their own
+  `Store.setLibrary()`. Import-backup-file additionally re-fetches via
+  `Api.getLibrary()` after saving instead of trusting its pre-upload local
+  copy (the server may now have migrated it). The Settings panel's cosmetic
+  segmented-control and color-theme-swatch click handlers now also call
+  `Store.setPreference()` + `persist()` alongside their existing
+  `Preferences.setXxx()`/`Themes.setColorTheme()` calls, so ongoing changes
+  keep localStorage and `library.json` in sync going forward.
+- `scripts/build-exe.js`: checked, no change needed —
+  `public/js/settingsSchema.js` is picked up automatically by the existing
+  `walk(PUBLIC_DIR, [])` asset collection (confirmed: embedded-asset count
+  went from 50 to 51 files after adding it). It is never loaded by `server.js`
+  itself (unlike `exportRegistry.js`), so no `LOCAL_MODULES` entry is needed
+  either.
+- New fixture `tests/fixtures/schema-v4-library.json`: schemaVersion 4, no
+  P1.3-era preference fields, used by the migration/round-trip tests below.
+
+**No dedicated `settingsVersion` field.** `preferences` already lives inside
+`library.json`'s envelope, which already carries `schemaVersion` — this
+substep's schema bump (4 → 5) *is* the settings object's version too, and
+`migrate_1_to_2` already precedent-set modifying `preferences.filters`
+through this exact mechanism. A second, nested version number would
+duplicate versioning for data that always migrates in lockstep with the
+rest of the file, and "tolerate a version higher than known" (rule 13) is
+inherited for free from the existing `checkVersionCompatibility`/`tooNew`
+machinery instead of needing a second, parallel concept nobody has built.
+
+**Design review caught a real, recurring bug before any code was written.**
+The first design for promoting the 6 cosmetic settings out of
+localStorage-only storage was: "if the library's current value for a
+cosmetic setting still equals the schema default, promote whatever's in
+localStorage instead." An independent design-review pass (a Plan-mode
+subagent, briefed on the full architecture and asked specifically to find
+scenarios where this goes wrong) found that this heuristic doesn't gate
+itself to a true first-boot-ever — as originally scoped it would have
+re-run on *every* boot, forever. Concrete failure: a user deliberately syncs
+their theme back to the literal default value on one device (a legitimate,
+real choice); months later they open a second device whose `localStorage`
+still holds an old, untouched value from before this substep shipped — the
+heuristic would see "library equals default, localStorage differs" and
+silently promote the stale value, clobbering the user's real, already-synced
+choice. "Currently equals the default" is the single most likely
+coincidental match, so this was a real, recurring failure mode, not a
+corner case. **Fixed before implementation began**: an explicit one-time
+marker (`localStorage['anime-tracker-cosmetic-settings-synced']`), set once
+per browser profile. Absent → do the one-time promotion. Present → every
+later boot is a pure "library wins" sync, no inference, ever again. Proven
+end to end in a real browser by
+`tests/e2e/cosmetic-settings-upgrade.spec.js` (below), including a second
+boot after the first to confirm the marker actually prevents re-promotion.
+
+**Considered and deliberately not built: an async pre-migration Class C
+snapshot wrapper.** Consistent with P1.2's own precedent (wrapping every
+HTTP-triggered Class A mutation in a lock), it was tempting to also wrap the
+*startup* migration chain in a verified pre-migration snapshot, generalizing
+rule 7's transactional sequence to every future migration, not just this
+one. Rejected on three concrete findings from the same review pass:
+1. `writeLibraryAtomic()` already calls `rotateBackup()` before every
+   migration write — `migrate_1_to_2`/`2_to_3`/`3_to_4` have never needed
+   anything more, and `migrate_4_to_5` inherits this exact same safety net
+   for free.
+2. A Class C snapshot doesn't even close the spec's "estimate free space
+   first" gap (neither mechanism does) — it's a second, larger (checksummed)
+   write added to the startup critical path, making migration *more* likely
+   to fail outright on a disk that's genuinely tight, for no closed gap in
+   return.
+3. It would produce two snapshots instead of one on a fresh v1→v5 boot,
+   breaking the already-passing
+   `tests/e2e/pinned-snapshot-bootstrap-failure.spec.js` assertion
+   (`expect(first.snapshots.length).toBe(1)`) — concrete, mechanical
+   evidence of disproportionate blast radius.
+
+Rollback for this migration is therefore the same mechanism every migration
+before it has always had: restore the automatic pre-migration copy from
+`backups/` via the existing legacy restore endpoint.
+
+**Fixed a pre-existing gap, made newly relevant by this substep.** None of
+the three whole-library "replace" routes (`PUT /api/library`,
+`POST /api/backups/restore`, `POST /api/snapshots/restore`) ran incoming
+data through `migrate()` before P1.3 — `PUT` only defaulted a *missing*
+schemaVersion (never migrated a truthy-but-old one), the legacy restore had
+no version check at all, and the snapshot restore wrote the snapshot's own
+claimed schemaVersion verbatim. This has existed since P1.1/P1.2, but this
+substep makes it concretely reachable: the app's own "Import backup" file
+picker uploads a user-selected file whose `schemaVersion` can genuinely be
+old. Left unfixed, restoring a pre-P1.3 backup/snapshot on a post-P1.3
+server would silently reintroduce the old-shaped `preferences` while the
+server reports itself healthy. Fixed with a small shared
+`migrateIncomingLibrary()` helper (checks version compatibility, migrates if
+stale — a no-op when already current — throws a typed "too new" error
+otherwise) called from all three routes. The snapshot-restore route needed
+one subtlety: its post-restore verification checksums the write against the
+*original snapshot's own* checksums (proving the write reproduces the
+snapshot byte-for-byte), so migrating *before* that check would make the
+write deliberately differ from what it's supposed to reproduce — migration
+there runs as a **separate, second pass** after that verification succeeds,
+identical in effect to what happens if the server were simply restarted
+with that exact (unmigrated) file on disk. All six new
+`tests/e2e/settings-migration.spec.js` cases (migrate-on-write for all three
+routes, reject-too-new for all three routes) pass, including that
+snapshot-restore case specifically.
+
+**Automated checks.**
+
+- `node tests/run-all.js`: **104 passed, 0 failed** (10 new: 4 for
+  `migrate_4_to_5` — defaults added when missing, idempotent/preserves
+  customization, never touches entries/dismissedItems/existing preferences,
+  a v1 fixture reaches schemaVersion 5 with every P1.3 field defaulted — plus
+  6 for `settingsSchema.js` — literals pinned against `migrate_4_to_5`'s own
+  inlined copies, `ensureSettingsShape` defaults/repairs/preserves-valid/
+  preserves-unknown-future-fields, enum exports correct — 94 passed at the
+  end of P1.2, +10 here).
+- `npx playwright test`: **29 passed, 0 failed** (11 new specs/cases beyond
+  P1.2's 18):
+  - `tests/e2e/settings-migration.spec.js` (7 tests): boot-against-v4-fixture
+    reaches schemaVersion 5 with every field defaulted and entries/
+    dismissedItems untouched, plus the `migrateIncomingLibrary` proof for
+    all three routes (migrate-old, reject-too-new) described above.
+  - `tests/e2e/settings-round-trip.spec.js` (1 test): sets non-default
+    values for all 9 new/promoted preference fields, does a full
+    export → snapshot → wipe → restore round trip, asserts every value
+    survived exactly — the rule-3a proof. No `exportRegistry.js`/
+    `snapshots.js` code change was needed (`preferences` was already a
+    registered generic `kind: 'blob'` store since P1.1), but "naming the
+    store is not sufficient" — this proves the round trip actually covers
+    these specific new fields, not just whatever existed before.
+  - `tests/e2e/cosmetic-settings-upgrade.spec.js` (2 tests): a real browser
+    with a pre-seeded, non-default `localStorage` color theme (simulating an
+    actual existing user) boots against the v4 fixture and keeps that theme
+    — proving the design-review bug fix works end to end, not just in
+    isolation — including a second boot afterward to confirm the one-time
+    marker actually prevents re-promotion. A second test proves a *fresh*
+    browser profile (empty localStorage) correctly pulls a different,
+    already-library-stored value down instead of showing the schema default.
+  - `tests/e2e/real-library-migration-safety.spec.js` (1 test): the rule-8
+    dry-run requirement, automated rather than one-off — copies the actual
+    real app-data directory (222 real entries, schemaVersion 4 at the time
+    of this session) into a disposable temp dir, boots the harness against
+    the copy only, confirms the migration reaches schemaVersion 5 with the
+    entry count unchanged and every new field defaulted, then confirms the
+    **original** real directory is byte- and mtime-identical to a
+    fingerprint taken before the copy was made. This genuinely exercised the
+    real migration (the real library was not already past schemaVersion 4),
+    not a skip.
+- `npm run perf`: both measurements printed, neither materially changed by
+  this substep (no Tuning-table-named surface touched — see criterion 4).
+  Library-render: **p95 975ms** over 7 runs against its 200ms budget —
+  unchanged, pre-existing finding. Snapshot-plus-verify: **p95 89ms** over 5
+  runs against its 10s budget — unaffected.
+- No lint, typecheck or build command exists in this project (unchanged
+  finding from P0.1 onward), stated explicitly.
+
+**1. Automated checks — full**, per above.
+
+**2. Data safety.** The migration dry-run against a real copy of the
+production library (`real-library-migration-safety.spec.js`), the rule-3a
+round trip for every new/promoted field
+(`settings-round-trip.spec.js`), the idempotency and invariant unit tests
+for `migrate_4_to_5`, and the `migrateIncomingLibrary` proof across all
+three whole-library-replace routes are all covered above, all green. This
+substep extends the Class A `preferences` store (rule 3a) rather than
+introducing a new one — the coverage/round-trip machinery already generic
+from P1.1, only the new-field round-trip proof was substep-specific work.
+
+**3. Manual smoke test**, production build (`npm start`), **against a
+disposable temp copy of the real 222-entry library only, never the
+original**:
+1. Fingerprinted (sha256 + mtime) the real `library.json` and every file
+   under the real `snapshots/` before starting.
+2. Copied the entire real app-data directory into a disposable temp folder
+   and booted `node server.js` (via `npm start`) against that copy on a
+   separate port, confirmed via `GET /api/library`: `schemaVersion: 5`,
+   `entries.length: 222` (unchanged), every new preference field present at
+   its schema default (no browser localStorage was involved in this
+   particular check — a real browser's one-time cosmetic-settings promotion
+   is proven separately, and more rigorously, by the automated
+   `cosmetic-settings-upgrade.spec.js` above, which seeds a real
+   `localStorage` value the way an actual returning user's browser would
+   have one).
+3. Opened the copy in the Browser pane: the real library rendered normally
+   (12 watching entries, matching the app's own count), no console errors.
+4. Confirmed `GET /api/export`'s `stores.preferences` includes all 9
+   new/promoted fields.
+5. Re-fingerprinted the **original** real `library.json` and `snapshots/`
+   files: byte- and mtime-identical to step 1's values in every case,
+   confirmed programmatically (sha256 + mtimeMs comparison), not eyeballed.
+
+**4. Performance.** No Tuning-table budget names a surface this substep
+touches (settings schema/migration isn't a named performance surface) —
+stated explicitly, per the spec's own reduction rule. The two pre-existing
+measurements were re-run as a regression check only (see Automated checks
+above).
+
+**5. Accessibility.** No new UI surface ships in this substep — the 3 new
+settings (`titleLanguage`/`contentTier`/`streamerMode`) are inert data-model
+additions with no control anywhere yet (later substeps P1.6/P5B.5/P6.4 wire
+them up, and will need their own accessibility pass then), and the
+cosmetic-settings persistence change is entirely invisible (same existing
+Settings-panel controls, same existing keyboard/contrast behavior already
+covered by P1.1's accessibility check — nothing about their markup, styling,
+or interaction changed). Stated explicitly rather than skipped: there is no
+screen reader step for the user to run this session, unlike P1.1/P1.2, which
+both shipped real new UI.
+
+**6. Rollback.** Revert the `v2(P1.3)` commit range. This substep **does
+migrate data** (`schemaVersion` 4 → 5), so per the spec's own rule a code
+revert alone is not sufficient for the data itself — the recorded procedure
+is: restore the automatic pre-migration copy from `backups/` (created by
+the existing `rotateBackup()` mechanism, the same safety net every prior
+migration has always relied on), via the existing legacy restore endpoint.
+Forward compatibility holds: a reverted (pre-P1.3) server/frontend simply
+doesn't know about the 9 new/promoted preference fields, but nothing about
+this substep breaks the existing "unknown fields survive" behavior in
+reverse — a schemaVersion-5 file opened by reverted code would trip the
+existing `tooNew` guard (schemaVersion 5 > the reverted code's
+`CURRENT_SCHEMA_VERSION` 4) rather than corrupting anything, which is
+exactly rule 13's intended behavior for a version a given build doesn't
+recognize.
+
+**Status: P1.3 substantially complete.** All six acceptance criteria have
+full evidence in this same session — unlike P1.1/P1.2, this substep shipped
+no new user-facing UI, so there is no user-blocking screen-reader step to
+wait on. Not yet merged into `main`; awaiting user review before a
+`v2(P1.3): close out` commit and merge, per the spec's own pattern.
+
+## P1.3 close out
+
+No code changed in this session before this evidence-only commit. The user
+reviewed the implementation session's evidence above and confirmed to
+proceed with close-out and merge.
+
+**Status: P1.3 done.** All six acceptance criteria satisfied. Merged into
+`main` in this session's close-out (see the merge commit immediately
+following); `v2/P1.3` retained, not deleted, per the spec's branching rule.
