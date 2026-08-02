@@ -10,6 +10,11 @@ const os = require('node:os');
 const path = require('node:path');
 
 function resolveDataDir(env = process.env, platform = process.platform, homedir = os.homedir()) {
+  // Test/harness override only: lets the Playwright harness (P0.4) point a
+  // real server instance at a disposable fixture directory instead of the
+  // user's real app-data folder. Unset in normal use, so default resolution
+  // below is unchanged.
+  if (env.ANIME_TRACKER_DATA_DIR) return env.ANIME_TRACKER_DATA_DIR;
   if (platform === 'win32') {
     const base = env.APPDATA || path.join(homedir, 'AppData', 'Roaming');
     return path.join(base, 'anime-tracker');

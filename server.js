@@ -25,7 +25,9 @@ const { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility } = require('
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
 // read via node:sea instead of the filesystem.
-const PORT = 4321;
+// Test/harness override only (P0.4): lets a test server run on a free port
+// alongside a real running instance without EADDRINUSE. Unset in normal use.
+const PORT = Number(process.env.ANIME_TRACKER_PORT) || 4321;
 const IS_SEA = sea.isSea();
 const APP_ROOT = IS_SEA ? path.dirname(process.execPath) : __dirname;
 const PUBLIC_DIR = path.join(__dirname, 'public'); // only meaningful outside SEA mode
