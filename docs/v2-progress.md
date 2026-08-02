@@ -1494,3 +1494,51 @@ land — this merge stays local until that instruction changes.
 **Status: P1.4 done.** All six acceptance criteria satisfied. Merged into
 `main` in this session's close-out (see the merge commit immediately
 following); `v2/P1.4` retained, not deleted, per the spec's branching rule.
+
+## P1.4 post-merge finding: pre-existing test flakiness (not a P1.3/P1.4 bug)
+
+A routine re-run of the full suite after merging `v2/P1.4` into `main`
+(no code changed since close-out) found `two-tab-race.spec.js` (a P1.2
+test) **failing deterministically, 3/3 runs** — `entry.myScore` on disk
+stayed at the fixture's original value (9) instead of either edited score.
+Traced with instrumented debug copies of the test (temporary, removed
+after diagnosis) rather than guessed at:
+
+`app.js`'s `boot()` fires `retryMissingCovers()` in the background
+(pre-existing, legitimate production behavior — checks for cover files
+missing from disk and re-downloads them, unrelated to anything P1.3/P1.4
+touched). The fixture entry's cover file doesn't actually exist in the
+test's temp data dir, so this always finds a "missing" cover and makes a
+**real, unmocked network request to `graphql.anilist.co`**. Confirmed via
+request/response logging that this environment currently has real internet
+access and the request succeeds (200) — when it does, the retry downloads
+the cover and calls `persist()` with whatever `Store` state exists at that
+moment. Debug timestamps showed this spurious PUT (unmodified data)
+arriving **before** the test's own deliberate click even fired, satisfying
+the test's "first PUT arrival" wait and getting released instead of either
+tab's real edit — a genuine race the test was never isolated against,
+present since P1.2 but only manifesting now that this environment has
+working network access to AniList.
+
+**Not a regression from this session's own work** — `config/tuning.js`,
+`public/js/tokens.js`, and the `server.js`/`build-exe.js` static-serving
+extension touch nothing related to boot's cover-retry path. Fixed anyway,
+since a network-condition-dependent test failure blocks reliably verifying
+every substep's own suite, present and future: `two-tab-race.spec.js` now
+blocks `**/graphql.anilist.co/**` for both pages before booting, so
+`retryMissingCovers()` fails fast (its own existing catch-and-return-early
+path) and never calls `persist()`. No production code changed. Confirmed
+the fix makes the test pass reliably (4/4 runs) where it previously failed
+deterministically (3/3); full suite re-run green (118 unit, 32 e2e) after
+the fix, matching the counts already recorded above.
+
+Not fixed elsewhere: several other e2e specs share the same
+`schema-v1-library.json` fixture (and so are theoretically exposed to the
+same background retry), but none of them depend on "exactly one PUT
+arrives" the way this test structurally does, and none exhibited a
+failure. Flagging this here rather than preemptively touching files with
+no observed problem, per scope discipline — worth revisiting if a future
+substep's test proves similarly sensitive.
+
+Committed on `v2/P1.4` (`git log --grep "flakiness"`) and re-merged into
+`main`.
