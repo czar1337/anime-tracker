@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.2
+
+Behind-the-scenes data-safety and reliability work (v2 project, substep P1.2) — no visual redesign, but real protection against a previously-unhandled failure mode plus one new small piece of UI.
+
+- **New: safe handling of two open tabs or windows.** Saving your library now checks whether another tab or window saved a change since you last loaded — if so, your save is stopped instead of silently overwriting the other one, and you get a clear "changed elsewhere" message with a one-click Reload action.
+- **New: automatic protection against low disk space.** Regenerable caches (recommendations, airing schedule, upcoming releases) now get cleared automatically if free disk space runs low, before your actual library data or its backups would ever be at risk — those are never touched by this.
+- **Fix: the "Reload" action on the new conflict message no longer steals the ctrl+z shortcut** away from an actual pending Undo (e.g. right after marking an episode watched).
+- Internal: every save, snapshot, restore, and reset now runs through a single write queue, closing a rare data-loss window where two nearly-simultaneous operations could race each other.
+
 ## 2.1.1
 
 Quick follow-up to 2.1.0's filter overhaul, based on hands-on feedback after trying it for real.
