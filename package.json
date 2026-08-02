@@ -2,10 +2,16 @@
   "name": "anime-tracker",
   "version": "2.1.1",
   "private": true,
-  "description": "Local-only anime tracker. No dependencies, no build step.",
+  "description": "Local-only anime tracker. No runtime dependencies, no build step. Playwright is a devDependency only, for the v2 verification harness.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/run-all.js"
+    "test": "node tests/run-all.js",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e": "playwright test",
+    "perf": "node scripts/perf.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

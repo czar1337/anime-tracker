@@ -8,6 +8,15 @@ data/
 
 node_modules/
 
+# Playwright run output (traces, screenshots on failure, last-run marker) —
+# regenerated every run, not source.
+test-results/
+playwright-report/
+
+# Local Claude Code permission/settings overrides — machine-specific, never
+# shared project config (.claude/launch.json above stays tracked).
+.claude/settings.local.json
+
 # OS/editor junk
 .DS_Store
 Thumbs.db
