@@ -1,0 +1,300 @@
+{
+  "data": {
+    "Page": {
+      "media": [
+        {
+          "id": 154587,
+          "idMal": 52991,
+          "title": {
+            "romaji": "Sousou no Frieren",
+            "english": "Frieren: Beyond Journey’s End"
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx154587-qQTzQnEJJ3oB.jpg",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx154587-qQTzQnEJJ3oB.jpg"
+          },
+          "episodes": 28,
+          "duration": 24,
+          "format": "TV",
+          "seasonYear": 2023,
+          "averageScore": 91,
+          "genres": [
+            "Adventure",
+            "Drama",
+            "Fantasy"
+          ],
+          "status": "FINISHED",
+          "season": "FALL",
+          "studios": {
+            "nodes": [
+              {
+                "name": "MADHOUSE"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 118586,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "CHARACTER",
+                "node": {
+                  "id": 169811,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SIDE_STORY",
+                "node": {
+                  "id": 170068,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "OTHER",
+                "node": {
+                  "id": 175691,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SEQUEL",
+                "node": {
+                  "id": 182255,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SIDE_STORY",
+                "node": {
+                  "id": 189513,
+                  "type": "ANIME"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 209939,
+          "idMal": 63816,
+          "title": {
+            "romaji": "Sousou no Frieren 3rd Season",
+            "english": null
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx209939-g2Njkml1rheG.jpg",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx209939-g2Njkml1rheG.jpg"
+          },
+          "episodes": null,
+          "duration": null,
+          "format": "TV",
+          "seasonYear": 2027,
+          "averageScore": null,
+          "genres": [
+            "Adventure",
+            "Drama",
+            "Fantasy"
+          ],
+          "status": "NOT_YET_RELEASED",
+          "season": "FALL",
+          "studios": {
+            "nodes": [
+              {
+                "name": "MADHOUSE"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "PREQUEL",
+                "node": {
+                  "id": 182255,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 118586,
+                  "type": "MANGA"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 182255,
+          "idMal": 59978,
+          "title": {
+            "romaji": "Sousou no Frieren 2nd Season",
+            "english": "Frieren: Beyond Journey’s End Season 2"
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx182255-butzrqd4I0aC.jpg",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx182255-butzrqd4I0aC.jpg"
+          },
+          "episodes": 10,
+          "duration": 24,
+          "format": "TV",
+          "seasonYear": 2026,
+          "averageScore": 88,
+          "genres": [
+            "Adventure",
+            "Drama",
+            "Fantasy"
+          ],
+          "status": "FINISHED",
+          "season": "WINTER",
+          "studios": {
+            "nodes": [
+              {
+                "name": "MADHOUSE"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 118586,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "PREQUEL",
+                "node": {
+                  "id": 154587,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SIDE_STORY",
+                "node": {
+                  "id": 206425,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SEQUEL",
+                "node": {
+                  "id": 209939,
+                  "type": "ANIME"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 170068,
+          "idMal": 56885,
+          "title": {
+            "romaji": "Sousou no Frieren: ●● no Mahou",
+            "english": null
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx170068-ijY3tCP8KoWP.jpg",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx170068-ijY3tCP8KoWP.jpg"
+          },
+          "episodes": 12,
+          "duration": 1,
+          "format": "ONA",
+          "seasonYear": 2023,
+          "averageScore": 73,
+          "genres": [
+            "Comedy",
+            "Fantasy"
+          ],
+          "status": "FINISHED",
+          "season": "FALL",
+          "studios": {
+            "nodes": [
+              {
+                "name": "TOHO animation STUDIO"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "PARENT",
+                "node": {
+                  "id": 154587,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SEQUEL",
+                "node": {
+                  "id": 189513,
+                  "type": "ANIME"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 189513,
+          "idMal": null,
+          "title": {
+            "romaji": "Sousou no Frieren: ●● no Mahou Part 2",
+            "english": null
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx189513-1R9Sryve0K53.png",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx189513-1R9Sryve0K53.png"
+          },
+          "episodes": 6,
+          "duration": 1,
+          "format": "ONA",
+          "seasonYear": 2025,
+          "averageScore": 70,
+          "genres": [
+            "Comedy",
+            "Fantasy"
+          ],
+          "status": "FINISHED",
+          "season": "SPRING",
+          "studios": {
+            "nodes": [
+              {
+                "name": "TOHO animation STUDIO"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "PREQUEL",
+                "node": {
+                  "id": 170068,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "PARENT",
+                "node": {
+                  "id": 154587,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SEQUEL",
+                "node": {
+                  "id": 206425,
+                  "type": "ANIME"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
