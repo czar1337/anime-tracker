@@ -19,8 +19,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { URL } = require('node:url');
 const sea = require('node:sea');
-const { resolveDataDir, migrateLegacyDataDir } = require('./datadir.js');
+const { resolveDataDir, migrateLegacyDataDir, resolveSnapshotsDir } = require('./datadir.js');
 const { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility } = require('./migrations.js');
+const Snapshots = require('./snapshots.js');
 
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
@@ -40,6 +41,7 @@ const DATA_DIR = resolveDataDir();
 const LEGACY_DATA_DIR = path.join(APP_ROOT, 'data');
 const COVERS_DIR = path.join(DATA_DIR, 'covers');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
+const SNAPSHOTS_DIR = resolveSnapshotsDir(DATA_DIR);
 const LIBRARY_FILE = path.join(DATA_DIR, 'library.json');
 const LIBRARY_TMP_FILE = path.join(DATA_DIR, 'library.json.tmp');
 const RECS_CACHE_FILE = path.join(DATA_DIR, 'recommendations-cache.json');
@@ -86,7 +88,9 @@ if (migrationResult.action === 'migrated') {
 // carrying on, since guessing which copy is "right" is exactly what we must not do.
 let dataDirConflict = migrationResult.action === 'conflict' ? migrationResult : null;
 
-const dirsToEnsure = IS_SEA ? [DATA_DIR, COVERS_DIR, BACKUPS_DIR] : [DATA_DIR, COVERS_DIR, BACKUPS_DIR, PUBLIC_DIR];
+const dirsToEnsure = IS_SEA
+  ? [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR]
+  : [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR];
 for (const dir of dirsToEnsure) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -301,6 +305,164 @@ function readAiringCache() {
 }
 
 checkStartupIntegrity();
+
+// ---------------------------------------------------------------------------
+// Class C: verified snapshots (docs/v2-spec.md's "Storage classes and data
+// safety", P1.1). A new, separate mechanism from the backups/ rotation above —
+// that one has no checksums and no verify step; this one is schema-versioned,
+// checksummed per record, and never restored-from without first re-verifying.
+// ---------------------------------------------------------------------------
+
+// Loads public/js/exportRegistry.js's CLASS_A_STORES/buildExport as a real ES
+// module, from its actual source bytes rather than a filesystem path — works
+// identically in dev (reads the file) and in a packaged SEA build (reads the
+// embedded asset, the same source serveAppAsset already uses for this exact
+// file), so the registry the frontend imports and the one the server dynamic-
+// imports are always the same object. Cached after the first call.
+let exportRegistryModulePromise = null;
+function loadExportRegistryModule() {
+  if (!exportRegistryModulePromise) {
+    exportRegistryModulePromise = (async () => {
+      const src = IS_SEA
+        ? Buffer.from(sea.getRawAsset('public/js/exportRegistry.js')).toString('utf8')
+        : fs.readFileSync(path.join(__dirname, 'public', 'js', 'exportRegistry.js'), 'utf8');
+      const dataUrl = `data:text/javascript;base64,${Buffer.from(src, 'utf8').toString('base64')}`;
+      return import(dataUrl);
+    })();
+  }
+  return exportRegistryModulePromise;
+}
+
+function timestampForSnapshot(date) {
+  const p = (n) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}${p(date.getMonth() + 1)}${p(date.getDate())}` +
+    `-${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}`
+  );
+}
+
+function nextSnapshotFilename() {
+  const stamp = timestampForSnapshot(new Date());
+  let name = `snapshot-${stamp}.json`;
+  let n = 1;
+  while (fs.existsSync(path.join(SNAPSHOTS_DIR, name))) {
+    name = `snapshot-${stamp}-${n}.json`;
+    n += 1;
+  }
+  return name;
+}
+
+function listSnapshotFiles() {
+  return fs.readdirSync(SNAPSHOTS_DIR).filter((f) => Snapshots.isValidSnapshotFilename(f));
+}
+
+function readSnapshotFile(file) {
+  return JSON.parse(fs.readFileSync(path.join(SNAPSHOTS_DIR, file), 'utf8'));
+}
+
+// Atomic write, same pattern as writeLibraryAtomic — a crash mid-write leaves
+// either no file yet or a .tmp file, never a half-written snapshot that a
+// later readSnapshotFile() would trip over.
+function writeSnapshotFileAtomic(file, data) {
+  const finalPath = path.join(SNAPSHOTS_DIR, file);
+  const tmpPath = `${finalPath}.tmp`;
+  const json = JSON.stringify(data, null, 2);
+  const fd = fs.openSync(tmpPath, 'w');
+  try {
+    fs.writeSync(fd, json);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmpPath, finalPath);
+}
+
+// Lightweight metadata (file/createdAt/pinned only) for pruning decisions —
+// the listing endpoint does the full checksum re-verify separately, since
+// pruning only needs to know age and pin status.
+function listSnapshotMetadata() {
+  return listSnapshotFiles().map((file) => {
+    try {
+      const snap = readSnapshotFile(file);
+      return { file, createdAt: snap.createdAt, pinned: Boolean(snap.pinned) };
+    } catch {
+      // A snapshot file that doesn't even parse can't be meaningfully kept
+      // around either — treat it as the oldest possible non-pinned entry so
+      // it's a prune candidate rather than silently retained forever.
+      return { file, createdAt: '', pinned: false };
+    }
+  });
+}
+
+function pruneSnapshots() {
+  const toDelete = Snapshots.selectSnapshotsToPrune(listSnapshotMetadata());
+  for (const { file } of toDelete) {
+    fs.unlinkSync(path.join(SNAPSHOTS_DIR, file));
+  }
+}
+
+// Builds a fresh snapshot from the current on-disk library, verifies it
+// immediately (rule 7.4 — "an unverified snapshot is not a backup"), writes
+// it, reads it back from disk and verifies again (catches disk-level
+// corruption the in-memory verify above can't see), and prunes old rotating
+// snapshots. Throws rather than writing anything if build/verify ever fails.
+async function createSnapshotNow({ pinned = false } = {}) {
+  const { CLASS_A_STORES } = await loadExportRegistryModule();
+  const library = readLibrary();
+  const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library }, { pinned });
+  const selfCheck = Snapshots.verifySnapshotStores(snapshot);
+  if (!selfCheck.valid) {
+    throw new Error(`Snapshot failed self-verification immediately after building: ${selfCheck.errors.join('; ')}`);
+  }
+  const file = nextSnapshotFilename();
+  writeSnapshotFileAtomic(file, snapshot);
+  const reread = readSnapshotFile(file);
+  const rereadCheck = Snapshots.verifySnapshotStores(reread);
+  if (!rereadCheck.valid) {
+    throw new Error(`Snapshot written to disk failed verification on read-back: ${rereadCheck.errors.join('; ')}`);
+  }
+  if (!pinned) pruneSnapshots();
+  return { file, createdAt: snapshot.createdAt, pinned: snapshot.pinned };
+}
+
+// Reconstructs a library.json-shaped object from a verified snapshot's
+// stores. Generic over whatever stores the snapshot actually contains (kind:
+// 'records' -> array field, kind: 'blob' -> object field) rather than
+// hardcoding entries/preferences/dismissedItems, so it doesn't need editing
+// every time a substep adds a Class A store per rule 3a — only the registry
+// (exportRegistry.js) does.
+function libraryFromSnapshot(snapshot) {
+  const library = { schemaVersion: snapshot.schemaVersion || SCHEMA_VERSION };
+  for (const [id, store] of Object.entries(snapshot.stores)) {
+    library[id] = store.kind === 'records' ? store.records : store.blob;
+  }
+  return library;
+}
+
+// Runs once at startup, before the server accepts any connection. Creates the
+// one immutable, never-rotated snapshot rule 10 requires, automatically — a
+// user should never have to click a button in order to be protected by it.
+// Idempotent: a no-op once a pinned snapshot exists, so it's safe to run on
+// every boot. Skipped while the library is corrupt/too-new (nothing safe to
+// snapshot yet) — it retries on the next healthy boot instead of blocking
+// startup on a problem this function can't fix.
+async function ensurePinnedSnapshot() {
+  if (libraryState.corrupt || libraryState.tooNew) return;
+  const alreadyPinned = listSnapshotFiles().some((file) => {
+    try {
+      return Boolean(readSnapshotFile(file).pinned);
+    } catch {
+      return false;
+    }
+  });
+  if (alreadyPinned) return;
+  try {
+    await createSnapshotNow({ pinned: true });
+    console.log('[snapshots] Created the initial pinned snapshot.');
+  } catch (err) {
+    console.error('[snapshots] Could not create the initial pinned snapshot (will retry next launch):', err.message);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Version notice: reads a remote version.json at most once a day and shows a
@@ -549,6 +711,12 @@ function downloadImage(url, destPath, redirectsLeft = 5) {
 // Routing
 // ---------------------------------------------------------------------------
 
+// Also guards the Class C snapshot/export/reset endpoints below, not just
+// /api/library — operating on any of them while two data folders are
+// ambiguous is just as unsafe as the /api/library case this guard originally
+// covered alone.
+const CONFLICT_GUARDED_PATHS = new Set(['/api/library', '/api/export', '/api/snapshots', '/api/snapshots/restore', '/api/reset']);
+
 const server = http.createServer(async (req, res) => {
   let url;
   try {
@@ -560,7 +728,7 @@ const server = http.createServer(async (req, res) => {
   const { pathname } = url;
 
   try {
-    if (pathname === '/api/library' && (req.method === 'GET' || req.method === 'PUT') && dataDirConflict) {
+    if (CONFLICT_GUARDED_PATHS.has(pathname) && dataDirConflict) {
       sendJson(res, 409, {
         error: 'Two different data folders were found and cannot be merged automatically.',
         dataConflict: true,
@@ -652,6 +820,146 @@ const server = http.createServer(async (req, res) => {
       libraryState = { corrupt: false, error: null };
       writeLibraryAtomic(restored, { skipBackup: true });
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (pathname === '/api/export' && req.method === 'GET') {
+      if (libraryState.corrupt || libraryState.tooNew) {
+        sendJson(res, 409, { error: 'Library is not in a readable state; cannot build an export right now.' });
+        return;
+      }
+      const { CLASS_A_STORES, buildExport } = await loadExportRegistryModule();
+      sendJson(res, 200, buildExport(CLASS_A_STORES, { library: readLibrary() }));
+      return;
+    }
+
+    if (pathname === '/api/snapshots' && req.method === 'GET') {
+      // Actually re-verifies every snapshot (recomputes checksums) rather
+      // than trusting stored metadata — the UI must not call something
+      // "verified" because a header claims so.
+      const list = listSnapshotFiles().map((file) => {
+        let snapshot;
+        try {
+          snapshot = readSnapshotFile(file);
+        } catch (err) {
+          return { file, createdAt: null, schemaVersion: null, pinned: false, verified: false, errors: [`Could not read file: ${err.message}`] };
+        }
+        const { valid, errors } = Snapshots.verifySnapshotStores(snapshot);
+        return {
+          file,
+          createdAt: snapshot.createdAt,
+          schemaVersion: snapshot.schemaVersion,
+          pinned: Boolean(snapshot.pinned),
+          verified: valid,
+          errors,
+        };
+      });
+      list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+      sendJson(res, 200, { snapshots: list });
+      return;
+    }
+
+    if (pathname === '/api/snapshots' && req.method === 'POST') {
+      if (libraryState.corrupt || libraryState.tooNew) {
+        sendJson(res, 409, { error: 'Library is not in a readable state; cannot take a snapshot right now.' });
+        return;
+      }
+      try {
+        const result = await createSnapshotNow({ pinned: false });
+        sendJson(res, 200, { ok: true, ...result });
+      } catch (err) {
+        sendJson(res, 500, { error: `Could not create a verified snapshot: ${err.message}` });
+      }
+      return;
+    }
+
+    if (pathname === '/api/snapshots/restore' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const file = body && body.file;
+      // Filenames arrive over HTTP — untrusted input. Only the exact shape
+      // this module itself generates is accepted, which by construction
+      // rules out path separators, "..", and absolute paths.
+      if (!Snapshots.isValidSnapshotFilename(file)) {
+        sendJson(res, 400, { error: 'Invalid snapshot filename.' });
+        return;
+      }
+      const snapshotPath = path.join(SNAPSHOTS_DIR, file);
+      // Exact-boundary check, same reasoning as serveStatic()'s above:
+      // defense-in-depth alongside the filename regex, not the only guard.
+      if (snapshotPath !== SNAPSHOTS_DIR && !snapshotPath.startsWith(SNAPSHOTS_DIR + path.sep)) {
+        sendJson(res, 403, { error: 'Forbidden' });
+        return;
+      }
+      if (!fs.existsSync(snapshotPath)) {
+        sendJson(res, 404, { error: 'Snapshot not found.' });
+        return;
+      }
+      let snapshot;
+      try {
+        snapshot = readSnapshotFile(file);
+      } catch (err) {
+        sendJson(res, 500, { error: `Snapshot file itself is corrupt: ${err.message}` });
+        return;
+      }
+      const check = Snapshots.verifySnapshotStores(snapshot);
+      if (!check.valid) {
+        sendJson(res, 409, { error: 'Snapshot failed verification. Refusing to restore from it.', errors: check.errors });
+        return;
+      }
+      const restored = libraryFromSnapshot(snapshot);
+      // Bypasses the corrupt guard the same way the legacy restore above
+      // does: restoring *from* a broken state is the primary use case.
+      libraryState = { corrupt: false, error: null, tooNew: false, dataVersion: null };
+      writeLibraryAtomic(restored);
+      // Post-restore verification (rule 7.4/7.8): re-read what's actually on
+      // disk now, rebuild its snapshot representation, and confirm every
+      // store's checksum matches the snapshot just restored from — not
+      // merely that the re-read data is internally self-consistent.
+      const { CLASS_A_STORES } = await loadExportRegistryModule();
+      const rebuilt = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: readLibrary() }, { pinned: snapshot.pinned });
+      const mismatches = Object.keys(snapshot.stores).filter(
+        (id) => !rebuilt.stores[id] || rebuilt.stores[id].checksum !== snapshot.stores[id].checksum
+      );
+      if (mismatches.length > 0) {
+        // Force the app into the same corrupt-state recovery path the error
+        // message describes, rather than silently returning to normal
+        // operation with a library.json this code just said not to trust.
+        libraryState = {
+          corrupt: true,
+          error: `Restore verification mismatch after write (stores: ${mismatches.join(', ')}).`,
+          tooNew: false,
+          dataVersion: null,
+        };
+        sendJson(res, 500, {
+          error: `Restore wrote data that does not match the verified snapshot (stores: ${mismatches.join(', ')}). The previous library.json was rotated into backups/ — do not trust the current library.json until this is investigated.`,
+        });
+        return;
+      }
+      sendJson(res, 200, { ok: true, verified: true, restoredFrom: file });
+      return;
+    }
+
+    if (pathname === '/api/reset' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      // Validated server-side too, not just by the client's type-to-confirm
+      // UI — cheap defense-in-depth matching how destructive this route is.
+      if (!body || body.confirm !== 'RESET') {
+        sendJson(res, 400, { error: 'Confirmation text did not match. Nothing was changed.' });
+        return;
+      }
+      if (libraryState.corrupt || libraryState.tooNew) {
+        sendJson(res, 409, { error: 'Library is not in a readable state; restore a backup or snapshot before resetting.' });
+        return;
+      }
+      let snapshotResult;
+      try {
+        snapshotResult = await createSnapshotNow({ pinned: false });
+      } catch (err) {
+        sendJson(res, 500, { error: `Could not create a safety snapshot before reset, so nothing was changed: ${err.message}` });
+        return;
+      }
+      writeLibraryAtomic(defaultLibrary());
+      sendJson(res, 200, { ok: true, snapshotFile: snapshotResult.file });
       return;
     }
 
@@ -799,12 +1107,20 @@ server.on('error', (err) => {
 // Bound to localhost only — there's no authentication on any endpoint, so
 // binding to all interfaces (Node's default) would let anyone else on the
 // same network read and modify the whole library.
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Anime Tracker running at http://localhost:${PORT}`);
-  if (libraryState.corrupt) {
-    console.log('WARNING: library.json is corrupt. Open the app to restore from a backup.');
-  }
-  if (IS_SEA) {
-    openBrowser(`http://localhost:${PORT}`);
-  }
-});
+//
+// The pinned-snapshot bootstrap runs before listen() so the server never
+// accepts a connection — not just mutating ones — until the one immutable
+// Class C anchor (rule 10) exists. It's a single JSON hash pass over a
+// personal library, so the added startup latency is negligible.
+(async () => {
+  await ensurePinnedSnapshot();
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`Anime Tracker running at http://localhost:${PORT}`);
+    if (libraryState.corrupt) {
+      console.log('WARNING: library.json is corrupt. Open the app to restore from a backup.');
+    }
+    if (IS_SEA) {
+      openBrowser(`http://localhost:${PORT}`);
+    }
+  });
+})();

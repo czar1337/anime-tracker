@@ -27,15 +27,29 @@ const EXE_PATH = path.join(OUT_DIR, `AnimeTracker-${APP_VERSION}.exe`);
 // these two small local modules into a standalone copy of server.js that's
 // used only as the SEA build's entry point. The real server.js — the one
 // `npm start` and the tests use — is untouched.
+// Order matters: a module later in this list may itself require() an earlier
+// one (snapshots.js requires datadir.js, for canonicalJSON()) — see the
+// cross-module replacement below, which only works if the module being
+// depended on has already been assigned its var by the time the dependent
+// module's own IIFE runs.
 const LOCAL_MODULES = [
   { requireLine: "require('./datadir.js')", file: 'datadir.js', varName: '__datadirModule' },
   { requireLine: "require('./migrations.js')", file: 'migrations.js', varName: '__migrationsModule' },
+  { requireLine: "require('./snapshots.js')", file: 'snapshots.js', varName: '__snapshotsModule' },
 ];
 
 function inlineLocalModules(serverSource) {
   let combined = '';
   for (const mod of LOCAL_MODULES) {
-    const source = fs.readFileSync(path.join(ROOT, mod.file), 'utf8');
+    let source = fs.readFileSync(path.join(ROOT, mod.file), 'utf8');
+    // A local module can itself require() another local module — replace
+    // those the same way server.js's own require lines get replaced below,
+    // so the inlined body never contains a literal require('./x.js') that
+    // would throw ERR_UNKNOWN_BUILTIN_MODULE once packaged.
+    for (const other of LOCAL_MODULES) {
+      if (other === mod) continue;
+      source = source.split(other.requireLine).join(other.varName);
+    }
     const body = source.replace(/module\.exports\s*=/, 'return');
     combined += `const ${mod.varName} = (function () {\n${body}\n})();\n`;
   }
