@@ -574,3 +574,40 @@ reduce for P0.1 to P0.3")
 6. **Rollback:** revert the single `v2(P0.1): codebase and data audit`
    commit. No data or production code was touched, so this is a pure docs
    revert with no forward-compatibility concern.
+
+## P0.1 close out
+
+P0.1 changes no production code, so the acceptance set reduces per the
+spec's "How the criteria reduce for P0.1 to P0.3." Restated explicitly here
+as the close-out record, rather than skipped:
+
+1. **Automated checks — applies.** `node tests/run-all.js` was run verbatim
+   against a clean checkout with no code changes: **59 passed, 0 failed.**
+   No lint, typecheck, or build command exists in this project; said so
+   explicitly above rather than skipped.
+2. **Data safety — not applicable.** Nothing was persisted by this
+   substep. No production code and no user data file was written to at any
+   point; the real `library.json` was opened read-only for the item-3/item-9
+   measurements.
+3. **Manual smoke test — restated as a plain-language check of the written
+   findings.** What you can verify yourself: open
+   `%APPDATA%\anime-tracker\library.json` and confirm 222 entries (210
+   watched, 12 watching), `schemaVersion: 4`; search the repo for
+   `indexedDB`/`createObjectStore` and confirm the only hit is the vendored
+   Tesseract worker (i.e., no IndexedDB is actually used); run
+   `git remote show origin` yourself and confirm `HEAD branch: main`.
+4. **Performance — not applicable.** This is P0.1, not P0.3; P0.3 is where
+   corpus/perf budgets get measured.
+5. **Accessibility — not applicable.** No UI was touched.
+6. **Rollback — revert the docs commit.** Revert `v2(P0.1): codebase and
+   data audit` (and this close-out commit, `v2(P0.1): close out`, if it has
+   also landed). Both are docs-only; no data or production code is at risk.
+
+**Mainline branch, verified at close-out:** `main` — confirmed via
+`git remote show origin` (`HEAD branch: main`) and `git branch -a`
+(`remotes/origin/HEAD -> origin/main`). This matches `docs/v2-prompts.md`
+throughout, so no edit to that file was made or needed.
+
+**Status: P0.1 complete.** All six criteria addressed above (five as
+explicit not-applicable/restated, one as a real automated-check result).
+Nothing outstanding.
