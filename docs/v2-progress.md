@@ -37,7 +37,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P0.1 Codebase and data audit | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.1 close out" | — |
 | P0.2 Verify existing AniList integration | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.2 close out" | — |
 | P0.3 Discover feasibility gate | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.3 close out" + §"P0.3 close-out verification" | — |
-| P0.4 Plan, file index, verification harness | in progress | 2026-08-02 | this session, see below | closing commit pending — full acceptance sweep not yet run |
+| P0.4 Plan, file index, verification harness | done | 2026-08-02 | this session, see "P0.4 close out" below | — |
 | P1.1 Backup, verify, restore, export | not started | — | — | — |
 | P1.2 Storage classes and concurrency | not started | — | — | — |
 | P1.3 Settings schema and transactional migration | not started | — | — | — |
@@ -86,15 +86,87 @@ if it is partially implemented — see Remaining for what's left instead.
 | P8H Episode-level progress | not started | — | — | — |
 | P8I Offline-first, only if backend exists | not started | — | — | likely not applicable as written — this app's "backend" is a local process, not a remote service; confirm scope with the user before starting |
 
-## P0.4 evidence (in progress — updated again at close-out)
+## P0.4 close out
 
 Work done this session, in commit order:
-1. `docs/v2-plan.md`, this file, and `docs/v2-backlog.md` created.
+1. `docs/v2-plan.md`, this file, and `docs/v2-backlog.md` created
+   (`v2(P0.4): plan, progress and backlog files`).
 2. `datadir.js`/`server.js`: `ANIME_TRACKER_DATA_DIR` and `ANIME_TRACKER_PORT`
-   env-var overrides added, additive only.
-3. Playwright installed as the project's first devDependency;
-   `playwright.config.js`, `tests/e2e/harness.js`, `tests/e2e/*.spec.js`,
-   `scripts/perf.js`, `tests/fixtures/perf-library-2000.json` added.
+   env-var overrides added, additive only
+   (`v2(P0.4): data dir and port env overrides`).
+3. Playwright installed as the project's first devDependency (test tooling
+   only — the shipped app stays zero-dependency);
+   `playwright.config.js`, `tests/e2e/harness.js`,
+   `tests/e2e/harness-smoke.spec.js`, `scripts/perf.js`,
+   `tests/fixtures/generate-perf-library.js` and its output
+   `tests/fixtures/perf-library-2000.json` added
+   (`v2(P0.4): playwright and perf harness`).
 
-Full six-criterion acceptance evidence (per the spec's P0.4 reduction) is
-recorded in the close-out commit, not here mid-session.
+Acceptance criteria, applying the spec's own "How the criteria reduce for
+P0.4" (P0.4 ships plan documents and a test harness, no UI):
+
+**1. Automated checks — full, as required.**
+- `node tests/run-all.js` (the existing zero-dependency unit suite, untouched
+  by this substep): **59 passed, 0 failed**, unchanged from P0.1-P0.3.
+- The production preview command (`npm start`, i.e. `node server.js`, no
+  build step exists in this project) was started for real via the committed
+  `.claude/launch.json` config and confirmed serving the real library
+  (12 watching entries visible, matching P0.1's measured counts) — proving
+  the env-var overrides are true no-ops when unset.
+- `npm run test:e2e` (Playwright, against a real server + real Chromium,
+  booted by `tests/e2e/harness.js` against a temp fixture directory, never
+  the real app-data folder): **1 passed** — the smoke test loads a
+  schema-v1 fixture, confirms the app's existing migration chain runs it up
+  to schema v4, and confirms the migrated entry renders.
+- `npm run perf` (the perf script, against the 2,000-entry synthetic
+  fixture): produced a real, measured number —
+  **p95 first-paint time: 1004ms** (7 runs: 972/959/968/981/1004/970/996ms)
+  against the Tuning table's 200ms budget for "Library list render, 2,000
+  entries." **Over budget, and expected to be**: this app has no
+  virtualization yet (`renderGrid()` renders every row; the Global
+  constraints' virtualization requirement and P4.1/P4.3/P4.4's work land
+  later). This is a real, useful measurement recorded for whoever
+  implements virtualization to compare against, not a failure of this
+  substep — P0.4's own reduction only requires that the perf script can
+  produce a number end to end, which it did.
+- No lint, typecheck, or build command exists in this project (unchanged
+  finding from P0.1), stated explicitly rather than skipped.
+
+**2. Data safety — not applicable, as required.** Nothing was persisted to
+the real `library.json` or any other real Class A data. The harness reads
+and writes exclusively inside OS temp directories it creates and tears down
+itself (`fs.mkdtempSync`/`fs.rmSync` in `tests/e2e/harness.js`); the one live
+check against the real app (above) opened the real server read-only and
+made no library-modifying request.
+
+**3. Manual smoke test — restated as a document walkthrough, as required.**
+What the user can check: open `docs/v2-plan.md` and confirm the substep list
+matches `docs/v2-prompts.md`'s Substep table, in the same dependency order,
+with the architecture-correction section addressing the no-IndexedDB
+finding up front. Open `docs/v2-progress.md` (this file) and confirm P0.1,
+P0.2 and P0.3 read `done` with an evidence pointer into
+`docs/v2-discovery.md`, and that P0.4 now reads `done` with its evidence
+recorded here, in this closing commit.
+
+**4. Performance — not applicable except the one required demonstration,
+which applies.** The perf script measured "Library list render, 2,000
+entries" end to end and printed a real p95 number (1004ms) against the
+named budget (200ms), per above. No other Tuning-table surface is touched
+by this substep.
+
+**5. Accessibility — not applicable, as required.** No UI was added or
+changed by this substep.
+
+**6. Rollback.** Revert, in reverse order: `v2(P0.4): playwright and perf
+harness`, `v2(P0.4): data dir and port env overrides`,
+`v2(P0.4): plan, progress and backlog files`. All three are additive:
+the env-var overrides are no-ops when unset (verified above), and nothing
+downstream has been built against the harness or the plan/progress/backlog
+files yet, so there is no forward-compatibility concern. No data or
+production behavior is at risk from a revert.
+
+**Status: P0.4 complete.** All six criteria addressed per the spec's own
+P0.4 reduction — three as full, real demonstrations (automated checks,
+performance, the perf number) and three as explicit not-applicable/restated
+per the reduction rule, none skipped. Pending the user's confirmation to
+merge `v2/P0.4` into `main`.
