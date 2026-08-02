@@ -54,6 +54,20 @@ function armPutInterceptor(page) {
 }
 
 async function waitForBoot(page, serverUrl) {
+  // app.js's boot() fires retryMissingCovers() in the background (never
+  // awaited, by design — see that function's own comment). The fixture
+  // entry's cover file doesn't actually exist on disk in the temp data dir,
+  // so it always finds a "missing" cover and makes a REAL network request to
+  // AniList to fetch one. If that request succeeds (this machine has real
+  // internet access), the retry downloads the cover and calls persist() with
+  // whatever Store state exists at that moment — a genuine, if rare in
+  // normal use, race against this test's own deliberate two-tab edit race,
+  // since this test's whole premise depends on exactly one PUT arriving per
+  // page correlating with the deliberate click. Blocking the AniList request
+  // makes retryMissingCovers() fail fast (its own catch-and-return-early
+  // path) and never call persist() at all, so this test only ever observes
+  // the deliberate edits it's actually testing.
+  await page.route('**/graphql.anilist.co/**', (route) => route.abort());
   await page.goto(serverUrl);
   await page.waitForSelector(`.card[data-id="${ANILIST_ID}"]`);
 }
