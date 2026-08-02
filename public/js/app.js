@@ -58,6 +58,10 @@ async function attemptSave(attempt = 0) {
             reloadAfterConflict().catch((reloadErr) => Render.showError(`Could not reload: ${reloadErr.message}`));
           },
           duration: 20000,
+          // Not an undo action — must not steal ctrl+z away from a genuine
+          // pending Undo toast (e.g. a "Moved to watched" toast shown just
+          // before this save conflict surfaced).
+          trackUndo: false,
         }
       );
       return;

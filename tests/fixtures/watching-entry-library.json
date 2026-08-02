@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "anilistId": 101922,
+      "titleRomaji": "Shingeki no Kyojin",
+      "titleEnglish": "Attack on Titan",
+      "coverFile": "covers/101922.jpg",
+      "format": "TV",
+      "year": 2013,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": ["Action", "Drama"],
+      "averageScore": 84,
+      "listStatus": "watching",
+      "episodesWatched": 5,
+      "myScore": 7,
+      "notes": "",
+      "relatedIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": null
+    }
+  ],
+  "preferences": {
+    "sort": { "watching": "addedAt", "watchlist": "addedAt", "watched": "completedAt", "dropped": "updatedAt" },
+    "sortDir": { "watching": "desc", "watchlist": "desc", "watched": "desc", "dropped": "desc" },
+    "filters": {
+      "watching": { "genres": [], "format": "", "yearMin": null, "yearMax": null },
+      "watchlist": { "genres": [], "format": "", "yearMin": null, "yearMax": null },
+      "watched": { "genres": [], "format": "", "yearMin": null, "yearMax": null },
+      "dropped": { "genres": [], "format": "", "yearMin": null, "yearMax": null }
+    },
+    "activeTab": "watching"
+  }
+}
