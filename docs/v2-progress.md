@@ -49,7 +49,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P0.2 Verify existing AniList integration | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.2 close out" | — |
 | P0.3 Discover feasibility gate | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.3 close out" + §"P0.3 close-out verification" | — |
 | P0.4 Plan, file index, verification harness | done | 2026-08-02 | this session, see "P0.4 close out" below | — |
-| P1.1 Backup, verify, restore, export | not started | — | — | — |
+| P1.1 Backup, verify, restore, export | in progress | 2026-08-02 | this session, see "P1.1 implementation session" below | Full acceptance sweep, manual smoke test against the real library, and the user-executed screen reader step happen in a COMPLETE-B session — not run yet. |
 | P1.2 Storage classes and concurrency | not started | — | — | — |
 | P1.3 Settings schema and transactional migration | not started | — | — | — |
 | P1.4 Token layer, tuning config, inventory | not started | — | — | corpus target (3,000) already decided, see above |
@@ -235,3 +235,79 @@ on `v2/P0.4`, not amending prior commits, still not merged:
      uncommitted state, and `.claude/settings.local.json` does not appear.
 
 Not merged. Awaiting confirmation to merge `v2/P0.4` into `main`.
+
+## P1.1 implementation session (START-C, not a close-out)
+
+This is an implementation session (`docs/v2-prompts.md`'s START-C), not
+COMPLETE-B. The row above is marked `in progress`, not `done`, per the spec's
+own rule that a substep cannot certify itself complete while still being
+written. Full acceptance-criteria evidence (manual smoke test against the
+real library, the user-executed screen reader step, accessibility contrast
+check) is COMPLETE-B's job in a later session.
+
+**What landed this session**, in commit order (see `git log --grep "^v2(P1.1)"`
+for the authoritative list): the Class A store registry
+(`public/js/exportRegistry.js`), the pure Class C build/verify/prune/
+filename-validation module (`snapshots.js`, a root-level addition beyond
+`docs/v2-plan.md`'s original file list — see that file's updated P1.1 entry
+for why), `datadir.js`'s `resolveSnapshotsDir()`, `server.js`'s new
+`/api/export`, `/api/snapshots` (GET+POST), `/api/snapshots/restore` and
+`/api/reset` endpoints plus the automatic startup pinned-snapshot bootstrap,
+the frontend `backupClient.js` and the Settings panel's new "Data & safety"
+section (snapshot list with per-snapshot verified/invalid status, take-a-
+snapshot-now, download-my-data, reset-everything with type-to-confirm), and
+`scripts/build-exe.js`'s SEA-packaging update for the new module.
+
+**Deviations from the original plan, both incorporated after user review
+before implementation began** (see the approved plan in this session's
+transcript for the full reasoning):
+1. The pinned, never-rotated snapshot (rule 10) is created automatically at
+   server startup rather than waiting for a manual "take a snapshot" click —
+   verified end-to-end (`tests/e2e/pinned-snapshot-restart.spec.js`) to be
+   idempotent across a restart against the same data directory.
+2. Snapshot filenames are treated as untrusted input on the restore
+   endpoint: validated against an exact-shape regex and boundary-checked
+   against `snapshots/` before any filesystem access
+   (`tests/e2e/snapshot-restore-security.spec.js` covers traversal,
+   absolute-path and separator-containing rejection).
+3. `GET /api/snapshots` actually re-verifies every snapshot's checksums on
+   every call rather than trusting stored metadata; the Settings UI disables
+   the restore button for anything that comes back `verified: false`.
+4. An explicit tamper e2e test (hand-corrupt a snapshot on disk, confirm
+   restore is refused with a 409 and the live library is byte-for-byte
+   unchanged) sits alongside the happy-path round trip.
+5. `.gitignore` was checked, not assumed: `snapshots/` only ever lands inside
+   the repo during the legacy pre-migration `data/` folder case, which
+   `.gitignore` already excludes wholesale — no new entry was needed.
+6. This session records `in progress`, per the table row above.
+
+**Automated checks, this session** (not the full acceptance sweep —
+COMPLETE-B runs that formally):
+- `node tests/run-all.js`: **72 passed, 0 failed** (13 new: 3 for
+  `exportRegistry.js`'s `buildExport`, 10 for `snapshots.js`'s build/verify/
+  tamper-detection/prune/filename-validation logic, including a synthetic-
+  store injection test proving both are registry-driven rather than
+  hardcoding today's three known stores).
+- `npm run test:e2e`: **9 passed** (5 new specs: `backup-restore.spec.js`,
+  `snapshot-restore-security.spec.js`, `pinned-snapshot-restart.spec.js`,
+  `class-b-corruption.spec.js`, plus the pre-existing 3 harness tests and 1
+  smoke test unaffected).
+- `npm run perf`: two measurements now print. The pre-existing library-render
+  one is unchanged (**p95 994ms** over 7 runs, still over its 200ms budget —
+  expected, per P0.4's own note: virtualization is a later substep). The new
+  one, P1.1's own named budget ("Snapshot plus verify on the real library:
+  under 10s"): **p95 91ms** over 5 runs (89/88/88/91/86ms) against a
+  2,000-entry fixture — comfortably within budget.
+- Manual verification against the real app: booted `npm start` against the
+  real app-data directory via the Browser pane, confirmed the pinned snapshot
+  auto-created on boot, exercised "Take a snapshot now" and "Download my
+  data" for real (both succeeded, no console errors, `GET /api/export`
+  returned 200), and opened the "Reset everything" dialog to confirm the
+  type-to-confirm gating works (danger button starts disabled, enables only
+  once "RESET" is typed exactly) — **without ever confirming it**, since that
+  would have wiped the user's real library. Reset's actual wipe/snapshot/
+  restore path is covered instead by the e2e suite against disposable
+  fixtures.
+
+Not merged, not closed out. `v2(P1.1): close out` and the full six-criterion
+acceptance sweep are COMPLETE-B's job in a later session.

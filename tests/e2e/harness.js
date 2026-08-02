@@ -39,11 +39,19 @@ function delay(ms) {
 // process and remove the temp directory; stop() is safe to call more than
 // once, and safe to call even if the process already exited on its own
 // (e.g. a crash) before stop() was ever invoked.
-async function startFixtureServer(fixtureLibraryPath) {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-e2e-'));
+//
+// `opts.dataDir` (optional): reuse an existing directory instead of
+// mkdtemp'ing a fresh one — for a restart test that needs the second boot to
+// see whatever the first boot actually wrote (e.g. P1.1's pinned-snapshot
+// idempotency), not get re-seeded from the fixture again. When set,
+// `fixtureLibraryPath` is not copied in, since the directory already has
+// whatever state the caller wants preserved.
+async function startFixtureServer(fixtureLibraryPath, opts = {}) {
+  const reusingDataDir = Boolean(opts.dataDir);
+  const dataDir = opts.dataDir || fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-e2e-'));
   fs.mkdirSync(path.join(dataDir, 'covers'), { recursive: true });
   fs.mkdirSync(path.join(dataDir, 'backups'), { recursive: true });
-  if (fixtureLibraryPath) {
+  if (fixtureLibraryPath && !reusingDataDir) {
     fs.copyFileSync(fixtureLibraryPath, path.join(dataDir, 'library.json'));
   }
 
@@ -82,8 +90,14 @@ async function startFixtureServer(fixtureLibraryPath) {
   // waits unboundedly on process exit — a stalled SIGTERM escalates to
   // SIGKILL after a grace period, and temp-dir removal always runs
   // regardless of how (or whether) the process actually exited.
+  //
+  // `opts.keepDataDir` (optional): skip removing the directory — for a
+  // restart test that immediately boots a second server against the same
+  // path. Only the first call's option value takes effect, same as every
+  // other stop() argument would once a second call just re-resolves the
+  // cached promise.
   let stopPromise = null;
-  function stop() {
+  function stop({ keepDataDir = false } = {}) {
     if (stopPromise) return stopPromise;
     stopPromise = (async () => {
       if (!exited) {
@@ -102,10 +116,12 @@ async function startFixtureServer(fixtureLibraryPath) {
           await Promise.race([exitPromise, delay(STOP_GRACE_MS)]);
         }
       }
-      try {
-        fs.rmSync(dataDir, { recursive: true, force: true });
-      } catch {
-        // best-effort cleanup only
+      if (!keepDataDir) {
+        try {
+          fs.rmSync(dataDir, { recursive: true, force: true });
+        } catch {
+          // best-effort cleanup only
+        }
       }
     })();
     return stopPromise;
