@@ -12,6 +12,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const SERVER_PATH = path.join(__dirname, '..', '..', 'server.js');
+const STOP_GRACE_MS = 5000;
 
 async function waitForServer(url, timeoutMs = 15000) {
   const start = Date.now();
@@ -28,10 +29,16 @@ async function waitForServer(url, timeoutMs = 15000) {
   throw new Error(`Server at ${url} did not respond within ${timeoutMs}ms${lastErr ? `: ${lastErr.message}` : ''}`);
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Starts a real server process against a temp data dir seeded from
 // `fixtureLibraryPath` (a library.json-shaped file), if given. Returns
-// { url, dataDir, stop() }. Caller must call stop() to kill the process
-// and remove the temp directory.
+// { url, dataDir, pid, stop() }. Caller must call stop() to kill the
+// process and remove the temp directory; stop() is safe to call more than
+// once, and safe to call even if the process already exited on its own
+// (e.g. a crash) before stop() was ever invoked.
 async function startFixtureServer(fixtureLibraryPath) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-e2e-'));
   fs.mkdirSync(path.join(dataDir, 'covers'), { recursive: true });
@@ -53,25 +60,66 @@ async function startFixtureServer(fixtureLibraryPath) {
     stdio: 'pipe',
   });
 
+  // Attached immediately, not inside stop(): Node's EventEmitter does not
+  // replay a past 'exit' event to a listener added later, so a listener
+  // attached only when stop() runs would hang forever if the process had
+  // already exited (e.g. crashed) before stop() was ever called. Tracking
+  // via this always-attached listener means `exited`/`exitPromise` are
+  // correct regardless of which happens first.
+  let exited = false;
+  const exitPromise = new Promise((resolve) => {
+    child.once('exit', () => {
+      exited = true;
+      resolve();
+    });
+  });
+
   const startupErrors = [];
   child.stderr.on('data', (chunk) => startupErrors.push(chunk.toString()));
+
+  // Idempotent and bounded: safe to call more than once (a second call
+  // just re-resolves the same in-flight/completed cleanup), and never
+  // waits unboundedly on process exit — a stalled SIGTERM escalates to
+  // SIGKILL after a grace period, and temp-dir removal always runs
+  // regardless of how (or whether) the process actually exited.
+  let stopPromise = null;
+  function stop() {
+    if (stopPromise) return stopPromise;
+    stopPromise = (async () => {
+      if (!exited) {
+        try {
+          child.kill();
+        } catch {
+          // already gone — fall through to the bounded wait below
+        }
+        await Promise.race([exitPromise, delay(STOP_GRACE_MS)]);
+        if (!exited) {
+          try {
+            child.kill('SIGKILL');
+          } catch {
+            // already gone
+          }
+          await Promise.race([exitPromise, delay(STOP_GRACE_MS)]);
+        }
+      }
+      try {
+        fs.rmSync(dataDir, { recursive: true, force: true });
+      } catch {
+        // best-effort cleanup only
+      }
+    })();
+    return stopPromise;
+  }
 
   const url = `http://localhost:${testPort}`;
   try {
     await waitForServer(url);
   } catch (err) {
-    child.kill();
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    await stop();
     throw new Error(`${err.message}\nServer stderr:\n${startupErrors.join('')}`);
   }
 
-  async function stop() {
-    child.kill();
-    await new Promise((resolve) => child.once('exit', resolve));
-    fs.rmSync(dataDir, { recursive: true, force: true });
-  }
-
-  return { url, dataDir, stop };
+  return { url, dataDir, pid: child.pid, stop };
 }
 
 module.exports = { startFixtureServer };

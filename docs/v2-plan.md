@@ -63,16 +63,37 @@ call** — the latter would do nothing, since the race isn't in the browser's
 storage layer at all. The "close other tabs to continue" UX requirement
 still applies; the mechanism enforcing it moves server-side.
 
-**Browser storage eviction does not apply.** No `navigator.storage.persist()`
+**Browser storage eviction and persistence APIs do not apply — this is a
+deviation from the spec, recorded here.** No `navigator.storage.persist()`
 call exists anywhere in shipped code (confirmed live: `persisted()` returns
-`false`). There is no browser-origin quota at risk. The real constraint on
-corpus size (P5A.1) is the AniList rate limit — a confirmed, exhaustion-
-tested hard ceiling of 30 requests/minute (not the documented 90) — not disk
-space or browser eviction pressure. `navigator.storage.persist()` should
-still be requested per rule 2 (harmless, and protects the `covers/` +
-`library.json` files against OS-level disk pressure in a packaged/Electron-
-like future), but the eviction-order logic in rule 4 has no browser-quota
-trigger to hang off today.
+`false`), and none of `navigator.storage`'s quota/persistence/eviction
+machinery is relevant to this app at all. That API governs a *browser
+profile's own per-origin storage* (IndexedDB, the Cache API, `localStorage`)
+— it has no visibility into, and no effect on, files a separate OS process
+writes to disk. This app's real persisted data, `library.json` and
+`covers/*.jpg`, is written directly by the Node server (`server.js`), not by
+the page. **Calling `navigator.storage.persist()` from the frontend cannot
+protect `library.json` or `covers/` — there is no mechanism by which it
+could, since the browser's storage layer and the server's filesystem writes
+are two entirely separate systems.** A persist-denied warning built on this
+API would be warning the user about a risk (browser-origin eviction) that
+does not exist for this app's actual data, while saying nothing about the
+risks that do exist (disk failure, accidental deletion, machine loss) — so
+it does not belong in P1.1 as a data-safety measure. **`docs/v2-spec.md`
+rule 2's persist()/warning requirement is written for the IndexedDB
+architecture the spec assumed; it does not transfer to this one, and the
+spec itself is not editable.** Whoever implements P1.1 should skip a
+persist()-based warning UI (it would be meaningless, not merely redundant)
+and confirm this reading with the user rather than building it anyway. The
+real constraint on corpus size (P5A.1) is the AniList rate limit — a
+confirmed, exhaustion-tested hard ceiling of 30 requests/minute (not the
+documented 90) — not disk space or browser eviction pressure, and the
+eviction-order logic in rule 4 has no browser-quota trigger to hang off
+today. **What rule 2 gets right regardless of architecture: "a file export
+is the backup of record"** — still true here, just for a different reason
+than the spec assumes (protection against disk failure or machine loss, not
+origin eviction, which isn't a risk this app has). P1.1's export path is
+still the substep's real, load-bearing deliverable.
 
 **"Members" field:** AniList has no field literally named `members`. The
 Tuning table's hidden-gem threshold (`members < 50,000`) maps to AniList's
@@ -103,7 +124,10 @@ to migrate on the scale question itself, just document it as-is.
   server bootstrapping.
 - `playwright.config.js`, `tests/e2e/*.spec.js`: real-browser tests, kept
   separate from the existing zero-dependency `node tests/run-all.js` unit
-  suite. Run via `npm run test:e2e`.
+  suite. **First-run setup, once per machine: `npm install` then
+  `npm run test:e2e:install`** (downloads the Chromium binary Playwright
+  drives — a few hundred MB, not committed to the repo). After that,
+  run the suite via `npm run test:e2e`.
 - `scripts/perf.js`, `tests/fixtures/perf-library-2000.json`: measures
   "Library list render, 2,000 entries" (the one Tuning-table budget whose
   surface already exists pre-v2) end to end. Run via `npm run perf`.
@@ -123,16 +147,23 @@ to migrate on the scale question itself, just document it as-is.
 **P0.3 Discover feasibility gate** — done. No files touched:
 `docs/v2-discovery.md`, `docs/v2-discovery-fixtures/anilist/*.json`.
 
-**P0.4 Plan, file index, verification harness** — in progress (this
-substep). Creates: `docs/v2-plan.md`, `docs/v2-progress.md`,
-`docs/v2-backlog.md`. Touches: `datadir.js`, `server.js` (env var
-overrides, additive only), `package.json` (new devDependency + scripts).
-Creates: `playwright.config.js`, `tests/e2e/harness.js`,
-`tests/e2e/*.spec.js`, `scripts/perf.js`, `tests/fixtures/perf-library-2000.json`.
+**P0.4 Plan, file index, verification harness** — done. Evidence:
+`docs/v2-progress.md` §"P0.4 close out". Creates: `docs/v2-plan.md`,
+`docs/v2-progress.md`, `docs/v2-backlog.md`. Touches: `datadir.js`,
+`server.js` (env var overrides, additive only), `package.json` (new
+devDependency + scripts). Creates: `playwright.config.js`,
+`tests/e2e/harness.js`, `tests/e2e/*.spec.js`, `scripts/perf.js`,
+`tests/fixtures/perf-library-2000.json`.
 
 **P1.1 Backup, verify, restore, export.** Builds the file export, snapshot
-writer/verifier, restore path, retention, `navigator.storage.persist()`
-call, and the type-to-confirm "Download my data"/"Reset everything" UI.
+writer/verifier, restore path, retention, and the type-to-confirm
+"Download my data"/"Reset everything" UI. **Does not implement
+`navigator.storage.persist()` or a persist-denied warning** — see the
+"Browser storage eviction and persistence APIs do not apply" section above:
+that API cannot protect this app's Node-managed `library.json`/`covers/`,
+so building a warning UI around it would be meaningless, not just
+redundant. Confirm this reading with the user before spending effort on it
+if reopening this decision.
 - `server.js`: new snapshot writer/verifier/restore/export/reset endpoints;
   new `snapshots/` directory alongside `datadir.js`'s existing `covers/`/
   `backups/`.
@@ -200,10 +231,13 @@ call, and the type-to-confirm "Download my data"/"Reset everything" UI.
 **P1.6 Copy registry, new v2 surfaces only.**
 - New `public/js/copy.js`: the `copy(key, tier)` resolver, three tiers.
 - New copy-entry modules/JSON (registry data), one `spicy`-flag-aware schema.
-- Retrofits: the persist-denied warning, quota-failure surface,
-  "close other tabs" message, restore-from-snapshot UI copy, reset
-  type-to-confirm copy, migration failure/restore-succeeded messages — all
-  introduced by P1.1-P1.5, now moved through `copy()`.
+- Retrofits: the quota-failure surface, "close other tabs" message,
+  restore-from-snapshot UI copy, reset type-to-confirm copy, migration
+  failure/restore-succeeded messages — all introduced by P1.1-P1.5, now
+  moved through `copy()`. (No persist-denied warning exists to retrofit —
+  see P1.1's entry above and the architecture-correction section: that
+  warning was never built, since the API it would warn about doesn't apply
+  to this app's storage.)
 - New lightweight check (no ESLint exists in this project — P0.1 confirmed
   zero lint config — so this is a small custom Node script, e.g.
   `scripts/check-copy-registry.js`, not an ESLint rule) enforcing new/changed
