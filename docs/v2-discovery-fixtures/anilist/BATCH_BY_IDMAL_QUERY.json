@@ -1,0 +1,79 @@
+{
+  "data": {
+    "Page": {
+      "media": [
+        {
+          "id": 1,
+          "idMal": 1,
+          "title": {
+            "romaji": "Cowboy Bebop",
+            "english": "Cowboy Bebop"
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx1-GCsPm7waJ4kS.png",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx1-GCsPm7waJ4kS.png"
+          },
+          "episodes": 26,
+          "duration": 24,
+          "format": "TV",
+          "seasonYear": 1998,
+          "averageScore": 86,
+          "genres": [
+            "Action",
+            "Adventure",
+            "Drama",
+            "Sci-Fi"
+          ],
+          "status": "FINISHED",
+          "season": "SPRING",
+          "studios": {
+            "nodes": [
+              {
+                "name": "Sunrise"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "SIDE_STORY",
+                "node": {
+                  "id": 5,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SIDE_STORY",
+                "node": {
+                  "id": 17205,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 30173,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 30174,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "SUMMARY",
+                "node": {
+                  "id": 4037,
+                  "type": "ANIME"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,281 @@
+{
+  "data": {
+    "Page": {
+      "media": [
+        {
+          "id": 178789,
+          "title": {
+            "romaji": "Mushoku Tensei III: Isekai Ittara Honki Dasu",
+            "english": "Mushoku Tensei: Jobless Reincarnation Season 3"
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx178789-hNXjKFzUq7mk.jpg",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx178789-hNXjKFzUq7mk.jpg"
+          },
+          "format": "TV",
+          "genres": [
+            "Adventure",
+            "Drama",
+            "Ecchi",
+            "Fantasy"
+          ],
+          "seasonYear": 2026,
+          "startDate": {
+            "year": 2026,
+            "month": 7,
+            "day": 4
+          },
+          "averageScore": 85,
+          "popularity": 135534,
+          "episodes": 14,
+          "duration": 24,
+          "studios": {
+            "nodes": [
+              {
+                "name": "Studio Bind"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "PREQUEL",
+                "node": {
+                  "id": 166873,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 85470,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "ALTERNATIVE",
+                "node": {
+                  "id": 146378,
+                  "type": "MANGA"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 196187,
+          "title": {
+            "romaji": "Super no Ura de Yani Suu Futari",
+            "english": "Smoking Behind the Supermarket with You"
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx196187-0dgFi2CPp3xn.jpg",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx196187-0dgFi2CPp3xn.jpg"
+          },
+          "format": "TV",
+          "genres": [
+            "Comedy",
+            "Romance",
+            "Slice of Life"
+          ],
+          "seasonYear": 2026,
+          "startDate": {
+            "year": 2026,
+            "month": 7,
+            "day": 10
+          },
+          "averageScore": 82,
+          "popularity": 99860,
+          "episodes": 12,
+          "duration": 24,
+          "studios": {
+            "nodes": [
+              {
+                "name": "Asahi Production"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 147149,
+                  "type": "MANGA"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 135865,
+          "title": {
+            "romaji": "Youjo Senki II",
+            "english": "Saga of Tanya the Evil Season 2"
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx135865-T7XIPMAbqcxN.png",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx135865-T7XIPMAbqcxN.png"
+          },
+          "format": "TV",
+          "genres": [
+            "Action",
+            "Fantasy"
+          ],
+          "seasonYear": 2026,
+          "startDate": {
+            "year": 2026,
+            "month": 7,
+            "day": 8
+          },
+          "averageScore": 81,
+          "popularity": 84069,
+          "episodes": 12,
+          "duration": 24,
+          "studios": {
+            "nodes": [
+              {
+                "name": "NUT"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 94846,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "ALTERNATIVE",
+                "node": {
+                  "id": 97216,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "PREQUEL",
+                "node": {
+                  "id": 100878,
+                  "type": "ANIME"
+                }
+              },
+              {
+                "relationType": "SIDE_STORY",
+                "node": {
+                  "id": 213961,
+                  "type": "ANIME"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 185874,
+          "title": {
+            "romaji": "BLEACH: Sennen Kessen-hen - Kashin-tan",
+            "english": "BLEACH: Thousand-Year Blood War - The Calamity"
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx185874-aU3e6tBT6wwA.jpg",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx185874-aU3e6tBT6wwA.jpg"
+          },
+          "format": "TV",
+          "genres": [
+            "Action",
+            "Adventure",
+            "Supernatural"
+          ],
+          "seasonYear": 2026,
+          "startDate": {
+            "year": 2026,
+            "month": 7,
+            "day": 25
+          },
+          "averageScore": 88,
+          "popularity": 66486,
+          "episodes": 10,
+          "duration": null,
+          "studios": {
+            "nodes": [
+              {
+                "name": "PIERROT FILMS"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 30012,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "PREQUEL",
+                "node": {
+                  "id": 169755,
+                  "type": "ANIME"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": 207141,
+          "title": {
+            "romaji": "Yani Neko",
+            "english": "Chainsmoker Cat"
+          },
+          "coverImage": {
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx207141-h5q5KJPd6vaX.jpg",
+            "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx207141-h5q5KJPd6vaX.jpg"
+          },
+          "format": "TV",
+          "genres": [
+            "Comedy",
+            "Slice of Life"
+          ],
+          "seasonYear": 2026,
+          "startDate": {
+            "year": 2026,
+            "month": 7,
+            "day": 3
+          },
+          "averageScore": 67,
+          "popularity": 58658,
+          "episodes": null,
+          "duration": 24,
+          "studios": {
+            "nodes": [
+              {
+                "name": "Bibury Animation Studios"
+              }
+            ]
+          },
+          "relations": {
+            "edges": [
+              {
+                "relationType": "ADAPTATION",
+                "node": {
+                  "id": 162552,
+                  "type": "MANGA"
+                }
+              },
+              {
+                "relationType": "SIDE_STORY",
+                "node": {
+                  "id": 208105,
+                  "type": "ANIME"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

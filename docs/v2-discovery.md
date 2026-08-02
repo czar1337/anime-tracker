@@ -611,3 +611,406 @@ throughout, so no edit to that file was made or needed.
 **Status: P0.1 complete.** All six criteria addressed above (five as
 explicit not-applicable/restated, one as a real automated-check result).
 Nothing outstanding.
+
+---
+
+# v2 Discovery — P0.2 Verify the existing AniList integration
+
+Owner: P0.2. Appends to the file P0.1 created. Change no production code in
+this substep. None was changed.
+
+## Reconciliation, before anything was written
+
+- `git log --all --oneline --grep "^v2("` → `d77be05 Merge branch 'v2/P0.1'
+  into main`, `f4e2434 v2(P0.1): close out`, `eb5614e v2(P0.1): codebase and
+  data audit`. **No P0.2 or P0.3 commit exists anywhere.** P0.1 is merged to
+  `main`.
+- `git status --porcelain` at session start → clean tree.
+- `git switch main && git pull --ff-only` → already up to date. Branched
+  `v2/P0.2` from `main`.
+
+The app already has a working AniList-based Discover integration, confirmed by
+P0.1 (`v2-discovery.md` item 4: `anilistId` is the load-bearing primary key
+referenced 181 times across 19 files; item 6 references `discover.js` /
+`schedule.js` / `airingLogic.js`). This substep verifies and documents what
+that integration actually does — it does not choose or change the API.
+**Keeping AniList is the default answer** and no change is proposed here.
+
+## 1. Endpoints, client location, rate-limit/error/retry handling
+
+**One central client, scattered callers.** Every AniList request in the app
+funnels through a single low-level function, `anilistRequest(query,
+variables)` (`public/js/api.js:220-250`), which does the actual
+`fetch('https://graphql.anilist.co', ...)`
+(`ANILIST_URL`, `api.js:5`). The file's own header comment states the
+architecture: AniList's endpoint sends permissive CORS headers, so the
+browser calls it directly with no server proxy. **`server.js` never talks to
+AniList's GraphQL endpoint at all** — its only outbound HTTPS calls are to
+GitHub (version-check) and to whatever cover-image URL the browser hands it
+for download (`server.js:500-544`), which arrives as an opaque URL string,
+not a GraphQL call.
+
+Eight public functions are built on `anilistRequest`, each called from a
+different frontend file:
+
+| Function | Called from |
+| --- | --- |
+| `fetchCoversBatch` | `app.js:218` (boot-time cover recovery) |
+| `fetchAiringBatch` | `airing.js:91` |
+| `fetchRecommendationsBatch` | `discover.js:75` |
+| `fetchUpcomingMedia` | `schedule.js:52` |
+| `fetchAniListByMalIds` | `malImport.js:76` |
+| `searchAniList` | `events.js:777` (manual search box), `screenshotImport.js:57,212` (OCR import matching) |
+| `fetchAnimeDetail` | `detail.js:30` |
+
+**Rate-limit handling is reactive, not proactive.** On a `429`, `api.js:240-243`
+reads only the `Retry-After` header and throws a `RateLimitError`:
+
+```js
+if (res.status === 429) {
+  const retryAfter = Number(res.headers.get('Retry-After')) || 60;
+  throw new RateLimitError(retryAfter);
+}
+```
+
+**`X-RateLimit-Remaining` / `X-RateLimit-Limit` are present on every AniList
+response (confirmed live, see item 3/5) but are never read anywhere in the
+codebase.** There is no proactive throttling against remaining quota — the
+app only reacts after it has already been rate-limited.
+
+**Retry logic is duplicated five times, not centralized.** An identical
+~7-line `withRateLimitRetry(fn)` wrapper appears in `app.js:145`,
+`malImport.js:61`, `discover.js:52`, `airing.js:26`, and `schedule.js:29`.
+Behavior is the same everywhere: on a `RateLimitError`, sleep
+`Math.min(retryAfterSeconds, 30) * 1000` ms, then retry exactly once. A
+second failure is not retried again — it's caught by the caller and treated
+as a batch failure (see error handling below).
+
+**Self-imposed pacing, independent of any rate-limit signal:** every batch
+loop sleeps a fixed 800ms between batches — `malImport.js:83`,
+`discover.js:85`, `airing.js:103` — plus `discover.js:6-9` capping seed batch
+size (`SEED_BATCH_SIZE = 5`) and a 90-item pool cache so "Load more" never
+issues new AniList calls. There is no request queue and no concurrency
+limiter; batches run strictly sequentially in a `for` loop with `await`,
+which is a de facto serialization but not a designed budget-aware system.
+
+**Error handling**, all centralized in `anilistRequest()`
+(`api.js:220-250`):
+- 15s timeout via `AbortController` (`ANILIST_TIMEOUT_MS = 15000`,
+  `api.js:218,222-223`) → `"AniList took too long to respond. Try again."`
+- Any other fetch rejection → `"Could not reach AniList. Check your internet
+  connection."`
+- 429 → `RateLimitError` (above).
+- Non-OK status or a GraphQL `errors` array in a 200 response →
+  the first error message, or a generic `"AniList request failed (${status})"`.
+- `fetchAnimeDetail` additionally checks `if (!data.Media) throw new
+  Error('Not found on AniList.')` (`api.js:399-403`).
+
+Every call site fails soft: a batch failing after its one retry is swallowed
+with a code comment explaining the tradeoff (stale cache data carried
+forward, import entries marked "unmatched," cached page shown instead of
+blank) — `discover.js:80-84`, `airing.js:96-102`, `schedule.js:76-80`,
+`malImport.js:78-81`, `app.js:219-221`. The manual search box
+(`events.js:783-788`) shows the error inline instead of throwing further.
+Cover-image download errors are a separate, server-side path
+(`server.js:500-544`, 15s timeout, up to 5 redirects, surfaced as HTTP 502
+at `server.js:727-729`).
+
+## 2. What is cached today, where, with what invalidation
+
+Three server-side JSON caches, all written atomically in the OS-specific
+app-data directory, all explicitly documented in-code as regenerable — a
+different, lighter treatment than `library.json`'s protected handling
+(`server.js:229-232`: "fully regenerable... no backup rotation and no
+corrupt-refusal, since there's nothing irreplaceable to protect. A corrupt
+cache is simply treated as empty and gets recomputed."):
+
+| Cache file | Write/read (server) | Endpoints | Populated from |
+| --- | --- | --- | --- |
+| `recommendations-cache.json` | `writeRecsCacheAtomic()` / `readRecsCache()`, `server.js:233-252` | `GET/PUT /api/recommendations`, `server.js:667-681` | `discover.js:128` |
+| `airing-cache.json` | `writeAiringCacheAtomic()` / `readAiringCache()`, `server.js:280-299` | `GET/PUT /api/airing`, `server.js:683-697` | `airing.js:71` |
+| `upcoming-cache.json` | `writeUpcomingCacheAtomic()` / `readUpcomingCache()`, `server.js:257-276` | `GET/PUT /api/upcoming`, `server.js:699-713` | `schedule.js:75` |
+
+**Invalidation is client-side, TTL-based, 24 hours, not server-enforced.**
+`discover.js:10`, `airing.js:6`, and `schedule.js:9` all define
+`STALE_MS = 24 * 60 * 60 * 1000`, and each module's `ensureFreshOnOpen()`
+compares `Date.now()` against the cache's own `generatedAt` timestamp —
+triggered when the relevant tab opens (Discover, Schedule) or at app boot
+(Airing, `airing.js:131-134`). **The server has no TTL or expiry logic of its
+own** — it stores and returns whatever the client last `PUT`, and every
+staleness decision is re-derived client-side from the cache payload's own
+`generatedAt` field on every load. Manual refresh (e.g. Discover's "New
+suggestions" button, `discover.js:241-244`) always bypasses the TTL.
+
+A fourth cache exists outside this JSON pattern: downloaded cover `.jpg`
+files under `covers/` (`server.js:39`), reconciled by a presence-check
+against the library (`GET /api/covers/existing`, `server.js:744-757`) at
+every boot when online — no age-based expiry, just "is the file there."
+
+## 3. Field coverage, verified against live responses
+
+**Queries are all defined in `public/js/api.js`.** A shared fragment,
+`RELATIONS_FIELD` (`api.js:132-138`), is reused across most media-list
+queries. One real, live response per distinct query shape was captured
+against `https://graphql.anilist.co` this session and saved verbatim (not
+from memory, not hand-written) at
+`docs/v2-discovery-fixtures/anilist/*.json`:
+
+| Query (source) | Fixture file | What it requests |
+| --- | --- | --- |
+| `SEARCH_QUERY`, `api.js:140-160` | `SEARCH_QUERY.json` | id, idMal, title, coverImage, episodes, duration, format, seasonYear, averageScore, genres, status, season, studios(isMain), relations |
+| `BATCH_BY_IDMAL_QUERY`, `api.js:162-182` | `BATCH_BY_IDMAL_QUERY.json` | same field set, keyed by `idMal_in` |
+| `AIRING_BATCH_QUERY`, `api.js:264-274` | `AIRING_BATCH_QUERY.json` | id, status, episodes, `nextAiringEpisode{episode airingAt}` |
+| `UPCOMING_QUERY`, `api.js:285-304` | `UPCOMING_QUERY.json` | id, title, coverImage, format, genres, seasonYear, startDate, averageScore, popularity, episodes, duration, studios(isMain), relations |
+| `COVERS_BATCH_QUERY`, `api.js:311-319` | `COVERS_BATCH_QUERY.json` | id, coverImage |
+| recommendations batch (aliased), `api.js:335-364` | `RECOMMENDATIONS_QUERY.json` | per seed: `recommendations(sort: RATING_DESC)`, node fields matching the list shape above, plus relations |
+| `DETAIL_QUERY`, `api.js:376-397` | `DETAIL_QUERY.json` | id, title (+ native), description, coverImage, bannerImage, genres, averageScore, popularity, favourites, format, status, episodes, duration, source, startDate, endDate, studios(isMain) |
+| Coverage probe (not an app query — probing AniList itself) | `FIELD_COVERAGE_PROBE.json` | id, `countryOfOrigin`, `tags{name category isMediaSpoiler rank}`, `staff(perPage:5){edges{role node{name{full}}}}` |
+
+Findings against the spec's checklist:
+
+- **`genres`** — requested in every query above except the two id-only
+  batch queries, confirmed live as a plain unordered array. Fixture evidence
+  (`SEARCH_QUERY.json`): Frieren and three of its own spin-offs/sequels all
+  return `["Adventure","Drama","Fantasy"]` in that exact order, but nothing
+  in the API marks any one of them "primary." **Confirms the spec's
+  assumption is correct**: there is no primary-genre field, and the Tuning
+  table's local deterministic priority-list rule is genuinely necessary, not
+  redundant with something AniList already provides.
+- **`tags`** — **the app's own queries never request this field anywhere**
+  (confirmed: zero `tags` field references in any query in `api.js`; the
+  only string `"tags"` in `public/js` is an unrelated OCR chrome-phrase
+  filter word in `screenshotLogic.js:21`). **Live-verified AniList does
+  expose it**, including a `Demographic` category — `FIELD_COVERAGE_PROBE.json`
+  returns, among 28 tags for Frieren, `{"name":"Shounen","category":
+  "Demographic","isMediaSpoiler":false,"rank":70}`. This directly answers
+  the open question the spec itself flags at two achievement definitions
+  (`v2-spec.md:904` "Power Of Friendship – 20 shonen... define by tag or
+  source heuristic," `:914` "Dad Anime – 20 seinen... same demographic
+  caveat"): **a demographic field does exist, as a tag category, and is
+  fetchable** — it's just not currently requested or cached by anything in
+  the app.
+- **`staff`** — **never requested by the app today** (zero references in
+  `api.js`). Live-verified the field exists and returns usable data:
+  `FIELD_COVERAGE_PROBE.json` returns 5 staff edges for Frieren with `role`
+  and `node.name.full` (e.g. `"ADR Producer (English)"` /
+  `"Colleen Clinkenbeard"`).
+- **Studios / member counts** — `studios(isMain: true){nodes{name}}` is
+  requested in every media-list query (main studio only, by design —
+  `api.js:196-198`). **AniList has no field literally named "members."**
+  The closest analogue is `popularity` (a media-level "how many users have
+  this on a list" count), requested only in `UPCOMING_QUERY` and
+  `DETAIL_QUERY` today and confirmed live: `DETAIL_QUERY.json` returns
+  `"popularity": 465885` for Frieren. **The Tuning table's "members <
+  50,000" hidden-gem threshold will need to read `popularity`, not a field
+  called `members`, when P1.4/P5A.1 build the corpus schema.**
+- **`averageScore`, `duration`, `format`** — requested in every media-list
+  query, present and populated in every fixture (e.g. `DETAIL_QUERY.json`:
+  `averageScore: 91, duration: 24, format: "TV"`).
+- **`airingStatus` / `status`** — requested in most queries (absent only
+  from the deliberately minimal `COVERS_BATCH_QUERY`). Confirmed live in
+  every other fixture.
+- **`nextAiringEpisode` / airing schedule** — requested in
+  `AIRING_BATCH_QUERY` only, as `nextAiringEpisode{episode airingAt}`.
+  Fixture (`AIRING_BATCH_QUERY.json`) correctly returns `null` for a
+  finished show (Frieren season 1, `status: "FINISHED"`) — confirming the
+  field behaves as expected for the "no countdown rather than a guessed one"
+  rule the spec requires for null-total titles.
+- **`countryOfOrigin`** — never requested by any app query today.
+  Live-verified it exists: `FIELD_COVERAGE_PROBE.json` returns
+  `"countryOfOrigin": "JP"`.
+- **Relations graph** — requested via the shared `RELATIONS_FIELD` fragment
+  in `SEARCH_QUERY`, `BATCH_BY_IDMAL_QUERY`, `UPCOMING_QUERY`, and the
+  recommendations batch query. Confirmed live against a real multi-entry
+  franchise (`SEARCH_QUERY.json`, Frieren and its four related seasons/OVAs):
+  real `relationType` values observed include `ADAPTATION`, `SEQUEL`,
+  `PREQUEL`, `SIDE_STORY`, `PARENT`, `CHARACTER`, `OTHER`, each with the
+  related node's `id` and `type`. The app's own
+  `extractRelatedIds()` (`api.js:189-194`) filters this down to a
+  `GROUPING_RELATIONS` allowlist (`api.js:187`) before storing `relatedIds`
+  on a library entry — confirmed consistent with the raw relations data in
+  the fixture.
+
+## 4. Library fields storing or depending on AniList IDs
+
+- **`anilistId`** (number) is the sole persisted external-ID field and the
+  load-bearing primary key everywhere in the app — consistent with P0.1's
+  own finding (item 4 above, "181 references across 19 files"). It is set
+  once in `addEntry()` (`state.js:105`) and used as the join key for
+  `getEntry`/`updateEntry`/`removeEntry`, the dismissed-items list, and
+  franchise-grouping adjacency.
+- **Every library entry has a non-null `anilistId`** (it's a required field
+  on `addEntry`), so the count of entries depending on it equals the
+  library's total entry count. Re-confirmed this session against the same
+  live `library.json` P0.1 measured: **222 entries.**
+- **`coverFile`** is not literally computed as `f(anilistId)` in the stored
+  field, but the on-disk filename convention *is* `${anilistId}.jpg`
+  (`server.js:723`), so every cover path is anilistId-keyed in practice.
+- **`relatedIds`** (number[]) are AniList media IDs, filtered from the raw
+  `relations` field via `extractRelatedIds()` (`api.js:189-194`) against the
+  `GROUPING_RELATIONS` allowlist (`api.js:187`).
+- **`genres`, `averageScore`, `format`, `studio`, `airingStatus`,
+  `duration`, `totalEpisodes`, `year`** are all AniList-sourced fields
+  copied onto the entry at add time, from every "add to library" call site
+  (`events.js:795-812`, `discover.js:292-306`, `malImport.js:96-115`,
+  `screenshotImport.js:250-264`).
+- **`malId`** is used only transiently during MAL-XML import to look up the
+  matching AniList record (`malImport.js:36,39,73,76,89`) and is **never
+  persisted** onto a library entry (`mediaToEntryPatch()`,
+  `malImport.js:96-115`, writes only `anilistId`).
+
+## 5. Observed rate limit from response headers
+
+**AniList's own published limit: 90 requests/minute**, per
+`https://docs.anilist.co/guide/rate-limiting` (mirror:
+`https://anilist.gitbook.io/anilist-apiv2-docs/docs/guide/rate-limiting`),
+with an additional burst limiter, `X-RateLimit-Limit` / `X-RateLimit-Remaining`
+response headers, and a stated 1-minute timeout on exceeding it.
+
+**Live-observed limit right now: 30 requests/minute.** All 8 live probe
+requests this session returned `x-ratelimit-limit: 30` (not 90), with
+`x-ratelimit-remaining` decrementing by exactly 1 per request (29 → 22 across
+the sequence), captured verbatim in
+`docs/v2-discovery-fixtures/anilist/_headers-log.json`:
+
+```json
+[
+  {"query":"SEARCH_QUERY","status":200,"x-ratelimit-limit":"30","x-ratelimit-remaining":"29","retry-after":null,"hasErrors":false},
+  {"query":"BATCH_BY_IDMAL_QUERY","status":200,"x-ratelimit-limit":"30","x-ratelimit-remaining":"28","retry-after":null,"hasErrors":false},
+  {"query":"AIRING_BATCH_QUERY","status":200,"x-ratelimit-limit":"30","x-ratelimit-remaining":"27","retry-after":null,"hasErrors":false},
+  {"query":"UPCOMING_QUERY","status":200,"x-ratelimit-limit":"30","x-ratelimit-remaining":"26","retry-after":null,"hasErrors":false},
+  {"query":"COVERS_BATCH_QUERY","status":200,"x-ratelimit-limit":"30","x-ratelimit-remaining":"25","retry-after":null,"hasErrors":false},
+  {"query":"RECOMMENDATIONS_QUERY","status":200,"x-ratelimit-limit":"30","x-ratelimit-remaining":"24","retry-after":null,"hasErrors":false},
+  {"query":"DETAIL_QUERY","status":200,"x-ratelimit-limit":"30","x-ratelimit-remaining":"23","retry-after":null,"hasErrors":false},
+  {"query":"FIELD_COVERAGE_PROBE","status":200,"x-ratelimit-limit":"30","x-ratelimit-remaining":"22","retry-after":null,"hasErrors":false}
+]
+```
+
+**This is a real, currently-material discrepancy, not a measurement error**:
+requests were spaced 800ms apart (mirroring the app's own pacing) and every
+response consistently reported a limit of 30, never 90. AniList is evidently
+running a reduced/degraded limit at the time of this audit, well below its
+own documented number — this could be a temporary site-wide throttle or a
+permanent change since the docs were last updated; this substep cannot tell
+which. **Flagged for the backlog and for P0.3**, whose feasibility math and
+the Tuning table's "70% of the observed limit" rule must use the *observed*
+30/min, not the documented 90/min, and should re-check this number rather
+than assume it was a one-off.
+
+## 6. Terms of service — quoted, flagged, no verdict rendered
+
+Per the spec's explicit instruction for this item, the text below is quoted
+and sourced; **no judgment is offered on whether the app's usage pattern, or
+the corpus P5A.1 plans to build, is permitted.** That determination is
+flagged **"user decision required."**
+
+**Source:** `https://docs.anilist.co/guide/terms-of-use` (the canonical docs
+site returned HTTP 403 to automated fetching; content confirmed via its
+GitBook mirror, `https://anilist.gitbook.io/anilist-apiv2-docs/docs/guide/terms-of-use`,
+same published AniList API documentation).
+
+Key clauses, in AniList's own wording (short excerpts, each attributed):
+- The API is described as **"Free for non-commercial usage"**, with
+  commercial applications generating less than $150/month permitted without
+  separate arrangement.
+- Applications may not use the API as **"a backup or data storage
+  service"**, and may not engage in **"mass collection of data"** — with a
+  stated exception for **"purely educational projects, such as school
+  assignments."**
+- Commercial use above the $150/month threshold requires contacting
+  `contact@anilist.co` for a commercial license.
+- Use "within competing noncomplementary services of the same nature"
+  (i.e. other anime/manga trackers) requires authorization, unless
+  **"significant sustained integration/syncing"** with AniList is
+  demonstrated.
+- Branding: apps using the AniList/AniChart name must append "UNOFFICIAL" or
+  "for AniList" — the bare names alone are "strictly prohibited."
+
+**Source:** `https://docs.anilist.co/guide/rate-limiting` (mirror:
+`https://anilist.gitbook.io/anilist-apiv2-docs/docs/guide/rate-limiting`) —
+see item 5 for the documented-vs-observed rate-limit numbers.
+
+**User decision required:** the "not a backup or data storage service" and
+"no mass collection of data" language reads as directly relevant to P5A.1's
+planned local corpus (thousands of cached titles, refreshed weekly). Whether
+that usage is within AniList's intent, or whether it falls under a
+permitted use, is not something this substep is positioned to judge — it is
+recorded here so the user can weigh it before P5A.1 begins, per the spec's
+own instruction not to render a verdict.
+
+## For the backlog
+
+- **`tags` (including the `Demographic` category) and `staff` are available
+  from AniList today but never requested or cached by the app anywhere.**
+  Relevant to P5A.1 (corpus field selection) and P7B (the two achievement
+  definitions at `v2-spec.md:904,914` that need a demographic signal — the
+  field exists, it just isn't wired up).
+- **No AniList field is literally called "members."** The Tuning table's
+  "members < 50,000" hidden-gem threshold needs to map to AniList's
+  `popularity` field when P1.4 builds the tuning config and P5A.1 builds the
+  corpus schema.
+- **Documented rate limit (90/min) does not match the currently observed
+  limit (30/min)**, confirmed across 8 live requests this session. P0.3's
+  feasibility math and P5A.1's "70% of the observed limit" pacing must use
+  the observed number. Whoever picks up P0.3 should re-verify this rather
+  than assume it's stable — it may be a temporary AniList-side degradation.
+- **AniList ToS "not a backup/data storage service" and "no mass collection
+  of data" language, flagged user-decision-required against P5A.1's planned
+  corpus** (see item 6). Carried forward as a blocking flag for whoever
+  approves P5A.1's scope, not a code-level backlog item.
+
+## Acceptance criteria (P0.2 — see spec's "How the criteria reduce for P0.1
+to P0.3")
+
+1. **Automated checks.** `node tests/run-all.js` run verbatim on this
+   branch, no production code changed: result recorded in the close-out
+   commit below. No lint, typecheck, or build script exists in this project
+   (unchanged from P0.1's finding).
+2. **Not applicable.** Nothing was persisted; no production code or user
+   data was written to. The live AniList probe queries were read-only GET/POST
+   requests against AniList's public API, not against any user data.
+3. **Restated as: what the user can check in the written findings.** Open
+   any file under `docs/v2-discovery-fixtures/anilist/` and confirm it is a
+   real, live AniList response (not hand-written) — e.g.
+   `FIELD_COVERAGE_PROBE.json` shows a real `Demographic`-category tag and a
+   real `countryOfOrigin`. Open `_headers-log.json` and confirm the observed
+   `x-ratelimit-limit: 30` across all 8 requests, versus the documented 90.
+4. **Not applicable**, except P0.3 measures the corpus/perf budgets — not
+   this substep.
+5. **Not applicable.**
+6. **Rollback:** revert the `v2(P0.2)` commits. No data or production code
+   was touched, so this is a pure docs-and-fixtures revert with no
+   forward-compatibility concern.
+
+## P0.2 close out
+
+P0.2 changes no production code, so the acceptance set reduces per the
+spec's "How the criteria reduce for P0.1 to P0.3." Restated explicitly here
+as the close-out record:
+
+1. **Automated checks — applies.** `node tests/run-all.js` run verbatim on
+   `v2/P0.2` with no production code changes: **59 passed, 0 failed**
+   (unchanged from P0.1, as expected). No lint, typecheck, or build command
+   exists in this project.
+2. **Data safety — not applicable.** Nothing was persisted by this
+   substep. The live AniList probe was read-only against a public API; no
+   user data (`library.json` or otherwise) was read or written.
+3. **Manual smoke test — restated as a plain-language check of the written
+   findings.** What you can verify yourself: open any fixture under
+   `docs/v2-discovery-fixtures/anilist/` and confirm it's a real API
+   response; open `_headers-log.json` and confirm the 30/min observed limit;
+   read the ToS quotes in item 6 and decide whether P5A.1's planned corpus
+   needs to change scope before it starts.
+4. **Performance — not applicable.** This is P0.2, not P0.3; P0.3 measures
+   corpus/perf budgets.
+5. **Accessibility — not applicable.** No UI was touched.
+6. **Rollback — revert the docs commits.** Revert `v2(P0.2): verify AniList
+   integration` and `v2(P0.2): close out`. Both are docs-and-fixtures only;
+   no data or production code is at risk.
+
+**Status: P0.2 complete.** All six criteria addressed above (four as
+explicit not-applicable/restated, one as a document walkthrough, one as a
+real automated-check result). The one open item — the ToS bulk-caching
+question — is by design **not** resolved here; it's carried to the backlog
+as user-decision-required, per the spec's explicit instruction for this
+item. Nothing else outstanding.

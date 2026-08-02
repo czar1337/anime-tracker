@@ -1,0 +1,222 @@
+{
+  "data": {
+    "Media": {
+      "id": 154587,
+      "countryOfOrigin": "JP",
+      "tags": [
+        {
+          "name": "Travel",
+          "category": "Theme-Other",
+          "isMediaSpoiler": false,
+          "rank": 96
+        },
+        {
+          "name": "Magic",
+          "category": "Theme-Fantasy",
+          "isMediaSpoiler": false,
+          "rank": 95
+        },
+        {
+          "name": "Elf",
+          "category": "Cast-Traits",
+          "isMediaSpoiler": false,
+          "rank": 91
+        },
+        {
+          "name": "Female Protagonist",
+          "category": "Cast-Main Cast",
+          "isMediaSpoiler": false,
+          "rank": 86
+        },
+        {
+          "name": "Philosophy",
+          "category": "Theme-Other",
+          "isMediaSpoiler": false,
+          "rank": 84
+        },
+        {
+          "name": "Time Skip",
+          "category": "Setting-Time",
+          "isMediaSpoiler": true,
+          "rank": 83
+        },
+        {
+          "name": "Medieval",
+          "category": "Setting-Time",
+          "isMediaSpoiler": false,
+          "rank": 83
+        },
+        {
+          "name": "Found Family",
+          "category": "Theme-Other",
+          "isMediaSpoiler": false,
+          "rank": 78
+        },
+        {
+          "name": "Kuudere",
+          "category": "Cast-Traits",
+          "isMediaSpoiler": false,
+          "rank": 75
+        },
+        {
+          "name": "Iyashikei",
+          "category": "Theme-Slice of Life",
+          "isMediaSpoiler": false,
+          "rank": 74
+        },
+        {
+          "name": "Demons",
+          "category": "Cast-Traits",
+          "isMediaSpoiler": false,
+          "rank": 71
+        },
+        {
+          "name": "Shounen",
+          "category": "Demographic",
+          "isMediaSpoiler": false,
+          "rank": 70
+        },
+        {
+          "name": "Foreign",
+          "category": "Setting-Scene",
+          "isMediaSpoiler": false,
+          "rank": 68
+        },
+        {
+          "name": "Asexual",
+          "category": "Cast-Traits",
+          "isMediaSpoiler": false,
+          "rank": 62
+        },
+        {
+          "name": "Adoption",
+          "category": "Theme-Other",
+          "isMediaSpoiler": false,
+          "rank": 61
+        },
+        {
+          "name": "Rural",
+          "category": "Setting-Scene",
+          "isMediaSpoiler": false,
+          "rank": 60
+        },
+        {
+          "name": "Heterosexual",
+          "category": "Theme-Romance",
+          "isMediaSpoiler": false,
+          "rank": 58
+        },
+        {
+          "name": "Aromantic",
+          "category": "Cast-Traits",
+          "isMediaSpoiler": false,
+          "rank": 57
+        },
+        {
+          "name": "Dungeon",
+          "category": "Setting-Scene",
+          "isMediaSpoiler": false,
+          "rank": 56
+        },
+        {
+          "name": "Episodic",
+          "category": "Technical",
+          "isMediaSpoiler": false,
+          "rank": 53
+        },
+        {
+          "name": "Religion",
+          "category": "Theme-Other",
+          "isMediaSpoiler": false,
+          "rank": 50
+        },
+        {
+          "name": "Rotoscoping",
+          "category": "Technical",
+          "isMediaSpoiler": false,
+          "rank": 50
+        },
+        {
+          "name": "Snowscape",
+          "category": "Setting-Scene",
+          "isMediaSpoiler": false,
+          "rank": 45
+        },
+        {
+          "name": "CGI",
+          "category": "Technical",
+          "isMediaSpoiler": false,
+          "rank": 45
+        },
+        {
+          "name": "Spearplay",
+          "category": "Theme-Action",
+          "isMediaSpoiler": false,
+          "rank": 45
+        },
+        {
+          "name": "Food",
+          "category": "Theme-Arts",
+          "isMediaSpoiler": false,
+          "rank": 41
+        },
+        {
+          "name": "Dragons",
+          "category": "Cast-Traits",
+          "isMediaSpoiler": false,
+          "rank": 38
+        },
+        {
+          "name": "Horticulture",
+          "category": "Theme-Slice of Life",
+          "isMediaSpoiler": false,
+          "rank": 36
+        }
+      ],
+      "staff": {
+        "edges": [
+          {
+            "role": "ADR Producer (English)",
+            "node": {
+              "name": {
+                "full": "Colleen Clinkenbeard"
+              }
+            }
+          },
+          {
+            "role": "ADR Director (French)",
+            "node": {
+              "name": {
+                "full": "Brigitte Lecordier"
+              }
+            }
+          },
+          {
+            "role": "Storyboard (eps 4, 13, 17)",
+            "node": {
+              "name": {
+                "full": "Yoshiaki Kawajiri"
+              }
+            }
+          },
+          {
+            "role": "Episode Director (ep 15)",
+            "node": {
+              "name": {
+                "full": "Morio Asaka"
+              }
+            }
+          },
+          {
+            "role": "Key Animation (ep 25)",
+            "node": {
+              "name": {
+                "full": "Takahiro Yoshimatsu"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

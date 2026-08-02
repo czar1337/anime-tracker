@@ -1,0 +1,66 @@
+[
+  {
+    "query": "SEARCH_QUERY",
+    "status": 200,
+    "x-ratelimit-limit": "30",
+    "x-ratelimit-remaining": "29",
+    "retry-after": null,
+    "hasErrors": false
+  },
+  {
+    "query": "BATCH_BY_IDMAL_QUERY",
+    "status": 200,
+    "x-ratelimit-limit": "30",
+    "x-ratelimit-remaining": "28",
+    "retry-after": null,
+    "hasErrors": false
+  },
+  {
+    "query": "AIRING_BATCH_QUERY",
+    "status": 200,
+    "x-ratelimit-limit": "30",
+    "x-ratelimit-remaining": "27",
+    "retry-after": null,
+    "hasErrors": false
+  },
+  {
+    "query": "UPCOMING_QUERY",
+    "status": 200,
+    "x-ratelimit-limit": "30",
+    "x-ratelimit-remaining": "26",
+    "retry-after": null,
+    "hasErrors": false
+  },
+  {
+    "query": "COVERS_BATCH_QUERY",
+    "status": 200,
+    "x-ratelimit-limit": "30",
+    "x-ratelimit-remaining": "25",
+    "retry-after": null,
+    "hasErrors": false
+  },
+  {
+    "query": "RECOMMENDATIONS_QUERY",
+    "status": 200,
+    "x-ratelimit-limit": "30",
+    "x-ratelimit-remaining": "24",
+    "retry-after": null,
+    "hasErrors": false
+  },
+  {
+    "query": "DETAIL_QUERY",
+    "status": 200,
+    "x-ratelimit-limit": "30",
+    "x-ratelimit-remaining": "23",
+    "retry-after": null,
+    "hasErrors": false
+  },
+  {
+    "query": "FIELD_COVERAGE_PROBE",
+    "status": 200,
+    "x-ratelimit-limit": "30",
+    "x-ratelimit-remaining": "22",
+    "retry-after": null,
+    "hasErrors": false
+  }
+]
