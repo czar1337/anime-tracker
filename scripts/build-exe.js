@@ -90,7 +90,22 @@ function main() {
     assets[rel] = file;
   }
   assets['version.json'] = path.join(ROOT, 'version.json');
-  console.log(`  ${files.length + 1} files embedded.`);
+
+  // P1.4: config/tuning.js is the one browser-loaded module that lives
+  // outside public/ (server.js's serveAppAsset() has a matching config/...
+  // asset-key branch for SEA mode) — embed it the same way, under the same
+  // "config/..." key shape.
+  const CONFIG_DIR = path.join(ROOT, 'config');
+  let configFileCount = 0;
+  if (fs.existsSync(CONFIG_DIR)) {
+    const configFiles = walk(CONFIG_DIR, []);
+    for (const file of configFiles) {
+      const rel = path.relative(ROOT, file).split(path.sep).join('/'); // "config/tuning.js"
+      assets[rel] = file;
+    }
+    configFileCount = configFiles.length;
+  }
+  console.log(`  ${files.length + configFileCount + 1} files embedded.`);
 
   console.log('Inlining datadir.js / migrations.js into a standalone SEA entry point...');
   const bundledSource = inlineLocalModules(fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8'));
