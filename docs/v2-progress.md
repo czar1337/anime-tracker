@@ -52,7 +52,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P1.1 Backup, verify, restore, export | done | 2026-08-02 | this session, see "P1.1 implementation session", "P1.1 review-fixes session" and "P1.1 close out (COMPLETE-B)" below | — |
 | P1.2 Storage classes and concurrency | done | 2026-08-02 | this session, see "P1.2 implementation session", "P1.2 independent review session" and "P1.2 close out" below | — |
 | P1.3 Settings schema and transactional migration | done | 2026-08-02 | this session, see "P1.3 implementation session" and "P1.3 close out" below | — |
-| P1.4 Token layer, tuning config, inventory | not started | — | — | corpus target (3,000) already decided, see above |
+| P1.4 Token layer, tuning config, inventory | in progress | 2026-08-02 | this session, see "P1.4 implementation session" below | all six acceptance criteria have full evidence this same session (no new UI shipped — infrastructure only); awaiting user review, close-out commit and merge into `main` |
 | P1.5 Event log v1 | not started | — | — | — |
 | P1.6 Copy registry, new v2 surfaces only | not started | — | — | — |
 | P1.7 Lists, collections, tags, achievement hook | not started | — | — | — |
@@ -1311,3 +1311,173 @@ proceed with close-out and merge.
 **Status: P1.3 done.** All six acceptance criteria satisfied. Merged into
 `main` in this session's close-out (see the merge commit immediately
 following); `v2/P1.3` retained, not deleted, per the spec's branching rule.
+
+## P1.4 implementation session
+
+Branch `v2/P1.4`, from `main` (which already contains the merged P1.1–P1.3
+work). Reconciled against `git log --all --oneline --grep "^v2("` and this
+file's table before writing anything: P1.3 is the latest landed substep,
+P1.4 had no prior commits anywhere.
+
+Used plan mode before writing any code. Plan mode's own exploration pass
+(an Explore subagent) gathered real, reproducible counts for the token-audit
+inventory before any code was written, and surfaced one real architectural
+gap and one genuine product-judgment gap, both resolved before
+implementation began (see below).
+
+**What landed, in commit order** (see `git log --grep "^v2(P1.4)"` for the
+authoritative list):
+
+- New `config/tuning.js`: the central tuning config, every value from the
+  spec's Tuning table transcribed — `SCORE_SCALE`, `TYPOGRAPHY_STEPS` (the 8
+  ten-step arrays), `TIME_SEMANTICS`, `RECOMMENDATIONS` (cold-start
+  threshold, hidden-gem thresholds, primary-genre priority, genre diversity
+  cap, corpus target 3,000, rate-limit margin, scorer weights,
+  adventurousness range, affinity minimum overlap), `PERFORMANCE_BUDGETS`,
+  `ACHIEVEMENTS` (points by rarity, level-curve `k`/cap).
+- New `public/js/tokens.js`: owns the typography and colour-role CSS custom
+  property names, reads its step arrays from `config/tuning.js`. Exports
+  `computeTypographyTokens(step)`/`applyTypographyStep(step, target)`
+  (derives `--radius-control` from `--radius-surface`, capped at 12px so
+  step 10 never turns inputs into pills) and `setColorTokens(values,
+  target)` (rejects an unrecognized token name rather than silently setting
+  an arbitrary CSS variable). Neither function is called from anywhere yet
+  — this substep only builds the module; a real 1–10 slider ships in P3.2,
+  real theme colour values in P6.1.
+- New `docs/v2-token-audit.md`: inventory only, real counts gathered and
+  independently spot-checked this session (see "Automated checks" below) —
+  75 hardcoded `font-size` declarations and 275 hardcoded spacing
+  declarations in `public/styles.css` (grouped by the stylesheet's own
+  section comments, since no per-component directory structure exists), 4
+  stray colour literals (all `rgba()` overlay scrims), 8 inline spacing
+  literals in `render.js`, 9 hardcoded canvas font sizes in
+  `statsExport.js`. **Converts nothing** — that's P2's job.
+- `server.js`: new `CONFIG_DIR` alongside the existing `PUBLIC_DIR`;
+  `serveAppAsset()` generalized to branch on a `/config/` prefix (same
+  boundary-checked `serveStatic()`, same SEA `sea.getRawAsset()` embedding,
+  just a second bounded root) — see "Architectural gap" below for why this
+  was needed.
+- `scripts/build-exe.js`: the asset-collection walk now additionally covers
+  `config/`, embedding its files under the same `config/...` key shape
+  `server.js`'s SEA branch expects.
+
+**Architectural gap found and closed before writing any other code.** The
+already-approved `docs/v2-plan.md` file list names the config file
+`config/tuning.js` — a new top-level directory, not under `public/`.
+Everything else the browser currently imports lives under `public/js/` and
+is automatically servable via the existing `PUBLIC_DIR` static-file
+machinery and embeddable via `build-exe.js`'s asset walk; a file outside
+`public/` was not reachable by the browser at all before this session.
+Since `tokens.js` must import `config/tuning.js` directly (not restate its
+arrays, per the spec's own wording), this needed the small, symmetric
+extension described above — confirmed working end to end (dev mode and
+packaged SEA build both), not just in theory, by `tests/e2e/config-tuning-asset.spec.js`.
+
+**Product-judgment gap, resolved with the user before writing code.** The
+spec requires a "primary genre" priority list in the tuning config
+(resolves which genre counts as an entry's primary one when it has several)
+but gives no concrete ordering. Asked the user directly: use a proposed
+default (niche/setting-defining genres — Mecha, Sports, Music, ... — before
+broad tone descriptors — Comedy, Slice of Life, Drama), documented as an
+easily-revisable placeholder. **User confirmed: use the proposed default.**
+Nothing consumes this list yet (P5A.1, the first real consumer, remains
+blocked on the AniList ToS question per this file's "Standing decisions"),
+so recalibrating the order later is a config edit, never a data migration —
+the resolved "primary genre" is never itself stored on a library entry.
+
+**Automated checks.**
+
+- `node tests/run-all.js`: **118 passed, 0 failed** (14 new: 8 for
+  `config/tuning.js` — every 10-step array has exactly 10 entries, values
+  spot-checked against the spec at both ends, `MIN_EFFECTIVE_FONT_SIZE_PX`/
+  `RADIUS_SURFACE_CAP_PX`, `SCORE_SCALE`, the 19-genre priority list has no
+  duplicates, `corpusTargetSize` pinned at 3,000, scorer weights and
+  achievement point/level-curve values pinned against the spec — plus 6 for
+  `public/js/tokens.js` — step-1/step-10 boundary values, the
+  `--radius-control` derivation actually caps at step 10, an out-of-range or
+  non-integer step throws rather than silently clamping, `applyTypographyStep`
+  sets every owned property on an injectable fake target,
+  `setColorTokens` only applies recognized names — 104 passed at the end of
+  P1.3, +14 here).
+- `npx playwright test`: **32 passed, 0 failed** (3 new,
+  `tests/e2e/config-tuning-asset.spec.js`): `GET /config/tuning.js` serves
+  the real module with the correct `text/javascript` content type and real
+  content; `public/js/tokens.js` (served at `/js/tokens.js`, matching
+  `index.html`'s existing base path) contains the exact
+  `from '../../config/tuning.js'` import specifier the new static route now
+  resolves; a path-traversal attempt through `/config/` cannot escape
+  `CONFIG_DIR` (same boundary check `PUBLIC_DIR` already had, now proven for
+  the second root too).
+- Rebuilt the SEA `.exe` and confirmed the embedded-asset count rose from 51
+  to 53 (the 2 new files), then booted the exact packaged binary against a
+  temp data dir: `GET /config/tuning.js` and `GET /js/tokens.js` both
+  returned 200 with byte-identical content to the dev-mode response
+  (`Content-Length: 6555` matched exactly) — the new static path works
+  packaged, not only in dev mode.
+- Independently re-verified every count in `docs/v2-token-audit.md` myself,
+  by hand, against the real files (not just trusting the exploration
+  agent's report) — this caught and corrected a real discrepancy: the
+  agent's approximate spacing-literal count (250) undercounted relative to
+  a precise, reproducible regex count (275, confirmed twice with different
+  matching strategies) — the document above uses the verified 275, and
+  every count in it is reproducible via the exact command recorded next to
+  it.
+- `npm run perf`: both measurements printed, neither materially changed by
+  this substep (no Tuning-table-named surface touched — see criterion 4
+  below; `tokens.js`/`config/tuning.js` are dormant). Library-render:
+  **p95 984ms** over 7 runs against its 200ms budget — unchanged,
+  pre-existing finding. Snapshot-plus-verify: **p95 88ms** over 5 runs
+  against its 10s budget — unaffected.
+- No lint, typecheck or build command exists in this project (unchanged
+  finding from P0.1 onward), stated explicitly.
+
+**1. Automated checks — full**, per above.
+
+**2. Data safety.** This substep touches no persisted user data at all —
+`config/tuning.js` and `public/js/tokens.js` are new, static, checked-in
+code; `docs/v2-token-audit.md` is a new doc. No Class A store introduced or
+extended (rule 3a doesn't apply). Stated explicitly per the spec's own
+reduction for substeps not touching persistence.
+
+**3. Manual smoke test**, production build (`npm start`), **against a
+disposable temp copy of the real 222-entry library only, never the
+original**:
+1. Fingerprinted (sha256 + mtime) the real `library.json` and every file
+   under the real `snapshots/` before starting.
+2. Copied the entire real app-data directory into a disposable temp folder
+   and booted `node server.js` (via `npm start`) against that copy on a
+   separate port. `GET /` returned 200, `GET /config/tuning.js` returned
+   200, `GET /api/library` confirmed `schemaVersion: 5`,
+   `entries.length: 222` (unchanged).
+3. Opened the copy in the Browser pane: the real library rendered
+   identically to how it rendered in P1.3's own manual smoke test (same 12
+   watching entries, same layout, same styling) — confirming zero visible
+   change, exactly as expected since nothing calls `tokens.js`'s functions
+   yet. No console errors.
+4. Re-fingerprinted the **original** real `library.json` and `snapshots/`
+   files: byte- and mtime-identical to step 1's values in every case,
+   confirmed programmatically, not eyeballed.
+
+**4. Performance.** No Tuning-table budget names a surface this substep
+touches — `config/tuning.js`/`tokens.js` are dormant infrastructure, not a
+rendering path anything measures yet — stated explicitly, per the spec's
+own reduction rule. The two pre-existing measurements were re-run as a
+regression check only (see Automated checks above).
+
+**5. Accessibility.** No new UI surface ships in this substep — the token
+module has no visible effect (nothing calls it), and the inventory doc is
+not user-facing. Stated explicitly rather than skipped: there is no screen
+reader step for the user to run this session.
+
+**6. Rollback.** Revert the `v2(P1.4)` commit range. This substep migrates
+no data (`schemaVersion` untouched, still 5 from P1.3) and introduces no
+Class A store, so a code revert is fully sufficient — `config/tuning.js`,
+`public/js/tokens.js`, and `docs/v2-token-audit.md` are all new, inert
+files with no other code depending on them yet; reverting removes them
+cleanly with no forward-compatibility concern in either direction.
+
+**Status: P1.4 substantially complete.** All six acceptance criteria have
+full evidence in this same session — this substep shipped no new UI, so
+there is no user-blocking screen-reader step to wait on. Not yet merged
+into `main`; awaiting user review before a `v2(P1.4): close out` commit and
+merge, per the spec's own pattern.
