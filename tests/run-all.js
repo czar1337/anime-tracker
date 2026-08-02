@@ -895,6 +895,176 @@ async function run() {
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // libraryEtag.js — pure ETag computation (P1.2, "Storage classes and
+  // concurrency")
+  // ---------------------------------------------------------------------------
+  console.log('libraryEtag.js');
+  const { computeLibraryEtag } = require('../libraryEtag.js');
+
+  await test('computeLibraryEtag is deterministic and independent of key order', () => {
+    const a = { schemaVersion: 4, entries: [{ anilistId: 1, myScore: 8 }], preferences: { x: 1 } };
+    const b = { preferences: { x: 1 }, entries: [{ myScore: 8, anilistId: 1 }], schemaVersion: 4 };
+    assert.equal(computeLibraryEtag(a), computeLibraryEtag(b));
+  });
+
+  await test('computeLibraryEtag returns a quoted strong etag string (no W/ weak prefix)', () => {
+    const etag = computeLibraryEtag({ schemaVersion: 1, entries: [] });
+    assert.match(etag, /^"[0-9a-f]{64}"$/, 'must be a double-quoted 64-char hex sha256');
+  });
+
+  await test('computeLibraryEtag changes when the underlying content changes', () => {
+    const a = computeLibraryEtag({ schemaVersion: 1, entries: [] });
+    const b = computeLibraryEtag({ schemaVersion: 1, entries: [{ anilistId: 1 }] });
+    assert.notEqual(a, b);
+  });
+
+  // ---------------------------------------------------------------------------
+  // writeLock.js — FIFO single-writer lock (P1.2, rule 6)
+  // ---------------------------------------------------------------------------
+  console.log('writeLock.js');
+  const { createWriteLock, LockTimeoutError } = require('../writeLock.js');
+
+  await test('writeLock: a second task does not start until the first settles', async () => {
+    const lock = createWriteLock();
+    const order = [];
+    let releaseFirst;
+    const firstStarted = new Promise((resolveStarted) => {
+      lock.run(async () => {
+        order.push('first-start');
+        resolveStarted();
+        await new Promise((r) => {
+          releaseFirst = r;
+        });
+        order.push('first-end');
+      });
+    });
+    await firstStarted;
+    const second = lock.run(async () => {
+      order.push('second-start');
+    });
+    // A couple of ticks: if the lock were broken, "second-start" would
+    // already be in `order` here, before the first task has released.
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(order, ['first-start']);
+    releaseFirst();
+    await second;
+    assert.deepEqual(order, ['first-start', 'first-end', 'second-start']);
+  });
+
+  await test('writeLock: queued tasks run in strict FIFO order', async () => {
+    const lock = createWriteLock();
+    const order = [];
+    const p1 = lock.run(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      order.push(1);
+    });
+    const p2 = lock.run(async () => {
+      order.push(2);
+    });
+    const p3 = lock.run(async () => {
+      order.push(3);
+    });
+    await Promise.all([p1, p2, p3]);
+    assert.deepEqual(order, [1, 2, 3]);
+  });
+
+  await test('writeLock: a waiter gives up after timeoutMs and its task never runs', async () => {
+    const lock = createWriteLock();
+    let releaseHolder;
+    const holderDone = new Promise((resolve) => {
+      releaseHolder = resolve;
+    });
+    lock.run(() => holderDone); // holds the lock until releaseHolder() is called
+    let neverRuns = false;
+    let threw = null;
+    try {
+      await lock.run(() => {
+        neverRuns = true;
+      }, { timeoutMs: 30 });
+    } catch (err) {
+      threw = err;
+    }
+    assert.ok(threw instanceof LockTimeoutError, 'should reject with LockTimeoutError');
+    assert.equal(neverRuns, false, 'the timed-out task must never actually execute');
+    releaseHolder();
+  });
+
+  await test('writeLock: a task queued behind a timed-out waiter is not starved by it', async () => {
+    const lock = createWriteLock();
+    let releaseHolder;
+    const holderDone = new Promise((resolve) => {
+      releaseHolder = resolve;
+    });
+    lock.run(() => holderDone);
+    const timedOut = lock.run(() => {}, { timeoutMs: 20 }).catch((e) => e);
+    let thirdRan = false;
+    const third = lock.run(async () => {
+      thirdRan = true;
+    });
+    await timedOut;
+    releaseHolder();
+    await third;
+    assert.equal(thirdRan, true, 'a caller queued after an abandoned waiter must still run once the real holder releases');
+  });
+
+  // ---------------------------------------------------------------------------
+  // classBEviction.js — Class B eviction planner (P1.2, rule 4)
+  // ---------------------------------------------------------------------------
+  console.log('classBEviction.js');
+  const { CLASS_B_STORES, planEviction } = require('../classBEviction.js');
+
+  await test('planEviction walks the registry in order', () => {
+    const sizes = { recommendationsCache: 100, airingCache: 100, upcomingCache: 100 };
+    const { plan } = planEviction(CLASS_B_STORES, 150, sizes);
+    assert.deepEqual(plan.map((p) => p.id), ['recommendationsCache', 'airingCache']);
+  });
+
+  await test('planEviction stops as soon as the deficit is covered, never over-evicts', () => {
+    const sizes = { recommendationsCache: 200, airingCache: 200, upcomingCache: 200 };
+    const { plan, freedBytes } = planEviction(CLASS_B_STORES, 50, sizes);
+    assert.deepEqual(plan.map((p) => p.id), ['recommendationsCache']);
+    assert.equal(freedBytes, 200);
+  });
+
+  await test('planEviction never selects a store outside the registry, even for an oversized deficit', () => {
+    const sizes = { recommendationsCache: 10, airingCache: 10, upcomingCache: 10 };
+    const registryIds = new Set(CLASS_B_STORES.map((s) => s.id));
+    const { plan, satisfied } = planEviction(CLASS_B_STORES, Number.MAX_SAFE_INTEGER, sizes);
+    assert.equal(satisfied, false, 'an impossible deficit must report unsatisfied, not silently succeed');
+    for (const { id } of plan) {
+      assert.ok(registryIds.has(id), `${id} must be a registered Class B store`);
+    }
+  });
+
+  await test('planEviction is registry-driven: a synthetic store not hardcoded here can still be selected', () => {
+    const syntheticRegistry = [...CLASS_B_STORES, { id: 'futureCorpusCache', file: 'corpus-cache.json' }];
+    const sizes = { recommendationsCache: 10, airingCache: 10, upcomingCache: 10, futureCorpusCache: 1000 };
+    const { plan, satisfied } = planEviction(syntheticRegistry, 1015, sizes);
+    assert.equal(satisfied, true);
+    assert.ok(plan.some((p) => p.id === 'futureCorpusCache'), 'a registry entry this module never hardcodes must still be selectable');
+  });
+
+  // ---------------------------------------------------------------------------
+  // diskQuota.js — reserved floor + sufficiency arithmetic (P1.2, rule 5)
+  // ---------------------------------------------------------------------------
+  console.log('diskQuota.js');
+  const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('../diskQuota.js');
+
+  await test('computeReservedFloorBytes sums library + snapshots + margin', () => {
+    assert.equal(computeReservedFloorBytes({ libraryBytes: 1000, snapshotsBytes: 2000, marginBytes: 500 }), 3500);
+  });
+
+  await test('computeReservedFloorBytes treats missing/negative inputs as zero', () => {
+    assert.equal(computeReservedFloorBytes({}), 0);
+    assert.equal(computeReservedFloorBytes({ libraryBytes: -100, marginBytes: 50 }), 50);
+  });
+
+  await test('hasSufficientFreeSpace: true exactly at the floor boundary, false just under it', () => {
+    assert.equal(hasSufficientFreeSpace(1000, 500, 500), true); // 1000 - 500 == 500
+    assert.equal(hasSufficientFreeSpace(999, 500, 500), false); // 999 - 500 < 500
+  });
+
   // -------------------------------------------------------------------------
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
