@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -106,6 +106,124 @@ async function run() {
       { anilistId: 111, title: null, coverImage: null },
       { anilistId: 222, title: null, coverImage: null },
     ]);
+  });
+
+  await test('migration v4->v5 (P1.3): adds the 3 new inert settings plus the 6 promoted cosmetic ones, only when missing', () => {
+    const v4 = readFixture('schema-v4-library.json');
+    assert.equal(v4.schemaVersion, 4);
+    const migrated = migrate_4_to_5(v4);
+    assert.equal(migrated.schemaVersion, 5);
+    assert.deepEqual(
+      {
+        titleLanguage: migrated.preferences.titleLanguage,
+        contentTier: migrated.preferences.contentTier,
+        streamerMode: migrated.preferences.streamerMode,
+        textSize: migrated.preferences.textSize,
+        textWeight: migrated.preferences.textWeight,
+        decor: migrated.preferences.decor,
+        decorDensity: migrated.preferences.decorDensity,
+        originalTitles: migrated.preferences.originalTitles,
+        colorTheme: migrated.preferences.colorTheme,
+      },
+      {
+        titleLanguage: 'english',
+        contentTier: 'standard',
+        streamerMode: false,
+        textSize: 's',
+        textWeight: 'normal',
+        decor: 'on',
+        decorDensity: 'normal',
+        originalTitles: 'details',
+        colorTheme: 'moonlit-shrine',
+      }
+    );
+  });
+
+  await test('migration v4->v5: never overwrites an already-present field (idempotent, preserves customization)', () => {
+    const v4 = readFixture('schema-v4-library.json');
+    const alreadyCustomized = {
+      ...v4,
+      preferences: { ...v4.preferences, textSize: 'xl', colorTheme: 'wisteria', streamerMode: true },
+    };
+    const migrated = migrate_4_to_5(alreadyCustomized);
+    assert.equal(migrated.preferences.textSize, 'xl');
+    assert.equal(migrated.preferences.colorTheme, 'wisteria');
+    assert.equal(migrated.preferences.streamerMode, true);
+    // Running it again (simulating a second call on already-migrated data)
+    // must produce the exact same result — rule 7.6's idempotency test.
+    const migratedTwice = migrate_4_to_5(migrated);
+    assert.deepEqual(migratedTwice.preferences, migrated.preferences);
+  });
+
+  await test('migration v4->v5: never touches entries, dismissedItems, or existing preferences fields', () => {
+    const v4 = readFixture('schema-v4-library.json');
+    const migrated = migrate_4_to_5(v4);
+    assert.deepEqual(migrated.entries, v4.entries);
+    assert.deepEqual(migrated.dismissedItems, v4.dismissedItems);
+    assert.deepEqual(migrated.preferences.sort, v4.preferences.sort);
+    assert.deepEqual(migrated.preferences.filters, v4.preferences.filters);
+    assert.equal(migrated.preferences.activeTab, v4.preferences.activeTab);
+  });
+
+  await test('migration chain: a v1 fixture reaches schemaVersion 5 with every P1.3 field defaulted', () => {
+    const v1 = readFixture('schema-v1-library.json');
+    const migrated = migrate(v1);
+    assert.equal(migrated.schemaVersion, 5);
+    assert.equal(migrated.preferences.titleLanguage, 'english');
+    assert.equal(migrated.preferences.contentTier, 'standard');
+    assert.equal(migrated.preferences.colorTheme, 'moonlit-shrine');
+  });
+
+  // -------------------------------------------------------------------------
+  // settingsSchema.js (public/js/settingsSchema.js) — the single typed
+  // settings object (P1.3), pure/no-DOM, loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('settingsSchema.js');
+  const settingsSchemaUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'settingsSchema.js').replace(/\\/g, '/');
+  const { defaultSettings, ensureSettingsShape, TITLE_LANGUAGES, CONTENT_TIERS } = await import(settingsSchemaUrl);
+
+  await test("migrate_4_to_5's inlined literals match settingsSchema.js's live defaults (pinned so the two can't silently drift apart)", () => {
+    const live = defaultSettings();
+    const v4 = readFixture('schema-v4-library.json');
+    const migrated = migrate_4_to_5(v4);
+    for (const key of ['titleLanguage', 'contentTier', 'streamerMode', 'textSize', 'textWeight', 'decor', 'decorDensity', 'originalTitles', 'colorTheme']) {
+      assert.equal(migrated.preferences[key], live[key], `default for "${key}" drifted between migrations.js and settingsSchema.js`);
+    }
+  });
+
+  await test('ensureSettingsShape defaults every field on a bare object without crashing', () => {
+    const shaped = ensureSettingsShape({});
+    assert.equal(shaped.titleLanguage, 'english');
+    assert.equal(shaped.contentTier, 'standard');
+    assert.equal(shaped.streamerMode, false);
+    assert.equal(shaped.textSize, 's');
+    assert.equal(shaped.colorTheme, 'moonlit-shrine');
+    assert.deepEqual(shaped.filters.watching, defaultSettings().filters.watching);
+  });
+
+  await test('ensureSettingsShape repairs an invalid enum value back to default rather than crashing', () => {
+    const shaped = ensureSettingsShape({ titleLanguage: 'klingon', contentTier: 'unknown-tier', textSize: 'huge' });
+    assert.equal(shaped.titleLanguage, 'english');
+    assert.equal(shaped.contentTier, 'standard');
+    assert.equal(shaped.textSize, 's');
+  });
+
+  await test('ensureSettingsShape preserves an already-valid, non-default value (never overwrites a real choice)', () => {
+    const shaped = ensureSettingsShape({ titleLanguage: 'native', contentTier: 'madara', streamerMode: true, colorTheme: 'wisteria' });
+    assert.equal(shaped.titleLanguage, 'native');
+    assert.equal(shaped.contentTier, 'madara');
+    assert.equal(shaped.streamerMode, true);
+    assert.equal(shaped.colorTheme, 'wisteria');
+  });
+
+  await test('ensureSettingsShape preserves an unknown future field untouched (rule 13 forward-compatibility)', () => {
+    const shaped = ensureSettingsShape({ someFutureFieldThisVersionDoesNotKnowAbout: 42 });
+    assert.equal(shaped.someFutureFieldThisVersionDoesNotKnowAbout, 42);
+  });
+
+  await test('TITLE_LANGUAGES / CONTENT_TIERS export the expected enum values', () => {
+    assert.deepEqual(TITLE_LANGUAGES, ['romaji', 'english', 'native']);
+    assert.deepEqual(CONTENT_TIERS, ['standard', 'familyFriendly', 'madara']);
   });
 
   // -------------------------------------------------------------------------
