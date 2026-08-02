@@ -109,4 +109,11 @@ function migrateLegacyDataDir(oldDir, newDir) {
   }
 }
 
-module.exports = { resolveDataDir, migrateLegacyDataDir };
+// Class C snapshots (docs/v2-spec.md's "Storage classes and data safety", P1.1)
+// live in their own directory alongside the existing covers/backups, resolved
+// here so the join is unit-testable without a server.
+function resolveSnapshotsDir(dataDir) {
+  return path.join(dataDir, 'snapshots');
+}
+
+module.exports = { resolveDataDir, migrateLegacyDataDir, canonicalJSON, resolveSnapshotsDir };
