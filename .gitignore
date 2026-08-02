@@ -8,6 +8,11 @@ data/
 
 node_modules/
 
+# Playwright run output (traces, screenshots on failure, last-run marker) —
+# regenerated every run, not source.
+test-results/
+playwright-report/
+
 # OS/editor junk
 .DS_Store
 Thumbs.db
