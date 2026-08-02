@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -63,7 +63,53 @@ function migrate_3_to_4(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4 };
+// v4 -> v5 (P1.3, "Settings schema and transactional migration"): adds the 3
+// new inert settings (titleLanguage/contentTier/streamerMode, no consumer yet
+// — later substeps wire them up) plus promotes the 6 cosmetic settings that
+// used to live ONLY in localStorage (textSize/textWeight/decor/decorDensity/
+// originalTitles/colorTheme, see public/js/preferences.js and
+// public/js/themes.js) into library.json's Class A `preferences`, so they
+// finally get backup/export/snapshot protection. Purely additive — fills in
+// a field only if it's missing, never overwrites an existing value, and
+// never touches `entries` or `dismissedItems` at all. Every literal default
+// below is inlined here, deliberately decoupled from
+// public/js/settingsSchema.js's live defaultSettings() (same reasoning
+// migrate_1_to_2 already established: a migration is a frozen snapshot of
+// what defaulted at *this* version, not something that should silently
+// change if the live defaults module is edited later) — a unit test pins the
+// two copies against each other today.
+//
+// No dedicated "settings version" field: `preferences` lives inside this
+// same envelope, so this schemaVersion bump *is* the settings object's
+// version too — see settingsSchema.js's own header comment for why a second,
+// nested version number was considered and rejected.
+function migrate_4_to_5(data) {
+  const out = { ...data };
+  out.schemaVersion = 5;
+  const before = out.preferences || {};
+  out.preferences = {
+    ...before,
+    titleLanguage: before.titleLanguage !== undefined ? before.titleLanguage : 'english',
+    contentTier: before.contentTier !== undefined ? before.contentTier : 'standard',
+    streamerMode: before.streamerMode !== undefined ? before.streamerMode : false,
+    textSize: before.textSize !== undefined ? before.textSize : 's',
+    textWeight: before.textWeight !== undefined ? before.textWeight : 'normal',
+    decor: before.decor !== undefined ? before.decor : 'on',
+    decorDensity: before.decorDensity !== undefined ? before.decorDensity : 'normal',
+    originalTitles: before.originalTitles !== undefined ? before.originalTitles : 'details',
+    colorTheme: before.colorTheme !== undefined ? before.colorTheme : 'moonlit-shrine',
+  };
+  // Cheap self-check: this migration must never touch entries/dismissedItems.
+  // Defense in depth against a future edit to this function accidentally
+  // widening its scope — not a substitute for the unit tests, which assert
+  // the same thing from the outside.
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_4_to_5 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -90,4 +136,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5 };

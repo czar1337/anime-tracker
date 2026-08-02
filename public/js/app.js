@@ -9,6 +9,7 @@ import { Schedule } from './schedule.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 import { Atmosphere } from './atmosphere.js';
+import { Preferences } from './preferences.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -31,6 +32,9 @@ function setSaveIndicator(state, text) {
 async function reloadAfterConflict() {
   const { data, etag } = await Api.getLibrary();
   Store.setLibrary(data, etag);
+  // The library that just won the race is authoritative, cosmetic settings
+  // included — same reasoning as every other restore-type call site (P1.3).
+  Preferences.syncFromLibrary(Store.state.preferences);
   refreshCurrentView();
   setSaveIndicator('saved', 'Saved');
   Render.clearError();
@@ -280,7 +284,20 @@ async function boot() {
     return;
   }
   Store.setLibrary(loaded.data, loaded.etag);
+  // P1.3: one-time promotion of whatever's already in this browser's
+  // localStorage (text size, theme, ...) into the now-Class-A preferences —
+  // see preferences.js's reconcileFirstBoot() for why this is gated by an
+  // explicit one-time marker rather than inferred from the library's current
+  // value. Every boot after the first is a pure syncFromLibrary (library
+  // authoritative), which also correctly pulls a *different* device's real
+  // saved value down into a fresh browser profile with empty localStorage.
+  const promotedCosmetics = Preferences.reconcileFirstBoot(Store.state.preferences);
+  for (const [key, value] of Object.entries(promotedCosmetics)) {
+    Store.setPreference([key], value);
+  }
+  Preferences.syncFromLibrary(Store.state.preferences);
   Render.clearError();
+  if (Object.keys(promotedCosmetics).length) persist();
 
   const initialList = Store.state.preferences.activeTab || 'watching';
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === initialList)));

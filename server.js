@@ -231,6 +231,41 @@ function checkStartupIntegrity() {
   }
 }
 
+// Thrown by migrateIncomingLibrary() when the caller's data claims a
+// schemaVersion newer than this app understands — routes catch this
+// specifically and translate it into the same 409 {tooNew:true,...} shape
+// GET /api/library already uses, rather than writing something this app
+// can't actually read back correctly.
+class TooNewLibraryError extends Error {
+  constructor(dataVersion) {
+    super(`This data was saved by a newer version of Anime Tracker (schemaVersion ${dataVersion}).`);
+    this.name = 'TooNewLibraryError';
+    this.dataVersion = dataVersion;
+  }
+}
+
+// P1.3: the three whole-library "replace" routes (PUT /api/library, the
+// legacy backup restore, and the Class C snapshot restore) all accept a
+// caller-supplied library object that isn't guaranteed to already be at
+// SCHEMA_VERSION — a normal save always sends back whatever GET /api/library
+// last returned (already current), but an imported backup file
+// (public/js/events.js's "Import backup" file picker) or an old backup/
+// snapshot can genuinely be older. Previously none of the three routes ran
+// the incoming data through migrate() at all, so restoring/importing old
+// data would silently write an old-shaped `preferences` object while the
+// server reported itself healthy — client-side defaulting
+// (settingsSchema.js's ensureSettingsShape) papers over the gap in memory,
+// but the schemaVersion label on disk would stay wrong until the next
+// restart. migrate() is a no-op when data is already current, so this is
+// safe to call unconditionally on every one of these routes.
+function migrateIncomingLibrary(data) {
+  const dataVersion = data.schemaVersion || 1;
+  const compat = checkVersionCompatibility(dataVersion, SCHEMA_VERSION);
+  if (compat === 'too-new') throw new TooNewLibraryError(dataVersion);
+  if (compat === 'migrate') return migrate(data, SCHEMA_VERSION);
+  return data;
+}
+
 function timestampForBackup(date) {
   const p = (n) => String(n).padStart(2, '0');
   return (
@@ -1036,9 +1071,25 @@ const server = http.createServer(async (req, res) => {
             },
           };
         }
-        body.schemaVersion = body.schemaVersion || SCHEMA_VERSION;
-        writeLibraryAtomic(body);
-        return { status: 200, body: { ok: true }, etag: computeLibraryEtag(body) };
+        // P1.3: an ordinary save always sends back whatever GET last
+        // returned (already current), but a body reconstructed from an
+        // imported backup file can genuinely be an older schemaVersion —
+        // migrateIncomingLibrary() is a no-op for the common case and only
+        // does real work for that path. See its own comment.
+        let toWrite;
+        try {
+          toWrite = migrateIncomingLibrary(body);
+        } catch (err) {
+          if (err instanceof TooNewLibraryError) {
+            return {
+              status: 409,
+              body: { error: `${err.message} Update the app before making changes.`, tooNew: true, dataVersion: err.dataVersion, appVersion: SCHEMA_VERSION },
+            };
+          }
+          throw err;
+        }
+        writeLibraryAtomic(toWrite);
+        return { status: 200, body: { ok: true }, etag: computeLibraryEtag(toWrite) };
       });
       sendJson(res, result.status, result.body, result.etag ? { ETag: result.etag } : {});
       return;
@@ -1071,12 +1122,26 @@ const server = http.createServer(async (req, res) => {
         } catch (err) {
           return { status: 500, body: { error: `Backup file itself is corrupt: ${err.message}` } };
         }
+        // P1.3: this route previously wrote the backup's schemaVersion
+        // verbatim with no check at all — a backup from an old app version
+        // would silently reintroduce an old-shaped preferences object.
+        try {
+          restored = migrateIncomingLibrary(restored);
+        } catch (err) {
+          if (err instanceof TooNewLibraryError) {
+            return {
+              status: 409,
+              body: { error: `${err.message} Update the app before restoring it.`, tooNew: true, dataVersion: err.dataVersion, appVersion: SCHEMA_VERSION },
+            };
+          }
+          return { status: 500, body: { error: `Backup could not be migrated: ${err.message}` } };
+        }
         // Preserve the broken file for forensics instead of silently discarding it.
         if (fs.existsSync(LIBRARY_FILE)) {
           const quarantine = path.join(BACKUPS_DIR, `pre-restore-${timestampForBackup(new Date())}.json`);
           fs.copyFileSync(LIBRARY_FILE, quarantine);
         }
-        libraryState = { corrupt: false, error: null };
+        libraryState = { corrupt: false, error: null, tooNew: false, dataVersion: null };
         writeLibraryAtomic(restored, { skipBackup: true });
         return { status: 200, body: { ok: true }, etag: computeLibraryEtag(restored) };
       });
@@ -1190,6 +1255,23 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 500, { error: `Cannot restore this snapshot: ${err.message}` });
         return;
       }
+      // P1.3: reject a too-new snapshot before ever writing anything, rather
+      // than restoring it and immediately landing in the "update the app"
+      // blocked state. A too-old snapshot (e.g. one taken before this
+      // substep shipped) is allowed through here — it's migrated *after* the
+      // write-and-verify-against-the-snapshot step below, not before, so
+      // that step keeps proving the write reproduces the snapshot's own
+      // bytes exactly; see the comment down there for why.
+      const restoredVersion = restored.schemaVersion || 1;
+      if (checkVersionCompatibility(restoredVersion, SCHEMA_VERSION) === 'too-new') {
+        sendJson(res, 409, {
+          error: `This snapshot was taken by a newer version of Anime Tracker (schemaVersion ${restoredVersion}). Update the app before restoring it.`,
+          tooNew: true,
+          dataVersion: restoredVersion,
+          appVersion: SCHEMA_VERSION,
+        });
+        return;
+      }
       // The write itself, plus the post-restore verification, run inside the
       // shared write lock (rule 6) — a concurrent PUT/reset/legacy-restore
       // must not be able to interleave with this one.
@@ -1247,6 +1329,23 @@ const server = http.createServer(async (req, res) => {
             body: {
               error: `Restore wrote data that does not match the verified snapshot (stores: ${mismatches.join(', ') || rebuiltCheck.errors.join('; ')}). The previous library.json was rotated into backups/ — do not trust the current library.json until this is investigated.`,
             },
+          };
+        }
+        // The write above just proved (byte-for-byte, via checksums) that
+        // library.json now matches the snapshot exactly — a stricter
+        // invariant than migrate() cares about, and one that would break if
+        // migrate() ran *before* this check (it would make the write
+        // deliberately differ from the snapshot it's supposed to reproduce).
+        // Only now, as a separate follow-up pass, bring an old snapshot's
+        // schema up to date — identical in effect to what happens if the
+        // server were simply restarted with this exact file on disk.
+        if (checkVersionCompatibility(restoredVersion, SCHEMA_VERSION) === 'migrate') {
+          const migrated = migrate(restored, SCHEMA_VERSION);
+          writeLibraryAtomic(migrated);
+          return {
+            status: 200,
+            body: { ok: true, verified: true, restoredFrom: file, migratedTo: SCHEMA_VERSION },
+            etag: computeLibraryEtag(migrated),
           };
         }
         return {
