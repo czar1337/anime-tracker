@@ -50,7 +50,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P0.3 Discover feasibility gate | done | 2026 (see discovery) | `docs/v2-discovery.md` §"P0.3 close out" + §"P0.3 close-out verification" | — |
 | P0.4 Plan, file index, verification harness | done | 2026-08-02 | this session, see "P0.4 close out" below | — |
 | P1.1 Backup, verify, restore, export | done | 2026-08-02 | this session, see "P1.1 implementation session", "P1.1 review-fixes session" and "P1.1 close out (COMPLETE-B)" below | — |
-| P1.2 Storage classes and concurrency | in progress | 2026-08-02 | this session, see "P1.2 implementation session" below | user-executed screen reader step for the conflict toast (steps written below, awaiting the user's result) |
+| P1.2 Storage classes and concurrency | in progress | 2026-08-02 | this session, see "P1.2 implementation session" and "P1.2 independent review session" below | user-executed screen reader step for the conflict toast (steps written below, awaiting the user's result) |
 | P1.3 Settings schema and transactional migration | not started | — | — | — |
 | P1.4 Token layer, tuning config, inventory | not started | — | — | corpus target (3,000) already decided, see above |
 | P1.5 Event log v1 | not started | — | — | — |
@@ -825,3 +825,181 @@ user-executed screen reader step, which is pending the user's response.
 Not merged into `main`; `v2(P1.2): close out` is the expected follow-up
 commit once that result is in hand, per the spec's own "evidence-only
 closing commit" pattern.
+
+## P1.2 independent review session
+
+A separate review session, not the implementation session above and not
+relying on its stated conclusions. Reconciled against
+`git log --all --oneline --grep "^v2("` and this file's table first: no
+commits landed on `v2/P1.2` since the implementation session's own
+close-out-pending state above; still `in progress`. Read the full
+`main...HEAD` diff directly (`server.js`, `libraryEtag.js`, `writeLock.js`,
+`classBEviction.js`, `diskQuota.js`, the frontend etag-tracking changes,
+every new/changed test) against `docs/v2-spec.md`'s "Storage classes and
+data safety" rules 4-6, the Tuning table, and `docs/v2-plan.md`'s P1.2
+concurrency-reframe entry, rather than trusting the implementation
+session's own evidence write-up above.
+
+**What was checked and found sound**, with reasoning (not just "looked
+fine"):
+
+- **Lock-first ETag compare-and-write, no TOCTOU.** Traced every statement
+  inside `libraryWriteLock.run(...)`'s callback in the `PUT /api/library`
+  handler: the `libraryState` check, `readLibrary()`, `computeLibraryEtag()`,
+  the `If-Match` comparison, and `writeLibraryAtomic()` are all synchronous
+  (no `await` anywhere in that critical section), so Node's single-threaded
+  execution model makes the whole sequence atomic with respect to any other
+  request the instant it's this task's turn — the write lock's job is only
+  to serialize *whose* turn it is, not to protect against interleaving
+  inside an already-synchronous block. The `If-Match` presence check
+  (missing header -> `400`) correctly happens *before* the lock, since it
+  depends on no shared state and can't race anything.
+- **Exact quoted ETag / all Class A mutation paths.** `computeLibraryEtag()`
+  returns a quoted strong etag (`"<sha256 hex>"`); grepped every
+  `writeLibraryAtomic(` call site in `server.js` and confirmed each one is
+  either startup-only (before `listen()`, no concurrency possible) or inside
+  `libraryWriteLock.run(...)`: `PUT /api/library`, `POST
+  /api/snapshots/restore`, `POST /api/reset`, and the legacy `POST
+  /api/backups/restore` — all four, matching rule 6's list. No write path to
+  `library.json` exists outside these.
+- **FIFO lock timeout/error handling.** `writeLock.js`'s chained-promise
+  queue, its per-waiter timeout that still passes the baton on to whoever is
+  queued behind a timed-out waiter (rather than releasing early and letting
+  them jump the real holder), and the `LockTimeoutError` -> `423` mapping in
+  `server.js`'s top-level catch were all traced by hand and match their own
+  unit tests (`writeLock.js` section, 4 tests, all still passing).
+- **Class B-only eviction order and quota arithmetic.** `planEviction()` can
+  structurally only ever return ids present in the registry it's given
+  (confirmed by the synthetic-registry unit test); `ensureClassBWriteQuota()`
+  excludes the store currently being written from eviction candidates
+  (correct — evicting it would be pointless and would throw away data an
+  atomic write is about to safely replace anyway) and never re-queries free
+  space after evicting, trusting only the arithmetic of what it measured
+  already on disk (documented, deliberate — avoids a second, equally
+  un-lockable TOCTOU on `fs.statfsSync`). Confirmed by direct arithmetic
+  trace, not just by re-reading the code's own comments.
+- **The real two-browser-page race test.** `two-tab-race.spec.js` genuinely
+  intercepts both tabs' `PUT` requests via `page.route()` and holds them
+  until both have actually arrived at the server before releasing together —
+  this is a real barrier, not a hopeful `setTimeout`, and it's the only way
+  to guarantee both requests are in flight against the same pre-edit etag
+  regardless of exact click/debounce timing. Re-ran it 5 times in a row
+  standalone (outside the full suite) with no flakes.
+- **Data-safety tests.** `class-b-eviction.spec.js` and
+  `real-library-data-safety.spec.js` both fingerprint `library.json` and
+  every file under `snapshots/` (size + mtime, or sha256 + mtime) before and
+  after, confirming Class A/C survive Class B eviction and quota pressure
+  byte-for-byte. `real-library-data-safety.spec.js` copies the real data
+  directory into a disposable temp dir via `fs.cpSync` and only ever points
+  the test server at the copy — the original is opened read-only, for
+  fingerprinting, both before and after.
+- **Build packaging.** Actually ran `node scripts/build-exe.js` (not just
+  read it) to confirm the four new P1.2 modules
+  (`libraryEtag.js`/`writeLock.js`/`classBEviction.js`/`diskQuota.js`) inline
+  correctly into the SEA bundle: `node --check` on the generated
+  `dist/server.bundled.js` passed, the full build produced
+  `AnimeTracker-2.1.1.exe`, and booting that exact `.exe` against a temp data
+  dir (`ANIME_TRACKER_DATA_DIR` override, never the real one) confirmed live
+  `GET /api/library` returns a quoted ETag header, a `PUT` with the correct
+  `If-Match` succeeds, a `PUT` reusing the now-stale etag correctly `409`s
+  with `conflict: true`, and a `PUT` missing `If-Match` correctly `400`s —
+  the packaged build behaves identically to `npm start` for every P1.2
+  concurrency behavior, not just in dev mode.
+
+**One finding, fixed.** The stale-write conflict toast
+(`public/js/app.js`'s `attemptSave`) calls the existing, pre-P1.2
+`Render.showToast(message, { actionLabel: 'Reload', onAction, duration:
+20000 })`. That generic toast helper (`public/js/render.js`) has always
+tracked the most recent toast-with-an-action-button as the ctrl+z "Undo the
+last change" target (`lastUndoBtn`, a real, documented keyboard shortcut —
+`public/js/render.js`'s own shortcuts list, `public/js/events.js`'s
+`ctrlKey`+`z` handler). Every call site before P1.2 that supplied
+`actionLabel` was a genuine Undo action, so this was harmless. P1.2's new
+conflict toast is the first call site whose action is **not** an undo
+("Reload" discards local state and re-fetches from the server) — but
+`showToast` had no way to opt out of the tracking, so showing the conflict
+toast unconditionally overwrote `lastUndoBtn`, silently hijacking ctrl+z
+away from whatever real undo action the user actually wanted for as long as
+the conflict toast stayed up (20s — four times the default 5s undo window).
+Concretely: a user increments an episode ("Episode 6" Undo toast shown),
+then a save conflict from unrelated activity surfaces the Reload toast
+before the Undo toast expires — pressing ctrl+z now reloads the library
+instead of undoing the increment, with no indication to the user that their
+undo shortcut just did something else entirely.
+
+**Fix**: `showToast()` (`public/js/render.js`) gained a `trackUndo` option,
+defaulting to `true` so every pre-existing call site is unaffected; the
+conflict toast (`public/js/app.js`) now passes `trackUndo: false`.
+
+**Regression test**, `tests/e2e/conflict-toast-undo-safety.spec.js` (new
+fixture `tests/fixtures/watching-entry-library.json`): a real UI increment
+produces a genuine Undo toast; an out-of-band write (simulating a second
+tab) plus a second, unrelated real edit (a notes save, which shows no
+toast of its own) then produces a real 409 conflict and the Reload toast,
+while the Undo toast is still showing; ctrl+z is pressed once. The
+assertion is numerically non-coincidental: Undo firing reverts progress to
+`5/12` (its value before the increment), while Reload firing would instead
+fetch the server's actual current state, `6/12` (the increment's own
+successful save, the only one that ever landed) — the two outcomes cannot
+produce the same displayed value, so the test cannot pass by accident
+either way. Confirmed the test fails with the exact predicted `6/12` before
+the fix (verified by temporarily stashing `public/js/app.js` and
+`public/js/render.js`) and passes after restoring it.
+
+**Considered and not fixed, with reasoning:**
+- **Two truly concurrent Class B cache writes** (e.g. `/api/airing` and
+  `/api/upcoming` PUT at the same instant) each independently call
+  `ensureClassBWriteQuota()` without a shared lock, so in a narrow race both
+  could pass their own quota check based on the same pre-write free-space
+  reading and, combined, dip disk space further under the reserved floor
+  than either alone would allow. Not fixed: rule 6's single-writer
+  requirement names migration/snapshot/restore/import/reset, not Class B
+  cache writes, and Class B is regenerable by definition — the worst case
+  is a temporarily thinner safety margin, never data loss, and this app's
+  own cache-population logic doesn't fire concurrent writes to different
+  caches from ordinary use. Widening the lock's scope to cover Class B would
+  cost real throughput (the lock would then serialize regenerable-cache
+  writes against Class A saves too) for a failure mode with no data-loss
+  consequence.
+- **A tab's own overlapping saves** (a slow/rare case: a debounced save
+  already in flight when the user edits again before the first request
+  returns) could in principle both fire with the same locally-tracked stale
+  etag, producing a same-tab false-positive conflict rather than the
+  intended "another tab" one. Not fixed: this server runs on `localhost`
+  with sub-10ms round trips against a 300ms debounce, so the window is
+  vanishingly narrow in real use, and the failure mode if it ever occurred
+  is identical to a genuine conflict (a reload prompt, no data loss, no
+  silent overwrite) — the toast's wording ("another tab or window") would
+  just be technically imprecise in an already-unreachable edge case.
+
+**Automated checks, this session:**
+- `node tests/run-all.js`: **94 passed, 0 failed** (unchanged — this review
+  found a frontend interaction bug, not a unit-testable pure-function bug).
+- `npx playwright test`: **18 passed, 0 failed** (17 from the implementation
+  session, +1 new: `conflict-toast-undo-safety.spec.js`). Re-ran the full
+  suite twice to confirm no flakes introduced by the new test.
+- Build packaging verified as its own step above (not part of either
+  automated suite, since `scripts/build-exe.js` isn't wired into either
+  `npm test` or `npm run test:e2e`).
+- No lint, typecheck or build command exists in this project beyond
+  `scripts/build-exe.js` itself (unchanged finding from P0.1 onward).
+
+**Data safety.** No schema, store, or Class A file-shape change in this
+session — the fix touches only frontend toast-tracking behavior. The full
+data-safety e2e suite (byte/mtime fingerprinting of `library.json` and
+`snapshots/`, tamper/traversal rejection, restore round trips) re-ran green
+above, confirming the fix introduced no regression there.
+
+**Commits**, both on `v2/P1.2`, not amending the implementation session's
+commits:
+1. `v2(P1.2): fix conflict toast hijacking ctrl+z from a pending Undo` —
+   the `trackUndo` option, the conflict toast's opt-out, the new regression
+   test and fixture.
+2. `v2(P1.2): independent review evidence` — this section.
+
+**Status unchanged: P1.2 substantially complete, not yet closed out.** This
+review found and fixed one real frontend bug and confirmed no other
+correctness, data-safety, or packaging issues in the areas it examined. The
+accessibility criterion's user-executed screen reader step remains the only
+outstanding item before `v2(P1.2): close out` — still pending the user's
+response, unaffected by this session. Not merged into `main`.
