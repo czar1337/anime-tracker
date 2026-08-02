@@ -23,21 +23,54 @@ function setSaveIndicator(state, text) {
   el.innerHTML = `<i></i>${text}`;
 }
 
+// A conflict (two tabs, lost-update prevention — P1.2) is fundamentally
+// different from a transient failure: retrying with the same stale etag can
+// never succeed, only a fresh load can, so this stops the indefinite retry
+// loop and asks the user to reload instead of hammering the server with a
+// doomed request forever.
+async function reloadAfterConflict() {
+  const { data, etag } = await Api.getLibrary();
+  Store.setLibrary(data, etag);
+  refreshCurrentView();
+  setSaveIndicator('saved', 'Saved');
+  Render.clearError();
+}
+
 async function attemptSave(attempt = 0) {
   saveInFlight = true;
   setSaveIndicator('saving', 'Saving');
   try {
-    await Api.saveLibrary(Store.toJSON());
+    const result = await Api.saveLibrary(Store.toJSON(), Store.getEtag());
+    Store.setEtag(result.etag);
     saveInFlight = false;
     hasUnsavedChanges = false;
     setSaveIndicator('saved', 'Saved');
     Render.clearError();
   } catch (err) {
     saveInFlight = false;
+    if (err.conflict) {
+      setSaveIndicator('failed', 'Not saved — changed elsewhere.');
+      Render.showToast(
+        'This library was changed in another tab or window. Your latest change here was not saved — reload to see what changed, then redo it.',
+        {
+          actionLabel: 'Reload',
+          onAction: () => {
+            reloadAfterConflict().catch((reloadErr) => Render.showError(`Could not reload: ${reloadErr.message}`));
+          },
+          duration: 20000,
+        }
+      );
+      return;
+    }
     setSaveIndicator('failed', 'Not saved. Retrying.');
     Render.showError(`Could not save: ${err.message}. Keep this tab open — your changes are kept here until the save succeeds.`);
     // Keep retrying indefinitely (backing off to a steady 5s) rather than
-    // ever silently giving up on data the user just entered.
+    // ever silently giving up on data the user just entered. Covers both
+    // ordinary transient failures and a 423 "locked" response (another
+    // operation is mid-flight) — once that clears, a retry with the current
+    // etag either succeeds normally or (if the lock-holder itself changed
+    // the library, e.g. a restore) surfaces as a conflict on the very next
+    // attempt, handled above.
     const delay = attempt < 3 ? 1500 * (attempt + 1) : 5000;
     retryTimer = setTimeout(() => attemptSave(attempt + 1), delay);
   }
@@ -231,9 +264,9 @@ async function retryMissingCovers() {
 }
 
 async function boot() {
-  let data;
+  let loaded;
   try {
-    data = await loadLibraryOrRetry();
+    loaded = await loadLibraryOrRetry();
   } catch (err) {
     if (err.dataConflict || err.tooNew) {
       showBlockedScreen(err);
@@ -242,7 +275,7 @@ async function boot() {
     await showRecoveryScreen(err);
     return;
   }
-  Store.setLibrary(data);
+  Store.setLibrary(loaded.data, loaded.etag);
   Render.clearError();
 
   const initialList = Store.state.preferences.activeTab || 'watching';

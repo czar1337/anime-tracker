@@ -28,6 +28,14 @@ const state = {
   dismissedItems: [],
 };
 
+// Tracks the server's ETag for whatever library content this Store currently
+// reflects (P1.2's concurrency reframe, docs/v2-plan.md/docs/v2-spec.md rule
+// 6). Used as the If-Match header on the next save so a stale write (this
+// tab holding an older copy than what's actually on disk, e.g. because
+// another tab saved in the meantime) is rejected by the server instead of
+// silently overwriting whatever that other tab wrote.
+let currentEtag = null;
+
 function ensurePreferenceShape() {
   const defaults = DEFAULT_PREFERENCES();
   state.preferences = state.preferences || {};
@@ -45,12 +53,21 @@ function ensurePreferenceShape() {
   state.preferences.notifyNewEpisodes = Boolean(state.preferences.notifyNewEpisodes);
 }
 
-function setLibrary(data) {
+function setLibrary(data, etag = null) {
   state.schemaVersion = data.schemaVersion || 1;
   state.entries = Array.isArray(data.entries) ? data.entries : [];
   state.preferences = data.preferences || DEFAULT_PREFERENCES();
   state.dismissedItems = Array.isArray(data.dismissedItems) ? data.dismissedItems : [];
   ensurePreferenceShape();
+  if (etag) currentEtag = etag;
+}
+
+function getEtag() {
+  return currentEtag;
+}
+
+function setEtag(etag) {
+  if (etag) currentEtag = etag;
 }
 
 function toJSON() {
@@ -361,6 +378,8 @@ export const Store = {
   LISTS,
   state,
   setLibrary,
+  getEtag,
+  setEtag,
   toJSON,
   getEntries,
   getEntry,

@@ -924,8 +924,8 @@ function bindBackupOverlay() {
       const text = await file.text();
       const data = JSON.parse(text);
       if (!Array.isArray(data.entries)) throw new Error('File does not look like a library backup.');
-      await Api.saveLibrary(data);
-      Store.setLibrary(data);
+      const result = await Api.saveLibrary(data, Store.getEtag());
+      Store.setLibrary(data, result.etag);
       Render.renderAll(activeList);
       Render.showToast('Backup imported successfully.');
       closeAllOverlays();
@@ -945,8 +945,12 @@ function bindBackupOverlay() {
       onConfirm: async () => {
         try {
           await Api.restoreBackup(file);
-          const data = await Api.getLibrary();
-          Store.setLibrary(data);
+          // Re-fetch rather than trust the restore response's own etag: this
+          // is the same fresh-load-after-replace pattern the snapshot
+          // restore/reset handlers below use, so the tracked etag always
+          // reflects a confirmed re-read of what's actually on disk now.
+          const { data, etag } = await Api.getLibrary();
+          Store.setLibrary(data, etag);
           refreshView();
           Render.showToast('Restored from backup.');
         } catch (err) {
@@ -1384,8 +1388,8 @@ function bindSettingsPanel() {
         onConfirm: async () => {
           try {
             await BackupClient.restoreSnapshot(file);
-            const data = await Api.getLibrary();
-            Store.setLibrary(data);
+            const { data, etag } = await Api.getLibrary();
+            Store.setLibrary(data, etag);
             refreshView();
             await refreshSnapshotList();
             Render.showToast('Restored from snapshot.');
@@ -1407,8 +1411,8 @@ function bindSettingsPanel() {
         onConfirm: async () => {
           try {
             await BackupClient.resetEverything('RESET');
-            const data = await Api.getLibrary();
-            Store.setLibrary(data);
+            const { data, etag } = await Api.getLibrary();
+            Store.setLibrary(data, etag);
             refreshView();
             await refreshSnapshotList();
             Render.showToast('Everything has been reset. A snapshot of your previous data was saved and can be restored from Settings.');
