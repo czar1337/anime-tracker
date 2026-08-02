@@ -1224,6 +1224,47 @@ function formatRelativeBackupTime(filename) {
   return date.toLocaleDateString();
 }
 
+// Class C snapshots carry their own ISO timestamp (unlike backup filenames,
+// which encode it), so this formats directly from that rather than parsing
+// the filename.
+function formatRelativeIsoTime(iso) {
+  if (!iso) return 'unknown time';
+  const date = new Date(iso);
+  const diffMin = Math.round((Date.now() - date.getTime()) / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay === 1) return 'yesterday';
+  if (diffDay < 7) return `${diffDay} days ago`;
+  return date.toLocaleDateString();
+}
+
+// P1.1's verified Class C snapshots — a separate list from renderBackupList's
+// automatic backups above (different mechanism, see docs/v2-plan.md). Restore
+// is disabled for any snapshot whose `verified` flag came back false from
+// GET /api/snapshots: the UI must never offer to restore from something the
+// server itself couldn't re-verify.
+function renderSnapshotList(container, snapshots) {
+  if (!snapshots || snapshots.length === 0) {
+    container.innerHTML = `<li class="backup-empty">No snapshots yet.</li>`;
+    return;
+  }
+  container.innerHTML = snapshots
+    .map((s) => {
+      const badges = `${s.pinned ? '<span class="tag">Pinned</span>' : ''}${s.verified ? '' : '<span class="tag warn">Invalid</span>'}`;
+      return `
+      <li>
+        <button class="backup-row" data-restore-snapshot="${escapeHtml(s.file)}" ${s.verified ? '' : 'disabled'}>
+          <span class="backup-time">${escapeHtml(formatRelativeIsoTime(s.createdAt))} ${badges}</span>
+          <span class="backup-file">${escapeHtml(s.file)}</span>
+        </button>
+      </li>`;
+    })
+    .join('');
+}
+
 // Shared by the Settings backup menu and the recovery screen. The whole row
 // is one button (design reference's own shape) — its click handlers use
 // closest('[data-restore]') rather than reading e.target.dataset directly,
@@ -1552,6 +1593,18 @@ function renderSettingsPanel(container, currentThemeId) {
       'Show the Japanese title next to the English one.',
       segHtml('originalTitles', [['off', 'Off'], ['details', 'In details only'], ['everywhere', 'Everywhere']], Preferences.getOriginalTitlesMode())
     )}
+    ${settingsRowHtml(
+      'Data &amp; safety',
+      'Verified snapshots of your library, separate from the automatic backups above. Restoring one replaces your current library.',
+      `
+      <ul id="snapshot-list" class="backup-list"><li class="backup-empty">Loading…</li></ul>
+      <div class="row" style="margin-top:8px">
+        <button id="snapshot-create-btn" class="btn btn-ghost sm rip-host">Take a snapshot now</button>
+        <button id="download-export-btn" class="btn btn-ghost sm rip-host">Download my data</button>
+        <button id="reset-everything-btn" class="btn btn-danger sm rip-host">Reset everything</button>
+      </div>
+      `
+    )}
   `;
   scroller.scrollTop = scrollTop;
   const newGrid = container.querySelector('.themegrid');
@@ -1652,6 +1705,7 @@ export const Render = {
   renderSearchLoading,
   renderSearchEmpty,
   renderBackupList,
+  renderSnapshotList,
   renderHome,
   renderStatsPage,
   renderDiscoverPage,
