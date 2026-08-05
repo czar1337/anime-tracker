@@ -54,7 +54,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P1.3 Settings schema and transactional migration | done | 2026-08-02 | this session, see "P1.3 implementation session" and "P1.3 close out" below | — |
 | P1.4 Token layer, tuning config, inventory | done | 2026-08-02 | this session, see "P1.4 implementation session" and "P1.4 close out" below | — |
 | P1.5 Event log v1 | done | 2026-08-05 | this session, see "P1.5 implementation session" and "P1.5 close out" below | — |
-| P1.6 Copy registry, new v2 surfaces only | not started | — | — | — |
+| P1.6 Copy registry, new v2 surfaces only | in progress | 2026-08-05 | this session, see "P1.6 implementation session" below | all six acceptance criteria have full evidence this same session (no new UI surface); awaiting user review, close-out commit and merge into `main` |
 | P1.7 Lists, collections, tags, achievement hook | not started | — | — | — |
 | P2 Token conversion, batched per directory | not started | — | — | — |
 | P3.1 Nine fonts, loader, per-font manifest | not started | — | — | — |
@@ -1871,3 +1871,201 @@ following); `v2/P1.5` retained, not deleted, per the spec's branching rule.
 pushes to `origin` until they want to cut a new version — is still in force, so
 `main` is ahead of `origin/main` locally and deliberately stays that way until
 they say otherwise.
+
+## P1.6 implementation session
+
+Branch `v2/P1.6`, from `main` (P1.1-P1.5 merged). Reconciled against
+`git log --all --oneline --grep "^v2("` first: P1.5 is the latest landed
+substep, P1.6 had no prior commits anywhere.
+
+Used plan mode. Planning ran a full string sweep against the pre-v2 baseline
+(`git diff b2f1c6c..HEAD`) rather than reading the current files and guessing
+which strings v2 introduced — that distinction is the whole scope boundary of
+this substep, and three of its findings changed the shape of the work.
+
+### Scope, held deliberately
+
+Only strings P1.1-P1.5 introduced move into the registry. Pre-v2 copy stays
+where it is: the spec calls a full move "a hidden full refactor" that "does not
+belong in Foundations", and the one permitted exception (a small, already
+centralised string set) does not apply here — P0.1 measured roughly 400-450
+scattered literals across `public/js/*.js` and `index.html`, already recorded
+in `docs/v2-backlog.md`.
+
+**No tier picker ships.** P6.4 owns the UI and the Certified-Menace unlock
+gate; P1.6 owns the registry, the resolver and the schema. `contentTier` has
+existed as an inert preference since P1.3 (default `'standard'`, validated),
+and this substep is what finally reads it.
+
+### What the sweep found
+
+**1. Two named retrofit targets had no string to move.**
+- The `navigator.storage.persist()`-denied warning was deliberately never
+  built — that API governs a browser profile's own storage and cannot protect
+  files this app's server writes to disk. Documented in five places across the
+  plan/progress/discovery docs. Correctly skipped rather than invented.
+- **The images-not-included disclosure did not exist at all**, despite the
+  spec requiring it in the restore UI in three separate places. So it is a
+  **new copy item**, not a retrofit. Written for what is actually true today —
+  snapshots hold Class A, so downloaded cover images are not included and
+  re-download by themselves — under a key P6.2 extends when avatar and banner
+  blobs arrive. Writing a disclosure now about images that do not yet exist
+  would have been worse than useless.
+
+**2. The "could not save / storage is full" surface was invisible to the
+user.** P1.2 built the server-side 507 refusal, but *both* callers ended in
+`.catch(() => {})` (`discover.js`, `schedule.js`), so a refused Class B write
+told the user nothing whatsoever. That is a standing violation of rule 5's
+"handle it with a user-visible 'could not save' surface. Never silently drop a
+write." Surfacing it is exactly what this retrofit target asks for, so P1.6
+closes it: `api.js` now flags `quotaExceeded` the way it already flags
+`conflict`/`locked`, and both callers show the toast while staying quiet about
+ordinary cache-write failures. Recorded as a P1.2 gap closed here rather than
+folded in silently.
+
+**3. The user-visible text for the server-side surfaces is server prose.** The
+423 "close other tabs" message and the 507 both reach the user only through the
+client's generic `Could not save: ${err.message}`. Rather than teach
+`server.js` to resolve tiers — it would need the registry *and* the user's
+preference on a route that stays deliberately dependency-light — the **client**
+resolves copy from the structured flags the server already sends, and the
+server keeps its prose as the API-level fallback (still correct for curl, a
+non-browser caller, and the existing server tests). Same honest-reframe pattern
+P1.2 and P1.5 established, and it keeps the tier a purely presentational
+concern, which is what it should be.
+
+### Two traps, handled explicitly
+
+- **`'RESET'` is simultaneously UI copy and a wire-protocol value** —
+  `backupClient.js` sends it and `server.js` compares against it. It stays a
+  domain constant; only the label *around* it is registry copy. A unit test
+  asserts no registry variant is ever the bare phrase, because a tier being
+  able to change it would break the reset endpoint outright.
+- **`exportRegistry.js`'s `label:` fields** ("Library entries", "Activity event
+  log", ...) are human-readable but ship inside the exported JSON and the
+  snapshot manifest. They stay out of the tier registry: closer to identifiers
+  than to copy, and "content tiers affect copy only, never logic and never IDs"
+  forbids a tier changing them.
+
+### The one deliberate visible-copy change
+
+Moving the Settings heading into the registry surfaced a **pre-existing bug
+from P1.1**: `settingsRowHtml()` calls `escapeHtml()` on its label, and P1.1
+passed an already-escaped `'&amp;'`, so it double-escaped and the panel has
+been literally displaying **"Data &amp; safety"** to the user ever since. The
+retrofit initially preserved it faithfully; an e2e test asserting what the
+heading *should* read is what caught it. Fixed rather than preserved, and
+confirmed in a real browser against a copy of the real library: the heading now
+reads "Data & safety". This is the only place P1.6 changes what the user sees,
+and it is a fix rather than a rewording.
+
+### Registry and resolver
+
+`public/js/copyRegistry.js` holds 37 entries, three variants each. Per the
+spec's own tone rule, most carry **identical** `familyFriendly` and `standard`
+text on purpose: "the Family-Friendly variant of a data-loss warning is the
+same as the Standard one. Tone varies; clarity does not. Do not make a joke out
+of a storage failure in any tier." A unit test enforces that for every
+data-loss and destructive-action entry across all three tiers, and an e2e test
+proves the reset dialog reads identically even in Madara. Only genuinely light
+surfaces diverge — currently just "snapshot created".
+
+`public/js/copy.js` implements `copy(key, tier, params)` with the required
+`madara -> standard` runtime fallback, `spicy`-hides-in-Family-Friendly, and a
+loud visible placeholder rather than a throw for an unknown key — a missing
+label must never break the action the user was taking. It exposes only
+rendering helpers, never anything an achievement condition could read, since
+tier must never affect what unlocks.
+
+Both files are deliberately **import-free**, the same constraint P1.5 put on
+`eventTypes.js`/`eventCounters.js`, so the build check can load the registry
+from its own source bytes via the established data-URL trick.
+
+### The build-time checks
+
+`scripts/check-copy-registry.js`, zero-dependency, matching `scripts/perf.js`'s
+conventions:
+
+1. **Completeness** — every entry must carry all three variants. The runtime
+   fallback is "a safety net, not a permitted shortcut", so a missing variant
+   fails even though it would render fine.
+2. **Keyword denylist** over all three variants, covering P6.4's hard limits,
+   as documented categories: the minor-coded terms the spec names explicitly
+   and self-harm phrasings in plaintext (clinical enough to read and review,
+   and substring matching genuinely helps there), plus a **sha256-hashed** word
+   list for slurs so the repository does not itself carry them. That hashed
+   list is **empty today and says so** — there is no Madara copy yet beyond
+   this substep's own entries, so a seeded list would have nothing to catch;
+   the mechanism is built and tested against a planted hash, ready for
+   P6.4/P7B. Explicitly a backstop: the spec makes the user's own read-through
+   before GATE-2.2 the real gate.
+3. **The copy() boundary** — no raw string may reach a user-facing sink from a
+   v2-owned file. Scoped to the four named client sinks in the eight v2 files,
+   and deliberately **not** to `.innerHTML`/`.textContent` (88 sites app-wide,
+   43 of them pre-v2 markup in `render.js`): a rule that noisy gets ignored,
+   which is worse than no rule at all.
+
+Wired as `npm run check:copy` **and** invoked from `tests/run-all.js`, because
+`npm test` runs only that file and there is no pretest hook — a standalone
+script would never actually gate anything.
+
+**Every check is proven to fail when broken**, not merely to pass when clean: a
+missing variant, each denylist category at each of the three tiers, a
+denylisted term hidden inside a function variant, an unexpected field, and a
+planted raw sink literal. A check that cannot fail proves nothing.
+
+### Acceptance criteria
+
+**1. Automated checks.** `node tests/run-all.js`: **178 passed, 0 failed**
+(+17). `npx playwright test`: **52 passed, 0 failed** (+5).
+`node scripts/check-copy-registry.js`: passes, and verified to fail on each
+class of deliberately broken input. No lint or typecheck command exists in this
+project beyond the scripts in `scripts/` (unchanged finding from P0.1).
+
+**2. Data safety.** This substep persists nothing new and changes no stored
+shape: it moves display strings and reads one existing, already-validated
+preference. No Class A store introduced or extended, so rule 3a does not apply.
+Stated explicitly per the spec's own reduction for substeps not touching
+persistence. The manual smoke test below re-confirmed the real library
+untouched anyway, since the retrofit does touch save-path error handling.
+
+**3. Manual smoke test**, production build (`npm start`), **against a
+disposable copy of the real 222-entry library only**:
+1. Fingerprinted (sha256 + mtime) the real `library.json` and every
+   `snapshots/` file first.
+2. Booted against the copy and opened Settings: the Data & safety panel reads
+   correctly, now including the fixed **"Data & safety"** heading, with all
+   five real snapshots listed and their Pinned/Invalid badges intact.
+3. Opened the restore dialog on a real snapshot: it now carries the new
+   images-not-included disclosure alongside the original text.
+4. **No console errors.**
+5. Re-fingerprinted the **original**: byte- and mtime-identical.
+
+Also rebuilt the packaged `.exe` (58 embedded assets, up from 56) so the two
+new `public/js` modules ship in it.
+
+**4. Performance.** No Tuning-table budget names a surface this substep
+touches — it is string resolution at render time, with no measurable cost and
+no new I/O. Stated explicitly per the spec's reduction rule.
+
+**5. Accessibility.** No new UI surface, no new control, no changed markup
+structure: the retrofit substitutes the text inside existing elements, and the
+only additions are one extra sentence in an existing dialog body and a toast
+that uses the existing toast component (already covered by P1.1's contrast and
+keyboard checks). The one visible change is the heading fix, which corrects
+text that was previously displaying escaped HTML entities — strictly an
+improvement for a screen reader too. Stated explicitly: there is **no
+screen-reader step for the user to run this session**.
+
+**6. Rollback.** Revert the `v2(P1.6)` commit range. This substep migrates no
+data and adds no stored field, so a code revert is entirely sufficient. The two
+new modules are inert once nothing imports them; reverting restores the
+previous inline strings verbatim, with the sole exception of the `&amp;`
+heading fix, which would revert to displaying the escaped entity again.
+`contentTier` returns to being an unread preference, exactly as P1.3 left it.
+
+**Status: P1.6 substantially complete.** All six criteria have full evidence in
+this same session; no user-blocking step, since no new UI surface ships. Not
+yet merged into `main`; awaiting user review before a `v2(P1.6): close out`
+commit and merge. Push to `origin` remains held per the standing instruction
+from P1.4.
