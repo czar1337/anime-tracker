@@ -19,7 +19,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { URL } = require('node:url');
 const sea = require('node:sea');
-const { resolveDataDir, migrateLegacyDataDir, resolveSnapshotsDir } = require('./datadir.js');
+const crypto = require('node:crypto');
+const { resolveDataDir, migrateLegacyDataDir, resolveSnapshotsDir, canonicalJSON } = require('./datadir.js');
 const { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility } = require('./migrations.js');
 const Snapshots = require('./snapshots.js');
 const { computeLibraryEtag } = require('./libraryEtag.js');
@@ -61,6 +62,18 @@ const AIRING_CACHE_TMP_FILE = path.join(DATA_DIR, 'airing-cache.json.tmp');
 const UPCOMING_CACHE_FILE = path.join(DATA_DIR, 'upcoming-cache.json');
 const UPCOMING_CACHE_TMP_FILE = path.join(DATA_DIR, 'upcoming-cache.json.tmp');
 const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
+// P1.5's two new Class A stores. Both live in their own files rather than
+// inside library.json:
+//  - events.jsonl is append-only and grows indefinitely (the spec forbids
+//    pruning it), so it must never enter rotateBackup()'s 150-copy rotation.
+//    Its redundancy is the <=4 snapshots, which DO include it per rule 3.
+//  - counters.json is a materialized fold of the log plus a historical
+//    baseline, so keeping it separate makes `total = baseline + fold(log)` a
+//    checkable, self-healing invariant instead of just "fails together with
+//    the library".
+const EVENTS_FILE = path.join(DATA_DIR, 'events.jsonl');
+const COUNTERS_FILE = path.join(DATA_DIR, 'counters.json');
+const COUNTERS_TMP_FILE = path.join(DATA_DIR, 'counters.json.tmp');
 // A single unusually active session (a big import, a bulk cover-recovery
 // run) can create dozens of backups in a few hours — at 30, that safety net
 // can be completely cycled through in a single day, pruning away anything
@@ -335,6 +348,353 @@ function readLibrary() {
   return JSON.parse(raw);
 }
 
+// ---------------------------------------------------------------------------
+// Class A: the append-only event log + lifetime counters (P1.5)
+//
+// docs/v2-spec.md's P1.5 asks for "one IndexedDB transaction per user action,
+// covering the library write, the event append and the counter update". There
+// is no IndexedDB here and no multi-file filesystem transaction, so — same
+// honest-reframe precedent P1.2 set for navigator.locks — the model is:
+//
+//   the LOG is the ledger, appended to and never rewritten;
+//   the LIBRARY is the projection the user edits directly;
+//   COUNTERS are a verifiable fold of the ledger plus a historical baseline.
+//
+// POST /api/events is therefore deliberately DECOUPLED from PUT /api/library:
+// it carries no If-Match and can never 409. Coupling them would have been
+// worse than not meeting the letter of the spec — the events route would
+// change library.json's ETag under every open tab, so the next ordinary save
+// from any tab would 409, and that path shows a Reload toast without
+// rescheduling a retry. Logging "the app opened" could then destroy a score or
+// note the user had just typed. Every inconsistency this decoupling can
+// produce instead self-heals: appends are idempotent by id, and counters are
+// re-derivable from the log.
+// ---------------------------------------------------------------------------
+
+// Lazily-built set of every event id already on disk, for dedup. Deliberately
+// NOT built during startup: the log grows forever, so reading it before
+// listen() would make boot time grow linearly with the user's history. Built
+// on the first append instead, then maintained incrementally.
+let eventIdIndex = null;
+let eventLogMaxTs = 0;
+
+// Recovers a torn last line before anything appends after it. appendFileSync +
+// fsync can still leave a truncated tail if the process dies mid-write, and
+// appending after that would merge the new record into the broken bytes,
+// corrupting TWO events instead of one. This is the single, explicitly
+// documented exception to "never rewrite the log": it only ever removes bytes
+// that are not a complete line, and it preserves them in a quarantine file
+// rather than discarding them.
+function recoverPartialEventLine() {
+  if (!fs.existsSync(EVENTS_FILE)) return { recovered: false };
+  const buf = fs.readFileSync(EVENTS_FILE);
+  if (buf.length === 0 || buf[buf.length - 1] === 0x0a) return { recovered: false };
+  const lastNewline = buf.lastIndexOf(0x0a);
+  const keepLength = lastNewline + 1; // 0 when there is no newline at all
+  const removed = buf.subarray(keepLength);
+  const quarantine = `${EVENTS_FILE}.partial-${Date.now()}`;
+  try {
+    fs.writeFileSync(quarantine, removed);
+  } catch (err) {
+    console.error('[events] Could not quarantine a partial last line:', err.message);
+  }
+  fs.truncateSync(EVENTS_FILE, keepLength);
+  console.error(
+    `[events] Recovered a torn last line in events.jsonl (${removed.length} bytes moved to ${path.basename(quarantine)}).`
+  );
+  return { recovered: true, bytes: removed.length, quarantine };
+}
+
+// Reads the whole log. Skips unparseable lines rather than throwing: one bad
+// line must never make the entire log unreadable, which is the main reason the
+// format is JSONL and not a single JSON array.
+function readEventLog() {
+  if (!fs.existsSync(EVENTS_FILE)) return [];
+  const raw = fs.readFileSync(EVENTS_FILE, 'utf8');
+  const events = [];
+  let skipped = 0;
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      events.push(JSON.parse(trimmed));
+    } catch {
+      skipped += 1;
+    }
+  }
+  if (skipped > 0) console.error(`[events] Skipped ${skipped} unparseable line(s) while reading events.jsonl.`);
+  return events;
+}
+
+function ensureEventIdIndex() {
+  if (eventIdIndex) return eventIdIndex;
+  recoverPartialEventLine();
+  eventIdIndex = new Set();
+  for (const event of readEventLog()) {
+    if (event && event.id) eventIdIndex.add(event.id);
+    if (event && Number.isFinite(event.ts) && event.ts > eventLogMaxTs) eventLogMaxTs = event.ts;
+  }
+  return eventIdIndex;
+}
+
+// Canonical hash of everything about an event EXCEPT the fields the server
+// itself may add, so a genuine idempotent retry compares equal.
+function eventBodyHash(event) {
+  const copy = { ...event };
+  if (copy.meta && typeof copy.meta === 'object') {
+    const meta = { ...copy.meta };
+    delete meta.clockSkew; // server-added, must not affect identity
+    copy.meta = meta;
+  }
+  return crypto.createHash('sha256').update(canonicalJSON(copy)).digest('hex');
+}
+
+let eventBodyHashByIdCache = null;
+function eventBodyHashById() {
+  if (eventBodyHashByIdCache) return eventBodyHashByIdCache;
+  eventBodyHashByIdCache = new Map();
+  for (const event of readEventLog()) {
+    if (event && event.id) eventBodyHashByIdCache.set(event.id, eventBodyHash(event));
+  }
+  return eventBodyHashByIdCache;
+}
+
+// Appends validated events, deduping by id. Returns what actually happened per
+// event so the client can drain its outbox precisely.
+//
+// Callers must hold the write lock: this is a read-modify-write (dedup, then
+// append), and Windows offers no atomic-append guarantee worth relying on.
+async function appendEvents(incoming) {
+  const { types: EventLogShared } = await loadEventModules();
+  const index = ensureEventIdIndex();
+  const bodyHashes = eventBodyHashById();
+  const accepted = [];
+  const duplicates = [];
+  const collisions = [];
+  const lines = [];
+
+  for (const raw of incoming) {
+    // The server NEVER fills in id/ts/tzOffset/localDay/sessionId. They are
+    // frozen client-side at the moment of the action — the whole point of the
+    // spec's Stockholm/Tokyo paragraph. An event that sat in an outbox across a
+    // flight or a DST change would otherwise get a silently wrong localDay,
+    // with no way to detect it afterwards.
+    if (!EventLogShared.hasRequiredEventFields(raw)) {
+      throw new EventValidationError('Event is missing one or more required fields (id, schemaVersion, type, ts, tzOffset, localDay, sessionId).');
+    }
+    if (!EventLogShared.isKnownEventType(raw.type)) {
+      throw new EventValidationError(`Unknown event type: ${raw.type}`);
+    }
+
+    const event = { ...raw };
+    // meta.clockSkew is the ONE field the server may add, because only it knows
+    // the on-disk maximum ts. The event is still appended in arrival order and
+    // the log is never reordered; readers sort by ts.
+    if (Number.isFinite(event.ts) && eventLogMaxTs > 0 && event.ts < eventLogMaxTs) {
+      event.meta = { ...(event.meta || {}), clockSkew: true };
+    }
+
+    if (index.has(event.id)) {
+      const existing = bodyHashes.get(event.id);
+      if (existing && existing === eventBodyHash(event)) {
+        // Genuine idempotent retry (an outbox re-flush): a no-op that reports
+        // success, exactly as the spec requires.
+        duplicates.push(event.id);
+        continue;
+      }
+      // Same id, DIFFERENT body — a client bug. Silently treating this as a
+      // duplicate would swallow a real event forever, so append it under a
+      // fresh id and make the anomaly visible instead.
+      const originalId = event.id;
+      event.id = `${originalId}-COLLISION-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+      event.meta = { ...(event.meta || {}), idCollision: originalId };
+      collisions.push({ originalId, appendedAs: event.id });
+      console.error(`[events] Event id collision with a different body: ${originalId} appended as ${event.id}.`);
+    }
+
+    lines.push(JSON.stringify(event));
+    index.add(event.id);
+    bodyHashes.set(event.id, eventBodyHash(event));
+    if (Number.isFinite(event.ts) && event.ts > eventLogMaxTs) eventLogMaxTs = event.ts;
+    accepted.push(event);
+  }
+
+  if (lines.length > 0) {
+    const fd = fs.openSync(EVENTS_FILE, 'a');
+    try {
+      fs.writeSync(fd, lines.join('\n') + '\n');
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
+  return { accepted, duplicates, collisions };
+}
+
+class EventValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'EventValidationError';
+  }
+}
+
+function readCountersFile() {
+  if (!fs.existsSync(COUNTERS_FILE)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(COUNTERS_FILE, 'utf8'));
+  } catch (err) {
+    console.error('[counters] counters.json did not parse; it will be rebuilt from the log:', err.message);
+    return null;
+  }
+}
+
+function writeCountersAtomic(data) {
+  const json = JSON.stringify(data, null, 2);
+  const fd = fs.openSync(COUNTERS_TMP_FILE, 'w');
+  try {
+    fs.writeSync(fd, json);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(COUNTERS_TMP_FILE, COUNTERS_FILE);
+}
+
+// Recomputes `fromLog` by folding the whole log, and rewrites counters.json.
+// This is the self-heal half of the `total = baseline + fold(log)` invariant:
+// `fromLog` is a cache, so it is always re-derivable and never the only copy of
+// anything. The baseline is the part that genuinely cannot be recomputed, which
+// is why it is Class A.
+async function recomputeCountersFromLog({ baseline } = {}) {
+  const { counters: Counters, tuning } = await loadEventModules();
+  const events = readEventLog();
+  const existing = readCountersFile();
+  const effectiveBaseline = baseline || existing?.baseline || Counters.emptyCounterTotals();
+  const fromLog = Counters.foldEvents(events, {
+    episodeDurationFallbackMinutes: tuning.TIME_SEMANTICS.episodeDurationFallbackMinutes,
+  });
+  const file = Counters.buildCountersFile({
+    baseline: effectiveBaseline,
+    fromLog,
+    logCount: events.length,
+    lastEventId: events.length ? events[events.length - 1].id : null,
+  });
+  writeCountersAtomic(file);
+  return file;
+}
+
+// Moves events.jsonl aside on reset. A rename, never a rewrite or a delete:
+// the bytes stay on disk under a timestamped name, and the pre-reset safety
+// snapshot holds them too. Resets the in-memory dedup index so the fresh log
+// starts clean.
+function archiveEventLogForReset() {
+  if (!fs.existsSync(EVENTS_FILE)) return null;
+  const stamp = timestampForBackup(new Date());
+  const archived = `${EVENTS_FILE}.${stamp}.archived`;
+  try {
+    fs.renameSync(EVENTS_FILE, archived);
+  } catch (err) {
+    console.error('[events] Could not archive events.jsonl during reset:', err.message);
+    return null;
+  }
+  eventIdIndex = null;
+  eventBodyHashByIdCache = null;
+  eventLogMaxTs = 0;
+  console.log(`[events] Archived the event log to ${path.basename(archived)} during reset.`);
+  return path.basename(archived);
+}
+
+// A zeroed counters file for a freshly reset library: no baseline (there are no
+// entries left to seed from) and no fold (the log was just archived away).
+async function buildFreshCountersFile() {
+  const { counters: Counters } = await loadEventModules();
+  return Counters.buildCountersFile({
+    baseline: Counters.emptyCounterTotals(),
+    fromLog: Counters.emptyCounterTotals(),
+    logCount: 0,
+    lastEventId: null,
+  });
+}
+
+// Applies the non-library-field halves of a restore plan (P1.5).
+//
+// The event log is UNIONED by id, never truncated: restoring a snapshot from
+// ten days ago must not destroy ten days of real events. The log is
+// append-only Class A, and a rewrite is exactly the risk the whole
+// data-safety section exists to avoid — so events the snapshot doesn't know
+// about are kept, and only genuinely absent ones are appended.
+//
+// This appends through the same appendEvents() path as everything else, so it
+// inherits dedup, validation and fsync rather than reimplementing them.
+async function applyRestoreSideEffects(sideEffects) {
+  for (const effect of sideEffects || []) {
+    if (effect.kind === 'eventLogFile' && effect.mode === 'unionById') {
+      const index = ensureEventIdIndex();
+      const missing = effect.records.filter((r) => r && r.id && !index.has(r.id));
+      if (missing.length > 0) {
+        const { accepted } = await appendEvents(missing);
+        console.log(`[events] Restore unioned ${accepted.length} event(s) from the snapshot into events.jsonl (nothing truncated).`);
+      }
+    }
+  }
+  // Counters always come last and are RECOMPUTED rather than copied back: a
+  // snapshot's `fromLog` is only correct for the log as it stood when that
+  // snapshot was taken, and the union above may well have left more than that.
+  //
+  // The BASELINE, though, is restored from the snapshot — it is the one part
+  // that cannot be re-derived from anything, so it is the genuinely Class A
+  // half of this store and the post-restore check verifies exactly it.
+  const countersEffect = (sideEffects || []).find((e) => e.kind === 'countersFile');
+  if (countersEffect) {
+    const snapshotBaseline = countersEffect.snapshotCounters?.baseline;
+    await recomputeCountersFromLog({ baseline: snapshotBaseline || readCountersFile()?.baseline });
+  }
+}
+
+// One-time bootstrap plus a cheap startup consistency check.
+//
+// SEEDING: the first time counters ever exist, the baseline is computed from
+// the library's existing entries. Starting at zero would throw away every
+// episode, minute and completion the user accumulated before the log existed —
+// provably reconstructible right now from `entries`, and never again
+// afterwards, since the log has no records from before today. Uses
+// `duration || 0`, byte-identical to statsLogic.js's own totals, so the new
+// lifetime counter and the Statistics page can never disagree about the same
+// number (measured on the real library: identical either way, because 0 of 222
+// entries have a null duration).
+//
+// SELF-HEAL: on every later boot, `logCount` is compared against the real line
+// count. A mismatch means the cached fold is stale (a crash between append and
+// counter write, a restore union, a hand-edited file), so it is re-folded and
+// the discrepancy logged loudly rather than silently carried forever.
+async function ensureCountersFile() {
+  if (libraryState.corrupt || libraryState.tooNew) return null; // nothing safe to seed from yet
+  const { counters: Counters } = await loadEventModules();
+  const existing = readCountersFile();
+
+  if (!existing) {
+    const library = readLibrary();
+    const baseline = Counters.seedBaselineFromEntries(library.entries);
+    const file = await recomputeCountersFromLog({ baseline });
+    console.log(
+      `[counters] Seeded lifetime baseline from ${library.entries?.length || 0} existing entries: ` +
+        `${baseline.totalEpisodes} episodes, ${baseline.totalMinutes} minutes, ${baseline.totalCompleted} completed.`
+    );
+    return file;
+  }
+
+  const actualCount = readEventLog().length;
+  if (existing.logCount !== actualCount) {
+    console.error(
+      `[counters] counters.json claims ${existing.logCount} logged events but events.jsonl holds ${actualCount}; ` +
+        're-folding the log to restore the baseline + fold(log) invariant.'
+    );
+    return recomputeCountersFromLog({ baseline: existing.baseline });
+  }
+  return existing;
+}
+
 // Re-derives libraryState from whatever is actually on disk right now,
 // instead of assuming a value. Used only when a write that a caller had
 // already optimistically marked "healthy" (to bypass writeLibraryAtomic's own
@@ -538,6 +898,37 @@ function loadExportRegistryModule() {
   return exportRegistryModulePromise;
 }
 
+// Same reasoning and same mechanism as loadExportRegistryModule() above, for
+// P1.5's two dependency-free event modules: the server and the browser then run
+// ONE implementation of the event-type union and the counting rules, instead of
+// two copies that can silently drift apart on a data-correctness path.
+//
+// Both files are deliberately import-free (a data: URL cannot resolve a
+// relative specifier) — a unit test pins that. eventLog.js is NOT loaded here:
+// its ULID/localDay/outbox machinery is client-only, and it does import.
+let eventModulesPromise = null;
+function loadEventModules() {
+  if (!eventModulesPromise) {
+    eventModulesPromise = (async () => {
+      const read = (rel, assetKey) =>
+        IS_SEA
+          ? Buffer.from(sea.getRawAsset(assetKey)).toString('utf8')
+          : fs.readFileSync(path.join(__dirname, ...rel), 'utf8');
+      const toModule = (src) => import(`data:text/javascript;base64,${Buffer.from(src, 'utf8').toString('base64')}`);
+      const [types, counters, tuning] = await Promise.all([
+        toModule(read(['public', 'js', 'eventTypes.js'], 'public/js/eventTypes.js')),
+        toModule(read(['public', 'js', 'eventCounters.js'], 'public/js/eventCounters.js')),
+        // config/tuning.js (P1.4) is import-free too, and owns the one
+        // genuinely adjustable value the fold needs: the per-format episode
+        // duration fallback.
+        toModule(read(['config', 'tuning.js'], 'config/tuning.js')),
+      ]);
+      return { types, counters, tuning };
+    })();
+  }
+  return eventModulesPromise;
+}
+
 function timestampForSnapshot(date) {
   const p = (n) => String(n).padStart(2, '0');
   return (
@@ -645,10 +1036,19 @@ function quarantineSnapshotFile(file) {
 // build/verify ever fails; a file that fails the read-back check is
 // quarantined (renamed out of the accepted shape) rather than left behind
 // under a name that would make it look like a real, restorable snapshot.
+// Builds the complete sources bag every registry consumer needs. Centralized
+// so a new Class A store is wired in exactly one place, and so no call site can
+// forget one — the registry's `requiredSources` now throws rather than silently
+// snapshotting an empty store, which is precisely the silently-wrong-backup
+// failure this function exists to make impossible.
+function buildClassASources() {
+  return { library: readLibrary(), eventLog: readEventLog(), counters: readCountersFile() || {} };
+}
+
 async function createSnapshotNow({ pinned = false } = {}) {
   const { CLASS_A_STORES } = await loadExportRegistryModule();
-  const library = readLibrary();
-  const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library }, { pinned });
+  const sources = buildClassASources();
+  const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, sources, { pinned });
   const selfCheck = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
   if (!selfCheck.valid) {
     // Nothing was written yet, so there's nothing to clean up here.
@@ -1173,7 +1573,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const { CLASS_A_STORES, buildExport } = await loadExportRegistryModule();
-      sendJson(res, 200, buildExport(CLASS_A_STORES, { library: readLibrary() }));
+      sendJson(res, 200, buildExport(CLASS_A_STORES, buildClassASources()));
       return;
     }
 
@@ -1266,9 +1666,14 @@ const server = http.createServer(async (req, res) => {
       // unsupported/missing restore target fails this closed instead of
       // silently landing in library.json — and libraryState is never
       // touched for this failure, since nothing was written.
+      // P1.5: the plan form also returns side effects for stores that live in
+      // their own files (the event log, the counters) rather than as
+      // library.json fields.
       let restored;
+      let restorePlan;
       try {
-        restored = Snapshots.buildRestoredLibrary(CLASS_A_STORES, snapshot);
+        restorePlan = Snapshots.buildRestoredLibraryPlan(CLASS_A_STORES, snapshot);
+        restored = restorePlan.library;
       } catch (err) {
         sendJson(res, 500, { error: `Cannot restore this snapshot: ${err.message}` });
         return;
@@ -1312,6 +1717,10 @@ const server = http.createServer(async (req, res) => {
             fs.writeFileSync(LIBRARY_FILE, 'CORRUPTED-BY-TEST-MID-RESTORE');
             throw new Error('Forced restore write failure (test-only).');
           }
+          // P1.5 side effects, applied before the library write so a failure
+          // here aborts the whole restore rather than leaving the library
+          // replaced but its companion stores untouched.
+          await applyRestoreSideEffects(restorePlan.sideEffects);
           writeLibraryAtomic(restored);
         } catch (err) {
           refreshLibraryStateFromDisk();
@@ -1327,11 +1736,51 @@ const server = http.createServer(async (req, res) => {
         // disk now, rebuild its snapshot representation, and confirm every
         // store's checksum matches the snapshot just restored from — not
         // merely that the re-read data is internally self-consistent.
-        const rebuilt = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: readLibrary() }, { pinned: snapshot.pinned });
+        const rebuilt = Snapshots.buildSnapshotStores(CLASS_A_STORES, buildClassASources(), { pinned: snapshot.pinned });
         const rebuiltCheck = Snapshots.verifySnapshotStores(rebuilt, CLASS_A_STORES);
+        // Exact comparison applies to every store EXCEPT the ones the registry
+        // marks superset-verified (today: the event log alone). The log is
+        // restored by UNION, so it legitimately ends up holding more than the
+        // snapshot did — comparing it byte-for-byte would report a perfectly
+        // good restore as corruption and drop the user into the recovery screen
+        // telling them not to trust their library. Its integrity is still
+        // checked: rebuiltCheck above verifies its own checksums, and the
+        // superset assertion below proves nothing from the snapshot went
+        // missing.
+        const exactlyVerifiedIds = new Set(Snapshots.storeIdsWithExactRestoreVerification(CLASS_A_STORES));
         const mismatches = Object.keys(snapshot.stores).filter(
-          (id) => !rebuilt.stores[id] || rebuilt.stores[id].checksum !== snapshot.stores[id].checksum
+          (id) => exactlyVerifiedIds.has(id) && (!rebuilt.stores[id] || rebuilt.stores[id].checksum !== snapshot.stores[id].checksum)
         );
+        // The two non-exact modes get the weaker-but-correct check that actually
+        // applies to them, so neither is left unverified:
+        for (const store of CLASS_A_STORES) {
+          const mode = store.restoreVerification || 'exact';
+          // 'superset' (the event log): every event id the snapshot held must be
+          // present on disk afterwards. Extra events are expected — the restore
+          // unions rather than truncates — but nothing may go missing.
+          if (mode === 'superset') {
+            const snapshotRecords = snapshot.stores[store.id]?.records || [];
+            const liveIds = new Set((rebuilt.stores[store.id]?.records || []).map((r) => r[store.recordId || 'id']));
+            const missing = snapshotRecords.filter((r) => !liveIds.has(r[store.recordId || 'id']));
+            if (missing.length > 0) mismatches.push(`${store.id} (missing ${missing.length} record(s) the snapshot held)`);
+          }
+          // 'derived' (the counters): only the named irreplaceable subset is
+          // compared — for counters that's `baseline`, since `fromLog` is
+          // re-derived from the unioned log on purpose.
+          if (mode === 'derived') {
+            for (const field of store.verifiedSubset || []) {
+              const snapshotValue = snapshot.stores[store.id]?.blob?.[field];
+              // A snapshot that simply doesn't carry this field has nothing to
+              // verify against — we cannot restore a value that was never
+              // captured, so the current on-disk one is kept and this is not a
+              // mismatch. Only a field the snapshot DOES carry must match.
+              if (snapshotValue === undefined) continue;
+              if (canonicalJSON(snapshotValue) !== canonicalJSON(rebuilt.stores[store.id]?.blob?.[field])) {
+                mismatches.push(`${store.id}.${field}`);
+              }
+            }
+          }
+        }
         if (!rebuiltCheck.valid || mismatches.length > 0) {
           // Force the app into the same corrupt-state recovery path the error
           // message describes, rather than silently returning to normal
@@ -1399,9 +1848,94 @@ const server = http.createServer(async (req, res) => {
         }
         const fresh = defaultLibrary();
         writeLibraryAtomic(fresh);
-        return { status: 200, body: { ok: true, snapshotFile: snapshotResult.file }, etag: computeLibraryEtag(fresh) };
+        // P1.5: without this, a "reset" library would report thousands of
+        // lifetime episodes against animeIds that no longer exist — visibly
+        // absurd. The log is ARCHIVED rather than deleted or rewritten (a move,
+        // not a truncation), and the safety snapshot taken just above already
+        // contains every event, so nothing is lost either way.
+        const archived = archiveEventLogForReset();
+        writeCountersAtomic(await buildFreshCountersFile());
+        return {
+          status: 200,
+          body: { ok: true, snapshotFile: snapshotResult.file, archivedEventLog: archived },
+          etag: computeLibraryEtag(fresh),
+        };
       });
       sendJson(res, result.status, result.body, result.etag ? { ETag: result.etag } : {});
+      return;
+    }
+
+    // P1.5's only event path. Deliberately decoupled from PUT /api/library:
+    // no If-Match, so it can NEVER 409. See the event-log section's header
+    // comment for the full reasoning — in short, coupling the two would change
+    // library.json's ETag under every open tab, and the 409 path shows a Reload
+    // toast without rescheduling a retry, so merely logging "the app opened"
+    // could have destroyed a score or note the user had just typed.
+    //
+    // Still takes the shared write lock: dedup-then-append is a
+    // read-modify-write, and Windows offers no atomic-append guarantee worth
+    // relying on.
+    if (pathname === '/api/events' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      if (!body || !Array.isArray(body.events)) {
+        sendJson(res, 400, { error: 'Body must include an events array.' });
+        return;
+      }
+      if (body.events.length === 0) {
+        sendJson(res, 200, { ok: true, acceptedIds: [], duplicateIds: [] });
+        return;
+      }
+      const result = await libraryWriteLock.run(async () => {
+        try {
+          const { accepted, duplicates, collisions } = await appendEvents(body.events);
+          // Counters advance by folding ONLY the newly-appended events onto the
+          // cached total — never by re-folding the whole log, which would grow
+          // linearly with history on every single write.
+          if (accepted.length > 0) {
+            const { counters: Counters, tuning } = await loadEventModules();
+            const current =
+              readCountersFile() ||
+              Counters.buildCountersFile({ baseline: Counters.emptyCounterTotals(), fromLog: Counters.emptyCounterTotals() });
+            const delta = Counters.foldEvents(accepted, {
+              episodeDurationFallbackMinutes: tuning.TIME_SEMANTICS.episodeDurationFallbackMinutes,
+            });
+            writeCountersAtomic(
+              Counters.buildCountersFile({
+                baseline: current.baseline,
+                fromLog: Counters.addTotals(current.fromLog, delta),
+                logCount: (current.logCount || 0) + accepted.length,
+                lastEventId: accepted[accepted.length - 1].id,
+              })
+            );
+          }
+          return {
+            status: 200,
+            body: {
+              ok: true,
+              // Duplicates count as accepted from the client's point of view:
+              // the spec requires appending an existing id to be a no-op
+              // returning SUCCESS, which is what makes outbox re-flushes safe.
+              acceptedIds: [...accepted.map((e) => e.id), ...duplicates],
+              duplicateIds: duplicates,
+              collisions,
+            },
+          };
+        } catch (err) {
+          if (err instanceof EventValidationError) {
+            return { status: 400, body: { error: err.message } };
+          }
+          throw err;
+        }
+      });
+      sendJson(res, result.status, result.body);
+      return;
+    }
+
+    if (pathname === '/api/events' && req.method === 'GET') {
+      // Read path, for the achievement engine (P7A) and for tests. Readers sort
+      // by ts — the log itself is never reordered on disk.
+      const events = readEventLog();
+      sendJson(res, 200, { events, counters: readCountersFile() });
       return;
     }
 
@@ -1590,6 +2124,19 @@ server.on('error', (err) => {
 // quietly for those (see its own comment) and startup proceeds normally so
 // the user can reach the restore UI.
 (async () => {
+  // P1.5: seed or self-heal counters.json BEFORE the pinned snapshot, so the
+  // very first snapshot already contains a correct counters store rather than
+  // an empty one. Deliberately does NOT build the event-log dedup index (that
+  // stays lazy, on first append) — reading the whole log here would make boot
+  // time grow linearly with the user's history, forever.
+  try {
+    await ensureCountersFile();
+  } catch (err) {
+    // Counters are a fold plus a re-derivable baseline, so a failure here must
+    // never stop the app from opening — unlike the pinned snapshot below, which
+    // is the user's only backup anchor.
+    console.error('[counters] Could not initialise counters.json (continuing):', err.message);
+  }
   try {
     await ensurePinnedSnapshot();
   } catch (err) {

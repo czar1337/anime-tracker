@@ -89,6 +89,18 @@ const CLASS_A_STORES = [
     requiredSources: ['counters'],
     get: (sources) => sources.counters || {},
     restoreTarget: { kind: 'countersFile' },
+    // DERIVED, not exact: this store is deliberately RECOMPUTED on restore
+    // rather than copied back, because `fromLog` is only correct for the log as
+    // it stood when the snapshot was taken — and restore unions the log, so it
+    // can legitimately end up holding more. Comparing byte-for-byte would
+    // therefore always fail and would flag a correct restore as corruption.
+    //
+    // What IS verified instead is the part that genuinely cannot be recomputed:
+    // the historical `baseline` must come back exactly as the snapshot held it.
+    // `fromLog` is then re-derived, which is precisely what makes
+    // `total = baseline + fold(log)` a checkable invariant.
+    restoreVerification: 'derived',
+    verifiedSubset: ['baseline'],
   },
 ];
 

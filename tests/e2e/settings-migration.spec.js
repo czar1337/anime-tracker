@@ -146,7 +146,10 @@ test('snapshot restore migrates an old-schemaVersion snapshot after restoring an
       preferences: { activeTab: 'watching' },
       dismissedItems: [],
     };
-    const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: oldLibrary }, { pinned: false });
+    // P1.5: the registry's requiredSources now makes a partial sources bag
+    // throw rather than silently snapshotting an empty event log, so hand-built
+    // snapshots in tests must supply the full bag like the server does.
+    const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: oldLibrary, eventLog: [], counters: {} }, { pinned: false });
     const file = 'snapshot-20200101-000000.json';
     fs.writeFileSync(path.join(server.dataDir, 'snapshots', file), JSON.stringify(snapshot));
 
@@ -177,7 +180,7 @@ test('snapshot restore rejects a too-new snapshot as 409 tooNew, before writing 
     const Snapshots = require('../../snapshots.js');
     const before = await (await fetch(`${server.url}/api/library`)).json();
     const tooNewLibrary = { schemaVersion: 99, entries: [], preferences: {}, dismissedItems: [] };
-    const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: tooNewLibrary }, { pinned: false });
+    const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, { library: tooNewLibrary, eventLog: [], counters: {} }, { pinned: false });
     const file = 'snapshot-20200101-000001.json';
     fs.writeFileSync(path.join(server.dataDir, 'snapshots', file), JSON.stringify(snapshot));
 

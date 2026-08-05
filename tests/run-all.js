@@ -369,11 +369,9 @@ async function run() {
     UNREACHABLE_EVENT_TYPES,
     isKnownEventType,
     isViewStatePreference,
-    durationFallbackKeyForFormat,
     anilistIdToAnimeId,
     animeIdToAnilistId,
-    episodeDelta,
-    isProgressCorrection,
+    hasRequiredEventFields,
   } = await import(publicJsUrl('eventTypes.js'));
 
   await test('EVENT_TYPES is the spec\'s closed 13-type union, no duplicates', () => {
@@ -411,24 +409,22 @@ async function run() {
     assert.equal(animeIdToAnilistId('not-a-number'), null);
   });
 
-  await test('durationFallbackKeyForFormat maps MOVIE to film and every other AniList format to tv', () => {
-    assert.equal(durationFallbackKeyForFormat('MOVIE'), 'film');
-    for (const f of ['TV', 'TV_SHORT', 'ONA', 'OVA', 'SPECIAL', 'MUSIC', undefined]) {
-      assert.equal(durationFallbackKeyForFormat(f), 'tv', `${f} should fall back to tv`);
+  await test('eventTypes.js and eventCounters.js are import-free, so the server can load them as ES modules from source bytes', () => {
+    // server.js loads both via the same data-URL dynamic import()
+    // loadExportRegistryModule() uses (works in dev AND inside the packaged
+    // SEA build), and a data: URL cannot resolve a relative import specifier.
+    // If either file gains an import, the server silently loses its ability to
+    // share ONE implementation of the counting rules with the browser — so pin
+    // it here rather than finding out from a broken snapshot.
+    for (const name of ['eventTypes.js', 'eventCounters.js']) {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', name), 'utf8');
+      const importLines = src.split('\n').filter((l) => /^\s*import\s/.test(l));
+      assert.deepEqual(importLines, [], `${name} must stay dependency-free (found: ${importLines.join(' | ')})`);
     }
   });
 
-  await test('episodeDelta / isProgressCorrection implement the reader contract (to <= from is a correction)', () => {
-    assert.equal(episodeDelta({ from: 5, to: 6 }), 1);
-    assert.equal(episodeDelta({ from: 0, to: 24 }), 24);
-    assert.equal(episodeDelta({ from: 24, to: 4 }), -20);
-    assert.equal(isProgressCorrection({ from: 24, to: 4 }), true);
-    assert.equal(isProgressCorrection({ from: 5, to: 5 }), true, 'no-op counts as a correction, not an advance');
-    assert.equal(isProgressCorrection({ from: 5, to: 6 }), false);
-  });
-
   console.log('eventLog.js');
-  const { createUlidFactory, computeLocalDay, buildEvent, createOutbox, hasRequiredEventFields } = await import(publicJsUrl('eventLog.js'));
+  const { createUlidFactory, computeLocalDay, buildEvent, createOutbox } = await import(publicJsUrl('eventLog.js'));
 
   await test('ULID is monotonic within a single millisecond, so a bulk batch sorts deterministically', () => {
     // Frozen clock: every id lands in the same millisecond, which is exactly
@@ -592,8 +588,33 @@ async function run() {
   });
 
   console.log('eventCounters.js');
-  const { seedBaselineFromEntries, foldEvents, addTotals, countersTotal, buildCountersFile, emptyCounterTotals } =
-    await import(publicJsUrl('eventCounters.js'));
+  const {
+    seedBaselineFromEntries,
+    foldEvents,
+    addTotals,
+    countersTotal,
+    buildCountersFile,
+    emptyCounterTotals,
+    episodeDelta,
+    isProgressCorrection,
+    durationFallbackKeyForFormat,
+  } = await import(publicJsUrl('eventCounters.js'));
+
+  await test('durationFallbackKeyForFormat maps MOVIE to film and every other AniList format to tv', () => {
+    assert.equal(durationFallbackKeyForFormat('MOVIE'), 'film');
+    for (const f of ['TV', 'TV_SHORT', 'ONA', 'OVA', 'SPECIAL', 'MUSIC', undefined]) {
+      assert.equal(durationFallbackKeyForFormat(f), 'tv', `${f} should fall back to tv`);
+    }
+  });
+
+  await test('episodeDelta / isProgressCorrection implement the reader contract (to <= from is a correction)', () => {
+    assert.equal(episodeDelta({ from: 5, to: 6 }), 1);
+    assert.equal(episodeDelta({ from: 0, to: 24 }), 24);
+    assert.equal(episodeDelta({ from: 24, to: 4 }), -20);
+    assert.equal(isProgressCorrection({ from: 24, to: 4 }), true);
+    assert.equal(isProgressCorrection({ from: 5, to: 5 }), true, 'no-op counts as a correction, not an advance');
+    assert.equal(isProgressCorrection({ from: 5, to: 6 }), false);
+  });
 
   await test('seedBaselineFromEntries matches statsLogic.js exactly (duration || 0, no invented fallback)', () => {
     const entries = [
@@ -1540,13 +1561,30 @@ async function run() {
     assert.equal(countersEffect.mode, 'recomputeFromLog', "a snapshot's counters are only correct as of that snapshot");
   });
 
-  await test('B2: the event log is the only store exempt from exact post-restore verification', () => {
-    const exact = Snapshots.storeIdsWithExactRestoreVerification(appendLogRegistry);
-    assert.deepEqual(exact, ['counters'], 'eventLog is superset-verified; everything else stays exact');
-    // And against the REAL registry, so a future store can't silently opt out.
+  await test('B2: only the two stores that cannot be byte-compared opt out of exact post-restore verification', () => {
+    // Against the REAL registry, so a future store cannot silently opt out of
+    // verification by forgetting to declare a mode.
     const realExact = Snapshots.storeIdsWithExactRestoreVerification(CLASS_A_STORES);
-    assert.deepEqual(realExact.sort(), ['counters', 'dismissedItems', 'entries', 'preferences']);
-    assert.ok(!realExact.includes('eventLog'));
+    assert.deepEqual(realExact.sort(), ['dismissedItems', 'entries', 'preferences'], 'library-backed stores stay byte-exact');
+
+    const byId = new Map(CLASS_A_STORES.map((s) => [s.id, s]));
+    // The log is union-restored, so it legitimately ends up with MORE than the
+    // snapshot held; it is checked as a superset instead.
+    assert.equal(byId.get('eventLog').restoreVerification, 'superset');
+    // Counters are recomputed on restore (fromLog is only correct as of the
+    // snapshot), so only their irreplaceable half is compared.
+    assert.equal(byId.get('counters').restoreVerification, 'derived');
+    assert.deepEqual(byId.get('counters').verifiedSubset, ['baseline']);
+
+    // Every store must declare one of the three known modes — no silent third
+    // state, and no store left unverified by omission.
+    for (const store of CLASS_A_STORES) {
+      const mode = store.restoreVerification || 'exact';
+      assert.ok(['exact', 'superset', 'derived'].includes(mode), `${store.id} has an unknown verification mode: ${mode}`);
+      if (mode === 'derived') {
+        assert.ok(Array.isArray(store.verifiedSubset) && store.verifiedSubset.length > 0, `${store.id} must name the fields it still verifies`);
+      }
+    }
   });
 
   await test('the two required-sources guards in exportRegistry.js and snapshots.js behave identically', () => {

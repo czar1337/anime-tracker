@@ -24,12 +24,54 @@
 // monotonic totals. Library-derived totals go DOWN when the user deletes an
 // entry; lifetime totals must not. The baseline is genuinely irreplaceable.
 //
-// Pure, zero-dependency, DOM-free — same "loadable from Node via a plain
-// dynamic import()" shape as the other *Logic.js modules.
-
-import { episodeDelta, durationFallbackKeyForFormat } from './eventTypes.js';
+// Pure, DOM-free and deliberately DEPENDENCY-FREE (not even eventTypes.js):
+// server.js loads this file as a real ES module from its own source bytes via
+// the same data-URL trick loadExportRegistryModule() uses, and a data: URL
+// cannot resolve a relative import specifier. Keeping it import-free is what
+// lets the server and the browser run ONE implementation of these counting
+// rules rather than two copies that can silently drift — see eventTypes.js's
+// "note on module boundaries".
 
 export const COUNTERS_SCHEMA_VERSION = 1;
+
+// The reader contract for progress transitions, stated once so every consumer
+// agrees. An `episode_watched` event faithfully records EVERY progress
+// transition, including corrections downward (the spec's event shape carries
+// `from`/`to` for exactly this, and omitting corrections would make the log
+// disagree with the library). But lifetime counters are monotonic
+// accumulators, so:
+//
+//   an episode_watched whose `to` <= `from` is a CORRECTION. Day, streak and
+//   counter logic ignores it; only its positive-delta siblings accumulate.
+//
+// foldEvents below is the single implementation of that rule.
+export function episodeDelta(event) {
+  const from = Number(event?.from ?? 0);
+  const to = Number(event?.to ?? 0);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return to - from;
+}
+
+export function isProgressCorrection(event) {
+  return episodeDelta(event) <= 0;
+}
+
+// config/tuning.js's episodeDurationFallbackMinutes has exactly two keys (`tv`
+// and `film`), but AniList's format values are TV, TV_SHORT, MOVIE, ONA, OVA,
+// SPECIAL and MUSIC. This is the explicit mapping rather than an inference at
+// each call site. (The tuning VALUES are still passed in by the caller — only
+// the format→bucket mapping lives here.)
+//
+// Known imprecision, recorded on purpose: TV_SHORT and MUSIC are typically far
+// shorter than 24 minutes, so a null-duration entry of either format
+// OVER-counts minutes. Acceptable because the fallback only ever applies when
+// AniList gave us no duration at all, which is rare (measured: 0 of 222
+// entries in the real library today) — and over-counting a few shorts is
+// preferable to inventing a third bucket the spec's Tuning table doesn't have.
+const FILM_FORMATS = ['MOVIE'];
+export function durationFallbackKeyForFormat(format) {
+  return FILM_FORMATS.includes(format) ? 'film' : 'tv';
+}
 
 export function emptyCounterTotals() {
   return { totalEpisodes: 0, totalMinutes: 0, totalCompleted: 0 };

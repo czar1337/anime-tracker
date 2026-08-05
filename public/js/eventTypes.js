@@ -90,20 +90,13 @@ export function isViewStatePreference(key) {
   return VIEW_STATE_PREFERENCE_KEYS.includes(key);
 }
 
-// config/tuning.js's episodeDurationFallbackMinutes has exactly two keys
-// (`tv` and `film`), but AniList's format values are TV, TV_SHORT, MOVIE, ONA,
-// OVA, SPECIAL and MUSIC. This is the explicit mapping rather than an
-// inference at each call site.
-//
-// Known imprecision, recorded on purpose: TV_SHORT and MUSIC are typically far
-// shorter than 24 minutes, so a null-duration entry of either format
-// OVER-counts minutes. Acceptable because the fallback only ever applies when
-// AniList gave us no duration at all, which is rare (measured: 0 of 222
-// entries in the real library today) — and over-counting a few shorts is
-// preferable to inventing a third bucket the spec's Tuning table doesn't have.
-const FILM_FORMATS = ['MOVIE'];
-export function durationFallbackKeyForFormat(format) {
-  return FILM_FORMATS.includes(format) ? 'film' : 'tv';
+// Every field the client freezes at the moment of the action. The server
+// validates against this list and NEVER defaults any of them — see
+// eventLog.js's header for why (the spec's Stockholm/Tokyo requirement).
+export const REQUIRED_EVENT_FIELDS = ['id', 'schemaVersion', 'type', 'ts', 'tzOffset', 'localDay', 'sessionId'];
+
+export function hasRequiredEventFields(event) {
+  return REQUIRED_EVENT_FIELDS.every((f) => event?.[f] !== undefined && event[f] !== null && event[f] !== '');
 }
 
 // The spec types `animeId?: string`, but every library entry keys on a NUMERIC
@@ -123,24 +116,20 @@ export function animeIdToAnilistId(animeId) {
   return Number.isFinite(n) ? n : null;
 }
 
-// The reader contract for progress transitions, stated once so every consumer
-// agrees. An `episode_watched` event faithfully records EVERY progress
-// transition, including corrections downward (the spec's event shape carries
-// `from`/`to` for exactly this, and omitting corrections would make the log
-// disagree with the library). But lifetime counters are monotonic
-// accumulators, so:
+// NOTE ON MODULE BOUNDARIES, because it looks arbitrary otherwise:
+// this module is deliberately DEPENDENCY-FREE, and so is eventCounters.js.
+// server.js loads both as real ES modules from their own source bytes (the
+// same data-URL trick loadExportRegistryModule() uses, which works identically
+// in dev and inside the packaged SEA build) — and a data: URL cannot resolve a
+// relative import specifier. Keeping these two files import-free is what lets
+// the server and the browser share ONE implementation instead of maintaining
+// two copies of the counting rules, which is exactly the kind of duplication
+// that silently drifts on a data-correctness path.
 //
-//   an episode_watched whose `to` <= `from` is a CORRECTION. Day, streak and
-//   counter logic ignores it; only its positive-delta siblings accumulate.
+// eventLog.js is the exception and stays client-only: it imports
+// config/tuning.js and this module, and the server never needs its
+// ULID/outbox machinery.
 //
-// eventCounters.js is the single implementation of that rule.
-export function episodeDelta(event) {
-  const from = Number(event?.from ?? 0);
-  const to = Number(event?.to ?? 0);
-  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
-  return to - from;
-}
-
-export function isProgressCorrection(event) {
-  return episodeDelta(event) <= 0;
-}
+// The progress-transition reader contract (episodeDelta / isProgressCorrection)
+// therefore lives in eventCounters.js, next to the fold that is its only
+// consumer.

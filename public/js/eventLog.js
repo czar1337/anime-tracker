@@ -20,7 +20,7 @@
 // deterministic and need no browser.
 
 import { TIME_SEMANTICS } from '../../config/tuning.js';
-import { EVENT_SCHEMA_VERSION, isKnownEventType, anilistIdToAnimeId } from './eventTypes.js';
+import { EVENT_SCHEMA_VERSION, isKnownEventType, anilistIdToAnimeId, hasRequiredEventFields } from './eventTypes.js';
 
 // ---------------------------------------------------------------------------
 // ULID — sortable, and the dedup key
@@ -138,13 +138,9 @@ export const SESSION_GAP_MINUTES = TIME_SEMANTICS.sessionGapMinutes;
 // Event minting
 // ---------------------------------------------------------------------------
 
-const REQUIRED_FIELDS = ['id', 'schemaVersion', 'type', 'ts', 'tzOffset', 'localDay', 'sessionId'];
-
-export function hasRequiredEventFields(event) {
-  return REQUIRED_FIELDS.every((f) => event?.[f] !== undefined && event[f] !== null && event[f] !== '');
-}
-
-export { REQUIRED_FIELDS as REQUIRED_EVENT_FIELDS };
+// Re-exported for convenience so client code has one import site; the
+// definition lives in eventTypes.js, which the server also validates against.
+export { hasRequiredEventFields };
 
 // Builds one event. `fields` carries the type-specific parts (animeId,
 // episode, from, to, key, meta); everything identity- and time-related is
