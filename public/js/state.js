@@ -26,6 +26,28 @@ const state = {
 // silently overwriting whatever that other tab wrote.
 let currentEtag = null;
 
+// Top-level library.json fields this module actively models. Anything else
+// the server sends is preserved verbatim in `unknownTopLevelFields` below and
+// handed straight back on save — see setLibrary/toJSON.
+const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dismissedItems'];
+
+// Everything the server sent that this build doesn't model, kept so toJSON()
+// can hand it back untouched (docs/v2-spec.md rule 13, "forward
+// compatibility": every reader tolerates a schema version higher than it
+// knows — "preserve unknown fields, default missing ones, and refuse to write
+// rather than downgrading data").
+//
+// Without this, toJSON() was a top-level WHITELIST rebuild, so any field a
+// newer app version (or a later substep) added to library.json was invisible
+// here and silently ERASED by the very next save — the debounced save fires on
+// something as ordinary as a tab click, so the window was effectively zero.
+// settingsSchema.js's ensureSettingsShape() already honours this rule one
+// level down, inside `preferences`; this closes the same hole at the top
+// level. Found by an independent design review during P1.5's planning, before
+// any new top-level field existed to lose. See docs/v2-progress.md's P1.5
+// entry.
+let unknownTopLevelFields = {};
+
 function ensurePreferenceShape() {
   state.preferences = ensureSettingsShape(state.preferences);
 }
@@ -35,6 +57,10 @@ function setLibrary(data, etag = null) {
   state.entries = Array.isArray(data.entries) ? data.entries : [];
   state.preferences = data.preferences || DEFAULT_PREFERENCES();
   state.dismissedItems = Array.isArray(data.dismissedItems) ? data.dismissedItems : [];
+  unknownTopLevelFields = {};
+  for (const key of Object.keys(data || {})) {
+    if (!KNOWN_TOP_LEVEL_FIELDS.includes(key)) unknownTopLevelFields[key] = data[key];
+  }
   ensurePreferenceShape();
   if (etag) currentEtag = etag;
 }
@@ -47,8 +73,16 @@ function setEtag(etag) {
   if (etag) currentEtag = etag;
 }
 
+// Unknown fields go FIRST so a modelled field can never be shadowed by a
+// stale copy of itself sitting in the preserved bag.
 function toJSON() {
-  return { schemaVersion: state.schemaVersion, entries: state.entries, preferences: state.preferences, dismissedItems: state.dismissedItems };
+  return {
+    ...unknownTopLevelFields,
+    schemaVersion: state.schemaVersion,
+    entries: state.entries,
+    preferences: state.preferences,
+    dismissedItems: state.dismissedItems,
+  };
 }
 
 function getDismissedIds() {

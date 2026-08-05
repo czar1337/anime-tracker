@@ -364,6 +364,39 @@ async function run() {
   const stateUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'state.js').replace(/\\/g, '/');
   const { Store } = await import(stateUrl);
 
+  // Rule 13 (forward compatibility) at the TOP level of library.json. Before
+  // P1.5 fixed it, toJSON() was a whitelist rebuild, so a field written by a
+  // newer app version — or by any later substep — was invisible to the Store
+  // and silently erased by the very next debounced save (a tab click is
+  // enough to trigger one). Found in P1.5's design review before any new
+  // top-level field existed to lose; these two tests are the regression guard
+  // that keeps it fixed for P1.7's stores and beyond.
+  await test('B1 regression: an unknown top-level library field survives a load -> save round trip', () => {
+    Store.setLibrary({
+      schemaVersion: 5,
+      entries: [],
+      preferences: {},
+      dismissedItems: [],
+      someFutureTopLevelStore: { deep: { value: 42 } },
+      anotherOne: [1, 2, 3],
+    });
+    const saved = Store.toJSON();
+    assert.deepEqual(saved.someFutureTopLevelStore, { deep: { value: 42 } }, 'unknown object field must survive');
+    assert.deepEqual(saved.anotherOne, [1, 2, 3], 'unknown array field must survive');
+    assert.equal(saved.schemaVersion, 5, 'modelled fields must still round-trip');
+  });
+
+  await test('B1 regression: preserved unknown fields are replaced (not merged) by the next load, and never shadow a modelled field', () => {
+    Store.setLibrary({ schemaVersion: 5, entries: [], preferences: {}, dismissedItems: [], goneNextTime: true });
+    assert.equal(Store.toJSON().goneNextTime, true);
+    // A later load without that field must not keep resurrecting it.
+    Store.setLibrary({ schemaVersion: 5, entries: [], preferences: {}, dismissedItems: [] });
+    assert.equal('goneNextTime' in Store.toJSON(), false, 'stale unknown fields must not persist across loads');
+    // A modelled field arriving in the bag must never win over real state.
+    Store.setLibrary({ schemaVersion: 5, entries: [{ anilistId: 1 }], preferences: {}, dismissedItems: [] });
+    assert.equal(Store.toJSON().entries.length, 1);
+  });
+
   await test('addDismissedItem stores title/coverImage and de-dupes by anilistId', () => {
     Store.setLibrary({ schemaVersion: 4, entries: [], preferences: {}, dismissedItems: [] });
     Store.addDismissedItem(42, { title: 'Some Show', coverImage: 'http://x/cover.jpg' });
