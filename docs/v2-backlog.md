@@ -74,6 +74,50 @@ real, recorded, and not any single substep's job to resolve on its own.
   assuming the measured numbers extend there; relations coverage (98.1%) is
   the most exposed of the four if it doesn't.
 
+- **Undoing "mark watched" leaves the fast-forwarded progress behind.** Found
+  while wiring P1.5's event emission. `buildStatusPatch()`
+  (`public/js/events.js`) fast-forwards `episodesWatched` to `totalEpisodes`
+  (and sets `completedAt`) when an entry moves to `watched`, but
+  `handleSetStatus`'s Undo callback restores **only** `listStatus`. So
+  "mark watched → undo" silently leaves progress at the full episode count and
+  `completedAt` set. This is a real pre-existing data bug, independent of the
+  event log; P1.5 deliberately did NOT paper over it (its status-undo event
+  records the status reversal only, because claiming a progress reversal that
+  did not happen would make the log lie). Whichever substep next touches
+  status handling — plausibly **P4.4**, which owns bulk actions and undo —
+  should fix the undo to restore the full pre-action patch.
+
+- **`statsLogic.js` and the lifetime counters will diverge on a null-duration
+  entry.** P1.5's counter baseline deliberately uses `duration || 0`, matching
+  `statsLogic.js:7` exactly, so the Statistics page and the new lifetime
+  totals can never disagree about the same number today (measured: 0 of 222
+  real entries have a null duration, so both produce 149,955 minutes). But
+  P1.5's *forward* path uses `config/tuning.js`'s
+  `episodeDurationFallbackMinutes` (24/100) when an event carries no duration.
+  The moment a null-duration entry exists, the two will drift apart.
+  Whichever substep owns the Statistics surface (**P8C**) should decide which
+  rule wins and apply it in both places. Related, and noted in
+  `eventTypes.js`: the tuning fallback has only `tv`/`film` buckets, so
+  `TV_SHORT` and `MUSIC` over-count when duration is missing.
+
+- **Snapshots taken before P1.5 will read as unverified and cannot be
+  restored.** `verifySnapshotStores` checks exact store coverage against the
+  live registry, and P1.5 adds two stores (`eventLog`, `counters`), so any
+  snapshot written before this substep is now reported
+  `verified: false` ("Missing registered store(s)") and the Settings UI
+  correctly disables its restore button. This is the same fail-closed
+  direction P1.1's review already established (its `manifestChecksum` change
+  invalidated two older snapshots), and relaxing coverage would defeat the
+  guarantee that a silently-missing store is indistinguishable from a dropped
+  one. Mitigations already in place: a fresh, fully-valid pinned snapshot is
+  created automatically on the next boot, and the separate `backups/`
+  rotation (up to 150 copies of `library.json`) is untouched and remains
+  available for library recovery. Worth revisiting only if a future substep
+  wants a snapshot-format version marker so pre-store snapshots can be
+  distinguished from corrupt ones — P1.5 did not add one because
+  `library.json`'s `schemaVersion` is not bumped by this substep and so cannot
+  serve that purpose.
+
 ## Not urgent, informational
 
 - P1.6's scope-expansion exception ("if the app's total user-facing string
