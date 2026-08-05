@@ -166,26 +166,48 @@ test('counters fold appended events and hold the baseline + fold(log) invariant'
   }
 });
 
-test('counters self-heal on boot when logCount disagrees with the real log', async () => {
+test('counters self-heal on boot when the log grew without the counters being updated', async () => {
   const server1 = await startFixtureServer(FIXTURE);
   await postEvents(server1.url, [makeEvent('01JJJ', { from: 0, to: 5 })]);
   await server1.stop({ keepDataDir: true });
 
-  // Corrupt the cached fold, exactly as a crash between append and counter
-  // write would leave it.
   const countersPath = path.join(server1.dataDir, 'counters.json');
-  const broken = JSON.parse(fs.readFileSync(countersPath, 'utf8'));
-  broken.logCount = 99;
-  broken.fromLog = { totalEpisodes: 0, totalMinutes: 0, totalCompleted: 0 };
-  fs.writeFileSync(countersPath, JSON.stringify(broken));
+  const logPath = path.join(server1.dataDir, 'events.jsonl');
+  const beforeHeal = JSON.parse(fs.readFileSync(countersPath, 'utf8'));
+  expect(beforeHeal.fromLog.totalEpisodes).toBe(5);
+
+  // The real staleness scenario: an event reaches the log but the process dies
+  // before counters.json is rewritten. Appending directly reproduces exactly
+  // that, and because the log is append-only it necessarily changes the file's
+  // size — which is what the O(1) startup check compares (reading and parsing
+  // the whole log every boot would grow linearly with history forever).
+  fs.appendFileSync(logPath, JSON.stringify(makeEvent('01JJK', { from: 5, to: 9 })) + '\n');
 
   const server = await startFixtureServer(undefined, { dataDir: server1.dataDir });
   try {
     const healed = JSON.parse(fs.readFileSync(countersPath, 'utf8'));
-    expect(healed.logCount).toBe(1, 're-folded from the real log');
-    expect(healed.fromLog.totalEpisodes).toBe(5);
-    // The irreplaceable baseline is preserved through the heal.
+    expect(healed.logCount).toBe(2, 're-folded from the real log');
+    expect(healed.fromLog.totalEpisodes).toBe(9, '5 + the 4 the stale counters missed');
+    // The irreplaceable baseline survives the heal.
     expect(healed.baseline.totalEpisodes).toBe(25);
+    // And logBytes is brought back in step, so the next boot needs no re-fold.
+    expect(healed.logBytes).toBe(fs.statSync(logPath).size);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('a boot with an unchanged log does NOT re-fold (the staleness check is O(1), not a full read)', async () => {
+  const server1 = await startFixtureServer(FIXTURE);
+  await postEvents(server1.url, [makeEvent('01JJL', { from: 0, to: 2 })]);
+  const countersBefore = fs.readFileSync(path.join(server1.dataDir, 'counters.json'), 'utf8');
+  await server1.stop({ keepDataDir: true });
+
+  const server = await startFixtureServer(undefined, { dataDir: server1.dataDir });
+  try {
+    // Byte-identical: nothing was recomputed or rewritten, which is what keeps
+    // boot time independent of how much history the user has.
+    expect(fs.readFileSync(path.join(server.dataDir, 'counters.json'), 'utf8')).toBe(countersBefore);
   } finally {
     await server.stop();
   }
