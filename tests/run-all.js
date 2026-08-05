@@ -1251,35 +1251,69 @@ async function run() {
   const exportRegistryUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'exportRegistry.js').replace(/\\/g, '/');
   const { CLASS_A_STORES, buildExport } = await import(exportRegistryUrl);
 
-  await test("buildExport covers every registered store, including today's three", () => {
-    const library = {
-      schemaVersion: 4,
-      entries: [{ anilistId: 1 }],
-      preferences: { activeTab: 'watching' },
-      dismissedItems: [{ anilistId: 2 }],
-    };
-    const result = buildExport(CLASS_A_STORES, { library });
-    assert.deepEqual(Object.keys(result.stores).sort(), ['dismissedItems', 'entries', 'preferences']);
-    assert.deepEqual(result.stores.entries, library.entries);
-    assert.deepEqual(result.stores.preferences, library.preferences);
-    assert.deepEqual(result.stores.dismissedItems, library.dismissedItems);
+  // Every Class A store as of P1.5. The two new ones read from their own
+  // sources keys, so a full bag is now what a real caller must pass.
+  const fullSources = (overrides = {}) => ({
+    library: { schemaVersion: 6, entries: [{ anilistId: 1 }], preferences: { activeTab: 'watching' }, dismissedItems: [{ anilistId: 2 }] },
+    eventLog: [],
+    counters: {},
+    ...overrides,
   });
 
-  await test('buildExport is registry-driven: a synthetic 4th store flows through with no code change', () => {
+  await test('buildExport covers every registered store, including P1.5\'s two new ones', () => {
+    const sources = fullSources();
+    const result = buildExport(CLASS_A_STORES, sources);
+    assert.deepEqual(Object.keys(result.stores).sort(), ['counters', 'dismissedItems', 'entries', 'eventLog', 'preferences']);
+    assert.deepEqual(result.stores.entries, sources.library.entries);
+    assert.deepEqual(result.stores.preferences, sources.library.preferences);
+    assert.deepEqual(result.stores.dismissedItems, sources.library.dismissedItems);
+    assert.deepEqual(result.stores.eventLog, []);
+    assert.deepEqual(result.stores.counters, {});
+  });
+
+  await test('buildExport is registry-driven: a synthetic extra store flows through with no code change', () => {
     // The real coverage guard (docs/v2-spec.md rule 3a's "mechanical
     // backstop"): proves buildExport() never hardcodes a store id, by
     // injecting one it has never seen before into a *copy* of the registry,
-    // rather than re-checking today's three known stores.
+    // rather than re-checking today's known stores.
     const syntheticRegistry = [...CLASS_A_STORES, { id: 'syntheticStore', kind: 'blob', get: () => ({ hello: 'world' }) }];
-    const result = buildExport(syntheticRegistry, { library: { schemaVersion: 4, entries: [], preferences: {}, dismissedItems: [] } });
+    const result = buildExport(syntheticRegistry, fullSources());
     assert.deepEqual(result.stores.syntheticStore, { hello: 'world' });
   });
 
-  await test('buildExport defaults missing library fields to empty rather than throwing', () => {
-    const result = buildExport(CLASS_A_STORES, { library: {} });
+  await test('buildExport still defaults missing LIBRARY fields to empty rather than throwing', () => {
+    // Unchanged contract for library-backed stores: a genuinely empty/new
+    // library is legal and must not throw.
+    const result = buildExport(CLASS_A_STORES, fullSources({ library: {} }));
     assert.deepEqual(result.stores.entries, []);
     assert.deepEqual(result.stores.preferences, {});
     assert.deepEqual(result.stores.dismissedItems, []);
+  });
+
+  await test('B3 regression: buildExport THROWS when a required source is not supplied at all', () => {
+    // This is the guard that matters most in the whole registry. Before it, a
+    // caller that forgot sources.eventLog produced an export/snapshot that
+    // CLAIMED to contain the event log, contained zero events, and passed
+    // verification completely clean — a silently wrong backup that rule 3a's
+    // coverage test cannot catch, because the store IS registered. Worse:
+    // events.jsonl is deliberately excluded from the 150-copy backups/
+    // rotation, so snapshots are its only redundancy.
+    assert.throws(
+      () => buildExport(CLASS_A_STORES, { library: { entries: [] }, counters: {} }), // eventLog omitted
+      /requires sources\.eventLog/
+    );
+    assert.throws(
+      () => buildExport(CLASS_A_STORES, { library: { entries: [] }, eventLog: [] }), // counters omitted
+      /requires sources\.counters/
+    );
+  });
+
+  await test('B3 regression: an EMPTY required source is legal — only an absent one is fatal', () => {
+    // "Empty because the user is brand new" must keep working; only "absent
+    // because the caller forgot" is a bug.
+    const result = buildExport(CLASS_A_STORES, fullSources({ eventLog: [], counters: {} }));
+    assert.deepEqual(result.stores.eventLog, []);
+    assert.deepEqual(result.stores.counters, {});
   });
 
   // -------------------------------------------------------------------------
@@ -1432,6 +1466,96 @@ async function run() {
     const registryWithNoTarget = [{ id: 'entries', kind: 'records', recordId: 'anilistId', get: (s) => s.library.entries }];
     const snapshot = Snapshots.buildSnapshotStores(registryWithNoTarget, sampleSources, { pinned: false });
     assert.throws(() => Snapshots.buildRestoredLibrary(registryWithNoTarget, snapshot), /no supported restore target/);
+  });
+
+  // --- P1.5 additions to snapshots.js -------------------------------------
+
+  const appendLogRegistry = [
+    {
+      id: 'eventLog',
+      kind: 'appendLog',
+      recordId: 'id',
+      requiredSources: ['eventLog'],
+      get: (s) => s.eventLog,
+      restoreTarget: { kind: 'eventLogFile' },
+      restoreVerification: 'superset',
+    },
+    { id: 'counters', kind: 'blob', requiredSources: ['counters'], get: (s) => s.counters, restoreTarget: { kind: 'countersFile' } },
+  ];
+  const appendLogSources = {
+    library: { schemaVersion: 6 },
+    eventLog: [
+      { id: '01AAA', type: 'app_opened', ts: 1 },
+      { id: '01BBB', type: 'episode_watched', ts: 2, from: 1, to: 2 },
+    ],
+    counters: { schemaVersion: 1, baseline: { totalEpisodes: 10 }, fromLog: { totalEpisodes: 1 } },
+  };
+
+  await test('appendLog store: one whole-store checksum plus count and first/last id, no per-record checksums', () => {
+    const snapshot = Snapshots.buildSnapshotStores(appendLogRegistry, appendLogSources, { pinned: false });
+    const store = snapshot.stores.eventLog;
+    assert.equal(store.kind, 'appendLog');
+    assert.equal(store.rowCount, 2);
+    assert.equal(store.firstId, '01AAA');
+    assert.equal(store.lastId, '01BBB');
+    assert.equal('recordChecksums' in store, false, 'per-record checksums are deliberately absent for an append-only log');
+    assert.ok(store.checksum);
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, appendLogRegistry);
+    assert.equal(valid, true, errors.join('; '));
+  });
+
+  await test('appendLog store: tampering with a record fails the whole-store checksum', () => {
+    const snapshot = Snapshots.buildSnapshotStores(appendLogRegistry, appendLogSources, { pinned: false });
+    snapshot.stores.eventLog.records[1].to = 99;
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, appendLogRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.join('; ').includes('whole-store checksum mismatch'));
+  });
+
+  await test('appendLog store: tampering with firstId/lastId is caught even though the manifest does not bind them', () => {
+    const snapshot = Snapshots.buildSnapshotStores(appendLogRegistry, appendLogSources, { pinned: false });
+    snapshot.stores.eventLog.lastId = '01ZZZ';
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, appendLogRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.join('; ').includes('first/last id'));
+  });
+
+  await test('B3 regression: buildSnapshotStores throws when a required source is absent (never a silently empty log)', () => {
+    assert.throws(
+      () => Snapshots.buildSnapshotStores(appendLogRegistry, { library: {}, counters: {} }, { pinned: false }),
+      /requires sources\.eventLog/
+    );
+  });
+
+  await test('B4: buildRestoredLibraryPlan routes the event log to a union side effect, never a library field', () => {
+    const snapshot = Snapshots.buildSnapshotStores(appendLogRegistry, appendLogSources, { pinned: false });
+    const plan = Snapshots.buildRestoredLibraryPlan(appendLogRegistry, snapshot);
+    assert.equal('eventLog' in plan.library, false, 'the log must never be written into library.json');
+    const logEffect = plan.sideEffects.find((e) => e.kind === 'eventLogFile');
+    assert.ok(logEffect, 'must emit an eventLogFile side effect');
+    assert.equal(logEffect.mode, 'unionById', 'restore unions, never truncates');
+    assert.deepEqual(logEffect.records.map((r) => r.id), ['01AAA', '01BBB']);
+    const countersEffect = plan.sideEffects.find((e) => e.kind === 'countersFile');
+    assert.ok(countersEffect);
+    assert.equal(countersEffect.mode, 'recomputeFromLog', "a snapshot's counters are only correct as of that snapshot");
+  });
+
+  await test('B2: the event log is the only store exempt from exact post-restore verification', () => {
+    const exact = Snapshots.storeIdsWithExactRestoreVerification(appendLogRegistry);
+    assert.deepEqual(exact, ['counters'], 'eventLog is superset-verified; everything else stays exact');
+    // And against the REAL registry, so a future store can't silently opt out.
+    const realExact = Snapshots.storeIdsWithExactRestoreVerification(CLASS_A_STORES);
+    assert.deepEqual(realExact.sort(), ['counters', 'dismissedItems', 'entries', 'preferences']);
+    assert.ok(!realExact.includes('eventLog'));
+  });
+
+  await test('the two required-sources guards in exportRegistry.js and snapshots.js behave identically', () => {
+    // They are deliberately duplicated (browser ESM vs Node CommonJS), so pin
+    // them against each other rather than trusting they stay in step.
+    const store = { id: 'x', requiredSources: ['needed'] };
+    assert.throws(() => Snapshots.assertRequiredSources(store, {}), /requires sources\.needed/);
+    assert.doesNotThrow(() => Snapshots.assertRequiredSources(store, { needed: [] }));
+    assert.doesNotThrow(() => Snapshots.assertRequiredSources({ id: 'y' }, {}), 'no requiredSources means no constraint');
   });
 
   await test('selectSnapshotsToPrune always keeps the pinned snapshot', () => {

@@ -49,7 +49,70 @@ const CLASS_A_STORES = [
     get: (sources) => (Array.isArray(sources.library?.dismissedItems) ? sources.library.dismissedItems : []),
     restoreTarget: { kind: 'libraryField', field: 'dismissedItems' },
   },
+  // P1.5's two new Class A stores.
+  {
+    id: 'eventLog',
+    label: 'Activity event log',
+    // A distinct kind from 'records': per-record checksums buy nothing for an
+    // append-only log (you cannot repair an individual line anyway) and would
+    // cost an O(n) sha256 per event across the FOUR passes each snapshot
+    // already makes (build, self-verify, read-back, verify again). 'appendLog'
+    // carries one whole-store checksum plus a count and first/last id.
+    kind: 'appendLog',
+    recordId: 'id',
+    // `requiredSources` makes the sources bag fail CLOSED. Every existing call
+    // site passed `{ library }` only, and buildExport deliberately defaulted a
+    // missing field to empty — so one forgotten `sources.eventLog` would have
+    // produced a snapshot that CLAIMS to hold the event log, holds zero events,
+    // and passes verification completely clean. That is the exact definition of
+    // a silently-wrong backup, and the rule-3a coverage test cannot catch it
+    // because the store IS registered. "Empty because the user is new" stays
+    // legal; "absent because the caller forgot" is now fatal. This matters more
+    // than it looks: events.jsonl is deliberately excluded from the 150-copy
+    // backups/ rotation, so snapshots are its ONLY redundancy.
+    requiredSources: ['eventLog'],
+    get: (sources) => (Array.isArray(sources.eventLog) ? sources.eventLog : []),
+    // Its own file, not a library field — the seam P1.1 deliberately left
+    // fail-closed for exactly this store.
+    restoreTarget: { kind: 'eventLogFile' },
+    // Restore UNIONS by id and never truncates (truncating to an older
+    // snapshot would destroy every event since it — forbidden for an
+    // append-only Class A log), so the post-restore check must assert the live
+    // log is a SUPERSET of the snapshot's rather than byte-identical to it.
+    // Only this store; every other store keeps exact-match verification.
+    restoreVerification: 'superset',
+  },
+  {
+    id: 'counters',
+    label: 'Lifetime counters',
+    kind: 'blob',
+    requiredSources: ['counters'],
+    get: (sources) => sources.counters || {},
+    restoreTarget: { kind: 'countersFile' },
+  },
 ];
+
+// Walks `registry` generically — never references a store by name — so adding a
+// store to CLASS_A_STORES is the only change needed for it to start being
+// exported. Takes `registry` as a parameter (rather than importing CLASS_A_STORES
+// directly) so the coverage test can inject a synthetic extra store into a copy
+// of the list and prove this function is genuinely registry-driven.
+// Throws if a store declares `requiredSources` and the caller didn't supply
+// one of them. Shared by buildExport here and by snapshots.js's
+// buildSnapshotStores, so both fail closed identically — a store's data can
+// legitimately be EMPTY, but the caller forgetting to pass it at all is a bug
+// that must never silently produce an incomplete backup. See the eventLog
+// entry's comment for why this is the most important guard in the registry.
+function assertRequiredSources(store, sources) {
+  for (const key of store.requiredSources || []) {
+    if (sources?.[key] === undefined) {
+      throw new Error(
+        `Store "${store.id}" requires sources.${key}, which was not supplied. ` +
+          `Refusing to build an incomplete export/snapshot rather than silently omitting data.`
+      );
+    }
+  }
+}
 
 // Walks `registry` generically — never references a store by name — so adding a
 // store to CLASS_A_STORES is the only change needed for it to start being
@@ -59,6 +122,7 @@ const CLASS_A_STORES = [
 function buildExport(registry, sources) {
   const stores = {};
   for (const store of registry) {
+    assertRequiredSources(store, sources);
     stores[store.id] = store.get(sources);
   }
   return {
@@ -68,4 +132,4 @@ function buildExport(registry, sources) {
   };
 }
 
-export { CLASS_A_STORES, buildExport };
+export { CLASS_A_STORES, buildExport, assertRequiredSources };

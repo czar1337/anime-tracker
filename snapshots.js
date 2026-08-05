@@ -33,7 +33,23 @@ function checksumRecord(record) {
 // the library from something. No blob-binary kind exists in this app yet (P6.2's
 // avatar/banner images will be the first); rule 3's "excludes blobs" exclusion
 // belongs to whichever substep introduces that kind, per rule 3a.
+// Mirrors public/js/exportRegistry.js's assertRequiredSources — duplicated
+// rather than imported because that file is browser ESM and this one is
+// Node/CommonJS (it needs node:crypto). Both must fail closed identically; the
+// unit tests pin them against each other.
+function assertRequiredSources(store, sources) {
+  for (const key of store.requiredSources || []) {
+    if (sources?.[key] === undefined) {
+      throw new Error(
+        `Store "${store.id}" requires sources.${key}, which was not supplied. ` +
+          `Refusing to build an incomplete export/snapshot rather than silently omitting data.`
+      );
+    }
+  }
+}
+
 function buildStoreSnapshot(store, sources) {
+  assertRequiredSources(store, sources);
   const data = store.get(sources);
   if (store.kind === 'records') {
     const records = Array.isArray(data) ? data : [];
@@ -42,6 +58,24 @@ function buildStoreSnapshot(store, sources) {
       rowCount: records.length,
       records,
       recordChecksums: records.map(checksumRecord),
+      checksum: sha256(canonicalJSON(records)),
+    };
+  }
+  // 'appendLog' (P1.5's event log): one whole-store checksum plus a count and
+  // first/last id, deliberately WITHOUT per-record checksums. For an
+  // append-only log they'd cost an O(n) sha256 per event across all four passes
+  // a snapshot makes, while buying nothing — you cannot repair one line of a
+  // log you're forbidden to rewrite. firstId/lastId make a superset check cheap
+  // and give a human-readable range in the snapshot listing.
+  if (store.kind === 'appendLog') {
+    const records = Array.isArray(data) ? data : [];
+    const idField = store.recordId || 'id';
+    return {
+      kind: 'appendLog',
+      rowCount: records.length,
+      records,
+      firstId: records.length ? records[0][idField] : null,
+      lastId: records.length ? records[records.length - 1][idField] : null,
       checksum: sha256(canonicalJSON(records)),
     };
   }
@@ -172,6 +206,22 @@ function verifySnapshotStores(snapshot, registry) {
       if (sha256(canonicalJSON(records)) !== store.checksum) {
         errors.push(`${id}: whole-store checksum mismatch.`);
       }
+    } else if (store.kind === 'appendLog') {
+      const records = Array.isArray(store.records) ? store.records : [];
+      if (records.length !== store.rowCount) {
+        errors.push(`${id}: row count mismatch (expected ${store.rowCount}, found ${records.length}).`);
+      }
+      if (sha256(canonicalJSON(records)) !== store.checksum) {
+        errors.push(`${id}: whole-store checksum mismatch.`);
+      }
+      // first/last id are part of the store entry, so a tampered pair has to be
+      // caught here — the manifest checksum only binds `checksum`, not these.
+      const idField = (registryEntry && registryEntry.recordId) || 'id';
+      const expectedFirst = records.length ? records[0][idField] : null;
+      const expectedLast = records.length ? records[records.length - 1][idField] : null;
+      if (store.firstId !== expectedFirst || store.lastId !== expectedLast) {
+        errors.push(`${id}: first/last id do not match the records they claim to bound.`);
+      }
     } else if (store.kind === 'blob') {
       if (sha256(canonicalJSON(store.blob)) !== store.checksum) {
         errors.push(`${id}: blob checksum mismatch.`);
@@ -192,22 +242,64 @@ function verifySnapshotStores(snapshot, registry) {
 // closed rather than guessing where its data belongs. Callers must verify the
 // snapshot (verifySnapshotStores, with the same registry) before calling this,
 // since this function assumes exact store coverage rather than re-checking it.
-function buildRestoredLibrary(registry, snapshot) {
+// P1.5 adds two restore targets that are NOT library fields, so this now
+// returns a plan rather than only a library object: `{ library, sideEffects }`,
+// where each side effect names a file the caller must write and the data to
+// write. buildRestoredLibrary keeps its name and its library-shaped return for
+// every existing caller via buildRestoredLibraryPlan below.
+//
+// Supported target kinds:
+//   libraryField   -> a top-level field of library.json (every pre-P1.5 store)
+//   eventLogFile   -> events.jsonl; UNION by id, never truncate (see below)
+//   countersFile   -> counters.json; recomputed by the caller after the union,
+//                     because a snapshot's counters are only correct for the
+//                     log AS OF that snapshot, and the union may leave more.
+function buildRestoredLibraryPlan(registry, snapshot) {
   const library = { schemaVersion: snapshot.schemaVersion };
+  const sideEffects = [];
   for (const store of registry) {
     const target = store.restoreTarget;
-    if (!target || target.kind !== 'libraryField' || typeof target.field !== 'string' || !target.field) {
-      throw new Error(
-        `Store "${store.id}" declares no supported restore target. Refusing to restore rather than guess where its data belongs.`
-      );
-    }
     const snapshotStore = snapshot.stores[store.id];
     if (!snapshotStore || typeof snapshotStore !== 'object') {
       throw new Error(`Store "${store.id}" is registered but missing from the snapshot being restored.`);
     }
-    library[target.field] = snapshotStore.kind === 'records' ? snapshotStore.records : snapshotStore.blob;
+    const data =
+      snapshotStore.kind === 'records' || snapshotStore.kind === 'appendLog' ? snapshotStore.records : snapshotStore.blob;
+
+    if (target && target.kind === 'libraryField' && typeof target.field === 'string' && target.field) {
+      library[target.field] = data;
+      continue;
+    }
+    if (target && target.kind === 'eventLogFile') {
+      // Union, never truncate: restoring a snapshot from 10 days ago must not
+      // destroy 10 days of real events. The log is append-only Class A; a
+      // rewrite is exactly the risk this whole spec exists to avoid.
+      sideEffects.push({ kind: 'eventLogFile', storeId: store.id, mode: 'unionById', records: Array.isArray(data) ? data : [] });
+      continue;
+    }
+    if (target && target.kind === 'countersFile') {
+      sideEffects.push({ kind: 'countersFile', storeId: store.id, mode: 'recomputeFromLog', snapshotCounters: data || {} });
+      continue;
+    }
+    throw new Error(
+      `Store "${store.id}" declares no supported restore target. Refusing to restore rather than guess where its data belongs.`
+    );
   }
-  return library;
+  return { library, sideEffects };
+}
+
+function buildRestoredLibrary(registry, snapshot) {
+  return buildRestoredLibraryPlan(registry, snapshot).library;
+}
+
+// Which stores the post-restore verification may compare byte-for-byte.
+// An 'superset' store (the event log) legitimately ends up with MORE than the
+// snapshot held, because restore unions rather than truncates — comparing it
+// exactly would flag a perfectly good restore as corrupt, and the pre-P1.5 code
+// would have done exactly that the first time anyone restored a snapshot after
+// this substep shipped.
+function storeIdsWithExactRestoreVerification(registry) {
+  return registry.filter((s) => (s.restoreVerification || 'exact') === 'exact').map((s) => s.id);
 }
 
 // Pure retention decision (rule 10: "three rotating snapshots, plus one
@@ -234,6 +326,9 @@ module.exports = {
   buildSnapshotStores,
   verifySnapshotStores,
   buildRestoredLibrary,
+  buildRestoredLibraryPlan,
+  storeIdsWithExactRestoreVerification,
+  assertRequiredSources,
   selectSnapshotsToPrune,
   isValidSnapshotFilename,
   SNAPSHOT_FILENAME_RE,
