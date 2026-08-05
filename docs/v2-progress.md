@@ -53,7 +53,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P1.2 Storage classes and concurrency | done | 2026-08-02 | this session, see "P1.2 implementation session", "P1.2 independent review session" and "P1.2 close out" below | — |
 | P1.3 Settings schema and transactional migration | done | 2026-08-02 | this session, see "P1.3 implementation session" and "P1.3 close out" below | — |
 | P1.4 Token layer, tuning config, inventory | done | 2026-08-02 | this session, see "P1.4 implementation session" and "P1.4 close out" below | — |
-| P1.5 Event log v1 | in progress | 2026-08-05 | this session, see "P1.5 implementation session" below | all six acceptance criteria have full evidence this same session (no new UI shipped, so no user-blocking screen-reader step); awaiting user review, close-out commit and merge into `main` |
+| P1.5 Event log v1 | done | 2026-08-05 | this session, see "P1.5 implementation session" and "P1.5 close out" below | — |
 | P1.6 Copy registry, new v2 surfaces only | not started | — | — | — |
 | P1.7 Lists, collections, tags, achievement hook | not started | — | — | — |
 | P2 Token conversion, batched per directory | not started | — | — | — |
@@ -1844,3 +1844,30 @@ untouched.
 this same session; no user-blocking step, since no new UI shipped. Not yet
 merged into `main`; awaiting user review before a `v2(P1.5): close out` commit
 and merge.
+
+## P1.5 close out
+
+The user reviewed the implementation evidence above and asked for the
+recommended next step to be carried out. That recommendation was **not** simply
+"close out": it was to fix the cross-version snapshot problem first rather than
+leave it in the backlog, because it touched the user's real Class C backups and
+would have recurred in five later substeps. That fix landed in
+`v2(P1.5): keep older snapshots restorable across Class A store additions`, and
+is written up in its own section above. Three of the user's five real snapshots
+went from unrestorable to restorable as a result.
+
+No other code changed in this closing commit.
+
+**Final state of the six criteria**: unchanged from the implementation session
+except for the higher test counts and the compatibility fix — 161 unit tests
+and 47 e2e tests, 0 failed. No user-blocking step, since this substep ships no
+new UI surface.
+
+**Status: P1.5 done.** All six acceptance criteria satisfied. Merged into
+`main` in this session's close-out (see the merge commit immediately
+following); `v2/P1.5` retained, not deleted, per the spec's branching rule.
+
+**Not pushed.** The user's standing instruction from the P1.4 session — hold
+pushes to `origin` until they want to cut a new version — is still in force, so
+`main` is ahead of `origin/main` locally and deliberately stays that way until
+they say otherwise.
