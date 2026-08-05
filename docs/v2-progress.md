@@ -54,7 +54,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P1.3 Settings schema and transactional migration | done | 2026-08-02 | this session, see "P1.3 implementation session" and "P1.3 close out" below | — |
 | P1.4 Token layer, tuning config, inventory | done | 2026-08-02 | this session, see "P1.4 implementation session" and "P1.4 close out" below | — |
 | P1.5 Event log v1 | done | 2026-08-05 | this session, see "P1.5 implementation session" and "P1.5 close out" below | — |
-| P1.6 Copy registry, new v2 surfaces only | in progress | 2026-08-05 | this session, see "P1.6 implementation session" below | all six acceptance criteria have full evidence this same session (no new UI surface); awaiting user review, close-out commit and merge into `main` |
+| P1.6 Copy registry, new v2 surfaces only | done | 2026-08-05 | this session, see "P1.6 implementation session" and "P1.6 close out" below | — |
 | P1.7 Lists, collections, tags, achievement hook | not started | — | — | — |
 | P2 Token conversion, batched per directory | not started | — | — | — |
 | P3.1 Nine fonts, loader, per-font manifest | not started | — | — | — |
@@ -2069,3 +2069,17 @@ this same session; no user-blocking step, since no new UI surface ships. Not
 yet merged into `main`; awaiting user review before a `v2(P1.6): close out`
 commit and merge. Push to `origin` remains held per the standing instruction
 from P1.4.
+
+## P1.6 close out
+
+No code changed in this session before this evidence-only commit. All six
+acceptance criteria were satisfied in the implementation session above, and
+this substep ships no new UI surface, so there is no user-executed
+screen-reader step outstanding.
+
+**Status: P1.6 done.** Merged into `main` in this session's close-out (see the
+merge commit immediately following); `v2/P1.6` retained, not deleted, per the
+spec's branching rule.
+
+**Not pushed.** The standing instruction from the P1.4 session — hold pushes to
+`origin` until a new version is wanted — is still in force.
