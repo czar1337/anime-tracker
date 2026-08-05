@@ -580,6 +580,12 @@ async function recomputeCountersFromLog({ baseline } = {}) {
     logCount: events.length,
     lastEventId: events.length ? events[events.length - 1].id : null,
   });
+  // Byte size of the log this fold was computed from. Because the log is
+  // append-only, any change to it necessarily changes its size — so comparing
+  // a stat() against this is a sound O(1) staleness check, where comparing
+  // line counts would mean reading and parsing the whole file on every boot
+  // (measured: 3.8s at 200k events, growing forever).
+  file.logBytes = fileSizeBytes(EVENTS_FILE);
   writeCountersAtomic(file);
   return file;
 }
@@ -609,12 +615,14 @@ function archiveEventLogForReset() {
 // entries left to seed from) and no fold (the log was just archived away).
 async function buildFreshCountersFile() {
   const { counters: Counters } = await loadEventModules();
-  return Counters.buildCountersFile({
+  const file = Counters.buildCountersFile({
     baseline: Counters.emptyCounterTotals(),
     fromLog: Counters.emptyCounterTotals(),
     logCount: 0,
     lastEventId: null,
   });
+  file.logBytes = fileSizeBytes(EVENTS_FILE); // 0 — the log was just archived away
+  return file;
 }
 
 // Applies the non-library-field halves of a restore plan (P1.5).
@@ -628,6 +636,15 @@ async function buildFreshCountersFile() {
 // This appends through the same appendEvents() path as everything else, so it
 // inherits dedup, validation and fsync rather than reimplementing them.
 async function applyRestoreSideEffects(sideEffects) {
+  // Drop the cached dedup index first. Restore is precisely the moment the log
+  // file may have changed out from under this process — data loss, external
+  // tampering, a hand-edited file — and a stale index would report the
+  // snapshot's events as "already present" and union NOTHING, silently
+  // restoring an empty log while reporting success. Found by the rule-3a
+  // round-trip test wiping events.jsonl before restoring.
+  eventIdIndex = null;
+  eventBodyHashByIdCache = null;
+  eventLogMaxTs = 0;
   for (const effect of sideEffects || []) {
     if (effect.kind === 'eventLogFile' && effect.mode === 'unionById') {
       const index = ensureEventIdIndex();
@@ -684,11 +701,15 @@ async function ensureCountersFile() {
     return file;
   }
 
-  const actualCount = readEventLog().length;
-  if (existing.logCount !== actualCount) {
+  // O(1) staleness check — a stat(), not a read. Sound precisely because the
+  // log is append-only: it cannot change without changing size. `logBytes` is
+  // absent on a counters.json written before this check existed, in which case
+  // fall back to one re-fold to establish it.
+  const actualBytes = fileSizeBytes(EVENTS_FILE);
+  if (existing.logBytes === undefined || existing.logBytes !== actualBytes) {
     console.error(
-      `[counters] counters.json claims ${existing.logCount} logged events but events.jsonl holds ${actualCount}; ` +
-        're-folding the log to restore the baseline + fold(log) invariant.'
+      `[counters] counters.json was folded from a ${existing.logBytes ?? 'unknown'}-byte log but events.jsonl is now ${actualBytes} bytes; ` +
+        're-folding to restore the baseline + fold(log) invariant.'
     );
     return recomputeCountersFromLog({ baseline: existing.baseline });
   }
@@ -1899,14 +1920,16 @@ const server = http.createServer(async (req, res) => {
             const delta = Counters.foldEvents(accepted, {
               episodeDurationFallbackMinutes: tuning.TIME_SEMANTICS.episodeDurationFallbackMinutes,
             });
-            writeCountersAtomic(
-              Counters.buildCountersFile({
-                baseline: current.baseline,
-                fromLog: Counters.addTotals(current.fromLog, delta),
-                logCount: (current.logCount || 0) + accepted.length,
-                lastEventId: accepted[accepted.length - 1].id,
-              })
-            );
+            const updated = Counters.buildCountersFile({
+              baseline: current.baseline,
+              fromLog: Counters.addTotals(current.fromLog, delta),
+              logCount: (current.logCount || 0) + accepted.length,
+              lastEventId: accepted[accepted.length - 1].id,
+            });
+            // Kept in step with the append, so the next boot's O(1) staleness
+            // check passes and no re-fold is needed.
+            updated.logBytes = fileSizeBytes(EVENTS_FILE);
+            writeCountersAtomic(updated);
           }
           return {
             status: 200,
