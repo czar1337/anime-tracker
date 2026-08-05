@@ -1702,6 +1702,51 @@ Recorded because this is the substantive value of having written them:
   on the real library either way. The tuning fallback applies to the forward
   path only; the potential divergence is **filed in the backlog**.
 
+### Cross-version snapshot compatibility, fixed rather than deferred
+
+This started as a backlog note and was then fixed inside the substep, because
+the real cost only became clear once it was written down.
+
+`verifySnapshotStores` checked store coverage against the **live** registry, so
+adding a Class A store made every previously-written snapshot report
+`verified: false` ("Missing registered store(s)"), which the Settings UI
+correctly turns into a disabled restore button. P1.5 adds two stores — and
+**five further substeps add more** (P1.7, P5A.4, P6.2, P7A, P8H). Left alone,
+every Class C backup the user has would have been invalidated five more times
+over the rest of v2, which makes snapshots useless as the recovery mechanism
+rule 11 asks them to be.
+
+Downgrading a missing store from error to **warning** costs nothing, because
+the two things the strict check was really protecting against are both still
+covered, and more precisely:
+
+- a store **silently dropped** from a snapshot after it was written is caught
+  by the top-level manifest checksum, which binds the exact store-id →
+  checksum map (verified by a test that deletes a store post-write and asserts
+  the checksum error);
+- a writer **forgetting** a registered store is now impossible at build time,
+  because `requiredSources` throws rather than emitting an empty store (this
+  substep's B3 fix).
+
+Everything else stays a hard error: an unknown extra store, duplicate ids, and
+a `kind` that disagrees with the registry are real anomalies, not version skew.
+`buildRestoredLibraryPlan` correspondingly **skips** a store the snapshot
+predates (reporting it in `skippedStores`) instead of throwing, leaving that
+store's current on-disk contents alone — for a `libraryField` store the field
+is simply not written, so the existing migration/defaulting path fills it in,
+which is the forward-compatibility behavior rule 13 already requires.
+
+**Verified against the user's five real snapshots**, on a disposable copy:
+three went from unrestorable to **verified and restorable**, each carrying an
+accurate warning ("Snapshot predates 2 registered store(s) (eventLog,
+counters)"). The remaining two stay invalid for an unrelated, pre-existing
+reason — they predate `manifestChecksum` entirely, already documented in
+P1.1's review — and the fix correctly does not hide that. An e2e test builds a
+genuinely pre-P1.5-shaped snapshot (three stores, manifest computed over those
+three) and asserts it lists verified, restores, reports the skipped stores, and
+leaves the newer event log intact rather than wiping it.
+
+
 ### Types that cannot fire yet, and what is therefore not retroactive
 
 Three of the 13 types have **no user action anywhere in the app**:
@@ -1728,8 +1773,8 @@ backfillable.
 
 ### Acceptance criteria
 
-**1. Automated checks.** `node tests/run-all.js`: **159 passed, 0 failed**
-(+39 this substep). `npx playwright test`: **46 passed, 0 failed** (+14). No
+**1. Automated checks.** `node tests/run-all.js`: **161 passed, 0 failed**
+(+41 this substep). `npx playwright test`: **47 passed, 0 failed** (+15). No
 lint or typecheck command exists in this project beyond `scripts/build-exe.js`
 (unchanged finding from P0.1).
 

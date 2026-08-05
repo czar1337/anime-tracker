@@ -145,8 +145,12 @@ function buildSnapshotStores(registry, sources, { pinned = false } = {}) {
 // the same thing everywhere.
 function verifySnapshotStores(snapshot, registry) {
   const errors = [];
+  // Version skew — an older snapshot that simply predates a newer store — is
+  // reported here rather than as an error, so such a snapshot stays
+  // restorable. See the store-coverage check below for the full reasoning.
+  const warnings = [];
   if (!snapshot || typeof snapshot !== 'object' || !snapshot.stores || typeof snapshot.stores !== 'object' || Array.isArray(snapshot.stores)) {
-    return { valid: false, errors: ['Snapshot is not a recognizable snapshot object.'] };
+    return { valid: false, errors: ['Snapshot is not a recognizable snapshot object.'], warnings: [] };
   }
   if (snapshot.schemaVersion !== null && typeof snapshot.schemaVersion !== 'number') {
     errors.push('Top-level schemaVersion is neither a number nor null.');
@@ -173,8 +177,34 @@ function verifySnapshotStores(snapshot, registry) {
     }
     const missing = expectedIds.filter((id) => !presentSet.has(id));
     const extra = presentIds.filter((id) => !expectedSet.has(id));
+    // A store the live registry knows about but the snapshot lacks is a
+    // WARNING, not an error — it almost always means "this snapshot predates
+    // that store", which is legitimate and must stay restorable.
+    //
+    // Treating it as invalid (as this did until P1.5) meant every substep that
+    // adds a Class A store instantly made every pre-existing snapshot
+    // unrestorable. Five more substeps do that (P1.7, P5A.4, P6.2, P7A, P8H),
+    // so the user's Class C backups would have been invalidated five more
+    // times — which would make snapshots useless as a recovery mechanism for
+    // the whole of v2, the opposite of what rule 11 asks for.
+    //
+    // Nothing is lost by downgrading it, because the two things the strict
+    // check was really protecting against are both still covered, and more
+    // precisely:
+    //   - a store SILENTLY DROPPED from a snapshot after it was written is
+    //     caught by the top-level manifest checksum, which binds the exact
+    //     store-id -> checksum map;
+    //   - a writer FORGETTING a registered store is now impossible at build
+    //     time, because `requiredSources` throws rather than emitting an
+    //     empty store (P1.5's B3 fix).
+    // Everything below stays a hard error: an unknown extra store, duplicate
+    // ids, and a kind that disagrees with the registry are all real anomalies
+    // rather than version skew.
     if (missing.length > 0) {
-      errors.push(`Missing registered store(s): ${missing.join(', ')}.`);
+      warnings.push(
+        `Snapshot predates ${missing.length} registered store(s) (${missing.join(', ')}); ` +
+          `those stores will keep their current on-disk contents if this snapshot is restored.`
+      );
     }
     if (extra.length > 0) {
       errors.push(`Unknown/unexpected store(s) not in the registry: ${extra.join(', ')}.`);
@@ -230,7 +260,7 @@ function verifySnapshotStores(snapshot, registry) {
       errors.push(`${id}: unknown store kind "${store.kind}".`);
     }
   }
-  return { valid: errors.length === 0, errors };
+  return { valid: errors.length === 0, errors, warnings };
 }
 
 // Registry-driven restore (review finding 5): reconstructs a library.json-shaped
@@ -257,11 +287,24 @@ function verifySnapshotStores(snapshot, registry) {
 function buildRestoredLibraryPlan(registry, snapshot) {
   const library = { schemaVersion: snapshot.schemaVersion };
   const sideEffects = [];
+  const skippedStores = [];
   for (const store of registry) {
     const target = store.restoreTarget;
     const snapshotStore = snapshot.stores[store.id];
+    // A store the snapshot simply predates is SKIPPED, not fatal. Restoring a
+    // snapshot older than a store cannot produce data for that store — so the
+    // honest behavior is to leave that store's current on-disk contents alone
+    // and say so, rather than refusing the whole restore.
+    //
+    // This is what keeps Class C backups usable across v2: five further
+    // substeps add Class A stores (P1.7, P5A.4, P6.2, P7A, P8H), and throwing
+    // here would have made every pre-existing snapshot unrestorable each time.
+    // For a libraryField store the field is simply not written, so the existing
+    // migration/defaulting path fills it in — the same forward-compatibility
+    // behavior rule 13 already requires of every reader.
     if (!snapshotStore || typeof snapshotStore !== 'object') {
-      throw new Error(`Store "${store.id}" is registered but missing from the snapshot being restored.`);
+      skippedStores.push(store.id);
+      continue;
     }
     const data =
       snapshotStore.kind === 'records' || snapshotStore.kind === 'appendLog' ? snapshotStore.records : snapshotStore.blob;
@@ -285,7 +328,7 @@ function buildRestoredLibraryPlan(registry, snapshot) {
       `Store "${store.id}" declares no supported restore target. Refusing to restore rather than guess where its data belongs.`
     );
   }
-  return { library, sideEffects };
+  return { library, sideEffects, skippedStores };
 }
 
 function buildRestoredLibrary(registry, snapshot) {

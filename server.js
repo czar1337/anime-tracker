@@ -1610,9 +1610,9 @@ const server = http.createServer(async (req, res) => {
         try {
           snapshot = readSnapshotFile(file);
         } catch (err) {
-          return { file, createdAt: null, schemaVersion: null, pinned: false, verified: false, errors: [`Could not read file: ${err.message}`] };
+          return { file, createdAt: null, schemaVersion: null, pinned: false, verified: false, errors: [`Could not read file: ${err.message}`], warnings: [] };
         }
-        const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
+        const { valid, errors, warnings } = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
         return {
           file,
           createdAt: snapshot.createdAt,
@@ -1620,6 +1620,11 @@ const server = http.createServer(async (req, res) => {
           pinned: Boolean(snapshot.pinned),
           verified: valid,
           errors,
+          // Non-fatal notes, e.g. "this snapshot predates store X" (P1.5).
+          // Deliberately separate from `errors` so the UI keeps restore ENABLED
+          // for a merely-older snapshot while still being able to say what it
+          // lacks.
+          warnings,
         };
       });
       list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
@@ -1838,7 +1843,14 @@ const server = http.createServer(async (req, res) => {
         }
         return {
           status: 200,
-          body: { ok: true, verified: true, restoredFrom: file },
+          body: {
+            ok: true,
+            verified: true,
+            restoredFrom: file,
+            // Non-empty when the snapshot predates one or more current Class A
+            // stores; those keep their existing on-disk contents (P1.5).
+            skippedStores: restorePlan.skippedStores,
+          },
           etag: computeLibraryEtag(readLibrary()),
         };
       });

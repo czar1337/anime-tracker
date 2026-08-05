@@ -402,3 +402,65 @@ test('real browser: buffered events survive a reload via the localStorage outbox
     await server.stop();
   }
 });
+
+test('a snapshot written BEFORE P1.5 (no eventLog/counters stores) is still listed verified and still restores', async () => {
+  // The scenario that matters for the user's real data: their existing Class C
+  // snapshots predate both stores this substep adds. Before the coverage check
+  // was downgraded to a warning, every one of them read as unverified and the
+  // UI disabled restore — and five further substeps add Class A stores, so that
+  // would have happened five more times over the rest of v2.
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    // Build a snapshot with only the three pre-P1.5 stores, exactly as an older
+    // build would have written it (manifest checksum computed over those three).
+    const Snapshots = require('../../snapshots.js');
+    const registryUrl = 'file:///' + path.join(__dirname, '..', '..', 'public', 'js', 'exportRegistry.js').split(path.sep).join('/');
+    const { CLASS_A_STORES } = await import(registryUrl);
+    const oldRegistry = CLASS_A_STORES.filter((s) => !['eventLog', 'counters'].includes(s.id));
+    expect(oldRegistry).toHaveLength(3);
+
+    const oldLibrary = {
+      schemaVersion: 5,
+      entries: [{ anilistId: 777, titleRomaji: 'From An Older Snapshot', listStatus: 'watching', episodesWatched: 3 }],
+      preferences: { activeTab: 'watching' },
+      dismissedItems: [],
+    };
+    const legacy = Snapshots.buildSnapshotStores(oldRegistry, { library: oldLibrary }, { pinned: false });
+    expect(Object.keys(legacy.stores).sort()).toEqual(['dismissedItems', 'entries', 'preferences']);
+    const legacyFile = 'snapshot-20250101-000000.json';
+    fs.writeFileSync(path.join(server.dataDir, 'snapshots', legacyFile), JSON.stringify(legacy));
+
+    // Some real events exist now, which the legacy snapshot knows nothing about.
+    await postEvents(server.url, [makeEvent('01LEGACY000000000000000001', { from: 0, to: 4 })]);
+
+    // 1) It lists as VERIFIED (restore button enabled), with a warning rather
+    //    than an error.
+    const { snapshots } = await (await fetch(`${server.url}/api/snapshots`)).json();
+    const listed = snapshots.find((s) => s.file === legacyFile);
+    expect(listed.verified).toBe(true);
+    expect(listed.errors).toEqual([]);
+
+    // 2) It actually restores, reporting which stores it predates.
+    const res = await fetch(`${server.url}/api/snapshots/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: legacyFile }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.verified).toBe(true);
+    expect(body.skippedStores.sort()).toEqual(['counters', 'eventLog']);
+
+    // 3) The library came back from the snapshot...
+    const lib = await (await fetch(`${server.url}/api/library`)).json();
+    expect(lib.entries.map((e) => e.anilistId)).toEqual([777]);
+
+    // ...and the event log the snapshot never knew about was left intact rather
+    // than wiped, with counters still consistent with it.
+    const after = await (await fetch(`${server.url}/api/events`)).json();
+    expect(after.events.map((e) => e.id)).toEqual(['01LEGACY000000000000000001']);
+    expect(after.counters.fromLog.totalEpisodes).toBe(4);
+  } finally {
+    await server.stop();
+  }
+});

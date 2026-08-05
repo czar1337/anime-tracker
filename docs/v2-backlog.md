@@ -100,23 +100,17 @@ real, recorded, and not any single substep's job to resolve on its own.
   `eventTypes.js`: the tuning fallback has only `tv`/`film` buckets, so
   `TV_SHORT` and `MUSIC` over-count when duration is missing.
 
-- **Snapshots taken before P1.5 will read as unverified and cannot be
-  restored.** `verifySnapshotStores` checks exact store coverage against the
-  live registry, and P1.5 adds two stores (`eventLog`, `counters`), so any
-  snapshot written before this substep is now reported
-  `verified: false` ("Missing registered store(s)") and the Settings UI
-  correctly disables its restore button. This is the same fail-closed
-  direction P1.1's review already established (its `manifestChecksum` change
-  invalidated two older snapshots), and relaxing coverage would defeat the
-  guarantee that a silently-missing store is indistinguishable from a dropped
-  one. Mitigations already in place: a fresh, fully-valid pinned snapshot is
-  created automatically on the next boot, and the separate `backups/`
-  rotation (up to 150 copies of `library.json`) is untouched and remains
-  available for library recovery. Worth revisiting only if a future substep
-  wants a snapshot-format version marker so pre-store snapshots can be
-  distinguished from corrupt ones — P1.5 did not add one because
-  `library.json`'s `schemaVersion` is not bumped by this substep and so cannot
-  serve that purpose.
+- ~~Snapshots taken before P1.5 will read as unverified and cannot be
+  restored.~~ **Resolved inside P1.5 rather than deferred** — see that
+  substep's "cross-version snapshot compatibility" note in
+  `docs/v2-progress.md`. It was briefly filed here, then fixed once the real
+  cost became clear: five further substeps add Class A stores (P1.7, P5A.4,
+  P6.2, P7A, P8H), so leaving it would have invalidated every Class C backup
+  five more times over the rest of v2. Verified against the user's five real
+  snapshots: three went from unrestorable to restorable. The other two remain
+  invalid for an unrelated, pre-existing reason (they predate
+  `manifestChecksum` entirely — already documented in P1.1's review), which
+  the fix correctly does not hide.
 
 ## Not urgent, informational
 

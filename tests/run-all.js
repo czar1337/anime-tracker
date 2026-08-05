@@ -1399,12 +1399,48 @@ async function run() {
 
   // ---- Review findings regression coverage --------------------------------
 
-  await test('verifySnapshotStores rejects a snapshot with a whole registered store removed', () => {
+  await test('verifySnapshotStores still rejects a store DROPPED after the snapshot was written (manifest checksum catches it)', () => {
     const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
-    delete snapshot.stores.preferences; // simulates a store dropped entirely, not just tampered
+    delete snapshot.stores.preferences; // post-hoc tampering, not version skew
     const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
-    assert.equal(valid, false);
-    assert.ok(errors.some((e) => e.includes('Missing registered store') && e.includes('preferences')));
+    assert.equal(valid, false, 'dropping a store from a written snapshot must still invalidate it');
+    // The manifest checksum binds the exact store-id -> checksum map, so this is
+    // caught regardless of what the live registry happens to contain today.
+    // That is why the store-coverage check could safely be downgraded to a
+    // warning for genuine version skew (see the next test) without losing any
+    // tamper protection.
+    assert.ok(
+      errors.some((e) => e.includes('manifest checksum mismatch')),
+      `expected a manifest checksum error, got: ${errors.join(' | ')}`
+    );
+  });
+
+  await test('verifySnapshotStores ACCEPTS a snapshot that merely predates a newer store, warning instead of failing', () => {
+    // Written by an older build that only knew about `entries`...
+    const olderRegistry = [sampleRegistry[0]];
+    const snapshot = Snapshots.buildSnapshotStores(olderRegistry, sampleSources, { pinned: false });
+    // ...and verified today, against a registry that also has `preferences`.
+    const { valid, errors, warnings } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, true, `an older snapshot must stay restorable, got: ${errors.join(' | ')}`);
+    assert.ok(
+      warnings.some((w) => w.includes('predates') && w.includes('preferences')),
+      `expected a version-skew warning, got: ${warnings.join(' | ')}`
+    );
+    // Without this, every substep that adds a Class A store would invalidate
+    // every pre-existing snapshot — five more times over the rest of v2.
+  });
+
+  await test('buildRestoredLibraryPlan skips a store the snapshot predates instead of throwing, and reports it', () => {
+    const olderRegistry = [{ ...sampleRegistry[0], restoreTarget: { kind: 'libraryField', field: 'entries' } }];
+    const snapshot = Snapshots.buildSnapshotStores(olderRegistry, sampleSources, { pinned: false });
+    const todaysRegistry = [
+      olderRegistry[0],
+      { id: 'preferences', kind: 'blob', get: (s) => s.library.preferences, restoreTarget: { kind: 'libraryField', field: 'preferences' } },
+    ];
+    const plan = Snapshots.buildRestoredLibraryPlan(todaysRegistry, snapshot);
+    assert.deepEqual(plan.skippedStores, ['preferences']);
+    assert.deepEqual(plan.library.entries, sampleSources.library.entries, 'what the snapshot DID hold still restores');
+    assert.equal('preferences' in plan.library, false, 'the skipped field is left for defaulting, not invented');
   });
 
   await test('verifySnapshotStores rejects a snapshot with an extra store not in the registry', () => {
