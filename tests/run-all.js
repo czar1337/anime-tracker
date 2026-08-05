@@ -358,11 +358,378 @@ async function run() {
   });
 
   // -------------------------------------------------------------------------
+  // Event log domain modules (P1.5): eventTypes.js / eventLog.js /
+  // eventCounters.js — all pure/DOM-free, loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('eventTypes.js');
+  const publicJsUrl = (name) => 'file:///' + path.join(__dirname, '..', 'public', 'js', name).replace(/\\/g, '/');
+  const {
+    EVENT_TYPES,
+    EVENT_SCHEMA_VERSION,
+    UNREACHABLE_EVENT_TYPES,
+    isKnownEventType,
+    isViewStatePreference,
+    anilistIdToAnimeId,
+    animeIdToAnilistId,
+    hasRequiredEventFields,
+  } = await import(publicJsUrl('eventTypes.js'));
+
+  await test('EVENT_TYPES is the spec\'s closed 13-type union, no duplicates', () => {
+    assert.equal(EVENT_TYPES.length, 13);
+    assert.equal(new Set(EVENT_TYPES).size, 13);
+    for (const t of ['episode_watched', 'status_changed', 'score_set', 'anime_added', 'anime_dropped', 'rewatch_started', 'review_written', 'settings_changed', 'font_previewed', 'app_opened', 'route_dwell', 'recommendation_added', 'recommendation_dismissed']) {
+      assert.ok(EVENT_TYPES.includes(t), `${t} must be in the union`);
+    }
+    assert.equal(isKnownEventType('not_a_real_type'), false);
+    assert.equal(EVENT_SCHEMA_VERSION, 1);
+  });
+
+  await test('the three unreachable types are declared in the union but flagged as having no action yet', () => {
+    assert.deepEqual(UNREACHABLE_EVENT_TYPES, ['rewatch_started', 'review_written', 'font_previewed']);
+    for (const t of UNREACHABLE_EVENT_TYPES) assert.ok(EVENT_TYPES.includes(t));
+  });
+
+  await test('view-state preferences are excluded from settings_changed, real settings are not', () => {
+    for (const k of ['sort', 'sortDir', 'filters', 'activeTab', 'discoverFilters']) {
+      assert.equal(isViewStatePreference(k), true, `${k} is view state, must be excluded`);
+    }
+    for (const k of ['colorTheme', 'textSize', 'textWeight', 'decor', 'decorDensity', 'originalTitles', 'notifyNewEpisodes', 'titleLanguage', 'contentTier', 'streamerMode']) {
+      assert.equal(isViewStatePreference(k), false, `${k} is a real setting, must be logged`);
+    }
+  });
+
+  await test('animeId converts both directions and survives a numeric round trip (the join achievements depend on)', () => {
+    assert.equal(anilistIdToAnimeId(101922), '101922');
+    assert.equal(typeof anilistIdToAnimeId(101922), 'string', 'spec types animeId as a string');
+    assert.equal(animeIdToAnilistId('101922'), 101922);
+    assert.equal(typeof animeIdToAnilistId('101922'), 'number', 'entries key on a numeric anilistId');
+    assert.equal(animeIdToAnilistId(anilistIdToAnimeId(101922)), 101922, 'round trip must be lossless');
+    assert.equal(anilistIdToAnimeId(undefined), undefined);
+    assert.equal(animeIdToAnilistId(''), null);
+    assert.equal(animeIdToAnilistId('not-a-number'), null);
+  });
+
+  await test('eventTypes.js and eventCounters.js are import-free, so the server can load them as ES modules from source bytes', () => {
+    // server.js loads both via the same data-URL dynamic import()
+    // loadExportRegistryModule() uses (works in dev AND inside the packaged
+    // SEA build), and a data: URL cannot resolve a relative import specifier.
+    // If either file gains an import, the server silently loses its ability to
+    // share ONE implementation of the counting rules with the browser — so pin
+    // it here rather than finding out from a broken snapshot.
+    for (const name of ['eventTypes.js', 'eventCounters.js']) {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', name), 'utf8');
+      const importLines = src.split('\n').filter((l) => /^\s*import\s/.test(l));
+      assert.deepEqual(importLines, [], `${name} must stay dependency-free (found: ${importLines.join(' | ')})`);
+    }
+  });
+
+  console.log('eventLog.js');
+  const { createUlidFactory, computeLocalDay, buildEvent, createOutbox } = await import(publicJsUrl('eventLog.js'));
+
+  await test('ULID is monotonic within a single millisecond, so a bulk batch sorts deterministically', () => {
+    // Frozen clock: every id lands in the same millisecond, which is exactly
+    // the bulk-import case (222 entries in one tick).
+    const ulid = createUlidFactory({ now: () => 1700000000000, randomInts: (n) => new Array(n).fill(0) });
+    const ids = Array.from({ length: 300 }, () => ulid());
+    assert.equal(new Set(ids).size, 300, 'all ids must be unique');
+    const sorted = [...ids].sort();
+    assert.deepEqual(sorted, ids, 'lexicographic sort must match creation order within the same ms');
+  });
+
+  await test('ULID is 26 Crockford-base32 chars and its time prefix sorts across milliseconds', () => {
+    let ms = 1700000000000;
+    const ulid = createUlidFactory({ now: () => ms, randomInts: (n) => new Array(n).fill(0) });
+    const a = ulid();
+    ms += 1000;
+    const b = ulid();
+    assert.match(a, /^[0-9A-HJKMNP-TV-Z]{26}$/, 'must be 26 Crockford-base32 chars');
+    assert.ok(b > a, 'a later millisecond must sort after an earlier one');
+  });
+
+  await test('ULID random-component overflow advances the millisecond, staying both unique AND ordered', () => {
+    // Every random slot starts at its max, so the very next id must carry all
+    // the way out of the random component. Re-rolling there could duplicate;
+    // advancing the effective millisecond cannot.
+    const ulid = createUlidFactory({ now: () => 1700000000000, randomInts: (n) => new Array(n).fill(31) });
+    const ids = [ulid(), ulid(), ulid()];
+    assert.equal(new Set(ids).size, 3, 'overflow must never emit a duplicate id');
+    assert.deepEqual([...ids].sort(), ids, 'overflow must preserve creation order');
+  });
+
+  await test('ULID never moves backwards when the device clock does (NTP correction / DST / manual change)', () => {
+    let ms = 1700000000000;
+    const ulid = createUlidFactory({ now: () => ms, randomInts: (n) => new Array(n).fill(0) });
+    const before = ulid();
+    ms -= 60_000; // clock jumps a minute into the past
+    const after = ulid();
+    assert.ok(after > before, 'an id minted after a backwards clock jump must still sort later');
+    assert.notEqual(after, before);
+  });
+
+  await test('computeLocalDay applies the 04:00 rollover: 03:00 belongs to the previous day', () => {
+    // Local-time constructor on purpose — localDay is a local-calendar notion.
+    assert.equal(computeLocalDay(new Date(2026, 7, 15, 3, 0, 0)), '2026-08-14', '03:00 -> previous day');
+    assert.equal(computeLocalDay(new Date(2026, 7, 15, 3, 59, 59)), '2026-08-14', '03:59 -> previous day');
+    assert.equal(computeLocalDay(new Date(2026, 7, 15, 4, 0, 0)), '2026-08-15', '04:00 -> same day');
+    assert.equal(computeLocalDay(new Date(2026, 7, 15, 23, 59, 0)), '2026-08-15', 'late evening -> same day');
+    assert.equal(computeLocalDay(new Date(2026, 7, 15, 12, 0, 0)), '2026-08-15');
+  });
+
+  await test('computeLocalDay handles month and year boundaries under the rollover', () => {
+    assert.equal(computeLocalDay(new Date(2026, 8, 1, 2, 0, 0)), '2026-08-31', 'Sept 1 02:00 -> Aug 31');
+    assert.equal(computeLocalDay(new Date(2026, 0, 1, 1, 0, 0)), '2025-12-31', 'Jan 1 01:00 -> Dec 31 of the prior year');
+  });
+
+  await test('buildEvent stamps every required field and freezes localDay at write time', () => {
+    const at = new Date(2026, 7, 15, 3, 30, 0);
+    const event = buildEvent('episode_watched', { animeId: '1', from: 4, to: 5 }, {
+      ulid: () => 'FAKEULID0000000000000000A',
+      sessionId: 'SESSION1',
+      now: () => at,
+    });
+    assert.ok(hasRequiredEventFields(event), 'must carry every required field');
+    assert.equal(event.schemaVersion, 1);
+    assert.equal(event.type, 'episode_watched');
+    assert.equal(event.ts, at.getTime());
+    assert.equal(event.localDay, '2026-08-14', 'frozen with the rollover applied, not recomputed later');
+    assert.equal(event.sessionId, 'SESSION1');
+    assert.equal(event.from, 4);
+    assert.equal(event.to, 5);
+    assert.equal(typeof event.tzOffset, 'number');
+  });
+
+  await test('buildEvent refuses an unknown event type (the union is closed)', () => {
+    assert.throws(
+      () => buildEvent('made_up_type', {}, { ulid: () => 'X', sessionId: 'S' }),
+      /Unknown event type/
+    );
+  });
+
+  await test('buildEvent omits undefined optional fields rather than writing nulls into the log', () => {
+    const event = buildEvent('app_opened', { animeId: undefined, episode: undefined }, { ulid: () => 'X', sessionId: 'S' });
+    assert.equal('animeId' in event, false);
+    assert.equal('episode' in event, false);
+  });
+
+  await test('hasRequiredEventFields rejects an event missing any frozen field (the server must never default them)', () => {
+    const complete = { id: 'A', schemaVersion: 1, type: 'app_opened', ts: 1, tzOffset: 0, localDay: '2026-01-01', sessionId: 'S' };
+    assert.equal(hasRequiredEventFields(complete), true);
+    for (const field of ['id', 'schemaVersion', 'type', 'ts', 'tzOffset', 'localDay', 'sessionId']) {
+      const broken = { ...complete };
+      delete broken[field];
+      assert.equal(hasRequiredEventFields(broken), false, `missing ${field} must be rejected`);
+    }
+  });
+
+  // A Map-backed stand-in for localStorage, so the outbox's durability is
+  // testable without a browser.
+  function fakeStorage(initial = null) {
+    const map = new Map();
+    if (initial !== null) map.set('anime-tracker-event-outbox', initial);
+    return {
+      getItem: (k) => (map.has(k) ? map.get(k) : null),
+      setItem: (k, v) => map.set(k, v),
+      _dump: () => map.get('anime-tracker-event-outbox'),
+    };
+  }
+
+  await test('outbox persists to storage on add, so buffered events survive a reload (B5)', () => {
+    const storage = fakeStorage();
+    const outbox = createOutbox({ storage, post: async () => ({ acceptedIds: [] }) });
+    outbox.add({ id: 'A' });
+    outbox.add([{ id: 'B' }, { id: 'C' }]);
+    assert.equal(outbox.size, 3);
+    assert.deepEqual(JSON.parse(storage._dump()).map((e) => e.id), ['A', 'B', 'C']);
+    // A fresh outbox over the same storage rehydrates — the reload case.
+    const revived = createOutbox({ storage, post: async () => ({ acceptedIds: [] }) });
+    assert.deepEqual(revived.peek().map((e) => e.id), ['A', 'B', 'C']);
+  });
+
+  await test('outbox retains everything when the flush fails, and drains only accepted ids on success', async () => {
+    const storage = fakeStorage();
+    let shouldFail = true;
+    const outbox = createOutbox({
+      storage,
+      post: async (batch) => {
+        if (shouldFail) throw new Error('offline');
+        return { acceptedIds: batch.map((e) => e.id) };
+      },
+    });
+    outbox.add([{ id: 'A' }, { id: 'B' }]);
+    const failed = await outbox.flush();
+    assert.equal(failed.flushed, 0);
+    assert.equal(outbox.size, 2, 'a failed flush must retain every event for the next attempt');
+    shouldFail = false;
+    const ok = await outbox.flush();
+    assert.equal(ok.flushed, 2);
+    assert.equal(outbox.size, 0);
+    assert.deepEqual(JSON.parse(storage._dump()), []);
+  });
+
+  await test('outbox keeps unaccepted events when the server accepts only part of a batch', async () => {
+    const storage = fakeStorage();
+    const outbox = createOutbox({ storage, post: async () => ({ acceptedIds: ['A'] }) });
+    outbox.add([{ id: 'A' }, { id: 'B' }]);
+    await outbox.flush();
+    assert.deepEqual(outbox.peek().map((e) => e.id), ['B']);
+  });
+
+  await test('outbox rehydrates from an unparseable buffer as empty rather than throwing', () => {
+    const outbox = createOutbox({ storage: fakeStorage('{not valid json'), post: async () => ({}) });
+    assert.equal(outbox.size, 0);
+  });
+
+  await test('outbox evicts oldest-first at its cap so a failing flush cannot grow localStorage without bound', () => {
+    const storage = fakeStorage();
+    const outbox = createOutbox({ storage, post: async () => ({}), maxEvents: 5 });
+    outbox.add(Array.from({ length: 12 }, (_, i) => ({ id: `E${i}` })));
+    assert.equal(outbox.size, 5);
+    assert.deepEqual(outbox.peek().map((e) => e.id), ['E7', 'E8', 'E9', 'E10', 'E11'], 'newest retained');
+  });
+
+  console.log('eventCounters.js');
+  const {
+    seedBaselineFromEntries,
+    foldEvents,
+    addTotals,
+    countersTotal,
+    buildCountersFile,
+    emptyCounterTotals,
+    episodeDelta,
+    isProgressCorrection,
+    durationFallbackKeyForFormat,
+  } = await import(publicJsUrl('eventCounters.js'));
+
+  await test('durationFallbackKeyForFormat maps MOVIE to film and every other AniList format to tv', () => {
+    assert.equal(durationFallbackKeyForFormat('MOVIE'), 'film');
+    for (const f of ['TV', 'TV_SHORT', 'ONA', 'OVA', 'SPECIAL', 'MUSIC', undefined]) {
+      assert.equal(durationFallbackKeyForFormat(f), 'tv', `${f} should fall back to tv`);
+    }
+  });
+
+  await test('episodeDelta / isProgressCorrection implement the reader contract (to <= from is a correction)', () => {
+    assert.equal(episodeDelta({ from: 5, to: 6 }), 1);
+    assert.equal(episodeDelta({ from: 0, to: 24 }), 24);
+    assert.equal(episodeDelta({ from: 24, to: 4 }), -20);
+    assert.equal(isProgressCorrection({ from: 24, to: 4 }), true);
+    assert.equal(isProgressCorrection({ from: 5, to: 5 }), true, 'no-op counts as a correction, not an advance');
+    assert.equal(isProgressCorrection({ from: 5, to: 6 }), false);
+  });
+
+  await test('seedBaselineFromEntries matches statsLogic.js exactly (duration || 0, no invented fallback)', () => {
+    const entries = [
+      { episodesWatched: 25, duration: 24, listStatus: 'watched' },
+      { episodesWatched: 12, duration: 24, listStatus: 'watching' },
+      { episodesWatched: 3, duration: null, listStatus: 'watched' }, // null duration contributes 0 minutes
+    ];
+    const baseline = seedBaselineFromEntries(entries);
+    assert.equal(baseline.totalEpisodes, 40);
+    assert.equal(baseline.totalMinutes, 25 * 24 + 12 * 24);
+    assert.equal(baseline.totalCompleted, 2);
+  });
+
+  await test('seedBaselineFromEntries on an empty/missing library is all zeros, never NaN', () => {
+    assert.deepEqual(seedBaselineFromEntries([]), emptyCounterTotals());
+    assert.deepEqual(seedBaselineFromEntries(undefined), emptyCounterTotals());
+  });
+
+  await test('foldEvents accumulates positive episode deltas and ignores corrections (monotonic lifetime totals)', () => {
+    const totals = foldEvents([
+      { id: '1', type: 'episode_watched', from: 4, to: 5, meta: { durationMinutes: 24 } },
+      { id: '2', type: 'episode_watched', from: 5, to: 8, meta: { durationMinutes: 24 } },
+      { id: '3', type: 'episode_watched', from: 8, to: 2, meta: { durationMinutes: 24 } }, // correction
+      { id: '4', type: 'episode_watched', from: 5, to: 5, meta: { durationMinutes: 24 } }, // no-op
+    ]);
+    assert.equal(totals.totalEpisodes, 4, '1 + 3, corrections ignored');
+    assert.equal(totals.totalMinutes, 4 * 24);
+  });
+
+  await test('foldEvents dedups by id so a duplicated log line never double-counts', () => {
+    const dup = { id: 'SAME', type: 'episode_watched', from: 0, to: 10, meta: { durationMinutes: 24 } };
+    const totals = foldEvents([dup, { ...dup }, { ...dup }]);
+    assert.equal(totals.totalEpisodes, 10, 'counted exactly once');
+  });
+
+  await test('foldEvents uses the tuning fallback only when the event carries no duration, format-aware', () => {
+    const tv = foldEvents([{ id: '1', type: 'episode_watched', from: 0, to: 2, meta: { format: 'TV' } }], {
+      episodeDurationFallbackMinutes: { tv: 24, film: 100 },
+    });
+    assert.equal(tv.totalMinutes, 48);
+    const film = foldEvents([{ id: '2', type: 'episode_watched', from: 0, to: 1, meta: { format: 'MOVIE' } }], {
+      episodeDurationFallbackMinutes: { tv: 24, film: 100 },
+    });
+    assert.equal(film.totalMinutes, 100);
+  });
+
+  await test('foldEvents counts a completion on the transition into watched, once, and never decrements', () => {
+    const totals = foldEvents([
+      { id: '1', type: 'status_changed', from: 'watching', to: 'watched' },
+      { id: '2', type: 'status_changed', from: 'watched', to: 'watching' }, // un-completing must not subtract
+      { id: '3', type: 'status_changed', from: 'watched', to: 'watched' }, // no transition
+      { id: '4', type: 'anime_added', to: 'watched' },
+    ]);
+    assert.equal(totals.totalCompleted, 2, 'one real transition + one add-straight-into-watched');
+  });
+
+  await test('foldEvents ignores types that do not affect counters, and malformed entries', () => {
+    const totals = foldEvents([
+      { id: '1', type: 'app_opened' },
+      { id: '2', type: 'route_dwell', meta: { route: 'settings', ms: 5000 } },
+      { id: '3', type: 'score_set', from: null, to: 9 },
+      null,
+      'not an object',
+    ]);
+    assert.deepEqual(totals, emptyCounterTotals());
+  });
+
+  await test('the counters invariant holds: total = baseline + fold(log)', () => {
+    const baseline = seedBaselineFromEntries([{ episodesWatched: 100, duration: 24, listStatus: 'watched' }]);
+    const fromLog = foldEvents([{ id: '1', type: 'episode_watched', from: 0, to: 3, meta: { durationMinutes: 24 } }]);
+    const file = buildCountersFile({ baseline, fromLog, logCount: 1, lastEventId: '1' });
+    assert.deepEqual(countersTotal(file), addTotals(baseline, fromLog));
+    assert.equal(countersTotal(file).totalEpisodes, 103);
+    assert.equal(file.schemaVersion, 1);
+  });
+
+  // -------------------------------------------------------------------------
   // Store (public/js/state.js) — pure, no DOM access, loaded via dynamic import().
   // -------------------------------------------------------------------------
   console.log('state.js');
   const stateUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'state.js').replace(/\\/g, '/');
   const { Store } = await import(stateUrl);
+
+  // Rule 13 (forward compatibility) at the TOP level of library.json. Before
+  // P1.5 fixed it, toJSON() was a whitelist rebuild, so a field written by a
+  // newer app version — or by any later substep — was invisible to the Store
+  // and silently erased by the very next debounced save (a tab click is
+  // enough to trigger one). Found in P1.5's design review before any new
+  // top-level field existed to lose; these two tests are the regression guard
+  // that keeps it fixed for P1.7's stores and beyond.
+  await test('B1 regression: an unknown top-level library field survives a load -> save round trip', () => {
+    Store.setLibrary({
+      schemaVersion: 5,
+      entries: [],
+      preferences: {},
+      dismissedItems: [],
+      someFutureTopLevelStore: { deep: { value: 42 } },
+      anotherOne: [1, 2, 3],
+    });
+    const saved = Store.toJSON();
+    assert.deepEqual(saved.someFutureTopLevelStore, { deep: { value: 42 } }, 'unknown object field must survive');
+    assert.deepEqual(saved.anotherOne, [1, 2, 3], 'unknown array field must survive');
+    assert.equal(saved.schemaVersion, 5, 'modelled fields must still round-trip');
+  });
+
+  await test('B1 regression: preserved unknown fields are replaced (not merged) by the next load, and never shadow a modelled field', () => {
+    Store.setLibrary({ schemaVersion: 5, entries: [], preferences: {}, dismissedItems: [], goneNextTime: true });
+    assert.equal(Store.toJSON().goneNextTime, true);
+    // A later load without that field must not keep resurrecting it.
+    Store.setLibrary({ schemaVersion: 5, entries: [], preferences: {}, dismissedItems: [] });
+    assert.equal('goneNextTime' in Store.toJSON(), false, 'stale unknown fields must not persist across loads');
+    // A modelled field arriving in the bag must never win over real state.
+    Store.setLibrary({ schemaVersion: 5, entries: [{ anilistId: 1 }], preferences: {}, dismissedItems: [] });
+    assert.equal(Store.toJSON().entries.length, 1);
+  });
 
   await test('addDismissedItem stores title/coverImage and de-dupes by anilistId', () => {
     Store.setLibrary({ schemaVersion: 4, entries: [], preferences: {}, dismissedItems: [] });
@@ -905,35 +1272,69 @@ async function run() {
   const exportRegistryUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'exportRegistry.js').replace(/\\/g, '/');
   const { CLASS_A_STORES, buildExport } = await import(exportRegistryUrl);
 
-  await test("buildExport covers every registered store, including today's three", () => {
-    const library = {
-      schemaVersion: 4,
-      entries: [{ anilistId: 1 }],
-      preferences: { activeTab: 'watching' },
-      dismissedItems: [{ anilistId: 2 }],
-    };
-    const result = buildExport(CLASS_A_STORES, { library });
-    assert.deepEqual(Object.keys(result.stores).sort(), ['dismissedItems', 'entries', 'preferences']);
-    assert.deepEqual(result.stores.entries, library.entries);
-    assert.deepEqual(result.stores.preferences, library.preferences);
-    assert.deepEqual(result.stores.dismissedItems, library.dismissedItems);
+  // Every Class A store as of P1.5. The two new ones read from their own
+  // sources keys, so a full bag is now what a real caller must pass.
+  const fullSources = (overrides = {}) => ({
+    library: { schemaVersion: 6, entries: [{ anilistId: 1 }], preferences: { activeTab: 'watching' }, dismissedItems: [{ anilistId: 2 }] },
+    eventLog: [],
+    counters: {},
+    ...overrides,
   });
 
-  await test('buildExport is registry-driven: a synthetic 4th store flows through with no code change', () => {
+  await test('buildExport covers every registered store, including P1.5\'s two new ones', () => {
+    const sources = fullSources();
+    const result = buildExport(CLASS_A_STORES, sources);
+    assert.deepEqual(Object.keys(result.stores).sort(), ['counters', 'dismissedItems', 'entries', 'eventLog', 'preferences']);
+    assert.deepEqual(result.stores.entries, sources.library.entries);
+    assert.deepEqual(result.stores.preferences, sources.library.preferences);
+    assert.deepEqual(result.stores.dismissedItems, sources.library.dismissedItems);
+    assert.deepEqual(result.stores.eventLog, []);
+    assert.deepEqual(result.stores.counters, {});
+  });
+
+  await test('buildExport is registry-driven: a synthetic extra store flows through with no code change', () => {
     // The real coverage guard (docs/v2-spec.md rule 3a's "mechanical
     // backstop"): proves buildExport() never hardcodes a store id, by
     // injecting one it has never seen before into a *copy* of the registry,
-    // rather than re-checking today's three known stores.
+    // rather than re-checking today's known stores.
     const syntheticRegistry = [...CLASS_A_STORES, { id: 'syntheticStore', kind: 'blob', get: () => ({ hello: 'world' }) }];
-    const result = buildExport(syntheticRegistry, { library: { schemaVersion: 4, entries: [], preferences: {}, dismissedItems: [] } });
+    const result = buildExport(syntheticRegistry, fullSources());
     assert.deepEqual(result.stores.syntheticStore, { hello: 'world' });
   });
 
-  await test('buildExport defaults missing library fields to empty rather than throwing', () => {
-    const result = buildExport(CLASS_A_STORES, { library: {} });
+  await test('buildExport still defaults missing LIBRARY fields to empty rather than throwing', () => {
+    // Unchanged contract for library-backed stores: a genuinely empty/new
+    // library is legal and must not throw.
+    const result = buildExport(CLASS_A_STORES, fullSources({ library: {} }));
     assert.deepEqual(result.stores.entries, []);
     assert.deepEqual(result.stores.preferences, {});
     assert.deepEqual(result.stores.dismissedItems, []);
+  });
+
+  await test('B3 regression: buildExport THROWS when a required source is not supplied at all', () => {
+    // This is the guard that matters most in the whole registry. Before it, a
+    // caller that forgot sources.eventLog produced an export/snapshot that
+    // CLAIMED to contain the event log, contained zero events, and passed
+    // verification completely clean — a silently wrong backup that rule 3a's
+    // coverage test cannot catch, because the store IS registered. Worse:
+    // events.jsonl is deliberately excluded from the 150-copy backups/
+    // rotation, so snapshots are its only redundancy.
+    assert.throws(
+      () => buildExport(CLASS_A_STORES, { library: { entries: [] }, counters: {} }), // eventLog omitted
+      /requires sources\.eventLog/
+    );
+    assert.throws(
+      () => buildExport(CLASS_A_STORES, { library: { entries: [] }, eventLog: [] }), // counters omitted
+      /requires sources\.counters/
+    );
+  });
+
+  await test('B3 regression: an EMPTY required source is legal — only an absent one is fatal', () => {
+    // "Empty because the user is brand new" must keep working; only "absent
+    // because the caller forgot" is a bug.
+    const result = buildExport(CLASS_A_STORES, fullSources({ eventLog: [], counters: {} }));
+    assert.deepEqual(result.stores.eventLog, []);
+    assert.deepEqual(result.stores.counters, {});
   });
 
   // -------------------------------------------------------------------------
@@ -998,12 +1399,48 @@ async function run() {
 
   // ---- Review findings regression coverage --------------------------------
 
-  await test('verifySnapshotStores rejects a snapshot with a whole registered store removed', () => {
+  await test('verifySnapshotStores still rejects a store DROPPED after the snapshot was written (manifest checksum catches it)', () => {
     const snapshot = Snapshots.buildSnapshotStores(sampleRegistry, sampleSources, { pinned: false });
-    delete snapshot.stores.preferences; // simulates a store dropped entirely, not just tampered
+    delete snapshot.stores.preferences; // post-hoc tampering, not version skew
     const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
-    assert.equal(valid, false);
-    assert.ok(errors.some((e) => e.includes('Missing registered store') && e.includes('preferences')));
+    assert.equal(valid, false, 'dropping a store from a written snapshot must still invalidate it');
+    // The manifest checksum binds the exact store-id -> checksum map, so this is
+    // caught regardless of what the live registry happens to contain today.
+    // That is why the store-coverage check could safely be downgraded to a
+    // warning for genuine version skew (see the next test) without losing any
+    // tamper protection.
+    assert.ok(
+      errors.some((e) => e.includes('manifest checksum mismatch')),
+      `expected a manifest checksum error, got: ${errors.join(' | ')}`
+    );
+  });
+
+  await test('verifySnapshotStores ACCEPTS a snapshot that merely predates a newer store, warning instead of failing', () => {
+    // Written by an older build that only knew about `entries`...
+    const olderRegistry = [sampleRegistry[0]];
+    const snapshot = Snapshots.buildSnapshotStores(olderRegistry, sampleSources, { pinned: false });
+    // ...and verified today, against a registry that also has `preferences`.
+    const { valid, errors, warnings } = Snapshots.verifySnapshotStores(snapshot, sampleRegistry);
+    assert.equal(valid, true, `an older snapshot must stay restorable, got: ${errors.join(' | ')}`);
+    assert.ok(
+      warnings.some((w) => w.includes('predates') && w.includes('preferences')),
+      `expected a version-skew warning, got: ${warnings.join(' | ')}`
+    );
+    // Without this, every substep that adds a Class A store would invalidate
+    // every pre-existing snapshot — five more times over the rest of v2.
+  });
+
+  await test('buildRestoredLibraryPlan skips a store the snapshot predates instead of throwing, and reports it', () => {
+    const olderRegistry = [{ ...sampleRegistry[0], restoreTarget: { kind: 'libraryField', field: 'entries' } }];
+    const snapshot = Snapshots.buildSnapshotStores(olderRegistry, sampleSources, { pinned: false });
+    const todaysRegistry = [
+      olderRegistry[0],
+      { id: 'preferences', kind: 'blob', get: (s) => s.library.preferences, restoreTarget: { kind: 'libraryField', field: 'preferences' } },
+    ];
+    const plan = Snapshots.buildRestoredLibraryPlan(todaysRegistry, snapshot);
+    assert.deepEqual(plan.skippedStores, ['preferences']);
+    assert.deepEqual(plan.library.entries, sampleSources.library.entries, 'what the snapshot DID hold still restores');
+    assert.equal('preferences' in plan.library, false, 'the skipped field is left for defaulting, not invented');
   });
 
   await test('verifySnapshotStores rejects a snapshot with an extra store not in the registry', () => {
@@ -1086,6 +1523,113 @@ async function run() {
     const registryWithNoTarget = [{ id: 'entries', kind: 'records', recordId: 'anilistId', get: (s) => s.library.entries }];
     const snapshot = Snapshots.buildSnapshotStores(registryWithNoTarget, sampleSources, { pinned: false });
     assert.throws(() => Snapshots.buildRestoredLibrary(registryWithNoTarget, snapshot), /no supported restore target/);
+  });
+
+  // --- P1.5 additions to snapshots.js -------------------------------------
+
+  const appendLogRegistry = [
+    {
+      id: 'eventLog',
+      kind: 'appendLog',
+      recordId: 'id',
+      requiredSources: ['eventLog'],
+      get: (s) => s.eventLog,
+      restoreTarget: { kind: 'eventLogFile' },
+      restoreVerification: 'superset',
+    },
+    { id: 'counters', kind: 'blob', requiredSources: ['counters'], get: (s) => s.counters, restoreTarget: { kind: 'countersFile' } },
+  ];
+  const appendLogSources = {
+    library: { schemaVersion: 6 },
+    eventLog: [
+      { id: '01AAA', type: 'app_opened', ts: 1 },
+      { id: '01BBB', type: 'episode_watched', ts: 2, from: 1, to: 2 },
+    ],
+    counters: { schemaVersion: 1, baseline: { totalEpisodes: 10 }, fromLog: { totalEpisodes: 1 } },
+  };
+
+  await test('appendLog store: one whole-store checksum plus count and first/last id, no per-record checksums', () => {
+    const snapshot = Snapshots.buildSnapshotStores(appendLogRegistry, appendLogSources, { pinned: false });
+    const store = snapshot.stores.eventLog;
+    assert.equal(store.kind, 'appendLog');
+    assert.equal(store.rowCount, 2);
+    assert.equal(store.firstId, '01AAA');
+    assert.equal(store.lastId, '01BBB');
+    assert.equal('recordChecksums' in store, false, 'per-record checksums are deliberately absent for an append-only log');
+    assert.ok(store.checksum);
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, appendLogRegistry);
+    assert.equal(valid, true, errors.join('; '));
+  });
+
+  await test('appendLog store: tampering with a record fails the whole-store checksum', () => {
+    const snapshot = Snapshots.buildSnapshotStores(appendLogRegistry, appendLogSources, { pinned: false });
+    snapshot.stores.eventLog.records[1].to = 99;
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, appendLogRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.join('; ').includes('whole-store checksum mismatch'));
+  });
+
+  await test('appendLog store: tampering with firstId/lastId is caught even though the manifest does not bind them', () => {
+    const snapshot = Snapshots.buildSnapshotStores(appendLogRegistry, appendLogSources, { pinned: false });
+    snapshot.stores.eventLog.lastId = '01ZZZ';
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, appendLogRegistry);
+    assert.equal(valid, false);
+    assert.ok(errors.join('; ').includes('first/last id'));
+  });
+
+  await test('B3 regression: buildSnapshotStores throws when a required source is absent (never a silently empty log)', () => {
+    assert.throws(
+      () => Snapshots.buildSnapshotStores(appendLogRegistry, { library: {}, counters: {} }, { pinned: false }),
+      /requires sources\.eventLog/
+    );
+  });
+
+  await test('B4: buildRestoredLibraryPlan routes the event log to a union side effect, never a library field', () => {
+    const snapshot = Snapshots.buildSnapshotStores(appendLogRegistry, appendLogSources, { pinned: false });
+    const plan = Snapshots.buildRestoredLibraryPlan(appendLogRegistry, snapshot);
+    assert.equal('eventLog' in plan.library, false, 'the log must never be written into library.json');
+    const logEffect = plan.sideEffects.find((e) => e.kind === 'eventLogFile');
+    assert.ok(logEffect, 'must emit an eventLogFile side effect');
+    assert.equal(logEffect.mode, 'unionById', 'restore unions, never truncates');
+    assert.deepEqual(logEffect.records.map((r) => r.id), ['01AAA', '01BBB']);
+    const countersEffect = plan.sideEffects.find((e) => e.kind === 'countersFile');
+    assert.ok(countersEffect);
+    assert.equal(countersEffect.mode, 'recomputeFromLog', "a snapshot's counters are only correct as of that snapshot");
+  });
+
+  await test('B2: only the two stores that cannot be byte-compared opt out of exact post-restore verification', () => {
+    // Against the REAL registry, so a future store cannot silently opt out of
+    // verification by forgetting to declare a mode.
+    const realExact = Snapshots.storeIdsWithExactRestoreVerification(CLASS_A_STORES);
+    assert.deepEqual(realExact.sort(), ['dismissedItems', 'entries', 'preferences'], 'library-backed stores stay byte-exact');
+
+    const byId = new Map(CLASS_A_STORES.map((s) => [s.id, s]));
+    // The log is union-restored, so it legitimately ends up with MORE than the
+    // snapshot held; it is checked as a superset instead.
+    assert.equal(byId.get('eventLog').restoreVerification, 'superset');
+    // Counters are recomputed on restore (fromLog is only correct as of the
+    // snapshot), so only their irreplaceable half is compared.
+    assert.equal(byId.get('counters').restoreVerification, 'derived');
+    assert.deepEqual(byId.get('counters').verifiedSubset, ['baseline']);
+
+    // Every store must declare one of the three known modes — no silent third
+    // state, and no store left unverified by omission.
+    for (const store of CLASS_A_STORES) {
+      const mode = store.restoreVerification || 'exact';
+      assert.ok(['exact', 'superset', 'derived'].includes(mode), `${store.id} has an unknown verification mode: ${mode}`);
+      if (mode === 'derived') {
+        assert.ok(Array.isArray(store.verifiedSubset) && store.verifiedSubset.length > 0, `${store.id} must name the fields it still verifies`);
+      }
+    }
+  });
+
+  await test('the two required-sources guards in exportRegistry.js and snapshots.js behave identically', () => {
+    // They are deliberately duplicated (browser ESM vs Node CommonJS), so pin
+    // them against each other rather than trusting they stay in step.
+    const store = { id: 'x', requiredSources: ['needed'] };
+    assert.throws(() => Snapshots.assertRequiredSources(store, {}), /requires sources\.needed/);
+    assert.doesNotThrow(() => Snapshots.assertRequiredSources(store, { needed: [] }));
+    assert.doesNotThrow(() => Snapshots.assertRequiredSources({ id: 'y' }, {}), 'no requiredSources means no constraint');
   });
 
   await test('selectSnapshotsToPrune always keeps the pinned snapshot', () => {

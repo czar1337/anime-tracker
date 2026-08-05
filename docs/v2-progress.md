@@ -53,7 +53,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P1.2 Storage classes and concurrency | done | 2026-08-02 | this session, see "P1.2 implementation session", "P1.2 independent review session" and "P1.2 close out" below | — |
 | P1.3 Settings schema and transactional migration | done | 2026-08-02 | this session, see "P1.3 implementation session" and "P1.3 close out" below | — |
 | P1.4 Token layer, tuning config, inventory | done | 2026-08-02 | this session, see "P1.4 implementation session" and "P1.4 close out" below | — |
-| P1.5 Event log v1 | not started | — | — | — |
+| P1.5 Event log v1 | done | 2026-08-05 | this session, see "P1.5 implementation session" and "P1.5 close out" below | — |
 | P1.6 Copy registry, new v2 surfaces only | not started | — | — | — |
 | P1.7 Lists, collections, tags, achievement hook | not started | — | — | — |
 | P2 Token conversion, batched per directory | not started | — | — | — |
@@ -1542,3 +1542,332 @@ substep's test proves similarly sensitive.
 
 Committed on `v2/P1.4` (`git log --grep "flakiness"`) and re-merged into
 `main`.
+
+## P1.5 implementation session
+
+Branch `v2/P1.5`, from `main` (P1.1-P1.4 merged). Reconciled against
+`git log --all --oneline --grep "^v2("` first: P1.4 is the latest landed
+substep, P1.5 had no prior commits anywhere.
+
+Used plan mode. Planning ran an exhaustive emission-site sweep and an
+adversarial design review; the review found **six blocking problems** in the
+initial design, every one since verified against the real code and the real
+library. They reshaped the design substantially, so they are recorded here
+rather than discovered mid-implementation.
+
+### The transaction reframe, stated plainly
+
+The spec asks for "one IndexedDB transaction per user action, covering the
+library write, the event append and the counter update." There is no IndexedDB
+here and no multi-file filesystem transaction. Same honest-reframe precedent
+P1.2 set for `navigator.locks`:
+
+> **The log is the ledger, appended to and never rewritten. The library is the
+> projection the user edits directly. Counters are a verifiable fold of the
+> ledger plus a historical baseline.**
+
+`POST /api/events` is therefore deliberately **decoupled** from
+`PUT /api/library`: no `If-Match`, so it can never 409, and the route guarding
+the irreplaceable file is not touched at all. Coupling them would have been
+actively *worse* than reframing (finding B6), so this is a considered trade,
+not a shortcut. Bulk actions still map cleanly: one POST with N events.
+
+### The six blocking findings, all verified
+
+1. **B1 - a latent pre-existing bug this substep would have triggered.**
+   `state.js`'s `toJSON()`/`setLibrary()` were top-level **whitelist**
+   rebuilds, so any new top-level `library.json` field was invisible to the
+   client and erased by the very next debounced save (a tab click is enough).
+   Had counters lived in `library.json`: boot seeds the real
+   6,388/149,955/210, one tab click wipes them, and because `schemaVersion` is
+   already past the seeding migration it never re-runs - roughly 2,500 hours of
+   history gone silently and unrecoverably, with no log history to rebuild
+   from. Also a straight violation of rule 13 at the top level, while
+   `settingsSchema.js` already honoured it one level down, and P1.7's stores
+   would have hit the same trap. **Fixed and proven both ways** against a real
+   server: an unknown field survives a real GET -> tab-click -> PUT cycle with
+   the fix, and reads `undefined` after that same cycle without it. Framed as a
+   pre-existing bug fix, like P1.4's flakiness fix.
+2. **B2 - the first snapshot restore would have declared a healthy library
+   corrupt.** The post-restore check demanded byte-exact store equality; an
+   `eventLog` store reading a `sources` bag that only ever contained
+   `{ library }` would checksum `[]`, never match, and drop the user into the
+   recovery screen telling them not to trust their library - *after* a
+   perfectly good `writeLibraryAtomic()` had already succeeded.
+3. **B3 - the `sources` bag failed *open*, and a test enshrined it.** All three
+   registry call sites passed `{ library }` only, and a test explicitly
+   asserted that a missing source defaults to empty. One forgotten
+   `sources.eventLog` would have produced a snapshot that *claims* to hold the
+   log, holds zero events, and passes verification **completely clean** - the
+   exact definition of a silently-wrong backup, which rule 3a's coverage test
+   cannot catch because the store *is* registered. Worse: `events.jsonl` is
+   deliberately excluded from the 150-copy `backups/` rotation, so snapshots
+   are its only redundancy. Closed with `requiredSources`, which now throws.
+   "Empty because the user is new" stays legal; "absent because the caller
+   forgot" is fatal. **The single most important structural change here.**
+4. **B4 - restore semantics for an append-only log were undefined, and both
+   obvious answers were wrong.** Truncating to a ten-day-old snapshot destroys
+   ten days of real events (forbidden); leaving the log alone desyncs the
+   snapshot's counters. Resolved: restore **unions by id, never truncates**,
+   and counters are **recomputed** from the unioned log rather than copied
+   back.
+5. **B5 - the 409 path silently discarded the outbox.** `attemptSave()` on a
+   conflict shows the Reload toast and returns *without rescheduling*. The
+   original design batched events into that same PUT and kept the outbox in
+   memory, so two tabs -> 409 -> Reload -> every buffered event gone. Fixed by
+   mirroring the outbox to `localStorage` (rule 12's sanctioned staging-buffer
+   use), proven by a real-browser test that blocks the flush, reloads, and
+   watches the event still arrive.
+6. **B6 - coupling events to the library write could destroy an unsaved
+   edit.** If the events route wrote `library.json` for counters, its ETag
+   would change under every open tab, so the next PUT from any tab 409s - and
+   per B5 that tab's pending score/episode/note is dropped. Logging "the app
+   opened" could have destroyed real unsaved work. This settled the decoupling.
+
+### What landed, in commit order
+
+- `public/js/state.js` - the B1 fix plus two regression tests.
+- Three new pure, DOM-free domain modules: `eventTypes.js` (the closed 13-type
+  union, `EVENT_SCHEMA_VERSION`, the `VIEW_STATE_PREFERENCE_KEYS` exclusion,
+  the `animeId` string/number conversion, the required-field list),
+  `eventLog.js` (monotonic ULID, frozen `localDay`, per-app-load `sessionId`,
+  the durable outbox) and `eventCounters.js` (the pure fold and the seed).
+  `eventTypes.js` and `eventCounters.js` are deliberately **import-free** so
+  `server.js` can load them as real ES modules from their own source bytes (the
+  data-URL trick `loadExportRegistryModule()` already uses, which works in dev
+  *and* inside the packaged SEA build) - that is what lets server and browser
+  share **one** implementation of the counting rules instead of two copies that
+  drift. A test pins that they stay import-free.
+- `exportRegistry.js` / `snapshots.js` - the two new stores, the `appendLog`
+  kind (one whole-store checksum, no per-record checksums: they buy nothing for
+  a log you may not rewrite and would cost an O(n) sha256 across the four
+  passes each snapshot already makes), `requiredSources`,
+  `buildRestoredLibraryPlan()` returning file side effects, and three explicit
+  verification modes (`exact` / `superset` / `derived`).
+- `server.js` - `events.jsonl` (append + fsync, lazy dedup index, torn-line
+  quarantine), `counters.json` (seed, fold, O(1) staleness check, self-heal),
+  `POST`/`GET /api/events`, `buildClassASources()`, restore side effects, reset
+  archiving.
+- Emission wiring across seven frontend files, roughly 20 sites.
+- `tests/e2e/event-log.spec.js` - 14 tests.
+
+### Bugs the tests caught during implementation
+
+Recorded because this is the substantive value of having written them:
+
+- **The ULID overflow path could emit a duplicate.** Re-rolling the random
+  component inside one millisecond can collide; it now advances the effective
+  millisecond, keeping ids both unique *and* ordered. The same branch also
+  fixes a **backwards device clock** (NTP/DST/manual change) emitting ids that
+  sort before already-written ones.
+- **The dedup index went stale when `events.jsonl` changed underneath the
+  process.** On restore that meant the snapshot's events read as "already
+  present", so the union appended **nothing** and an empty log was restored
+  while reporting success. Restore now invalidates the index first - precisely
+  the moment the file may have changed out from under us.
+- **Boot read and parsed the entire log on every start**, to compare line
+  counts: measured **3,840 ms** with a 200k-event log, growing forever. Because
+  the log is append-only it cannot change without changing size, so
+  `counters.json` records `logBytes` and the check is now a `stat()`. Boot at
+  200k events: **3,840 ms -> 1,371 ms**, with no re-fold.
+
+### Judgment calls, all decided and recorded
+
+- **Undo emits a real reversal event**, never erases. For status undo it is
+  deliberately status-only: that undo restores `listStatus` but *not* the
+  `episodesWatched`/`completedAt` `buildStatusPatch` changed, so a progress
+  reversal would be a lie. The underlying gap is a genuine pre-existing bug,
+  **filed in the backlog** rather than papered over.
+- **Progress decreases DO emit** `episode_watched {from, to}` - the event shape
+  carries them for exactly this, and omitting corrections would make the log
+  disagree with the library. Separately, **counters accumulate positive deltas
+  only**, so lifetime totals stay monotonic while the log stays faithful. The
+  reader contract is stated once, in `eventCounters.js`.
+- **Silent progress jumps** (completing a series, adding straight into
+  `watched`) emit **one** `episode_watched` for the jump, not N. Without it,
+  marking a 24-episode series complete would credit zero lifetime episodes.
+- **`settings_changed` excludes filter/sort/`activeTab`** view state via a
+  named constant. `activeTab` alone is persisted on every tab click and would
+  otherwise be the highest-volume type in a log that is never pruned.
+- **`route_dwell`** goes through a new single `setCurrentView()` choke point
+  (there was no central switch - five sibling `show*View()` functions each
+  assigned `currentView`), floors at 1000 ms, and **pauses while the tab is
+  hidden** - otherwise a tab left open overnight logs an eight-hour dwell.
+- **`sessionId` is per app load**; the tuning config's 30-minute
+  `sessionGapMinutes` stays a *reader-side* notion, so it remains genuinely
+  retunable instead of baked into immutable data.
+- **Counter baseline uses `duration || 0`**, byte-identical to
+  `statsLogic.js`, so the new lifetime totals and the existing Statistics page
+  can never show two different numbers for the same thing. Measured identical
+  on the real library either way. The tuning fallback applies to the forward
+  path only; the potential divergence is **filed in the backlog**.
+
+### Cross-version snapshot compatibility, fixed rather than deferred
+
+This started as a backlog note and was then fixed inside the substep, because
+the real cost only became clear once it was written down.
+
+`verifySnapshotStores` checked store coverage against the **live** registry, so
+adding a Class A store made every previously-written snapshot report
+`verified: false` ("Missing registered store(s)"), which the Settings UI
+correctly turns into a disabled restore button. P1.5 adds two stores — and
+**five further substeps add more** (P1.7, P5A.4, P6.2, P7A, P8H). Left alone,
+every Class C backup the user has would have been invalidated five more times
+over the rest of v2, which makes snapshots useless as the recovery mechanism
+rule 11 asks them to be.
+
+Downgrading a missing store from error to **warning** costs nothing, because
+the two things the strict check was really protecting against are both still
+covered, and more precisely:
+
+- a store **silently dropped** from a snapshot after it was written is caught
+  by the top-level manifest checksum, which binds the exact store-id →
+  checksum map (verified by a test that deletes a store post-write and asserts
+  the checksum error);
+- a writer **forgetting** a registered store is now impossible at build time,
+  because `requiredSources` throws rather than emitting an empty store (this
+  substep's B3 fix).
+
+Everything else stays a hard error: an unknown extra store, duplicate ids, and
+a `kind` that disagrees with the registry are real anomalies, not version skew.
+`buildRestoredLibraryPlan` correspondingly **skips** a store the snapshot
+predates (reporting it in `skippedStores`) instead of throwing, leaving that
+store's current on-disk contents alone — for a `libraryField` store the field
+is simply not written, so the existing migration/defaulting path fills it in,
+which is the forward-compatibility behavior rule 13 already requires.
+
+**Verified against the user's five real snapshots**, on a disposable copy:
+three went from unrestorable to **verified and restorable**, each carrying an
+accurate warning ("Snapshot predates 2 registered store(s) (eventLog,
+counters)"). The remaining two stay invalid for an unrelated, pre-existing
+reason — they predate `manifestChecksum` entirely, already documented in
+P1.1's review — and the fix correctly does not hide that. An e2e test builds a
+genuinely pre-P1.5-shaped snapshot (three stores, manifest computed over those
+three) and asserts it lists verified, restores, reports the skipped stores, and
+leaves the newer event log intact rather than wiping it.
+
+
+### Types that cannot fire yet, and what is therefore not retroactive
+
+Three of the 13 types have **no user action anywhere in the app**:
+`rewatch_started` (no rewatch feature at all), `review_written` (no review
+field; `notes` is a partial equivalent and no word count is stored - reviews
+land in P6.2) and `font_previewed` (no font picker - P3.1/P3.2). All three stay
+declared in the closed union, because it is the contract readers switch over.
+`recommendation_added`/`_dismissed` do fire, but `shelfId` records the real
+surface rather than inventing shelf identity (no shelves until P5A.4),
+`adventurousness` is `null` (no slider until P5A), and `membersAtSurfacing` is
+a real value on the Schedule path but `null` on Discover, whose query does not
+select `popularity` - recorded as null rather than faked.
+
+**Per the spec's closing instruction, achievement conditions that cannot be
+awarded retroactively.** Available retroactively via the seed: lifetime
+episodes, minutes and completions, `completedAt`-based year counts, first-added
+dates. **Not** retroactive, because the data only begins existing now: anything
+reading `route_dwell`, `sessionId` (so any session-shape or "watched N in one
+sitting" condition), `font_previewed`, `rewatch_started`, `review_written`,
+`recommendation_*`, per-day **streaks** (no `localDay` exists before today),
+and any score or status **history** - current values exist, transitions never
+do. P7A must treat all of those as start-counting-from-first-run rather than
+backfillable.
+
+### Acceptance criteria
+
+**1. Automated checks.** `node tests/run-all.js`: **161 passed, 0 failed**
+(+41 this substep). `npx playwright test`: **47 passed, 0 failed** (+15). No
+lint or typecheck command exists in this project beyond `scripts/build-exe.js`
+(unchanged finding from P0.1).
+
+**2. Data safety.** The rule-3a round trip covers **both** new Class A stores
+with a deliberately **non-empty** log (an empty one passes trivially and proves
+nothing): export -> snapshot -> wipe both new files -> restore, with every
+event back and the baseline preserved. Plus B3's fail-closed guard, B2/B4's
+union-not-truncate restore, torn-line quarantine, the counters self-heal, and
+the inverse guard that an unchanged log triggers no re-fold. **Rule-8 dry run
+against a copy of the real library**: chained schemaVersion 4 -> 5, seeded the
+baseline at exactly **6,388 episodes / 149,955 minutes / 210 completed**,
+matching the numbers measured during planning; export carried all five stores;
+and the **original** directory was verified byte- and mtime-identical
+afterwards, with no `events.jsonl` or `counters.json` written into it. This
+substep introduces two new Class A stores, so rule 3a applies to both, and both
+are covered above.
+
+**3. Manual smoke test**, production build (`npm start`), **against a
+disposable copy of the real 222-entry library only**:
+1. Fingerprinted (sha256 + mtime) the real `library.json` and every
+   `snapshots/` file first.
+2. Booted against the copy: migrated 4 -> 5, seeded the baseline at the real
+   6,388/149,955/210, created the pinned snapshot.
+3. Opened it in a real browser: rendered identically to before (same 12
+   watching entries), **no console errors**.
+4. Clicked a real "mark next episode watched" on a real entry: produced exactly
+   one correctly-shaped `episode_watched` (animeId `"184492"`, 8 -> 9, the
+   entry's real 25-minute duration), and `fromLog` advanced by 1 episode /
+   25 minutes while the baseline stayed put.
+5. Re-fingerprinted the **original**: byte- and mtime-identical, and neither
+   new file was created there.
+
+Also rebuilt and smoke-tested the packaged `.exe` (56 embedded assets, up from
+53), confirming the data-URL module loading resolves from SEA embedded assets
+and that append + fold work in the packaged build.
+
+**4. Performance.** No Tuning-table budget names the event log, stated
+explicitly per the reduction rule - but since an append-only Class A store that
+grows forever is exactly the kind of thing that degrades silently, it was
+measured anyway against a deliberately unrealistic **200k-event / 46 MB** log:
+snapshot plus verify **4,077 ms** against the existing 10,000 ms
+`snapshotPlusVerifyMs` budget (**PASS**), boot **1,371 ms** after the
+`logBytes` fix, first append 1,813 ms (one-time lazy index build), subsequent
+appends **29 ms**. For scale: the real library is 222 entries, so a realistic
+year of use is a few thousand events, not 200,000.
+
+**5. Accessibility.** No new UI surface ships in this substep - the event log
+has no visible representation at all, and the only user-facing behavior change
+is that existing actions now also record an event. Stated explicitly: there is
+**no screen-reader step for the user to run this session**.
+
+**6. Rollback.** Revert the `v2(P1.5)` commit range. This substep **does not
+migrate `library.json`** (`schemaVersion` stays 5 from P1.3) and adds no
+top-level library field, so a code revert is sufficient for the library itself.
+`events.jsonl` and `counters.json` are new, self-contained files that reverted
+code simply never reads - inert, not orphaned data anything depends on, and may
+be left in place or moved aside freely. Forward compatibility holds: the
+reverted build ignores both files, and the current build tolerates their
+absence (it seeds counters and starts an empty log). One consequence worth
+naming, **filed in the backlog**: snapshots taken *before* P1.5 now read as
+unverified, because store coverage is checked against the live registry - the
+same fail-closed direction P1.1's review established. A fresh valid pinned
+snapshot is created automatically, and the 150-copy `backups/` rotation is
+untouched.
+
+**Status: P1.5 substantially complete.** All six criteria have full evidence in
+this same session; no user-blocking step, since no new UI shipped. Not yet
+merged into `main`; awaiting user review before a `v2(P1.5): close out` commit
+and merge.
+
+## P1.5 close out
+
+The user reviewed the implementation evidence above and asked for the
+recommended next step to be carried out. That recommendation was **not** simply
+"close out": it was to fix the cross-version snapshot problem first rather than
+leave it in the backlog, because it touched the user's real Class C backups and
+would have recurred in five later substeps. That fix landed in
+`v2(P1.5): keep older snapshots restorable across Class A store additions`, and
+is written up in its own section above. Three of the user's five real snapshots
+went from unrestorable to restorable as a result.
+
+No other code changed in this closing commit.
+
+**Final state of the six criteria**: unchanged from the implementation session
+except for the higher test counts and the compatibility fix — 161 unit tests
+and 47 e2e tests, 0 failed. No user-blocking step, since this substep ships no
+new UI surface.
+
+**Status: P1.5 done.** All six acceptance criteria satisfied. Merged into
+`main` in this session's close-out (see the merge commit immediately
+following); `v2/P1.5` retained, not deleted, per the spec's branching rule.
+
+**Not pushed.** The user's standing instruction from the P1.4 session — hold
+pushes to `origin` until they want to cut a new version — is still in force, so
+`main` is ahead of `origin/main` locally and deliberately stays that way until
+they say otherwise.

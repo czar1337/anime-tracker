@@ -74,6 +74,44 @@ real, recorded, and not any single substep's job to resolve on its own.
   assuming the measured numbers extend there; relations coverage (98.1%) is
   the most exposed of the four if it doesn't.
 
+- **Undoing "mark watched" leaves the fast-forwarded progress behind.** Found
+  while wiring P1.5's event emission. `buildStatusPatch()`
+  (`public/js/events.js`) fast-forwards `episodesWatched` to `totalEpisodes`
+  (and sets `completedAt`) when an entry moves to `watched`, but
+  `handleSetStatus`'s Undo callback restores **only** `listStatus`. So
+  "mark watched → undo" silently leaves progress at the full episode count and
+  `completedAt` set. This is a real pre-existing data bug, independent of the
+  event log; P1.5 deliberately did NOT paper over it (its status-undo event
+  records the status reversal only, because claiming a progress reversal that
+  did not happen would make the log lie). Whichever substep next touches
+  status handling — plausibly **P4.4**, which owns bulk actions and undo —
+  should fix the undo to restore the full pre-action patch.
+
+- **`statsLogic.js` and the lifetime counters will diverge on a null-duration
+  entry.** P1.5's counter baseline deliberately uses `duration || 0`, matching
+  `statsLogic.js:7` exactly, so the Statistics page and the new lifetime
+  totals can never disagree about the same number today (measured: 0 of 222
+  real entries have a null duration, so both produce 149,955 minutes). But
+  P1.5's *forward* path uses `config/tuning.js`'s
+  `episodeDurationFallbackMinutes` (24/100) when an event carries no duration.
+  The moment a null-duration entry exists, the two will drift apart.
+  Whichever substep owns the Statistics surface (**P8C**) should decide which
+  rule wins and apply it in both places. Related, and noted in
+  `eventTypes.js`: the tuning fallback has only `tv`/`film` buckets, so
+  `TV_SHORT` and `MUSIC` over-count when duration is missing.
+
+- ~~Snapshots taken before P1.5 will read as unverified and cannot be
+  restored.~~ **Resolved inside P1.5 rather than deferred** — see that
+  substep's "cross-version snapshot compatibility" note in
+  `docs/v2-progress.md`. It was briefly filed here, then fixed once the real
+  cost became clear: five further substeps add Class A stores (P1.7, P5A.4,
+  P6.2, P7A, P8H), so leaving it would have invalidated every Class C backup
+  five more times over the rest of v2. Verified against the user's five real
+  snapshots: three went from unrestorable to restorable. The other two remain
+  invalid for an unrelated, pre-existing reason (they predate
+  `manifestChecksum` entirely — already documented in P1.1's review), which
+  the fix correctly does not hide.
+
 ## Not urgent, informational
 
 - P1.6's scope-expansion exception ("if the app's total user-facing string

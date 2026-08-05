@@ -1,6 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
+import { EventLog } from './eventLog.js';
 import { cleanLines, titleSimilarity, MATCH_THRESHOLD } from './screenshotLogic.js';
 
 // Tesseract.js is vendored locally (public/vendor/tesseract) so OCR runs
@@ -260,6 +261,17 @@ export function initScreenshotImport() {
         episodesWatched: listStatus === 'watched' && media.episodes ? media.episodes : 0,
         relatedIds: Api.extractRelatedIds(media),
       });
+      // One event per imported entry; the library-imported handler's single
+      // persist() flushes them as one batch.
+      EventLog.recordForEntry('anime_added', media.id, { to: listStatus });
+      if (listStatus === 'watched' && media.episodes) {
+        EventLog.recordForEntry('episode_watched', media.id, {
+          episode: media.episodes,
+          from: 0,
+          to: media.episodes,
+          meta: { durationMinutes: media.duration || null, format: media.format || null },
+        });
+      }
       added += 1;
       toDownload.push({ anilistId: media.id, url: Api.bestCoverUrl(media) });
     }

@@ -4,6 +4,7 @@ import { Render } from './render.js';
 import { Airing } from './airing.js';
 import { pickSeeds, buildGenreProfile, filterOwned, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
 import { rankUpcoming } from './scheduleLogic.js';
+import { EventLog } from './eventLog.js';
 
 const PAGE_SIZE = 20;
 const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on manual refresh
@@ -207,6 +208,17 @@ export function initSchedule({ persistFn } = {}) {
         listStatus: 'watchlist',
         relatedIds: Api.extractRelatedIds(media),
       });
+      EventLog.recordForEntry('anime_added', media.id, { to: 'watchlist' });
+      EventLog.recordForEntry('recommendation_added', media.id, {
+        shelfId: 'schedule-upcoming',
+        meta: {
+          adventurousness: null, // no slider until P5A
+          // Unlike Discover, the upcoming query DOES select `popularity`, so
+          // this one is a real measurement rather than a null placeholder.
+          membersAtSurfacing: media.popularity ?? null,
+          score: item.score ?? null,
+        },
+      });
       scheduleState.pool = scheduleState.pool.filter((it) => it.media.id !== anilistId);
       renderNow();
       Render.renderTabCounts();
@@ -220,6 +232,10 @@ export function initSchedule({ persistFn } = {}) {
       Store.addDismissedItem(anilistId, {
         title: item.media.title.english || item.media.title.romaji,
         coverImage: item.media.coverImage?.large || null,
+      });
+      EventLog.recordForEntry('recommendation_dismissed', anilistId, {
+        shelfId: 'schedule-upcoming',
+        meta: { reason: 'manual' },
       });
       scheduleState.pool = scheduleState.pool.filter((it) => it.media.id !== anilistId);
       renderNow();

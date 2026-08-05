@@ -1,6 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
+import { EventLog } from './eventLog.js';
 
 const STATUS_MAP = {
   Watching: 'watching',
@@ -271,7 +272,20 @@ export function initMalImport() {
         alreadyOwned += 1;
         return;
       }
-      Store.addEntry(mediaToEntryPatch(media, malEntry));
+      const patch = mediaToEntryPatch(media, malEntry);
+      Store.addEntry(patch);
+      // One event per imported entry, all flushed as a single batch by the
+      // library-imported handler's persist() — the spec's "bulk actions use one
+      // transaction for the whole batch" applies to imports too.
+      EventLog.recordForEntry('anime_added', media.id, { to: patch.listStatus || 'watchlist' });
+      if (patch.episodesWatched > 0) {
+        EventLog.recordForEntry('episode_watched', media.id, {
+          episode: patch.episodesWatched,
+          from: 0,
+          to: patch.episodesWatched,
+          meta: { durationMinutes: media.duration || null, format: media.format || null },
+        });
+      }
       lastImportedIds.push(media.id);
       added += 1;
       toDownload.push({ anilistId: media.id, url: Api.bestCoverUrl(media) });

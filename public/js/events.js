@@ -12,6 +12,8 @@ import { Atmosphere } from './atmosphere.js';
 import { computeLibraryStats } from './statsLogic.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsExport.js';
 import { BackupClient } from './backupClient.js';
+import { EventLog } from './eventLog.js';
+import { isViewStatePreference } from './eventTypes.js';
 
 let activeList = 'watching';
 let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
@@ -20,6 +22,77 @@ let searchDebounceTimer = null;
 let replaceTargetId = null; // set while the search overlay is being used to fix a wrong match
 let searchGeneration = 0; // bumped on every new search/close so a slow, superseded response is ignored
 const mediaCache = new Map();
+
+// ---------------------------------------------------------------------------
+// settings_changed (P1.5)
+//
+// Only REAL Settings choices are logged. Filter, sort and activeTab writes
+// travel through the exact same Store.setPreference() + persist() path, but they
+// are transient view state — and `activeTab` alone is written on every single
+// tab click, so logging them would make view-state churn the highest-volume
+// type in an append-only log that is never pruned. The exclusion list is a
+// named constant in eventTypes.js so a future setting is a deliberate include
+// rather than an accidental one.
+function recordSettingChange(key, from, to) {
+  if (isViewStatePreference(key)) return;
+  if (from === to) return;
+  EventLog.record('settings_changed', { key, from: from ?? null, to: to ?? null });
+}
+
+// ---------------------------------------------------------------------------
+// route_dwell (P1.5)
+//
+// The single choke point for view changes. There was no central switch — five
+// sibling show*View() functions each assigned `currentView` directly, each
+// knowing the new view but not the old one — so this exists to make "the route
+// changed from X to Y, after N ms" observable exactly once per real navigation.
+//
+// Deliberately NOT hooked into refreshView()/refreshCurrentView(), which are
+// post-mutation re-renders that fire far more often than navigations; a test
+// pins that 100 re-renders emit zero dwell events.
+// ---------------------------------------------------------------------------
+
+// Below this, a dwell is a mis-tap or a bounce through the nav, not attention
+// worth recording in an append-only log that is never pruned.
+const MIN_DWELL_MS = 1000;
+let dwellStartedAt = Date.now();
+let dwellAccumulatedMs = 0;
+let dwellPaused = false;
+
+function currentDwellMs() {
+  return dwellAccumulatedMs + (dwellPaused ? 0 : Date.now() - dwellStartedAt);
+}
+
+function resetDwell() {
+  dwellStartedAt = Date.now();
+  dwellAccumulatedMs = 0;
+  dwellPaused = false;
+}
+
+// Called from app.js when the tab is hidden/shown. Without pausing, a tab left
+// open overnight would log an eight-hour dwell for whatever view happened to be
+// on screen.
+export function pauseRouteDwell() {
+  if (dwellPaused) return;
+  dwellAccumulatedMs += Date.now() - dwellStartedAt;
+  dwellPaused = true;
+}
+
+export function resumeRouteDwell() {
+  if (!dwellPaused) return;
+  dwellStartedAt = Date.now();
+  dwellPaused = false;
+}
+
+function setCurrentView(next) {
+  if (next === currentView) return; // a re-render of the same view is not a navigation
+  const ms = currentDwellMs();
+  if (ms >= MIN_DWELL_MS) {
+    EventLog.record('route_dwell', { meta: { route: currentView, ms } });
+  }
+  currentView = next;
+  resetDwell();
+}
 
 function isTypingTarget(el) {
   return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
@@ -191,7 +264,7 @@ function updateTabPill() {
 
 function showListView(list) {
   if (list !== activeList) Render.clearSelection(); // stale selection from a different list would be confusing
-  currentView = list;
+  setCurrentView(list);
   activeList = list;
   hideAllViews();
   const el = document.getElementById('list-view');
@@ -206,7 +279,7 @@ function showListView(list) {
 
 function showHomeView() {
   Render.clearSelection();
-  currentView = 'home';
+  setCurrentView('home');
   hideAllViews();
   const el = document.getElementById('home-view');
   el.hidden = false;
@@ -218,7 +291,7 @@ function showHomeView() {
 
 function showStatsView() {
   Render.clearSelection();
-  currentView = 'stats';
+  setCurrentView('stats');
   hideAllViews();
   const el = document.getElementById('stats-view');
   el.hidden = false;
@@ -230,7 +303,7 @@ function showStatsView() {
 
 function showDiscoverView() {
   Render.clearSelection();
-  currentView = 'discover';
+  setCurrentView('discover');
   hideAllViews();
   const el = document.getElementById('discover-view');
   el.hidden = false;
@@ -243,7 +316,7 @@ function showDiscoverView() {
 
 function showScheduleView() {
   Render.clearSelection();
-  currentView = 'schedule';
+  setCurrentView('schedule');
   hideAllViews();
   const el = document.getElementById('schedule-view');
   el.hidden = false;
@@ -258,11 +331,35 @@ function showScheduleView() {
 // Card interactions (event delegation on #grid)
 // ---------------------------------------------------------------------------
 
+// One place that turns a progress change into an `episode_watched` event, so
+// all four mutators below (the + button, the - key, the inline episode edit and
+// the detail overlay's jump-to-episode) record it identically.
+//
+// `from`/`to` are always both recorded, including when progress goes DOWN: the
+// spec's event shape carries them for exactly that, and omitting corrections
+// would make the log disagree with the library. Counters ignore non-positive
+// deltas (see eventCounters.js's reader contract), which is what keeps lifetime
+// totals monotonic while the log stays a faithful record of every transition.
+//
+// `meta.durationMinutes`/`meta.format` are captured at write time so the
+// counters fold never has to look the entry back up — the entry may have been
+// deleted, or its duration corrected, long before the fold runs.
+function recordProgressEvent(entry, from, to) {
+  if (from === to) return;
+  EventLog.recordForEntry('episode_watched', entry.anilistId, {
+    episode: to,
+    from,
+    to,
+    meta: { durationMinutes: entry.duration || null, format: entry.format || null },
+  });
+}
+
 function handleIncrement(card, id) {
   const entry = Store.getEntry(id);
   if (!entry) return;
   const before = entry.episodesWatched;
   Store.updateEntry(id, { episodesWatched: entry.episodesWatched + 1 });
+  recordProgressEvent(entry, before, before + 1);
   const btn = card?.querySelector('.plus');
   if (btn) {
     btn.classList.remove('pulse');
@@ -277,6 +374,10 @@ function handleIncrement(card, id) {
     actionLabel: 'Undo',
     onAction: () => {
       Store.updateEntry(id, { episodesWatched: before });
+      // An undo is itself a real transition, recorded as one rather than
+      // erased — the log is append-only, so the honest record is
+      // "advanced, then went back", not silence.
+      recordProgressEvent(entry, before + 1, before);
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -290,7 +391,9 @@ function commitEpisodeEdit(card, id, input) {
   let value = parseInt(input.value, 10);
   if (Number.isNaN(value) || value < 0) value = 0;
   if (entry.totalEpisodes) value = Math.min(value, entry.totalEpisodes);
+  const before = entry.episodesWatched;
   Store.updateEntry(id, { episodesWatched: value });
+  recordProgressEvent(entry, before, value);
   refreshGridOnly();
   Render.renderTabCounts();
   Detail.refreshDetailIfOpen(id);
@@ -332,7 +435,9 @@ function handleEditEpisode(card, id) {
 function handleDecrement(id) {
   const entry = Store.getEntry(id);
   if (!entry || entry.episodesWatched <= 0) return;
-  Store.updateEntry(id, { episodesWatched: entry.episodesWatched - 1 });
+  const before = entry.episodesWatched;
+  Store.updateEntry(id, { episodesWatched: before - 1 });
+  recordProgressEvent(entry, before, before - 1);
   refreshGridOnly();
   Detail.refreshDetailIfOpen(id);
   persist();
@@ -342,7 +447,11 @@ function handleSetScore(id, score) {
   const entry = Store.getEntry(id);
   if (!entry) return;
   const newScore = entry.myScore === score ? null : score;
+  const beforeScore = entry.myScore ?? null;
   Store.updateEntry(id, { myScore: newScore });
+  // `from`/`to` are typed values, not strings — scores are numbers and clearing
+  // one is a real null, per the spec's EventValue union.
+  EventLog.recordForEntry('score_set', id, { from: beforeScore, to: newScore });
   refreshView();
   Detail.refreshDetailIfOpen(id);
   persist();
@@ -361,11 +470,34 @@ function buildStatusPatch(entry, newStatus) {
   return patch;
 }
 
+// Records the event(s) one status change produces. Shared by the single and
+// bulk paths so both agree on the shape.
+//
+// A move to `watched` can silently fast-forward episodesWatched to
+// totalEpisodes (see buildStatusPatch), and a move to `dropped` records the
+// episode it was dropped at — both are recorded, because otherwise marking a
+// 24-episode series complete would credit ZERO lifetime episodes, which is the
+// difference between the counters being meaningful and being broken. One event
+// for the jump, not 24.
+function recordStatusChange(entry, before, newStatus, patch) {
+  EventLog.recordForEntry(newStatus === 'dropped' ? 'anime_dropped' : 'status_changed', entry.anilistId, {
+    from: before,
+    to: newStatus,
+    // The spec calls for `episode` = the episode dropped at.
+    episode: newStatus === 'dropped' ? entry.episodesWatched : undefined,
+  });
+  if (patch && typeof patch.episodesWatched === 'number' && patch.episodesWatched !== entry.episodesWatched) {
+    recordProgressEvent(entry, entry.episodesWatched, patch.episodesWatched);
+  }
+}
+
 function handleSetStatus(id, newStatus) {
   const entry = Store.getEntry(id);
   if (!entry || entry.listStatus === newStatus) return;
   const before = entry.listStatus;
-  Store.updateEntry(id, buildStatusPatch(entry, newStatus));
+  const patch = buildStatusPatch(entry, newStatus);
+  recordStatusChange(entry, before, newStatus, patch); // before the mutation, while old values are still readable
+  Store.updateEntry(id, patch);
   // design system §10, "Series finished": ripple (already happens on
   // whatever button was pressed) plus one feather drifting down.
   if (newStatus === 'watched') Atmosphere.rewardFeather();
@@ -376,6 +508,13 @@ function handleSetStatus(id, newStatus) {
     actionLabel: 'Undo',
     onAction: () => {
       Store.updateEntry(id, { listStatus: before });
+      // Status reversal only, deliberately. This undo restores listStatus but
+      // NOT the episodesWatched/completedAt that buildStatusPatch changed, so
+      // emitting a progress reversal here would claim something untrue. The
+      // underlying gap (undoing "mark watched" leaves the fast-forwarded
+      // progress behind) is a real pre-existing bug, filed in the backlog
+      // rather than papered over here.
+      EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -419,7 +558,13 @@ function handleBulkMove(newStatus) {
     const entry = Store.getEntry(id);
     if (!entry || entry.listStatus === newStatus) continue;
     changes.push({ id, before: entry.listStatus });
-    Store.updateEntry(id, buildStatusPatch(entry, newStatus));
+    const patch = buildStatusPatch(entry, newStatus);
+    // Recorded per item but flushed as ONE batch — the spec's "bulk actions use
+    // one transaction for the whole batch" maps directly onto the single
+    // persist()/flush below, since events accumulate in the outbox and go out
+    // together.
+    recordStatusChange(entry, entry.listStatus, newStatus, patch);
+    Store.updateEntry(id, patch);
   }
   if (changes.length === 0) return;
   Render.clearSelection();
@@ -611,7 +756,14 @@ function bindGridEvents() {
 
     const scoreSelect = e.target.closest('[data-action="set-score-select"]');
     if (scoreSelect) {
-      Store.updateEntry(id, { myScore: scoreSelect.value ? Number(scoreSelect.value) : null });
+      // This path deliberately does NOT go through handleSetScore (a select's
+      // value change is a direct set, not the button strip's click-to-toggle),
+      // so it needs its own event — a missed entry point here would silently
+      // drop every score set made from a season row.
+      const beforeScore = Store.getEntry(id)?.myScore ?? null;
+      const nextScore = scoreSelect.value ? Number(scoreSelect.value) : null;
+      Store.updateEntry(id, { myScore: nextScore });
+      EventLog.recordForEntry('score_set', id, { from: beforeScore, to: nextScore });
       refreshView();
       persist();
       return;
@@ -833,6 +985,13 @@ async function addFromSearchResult(anilistId, listStatus) {
     episodesWatched: listStatus === 'watched' && media.episodes ? media.episodes : 0,
     relatedIds: Api.extractRelatedIds(media),
   });
+  EventLog.recordForEntry('anime_added', media.id, { to: listStatus });
+  // Adding straight into Watched fast-forwards progress, so credit those
+  // episodes the same way a "mark watched" does — otherwise importing a
+  // finished series would count zero lifetime episodes.
+  if (listStatus === 'watched' && media.episodes) {
+    recordProgressEvent({ anilistId: media.id, duration: media.duration, format: media.format }, 0, media.episodes);
+  }
   Render.renderTabCounts();
   // Always refresh whatever's currently shown, not just when it matches
   // listStatus exactly — Home and Statistics aggregate every list, so an add
@@ -1072,7 +1231,12 @@ function bindNotificationsOverlay() {
   });
 
   document.getElementById('notifications-enabled-toggle').addEventListener('change', async (e) => {
+    const beforeEnabled = Boolean(Store.state.preferences.notifyNewEpisodes);
     await Notifications.setEnabled(e.target.checked);
+    // Read back rather than trusting the checkbox: setEnabled can decline if
+    // the browser permission prompt is refused, so the checkbox and the actual
+    // stored value can legitimately disagree.
+    recordSettingChange('notifyNewEpisodes', beforeEnabled, Boolean(Store.state.preferences.notifyNewEpisodes));
     renderNotificationsStatus();
     persist();
   });
@@ -1358,7 +1522,9 @@ function bindSettingsPanel() {
       Themes.setColorTheme(swatch.dataset.themeId);
       // P1.3: colorTheme is Class A too now — same reasoning as the
       // segmented-control settings below.
+      const beforeTheme = Store.state.preferences.colorTheme;
       Store.setPreference(['colorTheme'], swatch.dataset.themeId);
+      recordSettingChange('colorTheme', beforeTheme, swatch.dataset.themeId);
       persist();
       repaintSettings(swatch.dataset.themeId);
       return;
@@ -1457,7 +1623,9 @@ function bindSettingsPanel() {
     // change already does, alongside the existing localStorage/DOM update
     // above (which stays authoritative for the immediate, synchronous UI
     // update; this is what makes the choice survive backup/export/restore).
+    const beforeSetting = Store.state.preferences[seg];
     Store.setPreference([seg], value);
+    recordSettingChange(seg, beforeSetting, value);
     persist();
     repaintSettings(Themes.getCurrentThemeId());
   });
