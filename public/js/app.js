@@ -10,6 +10,7 @@ import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
+import { EventLog } from './eventLog.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -43,6 +44,14 @@ async function reloadAfterConflict() {
 async function attemptSave(attempt = 0) {
   saveInFlight = true;
   setSaveIndicator('saving', 'Saving');
+  // Events flush alongside every save, but through their OWN endpoint and
+  // deliberately NOT awaited into this function's success path (P1.5). The two
+  // are decoupled on purpose: /api/events carries no If-Match and cannot 409,
+  // so a library conflict can never discard buffered events, and an event flush
+  // failing can never make a successful library save look failed. Anything that
+  // does not go out now stays in the localStorage outbox and is retried on the
+  // next save or the next boot; dedup by id makes every retry harmless.
+  EventLog.flush().catch(() => {});
   try {
     const result = await Api.saveLibrary(Store.toJSON(), Store.getEtag());
     Store.setEtag(result.etag);
@@ -271,6 +280,38 @@ async function retryMissingCovers() {
   }
 }
 
+// Flushes buffered events at the points a page can actually go away (P1.5).
+//
+// Handles BOTH visibilitychange and pagehide: on mobile especially, a tab is
+// often frozen or discarded without ever firing unload, and the app previously
+// had no such handler at all (only a beforeunload unsaved-guard, which cannot
+// force a synchronous save).
+//
+// `keepalive` lets a flush outlive the page, but it is explicitly best-effort:
+// its bodies are capped around 64KB in-flight and delivery is not guaranteed.
+// Durability therefore comes from the localStorage outbox plus the next-boot
+// flush above, not from this — which is why nothing here treats a failure as
+// meaningful.
+//
+// Also pauses the route-dwell timer while the tab is hidden. Without that, a
+// tab left open overnight on the Settings view would log an eight-hour dwell —
+// wrong, unprunable, and precisely the kind of garbage that would break the one
+// achievement that reads route_dwell.
+function initEventFlushLifecycle() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      pauseRouteDwell();
+      EventLog.flush().catch(() => {});
+    } else {
+      resumeRouteDwell();
+    }
+  });
+  window.addEventListener('pagehide', () => {
+    pauseRouteDwell();
+    EventLog.flushKeepalive();
+  });
+}
+
 async function boot() {
   let loaded;
   try {
@@ -298,6 +339,16 @@ async function boot() {
   Preferences.syncFromLibrary(Store.state.preferences);
   Render.clearError();
   if (Object.keys(promotedCosmetics).length) persist();
+
+  // P1.5: the event log comes up before initEvents(), so no handler can fire
+  // before there is somewhere to record it. The outbox rehydrates from
+  // localStorage here, which is what lets events survive a crash, a reload or
+  // the 409 path — so flush whatever is already pending from a previous page
+  // lifetime before recording anything new.
+  EventLog.initEventLog({ post: (events) => Api.postEvents(events) });
+  EventLog.record('app_opened');
+  EventLog.flush().catch(() => {}); // best effort; retried on the next flush
+  initEventFlushLifecycle();
 
   const initialList = Store.state.preferences.activeTab || 'watching';
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === initialList)));

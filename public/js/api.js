@@ -37,6 +37,22 @@ async function getVersionInfo() {
 // or window saved changes since this one last loaded/saved — not that
 // library.json itself is corrupt (that's still a 409, but without
 // `conflict` set, per server.js's own distinction between the two cases).
+// Flushes a batch of events (P1.5). Deliberately separate from saveLibrary:
+// this endpoint carries no If-Match and can never 409, so an event can never be
+// lost to a library conflict — see server.js's event-log section for why that
+// decoupling matters. Also usable during page teardown via `keepalive`.
+async function postEvents(events, { keepalive = false } = {}) {
+  const res = await fetch('/api/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ events }),
+    keepalive,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Failed to record events');
+  return body;
+}
+
 async function saveLibrary(data, etag) {
   const res = await fetch('/api/library', {
     method: 'PUT',
@@ -416,6 +432,7 @@ async function fetchAnimeDetail(anilistId) {
 export const Api = {
   getLibrary,
   saveLibrary,
+  postEvents,
   getVersionInfo,
   listBackups,
   restoreBackup,

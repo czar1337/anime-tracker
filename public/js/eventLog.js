@@ -265,6 +265,7 @@ let ulid = null;
 let sessionId = null;
 let outbox = null;
 let initialized = false;
+let keepalivePost = () => {};
 
 // Wired once from app.js's boot(). `post` is injected rather than importing
 // api.js here, so this module stays dependency-light and unit-testable.
@@ -272,6 +273,7 @@ export function initEventLog({ post, storage = globalThis.localStorage, randomIn
   ulid = createUlidFactory({ randomInts, now: now ? () => now().getTime() : undefined });
   sessionId = ulid(); // one per app load — see SESSION_GAP_MINUTES's comment
   outbox = createOutbox({ storage, post });
+  keepalivePost = (events) => post(events, { keepalive: true });
   initialized = true;
   return { sessionId, pending: outbox.size };
 }
@@ -303,6 +305,22 @@ export function flush() {
   return outbox.flush();
 }
 
+// Teardown flush. Fires the request with `keepalive` so it can outlive the
+// page, and deliberately does NOT await or clear the outbox: delivery is not
+// guaranteed (keepalive bodies are capped around 64KB), so the events stay
+// buffered in localStorage and the next boot re-sends them. Dedup by id makes
+// that double-send harmless, which is exactly why this can be fire-and-forget.
+export function flushKeepalive() {
+  if (!initialized) return;
+  const pending = outbox.peek();
+  if (pending.length === 0) return;
+  try {
+    keepalivePost(pending);
+  } catch {
+    // Nothing to do at teardown; the outbox survives for the next boot.
+  }
+}
+
 export function pendingCount() {
   return initialized ? outbox.size : 0;
 }
@@ -316,6 +334,7 @@ export const EventLog = {
   record,
   recordForEntry,
   flush,
+  flushKeepalive,
   pendingCount,
   currentSessionId,
   computeLocalDay,

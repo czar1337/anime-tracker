@@ -2,6 +2,7 @@ import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
 import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion, applyGenreInclusion, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
+import { EventLog } from './eventLog.js';
 
 const SEED_BATCH_SIZE = 5;
 const RECS_PER_SEED = 25;
@@ -304,6 +305,28 @@ export function initDiscover({ persistFn } = {}) {
         listStatus: 'watchlist',
         relatedIds: Api.extractRelatedIds(media),
       });
+      // Both events: this is genuinely an add AND a recommendation being taken,
+      // and an achievement may reasonably count either.
+      EventLog.recordForEntry('anime_added', media.id, { to: 'watchlist' });
+      EventLog.recordForEntry('recommendation_added', media.id, {
+        // No real shelves exist yet — Discover is one flat ranked pool, and
+        // shelfId only becomes meaningful in P5A.4. Recording the surface it
+        // actually came from rather than inventing a shelf identity.
+        shelfId: 'discover',
+        meta: {
+          // `adventurousness` has no slider and no stored preference until P5A,
+          // and the Discover recommendations query does not select `popularity`,
+          // so membersAtSurfacing is genuinely unavailable here (it IS available
+          // on the Schedule path). Recorded as null rather than faked — see
+          // docs/v2-progress.md's P1.5 entry.
+          adventurousness: null,
+          membersAtSurfacing: null,
+          // What IS real provenance today: the seed titles this suggestion came
+          // from and its rank score.
+          because: (item.because || []).slice(0, 3),
+          score: item.score ?? null,
+        },
+      });
       discoverState.pool = discoverState.pool.filter((it) => it.media.id !== anilistId);
       renderNow();
       Render.renderTabCounts();
@@ -317,6 +340,13 @@ export function initDiscover({ persistFn } = {}) {
       Store.addDismissedItem(anilistId, {
         title: item.media.title.english || item.media.title.romaji,
         coverImage: item.media.coverImage?.large || null,
+      });
+      // meta.reason: dismiss is a single unlabeled button today, so there is no
+      // reason to capture. 'manual' is honest about that rather than guessing
+      // one; a reason picker would be a product change, not a logging change.
+      EventLog.recordForEntry('recommendation_dismissed', anilistId, {
+        shelfId: 'discover',
+        meta: { reason: 'manual' },
       });
       discoverState.pool = discoverState.pool.filter((it) => it.media.id !== anilistId);
       renderNow();
