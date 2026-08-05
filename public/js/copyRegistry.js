@@ -97,10 +97,17 @@ export const COPY_REGISTRY = {
   // ---------------------------------------------------------------------------
 
   'dataSafety.heading': {
-    // NOTE: rendered into innerHTML, so the ampersand stays HTML-escaped.
-    familyFriendly: 'Data &amp; safety',
-    standard: 'Data &amp; safety',
-    madara: 'Data &amp; safety',
+    // Plain '&', NOT '&amp;'. P1.1 passed a pre-escaped '&amp;' into
+    // settingsRowHtml(), which itself calls escapeHtml() on the label — so it
+    // double-escaped and the panel has been literally displaying
+    // "Data &amp; safety" to the user ever since. Moving the string into the
+    // registry is what surfaced it (an e2e test asserting what the heading
+    // *should* say). Fixed here rather than faithfully preserved, and called
+    // out in the progress notes as the one place P1.6 deliberately changes
+    // visible copy.
+    familyFriendly: 'Data & safety',
+    standard: 'Data & safety',
+    madara: 'Data & safety',
   },
   'dataSafety.description': {
     familyFriendly:
