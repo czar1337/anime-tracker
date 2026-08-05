@@ -4,6 +4,7 @@ import { COLOR_THEMES } from './themes.js';
 import { formatReleaseDate } from './scheduleLogic.js';
 import { Preferences } from './preferences.js';
 import { Api } from './api.js';
+import { copy } from './copy.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -1248,12 +1249,12 @@ function formatRelativeIsoTime(iso) {
 // server itself couldn't re-verify.
 function renderSnapshotList(container, snapshots) {
   if (!snapshots || snapshots.length === 0) {
-    container.innerHTML = `<li class="backup-empty">No snapshots yet.</li>`;
+    container.innerHTML = `<li class="backup-empty">${escapeHtml(copy('dataSafety.snapshotList.empty'))}</li>`;
     return;
   }
   container.innerHTML = snapshots
     .map((s) => {
-      const badges = `${s.pinned ? '<span class="tag">Pinned</span>' : ''}${s.verified ? '' : '<span class="tag warn">Invalid</span>'}`;
+      const badges = `${s.pinned ? `<span class="tag">${escapeHtml(copy('dataSafety.badge.pinned'))}</span>` : ''}${s.verified ? '' : `<span class="tag warn">${escapeHtml(copy('dataSafety.badge.invalid'))}</span>`}`;
       return `
       <li>
         <button class="backup-row" data-restore-snapshot="${escapeHtml(s.file)}" ${s.verified ? '' : 'disabled'}>
@@ -1600,14 +1601,14 @@ function renderSettingsPanel(container, currentThemeId) {
       segHtml('originalTitles', [['off', 'Off'], ['details', 'In details only'], ['everywhere', 'Everywhere']], Preferences.getOriginalTitlesMode())
     )}
     ${settingsRowHtml(
-      'Data &amp; safety',
-      'Verified snapshots of your library, separate from the automatic backups above. Restoring one replaces your current library.',
+      copy('dataSafety.heading'),
+      copy('dataSafety.description'),
       `
-      <ul id="snapshot-list" class="backup-list"><li class="backup-empty">Loading…</li></ul>
+      <ul id="snapshot-list" class="backup-list"><li class="backup-empty">${escapeHtml(copy('dataSafety.snapshotList.loading'))}</li></ul>
       <div class="row" style="margin-top:8px">
-        <button id="snapshot-create-btn" class="btn btn-ghost sm rip-host">Take a snapshot now</button>
-        <button id="download-export-btn" class="btn btn-ghost sm rip-host">Download my data</button>
-        <button id="reset-everything-btn" class="btn btn-danger sm rip-host">Reset everything</button>
+        <button id="snapshot-create-btn" class="btn btn-ghost sm rip-host">${escapeHtml(copy('dataSafety.takeSnapshot'))}</button>
+        <button id="download-export-btn" class="btn btn-ghost sm rip-host">${escapeHtml(copy('dataSafety.downloadExport'))}</button>
+        <button id="reset-everything-btn" class="btn btn-danger sm rip-host">${escapeHtml(copy('dataSafety.resetEverything'))}</button>
       </div>
       `
     )}

@@ -5,6 +5,7 @@ import { Airing } from './airing.js';
 import { pickSeeds, buildGenreProfile, filterOwned, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
 import { rankUpcoming } from './scheduleLogic.js';
 import { EventLog } from './eventLog.js';
+import { copy } from './copy.js';
 
 const PAGE_SIZE = 20;
 const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on manual refresh
@@ -73,7 +74,11 @@ async function runRefresh() {
       scheduleState.pool = result.items;
       scheduleState.visibleCount = Math.min(PAGE_SIZE, scheduleState.pool.length);
       scheduleState.generatedAt = result.generatedAt;
-      Api.saveUpcomingCache({ generatedAt: result.generatedAt, items: result.items.map((it) => it.media) }).catch(() => {});
+      Api.saveUpcomingCache({ generatedAt: result.generatedAt, items: result.items.map((it) => it.media) }).catch((err) => {
+        // See the matching comment in discover.js: the 507 quota refusal is
+        // surfaced, everything else stays quiet.
+        if (err && err.quotaExceeded) Render.showToast(copy('cache.quotaExceeded'));
+      });
     } catch (err) {
       if (myGeneration !== refreshGeneration) return;
       scheduleState.offline = true;
