@@ -100,7 +100,14 @@ async function saveRecommendationsCache(data) {
     body: JSON.stringify(data),
   });
   const body = await res.json();
-  if (!res.ok) throw new Error(body.error || 'Failed to save recommendations cache');
+  if (!res.ok) {
+    const err = new Error(body.error || 'Failed to save recommendations cache');
+    // P1.6: 507 is P1.2's disk-quota refusal. Flagged the same way conflict/
+    // locked already are, so callers can surface it instead of swallowing it —
+    // rule 5's "never silently drop a write".
+    err.quotaExceeded = res.status === 507;
+    throw err;
+  }
   return body;
 }
 
@@ -116,7 +123,14 @@ async function saveAiringCache(data) {
     body: JSON.stringify(data),
   });
   const body = await res.json();
-  if (!res.ok) throw new Error(body.error || 'Failed to save airing cache');
+  if (!res.ok) {
+    const err = new Error(body.error || 'Failed to save airing cache');
+    // P1.6: 507 is P1.2's disk-quota refusal. Flagged the same way conflict/
+    // locked already are, so callers can surface it instead of swallowing it —
+    // rule 5's "never silently drop a write".
+    err.quotaExceeded = res.status === 507;
+    throw err;
+  }
   return body;
 }
 
@@ -132,7 +146,14 @@ async function saveUpcomingCache(data) {
     body: JSON.stringify(data),
   });
   const body = await res.json();
-  if (!res.ok) throw new Error(body.error || 'Failed to save upcoming cache');
+  if (!res.ok) {
+    const err = new Error(body.error || 'Failed to save upcoming cache');
+    // P1.6: 507 is P1.2's disk-quota refusal. Flagged the same way conflict/
+    // locked already are, so callers can surface it instead of swallowing it —
+    // rule 5's "never silently drop a write".
+    err.quotaExceeded = res.status === 507;
+    throw err;
+  }
   return body;
 }
 

@@ -11,6 +11,7 @@ import { Airing } from './airing.js';
 import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
+import { copy, setCopyTier } from './copy.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -62,13 +63,13 @@ async function attemptSave(attempt = 0) {
   } catch (err) {
     saveInFlight = false;
     if (err.conflict) {
-      setSaveIndicator('failed', 'Not saved — changed elsewhere.');
+      setSaveIndicator('failed', copy('save.indicator.conflict'));
       Render.showToast(
-        'This library was changed in another tab or window. Your latest change here was not saved — reload to see what changed, then redo it.',
+        copy('save.conflict.body'),
         {
-          actionLabel: 'Reload',
+          actionLabel: copy('save.conflict.action'),
           onAction: () => {
-            reloadAfterConflict().catch((reloadErr) => Render.showError(`Could not reload: ${reloadErr.message}`));
+            reloadAfterConflict().catch((reloadErr) => Render.showError(copy('save.reloadFailed', undefined, { message: reloadErr.message })));
           },
           duration: 20000,
           // Not an undo action — must not steal ctrl+z away from a genuine
@@ -80,7 +81,16 @@ async function attemptSave(attempt = 0) {
       return;
     }
     setSaveIndicator('failed', 'Not saved. Retrying.');
-    Render.showError(`Could not save: ${err.message}. Keep this tab open — your changes are kept here until the save succeeds.`);
+    // P1.6: a 423 "another operation is in flight" gets its own registry copy —
+    // it is the spec's "close other tabs to continue" surface, and until now the
+    // user read the server's raw prose through the generic message below.
+    // Everything else keeps that generic message, which is pre-v2 copy and
+    // deliberately stays where it is.
+    Render.showError(
+      err.locked
+        ? copy('save.locked')
+        : `Could not save: ${err.message}. Keep this tab open — your changes are kept here until the save succeeds.`
+    );
     // Keep retrying indefinitely (backing off to a steady 5s) rather than
     // ever silently giving up on data the user just entered. Covers both
     // ordinary transient failures and a 423 "locked" response (another
@@ -337,6 +347,10 @@ async function boot() {
     Store.setPreference([key], value);
   }
   Preferences.syncFromLibrary(Store.state.preferences);
+  // P1.6: the content tier becomes live here. It has existed as an inert
+  // preference since P1.3 and defaults to 'standard', so nothing a user sees
+  // changes until P6.4 ships the picker and the unlock gate.
+  setCopyTier(Store.state.preferences.contentTier);
   Render.clearError();
   if (Object.keys(promotedCosmetics).length) persist();
 

@@ -3,6 +3,7 @@ import { Api } from './api.js';
 import { Render } from './render.js';
 import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion, applyGenreInclusion, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
 import { EventLog } from './eventLog.js';
+import { copy } from './copy.js';
 
 const SEED_BATCH_SIZE = 5;
 const RECS_PER_SEED = 25;
@@ -126,7 +127,13 @@ async function runRefresh({ shuffleResults = false } = {}) {
         discoverState.pool = shuffleResults ? shuffle(result.items) : result.items;
         discoverState.visibleCount = Math.min(PAGE_SIZE, discoverState.pool.length);
         discoverState.generatedAt = result.generatedAt;
-        Api.saveRecommendationsCache({ generatedAt: result.generatedAt, items: result.items }).catch(() => {});
+        Api.saveRecommendationsCache({ generatedAt: result.generatedAt, items: result.items }).catch((err) => {
+          // Swallowed entirely until P1.6. A disk-quota refusal (507) is a real
+          // "could not save" the user must see — rule 5's "never silently drop
+          // a write". Anything else stays quiet: a regenerable cache failing to
+          // write is not worth interrupting anyone over.
+          if (err && err.quotaExceeded) Render.showToast(copy('cache.quotaExceeded'));
+        });
       }
     } catch (err) {
       if (myGeneration !== refreshGeneration) return;

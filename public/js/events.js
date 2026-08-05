@@ -14,6 +14,17 @@ import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsEx
 import { BackupClient } from './backupClient.js';
 import { EventLog } from './eventLog.js';
 import { isViewStatePreference } from './eventTypes.js';
+import { copy } from './copy.js';
+
+// P1.5's restore route reports `skippedStores` when the snapshot predates a
+// newer Class A store; until P1.6 nothing surfaced it, so a partial restore
+// looked identical to a complete one. Someone restoring a backup specifically
+// needs told that their newer history was left alone rather than replaced.
+function restoreCopyFor(result) {
+  const skipped = result && Array.isArray(result.skippedStores) ? result.skippedStores : [];
+  if (skipped.length === 0) return copy('restore.succeeded');
+  return copy('restore.succeededPartial', undefined, { stores: skipped.join(', ') });
+}
 
 let activeList = 'watching';
 let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
@@ -156,7 +167,7 @@ function confirmDialog({ title, body, confirmLabel, onConfirm, requireTypedPhras
   const typeLabel = document.getElementById('confirm-type-label');
   if (requireTypedPhrase) {
     typeRow.hidden = false;
-    typeLabel.textContent = `Type "${requireTypedPhrase}" to confirm`;
+    typeLabel.textContent = copy('reset.dialog.typeToConfirm', undefined, { phrase: requireTypedPhrase });
     typeInput.value = '';
     dangerBtn.disabled = true;
     typeInput.oninput = () => {
@@ -1091,6 +1102,7 @@ function bindBackupOverlay() {
       const { data: saved, etag } = await Api.getLibrary();
       Store.setLibrary(saved, etag);
       Preferences.syncFromLibrary(saved.preferences);
+      setCopyTier(saved.preferences.contentTier);
       Render.renderAll(activeList);
       Render.showToast('Backup imported successfully.');
       closeAllOverlays();
@@ -1117,6 +1129,7 @@ function bindBackupOverlay() {
           const { data, etag } = await Api.getLibrary();
           Store.setLibrary(data, etag);
           Preferences.syncFromLibrary(data.preferences);
+          setCopyTier(data.preferences.contentTier);
           refreshView();
           Render.showToast('Restored from backup.');
         } catch (err) {
@@ -1487,7 +1500,7 @@ async function refreshSnapshotList() {
   } catch (err) {
     cachedSnapshots = null;
     const list = document.getElementById('snapshot-list');
-    if (list) list.innerHTML = `<li class="backup-empty">Could not load snapshots: ${Render.escapeHtml(err.message)}</li>`;
+    if (list) list.innerHTML = `<li class="backup-empty">${Render.escapeHtml(copy('dataSafety.snapshotList.loadFailed', undefined, { message: err.message }))}</li>`;
     return;
   }
   paintSnapshotList();
@@ -1536,9 +1549,9 @@ function bindSettingsPanel() {
       try {
         await BackupClient.createSnapshot();
         await refreshSnapshotList();
-        Render.showToast('Snapshot created.');
+        Render.showToast(copy('dataSafety.snapshotCreated'));
       } catch (err) {
-        Render.showToast(`Could not create snapshot: ${err.message}`);
+        Render.showToast(copy('dataSafety.snapshotFailed', undefined, { message: err.message }));
       } finally {
         createBtn.disabled = false;
       }
@@ -1550,7 +1563,7 @@ function bindSettingsPanel() {
       try {
         await BackupClient.downloadExport();
       } catch (err) {
-        Render.showToast(`Could not download your data: ${err.message}`);
+        Render.showToast(copy('dataSafety.exportFailed', undefined, { message: err.message }));
       }
       return;
     }
@@ -1559,20 +1572,21 @@ function bindSettingsPanel() {
     if (restoreBtn) {
       const file = restoreBtn.dataset.restoreSnapshot;
       confirmDialog({
-        title: `Restore "${file}"?`,
-        body: 'Replaces your current library with this snapshot. Your current library is not deleted — it is kept in the automatic backups list.',
-        confirmLabel: 'Restore this snapshot',
+        title: copy('restore.dialog.title', undefined, { file }),
+        body: `${copy('restore.dialog.body')} ${copy('restore.dialog.imagesNotIncluded')}`,
+        confirmLabel: copy('restore.dialog.confirm'),
         onConfirm: async () => {
           try {
-            await BackupClient.restoreSnapshot(file);
+            const restoreResult = await BackupClient.restoreSnapshot(file);
             const { data, etag } = await Api.getLibrary();
             Store.setLibrary(data, etag);
             Preferences.syncFromLibrary(data.preferences);
+            setCopyTier(data.preferences.contentTier);
             refreshView();
             await refreshSnapshotList();
-            Render.showToast('Restored from snapshot.');
+            Render.showToast(restoreCopyFor(restoreResult));
           } catch (err) {
-            Render.showToast(`Restore failed: ${err.message}`);
+            Render.showToast(copy('restore.failed', undefined, { message: err.message }));
           }
         },
       });
@@ -1582,9 +1596,9 @@ function bindSettingsPanel() {
     const resetBtn = e.target.closest('#reset-everything-btn');
     if (resetBtn) {
       confirmDialog({
-        title: 'Reset everything?',
-        body: 'Deletes every entry, note and score from your library. A verified snapshot of your current data is taken automatically first and can be restored from this same panel.',
-        confirmLabel: 'Reset everything',
+        title: copy('reset.dialog.title'),
+        body: copy('reset.dialog.body'),
+        confirmLabel: copy('reset.dialog.confirm'),
         requireTypedPhrase: 'RESET',
         onConfirm: async () => {
           try {
@@ -1592,11 +1606,12 @@ function bindSettingsPanel() {
             const { data, etag } = await Api.getLibrary();
             Store.setLibrary(data, etag);
             Preferences.syncFromLibrary(data.preferences);
+            setCopyTier(data.preferences.contentTier);
             refreshView();
             await refreshSnapshotList();
-            Render.showToast('Everything has been reset. A snapshot of your previous data was saved and can be restored from Settings.');
+            Render.showToast(copy('reset.succeeded'));
           } catch (err) {
-            Render.showToast(`Reset failed: ${err.message}`);
+            Render.showToast(copy('reset.failed', undefined, { message: err.message }));
           }
         },
       });
