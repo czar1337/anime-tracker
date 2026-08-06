@@ -2321,3 +2321,177 @@ in this session's close-out (see the merge commit immediately following);
 
 **Not pushed.** The standing instruction from the P1.4 session — hold pushes
 to `origin` until a new version is wanted — is still in force.
+
+## P2 Token conversion
+
+Branch `v2/P2` off `main` (P1.1–P1.7 merged). 17 commits, one per
+`docs/v2-token-audit.md` directory row (or a small adjoining group of
+trivial rows), each running the full baseline + unit + e2e suite before
+committing, per the spec's own procedure. Spanned multiple sessions —
+"a session ending mid-sweep is normal" — with the audit file's done
+markers plus `git log` as the resume state throughout, exactly as the
+spec anticipated.
+
+**Scope decision (asked, confirmed by the user before implementation
+began):** convert to the OLD, already-live `--fs-*`/`--sp-*` token system
+(driven by the existing, shipped Text Size setting), not the new P1.4
+`tokens.js` scale (dormant, nothing reads it yet — that's P3.2's job).
+Real side benefit: many of the 371 inventoried literals did not
+previously respond to the Text Size setting at all; converting them
+fixes that as a byproduct, not as a design goal of this substep.
+
+**Mechanical rule applied throughout, no exceptions:** a literal converts
+only on exact numeric match against `--fs-*`/`--sp-*`. A near-miss (e.g.
+10px vs. nano's 9.5px, or 13.5px vs. body's 13px) is never snapped — that
+would be a real, if tiny, visual change, which this substep is
+specifically forbidden from making. Inside a multi-value shorthand, only
+the matching side converts, leaving the rest literal (legal CSS,
+byte-identical rendering). Negative margins are never wrapped in
+`calc(-1 * var(--sp-N))` — `--sp-*` carries no user-adjustable multiplier
+the way `--fs-*`/`--text-scale` does, so the added complexity buys
+nothing.
+
+**What converted, by the numbers:** every row in the resume table now
+reads `done` or `out of scope` — zero rows left `not started`. Roughly
+150 individual font-size/spacing declarations converted across every
+`public/styles.css` section (Atmosphere through Mobile nav menu) plus
+`public/js/render.js`'s inline template-string styles. Two things were
+explicitly closed as **out of scope**, not silently skipped: the 4
+`rgba()` scrim-darkening colour literals in the Series card section
+(neither token scale this substep converts to has, or was ever meant to
+have, a colour equivalent — there is no token to convert *to*), and
+`public/js/statsExport.js`'s 9 canvas `ctx.font` sizes (a Canvas 2D
+drawing instruction takes a literal string, not a CSS variable reference;
+making the exported stats PNG's text size start responding to the live
+Text Size setting would be a real behaviour change for anyone not on the
+default size, which is exactly what this substep's zero-visual-change
+guarantee forbids). Every "left alone" literal is itemised with its
+specific non-matching value in each commit message and in the audit
+table row — nothing was left unconverted without a stated reason.
+
+**The baseline test itself grew substantially** as a direct consequence
+of actually verifying (not just trusting) every conversion: from a single
+scene at the start of the sweep to 20+ scenes by the end, after
+repeatedly finding — via the discipline of grepping the raw baseline JSON
+for every touched selector, not just trusting a green test — that a
+passing baseline had been silently NOT proving anything about whole
+pages, whole overlays, or conditionally-rendered states that no scene had
+ever visited. Found and fixed, in order: the Series card's six
+conditional states (franchise grouping, select mode, inline episode
+edit, the completion prompt, the >50-episode bar/jump layout, the
+detail-overlay tag/list toggle chips); the entire Home page (a separate
+view from every tab, reached only via the brand button); the confirm
+dialog (never opened by any scene); the Help panel's three sub-tabs
+(lazily rendered, only one in the DOM at a time); the search-empty error
+state; Settings' own tag/list-manager create-form and list-entries
+expansion; the mobile nav menu (unreachable at the suite's default
+desktop viewport — needed an actual `page.setViewportSize` resize); and
+the import overlay's step-1 indicator. One gap was **acknowledged rather
+than chased**: the step-2 MAL-import/screenshot-import review table,
+which needs a real file-parse-and-match flow no e2e test in this repo
+currently drives at all — building that from scratch was judged out of
+scope for a token-conversion substep. Another — the recovery/blocked-
+screen chrome — is a genuinely different boot path (a corrupt
+`library.json` at server start) this test's single continuous
+healthy-boot session cannot reach without a second server instance;
+likewise acknowledged, not silently dropped.
+
+**Two real, pre-existing test races were found and fixed** while
+extending this same baseline test (both flagged, reproduced multiple
+times, root-caused, and fixed rather than papered over with a longer
+sleep): (1) the Settings scene occasionally captured a transient
+"loading" empty state racing the server's own async pinned-snapshot
+creation on boot — fixed by waiting for a real `.backup-row`, which the
+server always eventually produces for a healthy library. (2) `activeTab`
+is written through the same 300ms-debounced `persist()` as any real edit
+on every tab click, but the test's 150ms render-waits are shorter than
+that debounce, so how many of a run of rapid tab clicks' saves had
+actually completed by the time a later scene counted backup files was
+real-clock jitter — reproduced as a ~1-in-12 flake, fixed by waiting for
+`#save-indicator[data-state="saved"]` after each tab click. The
+`token-conversion-baseline` test was re-run 5–20 times after nearly every
+commit in this sweep specifically to catch regressions like these before
+they could hide behind a single lucky green run.
+
+**1. Automated checks.**
+```
+node tests/run-all.js
+...
+scripts/check-copy-registry.js
+  ok — the real registry passes every build-time copy check
+
+200 passed, 0 failed
+```
+```
+npx playwright test
+...
+ok 60 tests\e2e\token-conversion-baseline.spec.js:110:1 › token conversion baseline: every scene's computed styles match the checked-in snapshot (12.3s)
+ok 61 tests\e2e\two-tab-race.spec.js:94:1 › two tabs saving concurrently: exactly one wins, the loser gets a recoverable conflict, no silent data loss (2.7s)
+
+61 passed (1.0m)
+```
+No typecheck/lint/build commands exist in this project beyond these two
+suites and the SEA packaging script (unchanged by this substep, not
+rebuilt — no new files added, only edits to existing ones).
+
+**2. Data safety.** Not applicable. This substep touches zero persistence:
+no schema change, no new store, no migration, no `library.json` field
+added or removed. Every change is a `styles.css`/`render.js` value swap
+that produces byte-identical `getComputedStyle` output, proven by the
+baseline test's exact-equality assertion.
+
+**3. Manual smoke test**, production build (`npm start`, i.e. `node
+server.js`), **against a disposable copy of the real 222-entry library**
+(never the live one — copied to a temp dir, server pointed at the copy
+via `ANIME_TRACKER_DATA_DIR`):
+1. Booted the app: real library loaded (222 entries, schemaVersion 4),
+   zero console errors.
+2. Opened Home: hero pick, "Pick up where you left off" cards, Tonight
+   (empty — no real airing-tonight data in the cache, a legitimate
+   empty state, not an error), and "This year" stats all rendered
+   correctly against real data.
+3. Opened Settings: theme picker (12 real themes visible, "View more"
+   present), text size/weight, decoration density all rendered; zero
+   console errors.
+4. Opened Discover: real AniList-recommendation cache rendered a full
+   grid of suggestion cards with genre/studio/format filters, zero
+   console errors.
+5. Switched to Watching: real entries, filter bar, genre chips, and the
+   real "new episode" hero all rendered; a stray click landed on
+   "Refresh episode data" instead of the intended "Open series" (a
+   session-tooling ref-staleness issue, not an app bug) and completed a
+   real, harmless AniList refresh — zero console errors throughout.
+Re-fingerprinted the **original** `library.json` afterward: 222 entries,
+still schemaVersion 4, untouched — only the disposable copy was ever
+written to. Disposable copy and its server process removed after the
+smoke test.
+
+**4. Performance.** The Tuning table names no budget for
+`styles.css`/`render.js` values generally — this substep is explicitly
+about the values themselves, not a code path any budget measures.
+Stating that explicitly rather than inventing one.
+
+**5. Accessibility.** Not applicable in the way this criterion is usually
+evaluated — this substep changes zero markup, zero interaction, and zero
+keyboard/focus behaviour; every converted declaration resolves to the
+exact same computed pixel value as the literal it replaced, proven
+byte-for-byte by the baseline test. There is nothing new for a keyboard
+path or a screen reader to encounter that wasn't already true before this
+substep. No screen-reader run requested for that reason — say so if one
+is wanted anyway before merge.
+
+**6. Rollback.** Revert the `v2/P2` commit range (`5c2071a`..`5c262a8`,
+17 commits) — code-only, no data model touched, no migration to reverse.
+A reverted build reads and writes `library.json` exactly as before P2;
+nothing about this substep changes what a rollback needs to consider.
+
+**Status: P2 done.** Every row in `docs/v2-token-audit.md`'s resume table
+reads `done` or `out of scope` (the last two rows — `render.js` and
+`statsExport.js` — closed in this same session). Criteria 2, 4 and 5
+apply as "not applicable" for the stated reasons above rather than being
+silently skipped. Not yet merged into `main`; awaiting user confirmation
+on the accessibility framing above before a `v2(P2): close out` commit
+and merge.
+
+**Not pushed.** The standing instruction — hold pushes to `origin` until
+a new version is wanted — is still in force.
