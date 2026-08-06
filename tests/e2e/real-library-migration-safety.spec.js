@@ -38,7 +38,7 @@ function fingerprintRealData(realDir) {
   return fingerprint;
 }
 
-test('the schemaVersion 4->5 (P1.3) migration is a dry-run-safe no-op on the original when run against a copy of the real library', async () => {
+test('the schemaVersion 4->CURRENT (P1.3-P1.7 chain) migration is a dry-run-safe no-op on the original when run against a copy of the real library', async () => {
   const realDir = resolveDataDir();
   const realLibraryPath = path.join(realDir, 'library.json');
   if (!fs.existsSync(realLibraryPath)) {
@@ -62,7 +62,11 @@ test('the schemaVersion 4->5 (P1.3) migration is a dry-run-safe no-op on the ori
   const server = await startFixtureServer(undefined, { dataDir: tempCopyDir });
   try {
     const migrated = await (await fetch(`${server.url}/api/library`)).json();
-    expect(migrated.schemaVersion).toBe(5);
+    // Booting runs the FULL chain to whatever CURRENT_SCHEMA_VERSION is today
+    // (6, since P1.7), not just the 4->5 step this test was originally named
+    // for — a real schemaVersion-4 library on disk is exactly the case that
+    // exercises every step at once.
+    expect(migrated.schemaVersion).toBe(6);
     expect(migrated.entries.length).toBe(entryCountBefore);
     expect(migrated.preferences).toMatchObject({
       titleLanguage: 'english',
@@ -75,6 +79,11 @@ test('the schemaVersion 4->5 (P1.3) migration is a dry-run-safe no-op on the ori
       originalTitles: 'details',
       colorTheme: 'moonlit-shrine',
     });
+    // P1.7: the two new registries default empty, and every real entry gets
+    // backfilled membership arrays.
+    expect(migrated.tags).toEqual([]);
+    expect(migrated.customLists).toEqual([]);
+    expect(migrated.entries.every((e) => Array.isArray(e.tagIds) && Array.isArray(e.customListIds))).toBe(true);
 
     // The existing rotateBackup() safety net fired against the copy.
     const backupsDir = path.join(tempCopyDir, 'backups');

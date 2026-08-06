@@ -21,11 +21,11 @@ async function loadClassAStores() {
   return CLASS_A_STORES;
 }
 
-test('boot against a v4 fixture migrates to schemaVersion 5, defaults every new field, and leaves entries/dismissedItems untouched', async () => {
+test('boot against a v4 fixture migrates to CURRENT_SCHEMA_VERSION, defaults every new field, and leaves entries/dismissedItems untouched', async () => {
   const server = await startFixtureServer(FIXTURE);
   try {
     const data = await (await fetch(`${server.url}/api/library`)).json();
-    expect(data.schemaVersion).toBe(5);
+    expect(data.schemaVersion).toBe(6);
     expect(data.preferences).toMatchObject({
       titleLanguage: 'english',
       contentTier: 'standard',
@@ -37,9 +37,13 @@ test('boot against a v4 fixture migrates to schemaVersion 5, defaults every new 
       originalTitles: 'details',
       colorTheme: 'moonlit-shrine',
     });
+    // P1.7: two new empty registries, and every entry backfilled with empty
+    // membership arrays.
+    expect(data.tags).toEqual([]);
+    expect(data.customLists).toEqual([]);
 
     const fixture = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
-    expect(data.entries).toEqual(fixture.entries);
+    expect(data.entries).toEqual(fixture.entries.map((e) => ({ ...e, tagIds: [], customListIds: [] })));
     expect(data.dismissedItems).toEqual(fixture.dismissedItems);
 
     // The existing rotateBackup() safety net (relied on instead of a new
@@ -67,7 +71,7 @@ test('PUT /api/library migrates an old-schemaVersion body before writing', async
     });
     expect(putRes.status).toBe(200);
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(5);
+    expect(after.schemaVersion).toBe(6);
     expect(after.dismissedItems).toEqual([{ anilistId: 777, title: null, coverImage: null }]);
     expect(after.preferences.colorTheme).toBe('moonlit-shrine');
   } finally {
@@ -107,7 +111,7 @@ test('legacy backup restore migrates an old-schemaVersion backup file before wri
     });
     expect(res.status).toBe(200);
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(5);
+    expect(after.schemaVersion).toBe(6);
     expect(after.preferences.textSize).toBe('s');
   } finally {
     await server.stop();
@@ -161,11 +165,17 @@ test('snapshot restore migrates an old-schemaVersion snapshot after restoring an
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.verified).toBe(true);
-    expect(body.migratedTo).toBe(5);
+    expect(body.migratedTo).toBe(6);
 
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(5);
-    expect(after.entries).toEqual(oldLibrary.entries);
+    expect(after.schemaVersion).toBe(6);
+    // P1.7: this snapshot predates tags/customLists entirely (P1.6's
+    // skipped-store restore), so migrate_5_to_6 is what defaults them and
+    // backfills the per-entry membership arrays — same as booting a bare
+    // pre-P1.7 library would.
+    expect(after.entries).toEqual(oldLibrary.entries.map((e) => ({ ...e, tagIds: [], customListIds: [] })));
+    expect(after.tags).toEqual([]);
+    expect(after.customLists).toEqual([]);
     expect(after.preferences.colorTheme).toBe('moonlit-shrine');
     expect(after.preferences.activeTab).toBe('watching');
   } finally {

@@ -221,7 +221,7 @@ test('rule 3a: a NON-EMPTY event log and the counters both survive export, snaps
     // Export carries both new stores, with real content — an empty log would
     // pass this trivially and prove nothing, which is why it is seeded above.
     const exported = await (await fetch(`${server.url}/api/export`)).json();
-    expect(Object.keys(exported.stores).sort()).toEqual(['counters', 'dismissedItems', 'entries', 'eventLog', 'preferences']);
+    expect(Object.keys(exported.stores).sort()).toEqual(['counters', 'customLists', 'dismissedItems', 'entries', 'eventLog', 'preferences', 'tags']);
     expect(exported.stores.eventLog.map((e) => e.id)).toEqual(['01KKA', '01KKB']);
     expect(exported.stores.counters.fromLog.totalEpisodes).toBe(4);
 
@@ -413,10 +413,15 @@ test('a snapshot written BEFORE P1.5 (no eventLog/counters stores) is still list
   try {
     // Build a snapshot with only the three pre-P1.5 stores, exactly as an older
     // build would have written it (manifest checksum computed over those three).
+    // Filtered to an explicit id allowlist rather than "everything except
+    // eventLog/counters" — that exclusion-based filter went stale the moment
+    // P1.7 added two MORE stores (tags, customLists), which this snapshot must
+    // predate too for the test to mean what its name says.
     const Snapshots = require('../../snapshots.js');
     const registryUrl = 'file:///' + path.join(__dirname, '..', '..', 'public', 'js', 'exportRegistry.js').split(path.sep).join('/');
     const { CLASS_A_STORES } = await import(registryUrl);
-    const oldRegistry = CLASS_A_STORES.filter((s) => !['eventLog', 'counters'].includes(s.id));
+    const PRE_P1_5_STORE_IDS = ['entries', 'preferences', 'dismissedItems'];
+    const oldRegistry = CLASS_A_STORES.filter((s) => PRE_P1_5_STORE_IDS.includes(s.id));
     expect(oldRegistry).toHaveLength(3);
 
     const oldLibrary = {
@@ -449,7 +454,8 @@ test('a snapshot written BEFORE P1.5 (no eventLog/counters stores) is still list
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.verified).toBe(true);
-    expect(body.skippedStores.sort()).toEqual(['counters', 'eventLog']);
+    // This snapshot predates every store P1.5 AND P1.7 added.
+    expect(body.skippedStores.sort()).toEqual(['counters', 'customLists', 'eventLog', 'tags']);
 
     // 3) The library came back from the snapshot...
     const lib = await (await fetch(`${server.url}/api/library`)).json();
