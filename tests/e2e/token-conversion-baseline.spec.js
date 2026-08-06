@@ -317,6 +317,22 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     if (await backupOverlay.count()) Object.assign(captured, await captureScene(page, 'backup-overlay', '.overlay:not([hidden])'));
     await page.keyboard.press('Escape');
 
+    // Import steps (.steps, .step, .step-line) — reset() renders step 1's
+    // indicator the instant the overlay opens, no file needed. The step-2
+    // review table (.review, .import-row, .import-summary*,
+    // .screenshot-status-select) is NOT reachable this cheaply: it only
+    // renders after a real MAL export file is parsed and matched against
+    // AniList (or a screenshot is OCR'd), and no e2e test in this repo —
+    // this one included — currently drives that flow at all. Building that
+    // from scratch is out of scope for a token-conversion substep, so those
+    // selectors' conversions are acknowledged as unverified by this test
+    // rather than silently left unmentioned (see docs/v2-token-audit.md).
+    await page.click('#import-trigger');
+    await page.waitForSelector('#import-steps-indicator .step');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'import-steps', '#import-overlay'));
+    await page.keyboard.press('Escape');
+
     // A toast: increment a watching entry's episode, which always shows one.
     // Scoped to #grid for the same reason as the edit-episode click above.
     await page.click('#grid [data-action="increment"]');
