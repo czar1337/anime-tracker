@@ -2350,7 +2350,7 @@ kbd {
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-2);
   z-index: 200;
 }
 /* design/moonlit-shrine-design-system.md §10: "Toast · 300ms in, 4.2s
@@ -2359,14 +2359,14 @@ kbd {
   background: var(--bg-elevated);
   border: 1px solid var(--line-lit);
   color: var(--text);
-  padding: 11px 12px 11px 18px;
+  padding: 11px var(--sp-3) 11px 18px;
   border-radius: 999px;
   box-shadow: var(--sh-2);
   display: flex;
   align-items: center;
   gap: 14px;
   font: var(--t-body);
-  font-size: 12.5px;
+  font-size: var(--fs-action);
   animation: toastIn var(--d-3) var(--e-out);
 }
 @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -2376,7 +2376,7 @@ kbd {
   background: none;
   color: var(--accent-lit);
   font: var(--t-action);
-  padding: 4px 10px;
+  padding: var(--sp-1) 10px;
   border-radius: 999px;
   cursor: pointer;
   transition: background var(--d-2);
