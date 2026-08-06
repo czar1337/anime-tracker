@@ -2489,9 +2489,21 @@ nothing about this substep changes what a rollback needs to consider.
 reads `done` or `out of scope` (the last two rows — `render.js` and
 `statsExport.js` — closed in this same session). Criteria 2, 4 and 5
 apply as "not applicable" for the stated reasons above rather than being
-silently skipped. Not yet merged into `main`; awaiting user confirmation
-on the accessibility framing above before a `v2(P2): close out` commit
-and merge.
+silently skipped.
+
+## P2 close out
+
+The user reviewed the accessibility framing above (this substep changes
+zero markup and zero interaction, only computed pixel values already
+proven byte-identical by the baseline test) and confirmed: close out and
+merge now, no separate screen-reader pass needed.
+
+No other code changed in this closing commit.
+
+**Status: P2 done.** All six acceptance criteria satisfied (criteria 2, 4
+and 5 explicitly not applicable, not silently skipped). Merged into
+`main` in this session's close-out (see the merge commit immediately
+following); `v2/P2` retained, not deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin` until
 a new version is wanted — is still in force.
