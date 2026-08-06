@@ -1,35 +1,18 @@
+/* Inter — SIL OFL 1.1, Google Fonts. Replaced with the variable font for
+   P3.1's font picker (the spec calls it out as "variable, default" among
+   the nine families) — was 5 static weight files (400/500/600/700/800),
+   none of which were ever wired to a live token (--ui is Schibsted
+   Grotesk, --display is Zen Old Mincho; see design/moonlit-shrine-design-
+   system.md's own note that "Sora and Inter can be removed"). The 5 old
+   inter-*.woff2 files are left on disk, unreferenced — v2's git-safety
+   rule is "never delete a file through a file-writing tool," so they stay
+   in public/fonts/ as inert dead weight rather than being removed. Latin
+   subset only, same subsetting convention as schibsted-grotesk.css. */
 @font-face {
   font-family: 'Inter';
   font-style: normal;
-  font-weight: 400;
+  font-weight: 100 900;
   font-display: swap;
-  src: url('inter-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('inter-500.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('inter-600.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('inter-700.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 800;
-  font-display: swap;
-  src: url('inter-800.woff2') format('woff2');
+  src: url('inter-variable.woff2') format('woff2-variations'), url('inter-variable.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }

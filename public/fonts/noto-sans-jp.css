@@ -1,0 +1,17 @@
+/* Noto Sans JP — SIL OFL 1.1, Google Fonts, distributed here as the
+   pre-subsetted "japanese" build from the Fontsource project (same OFL
+   font source, just pre-split into one practical file instead of Google's
+   own 124-chunk per-frequency split). The Japanese fallback backbone (see
+   fontLoader.js) — always loaded, subset aggressively per spec, so anime
+   titles never render as tofu boxes regardless of which primary font is
+   selected. No unicode-range restriction: this is a distinct font-family
+   in a fallback stack, not a co-subset of another family's own name, so
+   the browser's normal glyph-fallback already limits it to codepoints the
+   primary font is missing. */
+@font-face {
+  font-family: 'Noto Sans JP';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('noto-sans-jp-japanese-400.woff2') format('woff2');
+}
