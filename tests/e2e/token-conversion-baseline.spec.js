@@ -78,12 +78,41 @@ async function captureScene(page, sceneName, rootSelector) {
   );
 }
 
+// A minimal but complete mock of api.js's DETAIL_QUERY response shape (same
+// approach P1.7's own e2e suite uses), so the detail overlay — the only
+// place .tag-chip-toggle and the Tags/Custom lists sections render — reaches
+// 'ready' without a real network call.
+function mockAniListDetail(page, anilistId) {
+  const media = {
+    id: anilistId,
+    title: { romaji: 'Shingeki no Kyojin', english: 'Attack on Titan', native: '進撃の巨人' },
+    description: 'Humanity fights back.',
+    coverImage: { large: null, extraLarge: null },
+    bannerImage: null,
+    genres: ['Action', 'Drama'],
+    averageScore: 84,
+    popularity: 900000,
+    favourites: 50000,
+    format: 'TV',
+    status: 'FINISHED',
+    episodes: 25,
+    duration: 24,
+    source: 'MANGA',
+    startDate: { year: 2013, month: 4, day: 7 },
+    endDate: { year: 2013, month: 9, day: 28 },
+    studios: { nodes: [{ name: 'Wit Studio' }] },
+  };
+  return page.route('**/graphql.anilist.co/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { Media: media } }) })
+  );
+}
+
 test('token conversion baseline: every scene\'s computed styles match the checked-in snapshot', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
-    // Blocks the real AniList detail fetch and retryMissingCovers() so this
-    // test never depends on network — the detail overlay's error state is
-    // captured too, since it's a real scene the app renders.
+    // Blocks retryMissingCovers()'s background AniList calls so this test
+    // never depends on network for anything except the one detail-view fetch
+    // this test deliberately mocks below (see mockAniListDetail).
     await page.route('**/graphql.anilist.co/**', (route) => route.abort());
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
@@ -110,6 +139,31 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     Object.assign(captured, await captureScene(page, 'statistics', '#app'));
 
     await page.click('[data-tab="watching"]');
+    await page.waitForTimeout(150);
+
+    // Franchise grouping (.season-row, .season-select, .season-controls-row)
+    // — collapsed by default, so it must be expanded to render at all. Found
+    // missing entirely from the first version of this test: several
+    // conditionally-rendered states (this one, select mode, inline episode
+    // edit, the completion prompt) never appeared in any of the scenes above,
+    // so a passing baseline was silently NOT proving anything about them.
+    await page.click('[data-action="toggle-group"]');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'tab-watching-franchise-expanded', '#app'));
+
+    // Select mode (.card-select-box).
+    await page.click('#select-mode-toggle');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'tab-watching-select-mode', '#app'));
+    await page.click('#select-mode-toggle');
+    await page.waitForTimeout(150);
+
+    // Inline episode edit (.episode-input) — click the progress label on the
+    // fixture's first watching entry to swap it for a real input.
+    await page.click('.card[data-id="101922"] [data-action="edit-episode"]');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'tab-watching-episode-edit', '#app'));
+    await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
 
     await page.click('#theme-toggle');
@@ -143,6 +197,15 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     await page.click('[data-action="increment"]');
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'toast', '.toast'));
+
+    // Detail overlay (.tag-chip-toggle, the Tags/Custom lists sections,
+    // .detail-genres, .detail-foot, …) — needs a real AniList response to
+    // reach 'ready', unlike every scene above.
+    await mockAniListDetail(page, 101922);
+    await page.click('.card[data-id="101922"] [data-action="show-detail"]');
+    await page.waitForSelector('[data-action="show-new-tag-form"]');
+    Object.assign(captured, await captureScene(page, 'detail-overlay', '#detail-content'));
+    await page.keyboard.press('Escape');
 
     if (fs.existsSync(BASELINE_FILE)) {
       const baseline = JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf8'));

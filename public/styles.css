@@ -904,7 +904,7 @@ kbd {
   color: var(--faint);
   display: grid;
   place-items: center;
-  font-size: 13px;
+  font-size: var(--fs-body);
   opacity: 0;
   transition: opacity var(--d-2), border-color var(--d-2), color var(--d-2);
 }
@@ -920,13 +920,13 @@ kbd {
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
-  margin-bottom: 24px;
+  margin-bottom: var(--sp-6);
 }
 .discover-controls { display: flex; align-items: center; gap: 14px; }
-.discover-age { font-size: 12px; color: var(--faint); white-space: nowrap; }
-.discover-media-filter { margin: -12px 0 12px; align-items: center; }
-.discover-genre-filter { margin: -12px 0 24px; align-items: center; }
-.discover-genre-filter-label { font-size: 12px; color: var(--faint); margin-right: 2px; }
+.discover-age { font-size: var(--fs-card); color: var(--faint); white-space: nowrap; }
+.discover-media-filter { margin: -12px 0 var(--sp-3); align-items: center; }
+.discover-genre-filter { margin: -12px 0 var(--sp-6); align-items: center; }
+.discover-genre-filter-label { font-size: var(--fs-card); color: var(--faint); margin-right: 2px; }
 /* include = "only this genre" (accent-fill, same as any other selected
    chip); exclude = "never this genre" (warning tint + strikethrough) — two
    visually distinct states so a three-way cycle reads clearly at a glance. */
@@ -935,8 +935,8 @@ kbd {
 .discover-genre-chip.exclude { background: color-mix(in srgb, var(--warning) 14%, transparent); border-color: color-mix(in srgb, var(--warning) 55%, transparent); color: var(--warning); text-decoration: line-through; }
 .discover-genre-chip.exclude:hover { background: color-mix(in srgb, var(--warning) 20%, transparent); border-color: var(--warning); }
 .discover-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-.discover-load-more-row { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 28px 0 8px; }
-.discover-count { font-size: 12px; color: var(--faint); }
+.discover-load-more-row { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin: 28px 0 var(--sp-2); }
+.discover-count { font-size: var(--fs-card); color: var(--faint); }
 
 /* Franchise card: groups seasons/OVAs of the same title under one entry */
 .franchise-card {
@@ -966,8 +966,8 @@ kbd {
 .franchise-card.expanded .franchise-summary {
   flex-direction: row;
   align-items: flex-start;
-  gap: 16px;
-  padding: 16px;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
 }
 .franchise-card.expanded .franchise-summary .card-cover-wrap {
   width: 84px;
@@ -975,7 +975,7 @@ kbd {
   border-radius: var(--radius-sm);
   aspect-ratio: 2 / 3;
 }
-.franchise-toggle-label { align-self: flex-start; font-size: 11px; padding: 0; }
+.franchise-toggle-label { align-self: flex-start; font-size: var(--fs-meta); padding: 0; }
 
 /* Compact vertical list instead of a grid of full-size duplicate cards —
    each season is a .season-row (see cardHtml's seasonLabel param), not a
@@ -987,8 +987,8 @@ kbd {
 .franchise-seasons {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 0 16px 16px;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4) var(--sp-4);
   opacity: 0;
   animation: cardEnter 0.35s ease-out both;
 }
@@ -996,7 +996,7 @@ kbd {
 .season-row {
   flex-direction: row;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--sp-3);
   padding: 10px;
   background: var(--bg-elevated);
   backdrop-filter: none;
@@ -1012,7 +1012,7 @@ kbd {
    landscape strip. */
 .season-row .card-cover-wrap { width: 64px; height: auto; aspect-ratio: 2 / 3; flex-shrink: 0; border-radius: var(--radius-sm); }
 .season-row .card-corner-actions { top: 4px; right: 4px; gap: 3px; }
-.season-row .card-body { padding: 0; gap: 4px; min-width: 0; }
+.season-row .card-body { padding: 0; gap: var(--sp-1); min-width: 0; }
 /* -webkit-line-clamp:1 is unreliable (the box-orient/line-clamp hack is
    meant for 2+ lines) — the plain single-line ellipsis technique is the
    correct tool for exactly one line. */
@@ -1032,7 +1032,7 @@ kbd {
    strip plus a 4-button status row — the single biggest source of season
    rows feeling oversized. */
 .season-controls-row { display: flex; gap: 6px; }
-.season-select { flex: 1; min-width: 0; font-size: 11px; padding: 4px 6px; }
+.season-select { flex: 1; min-width: 0; font-size: var(--fs-meta); padding: var(--sp-1) 6px; }
 
 /* Landscape crop from the AniList portrait, not the full portrait — a
    fixed height (not aspect-ratio) so it scales with --text-scale but stays
@@ -1116,16 +1116,16 @@ kbd {
   color: white;
   font-size: 10px;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 3px var(--sp-2);
   border-radius: 999px;
   backdrop-filter: blur(4px);
 }
 
 .card-body {
-  padding: 12px;
+  padding: var(--sp-3);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-2);
   flex: 1;
 }
 
@@ -1175,7 +1175,7 @@ kbd {
 }
 
 .card-meta {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--faint);
   display: flex;
   gap: 6px;
@@ -1186,7 +1186,7 @@ kbd {
 .progress-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 .progress-track {
   flex: 1;
@@ -1221,16 +1221,16 @@ kbd {
   100% { background-position: -50% 0; }
 }
 .watched-progress-row { justify-content: flex-start; }
-.watched-progress-label-prefix { font-size: 11px; color: var(--faint); }
+.watched-progress-label-prefix { font-size: var(--fs-meta); color: var(--faint); }
 
 .progress-label {
   appearance: none;
   border: none;
   background: transparent;
-  padding: 2px 4px;
+  padding: 2px var(--sp-1);
   border-radius: 4px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -1243,8 +1243,8 @@ kbd {
   border: 1px solid var(--accent);
   border-radius: 4px;
   color: var(--text);
-  font-size: 11px;
-  padding: 2px 4px;
+  font-size: var(--fs-meta);
+  padding: 2px var(--sp-1);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1266,7 +1266,7 @@ kbd {
   color: var(--accent-lit);
   display: grid;
   place-items: center;
-  font-size: 19px;
+  font-size: var(--fs-display-s);
   line-height: 1;
   opacity: 0;
   transform: scale(0.85);
@@ -1291,7 +1291,7 @@ kbd {
   font: var(--t-nano);
   letter-spacing: var(--tr-nano);
   text-transform: uppercase;
-  padding: 3px 8px;
+  padding: 3px var(--sp-2);
   border-radius: 999px;
   border: 1px solid transparent;
   width: fit-content;
@@ -1320,7 +1320,7 @@ kbd {
 .tag-chip-toggle {
   font: var(--t-nano);
   letter-spacing: .06em;
-  padding: 4px 11px;
+  padding: var(--sp-1) 11px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: none;
@@ -1395,7 +1395,7 @@ kbd {
   top: 8px;
   right: 8px;
   display: flex;
-  gap: 4px;
+  gap: var(--sp-1);
   z-index: 2;
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -1443,7 +1443,7 @@ kbd {
   cursor: pointer;
   transition: background var(--d-2), border-color var(--d-2);
 }
-.card-select-box::after { content: '✓'; font-size: 11px; color: transparent; }
+.card-select-box::after { content: '✓'; font-size: var(--fs-meta); color: transparent; }
 .card-select-box:has(input:checked) { background: var(--accent-fill); border-color: var(--accent-fill); }
 .card-select-box:has(input:checked)::after { color: var(--accent-contrast); }
 .card-select-box input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
@@ -1456,7 +1456,7 @@ kbd {
 .bulkbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sp-3);
   padding: 11px 14px;
   margin-top: 10px;
   border: 1px solid var(--accent);
@@ -1467,14 +1467,14 @@ kbd {
 .bulkbar .count { font: var(--t-card); color: var(--text); white-space: nowrap; }
 .bulkbar .count b { color: var(--accent-lit); }
 .bulkbar .divider { width: 1px; height: 20px; background: var(--line-lit); }
-.bulkbar .r { margin-left: auto; display: flex; gap: 8px; }
+.bulkbar .r { margin-left: auto; display: flex; gap: var(--sp-2); }
 
 .list-badge {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 3px 8px;
+  padding: 3px var(--sp-2);
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-lit);
@@ -1482,7 +1482,7 @@ kbd {
 
 /* Notes */
 .notes-toggle {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--faint);
   cursor: pointer;
   background: none;
@@ -1497,8 +1497,8 @@ kbd {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
-  font-size: 12px;
-  padding: 6px 8px;
+  font-size: var(--fs-card);
+  padding: 6px var(--sp-2);
   resize: vertical;
   min-height: 44px;
 }
@@ -1508,11 +1508,11 @@ kbd {
   background: var(--accent-soft);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
-  padding: 8px;
+  padding: var(--sp-2);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-card);
 }
 
 /* Subtle, not alarming — this is good news ("something to watch"), not a warning.
@@ -1522,7 +1522,7 @@ kbd {
 .unseen-badge.pop { animation: badgePop 0.4s cubic-bezier(.34,1.56,.64,1); }
 .unseen-badge {
   align-self: flex-start;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 30%, transparent);
@@ -1535,11 +1535,11 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--fs-card);
   color: var(--faint);
 }
 .airing-age { white-space: nowrap; }
-.airing-status .text-btn { font-size: 12px; padding: 0; }
+.airing-status .text-btn { font-size: var(--fs-card); padding: 0; }
 
 /* ---------- Home dashboard ---------- */
 .home-view {
