@@ -210,7 +210,7 @@ run after every single section, before its commit.
 | --- | --- | --- | --- | --- |
 | Moonlit Shrine tokens (the `:root` block itself) | out of scope | — | — | this IS the token source; nothing to convert |
 | Atmosphere | **done** | 1 of 1 (`kbd` 11px → `--fs-meta`) | 0 of 1 | `kbd`'s `padding: 1px 6px` matches no `--sp-*` value; left alone |
-| Header | not started | 0 of 2 | 0 of 9 | |
+| Header | **done** | 0 of 2 | 4 of 9 | Neither font-size literal (both 10px) matches any `--fs-*` value. Spacing: `.app-header`'s `padding: 16px 28px` → `padding: var(--sp-4) 28px` (28 has no match); `.tabs` gap 24px → `--sp-6`; `.tab` gap 8px → `--sp-2`; `.header-actions` gap 8px → `--sp-2`. Left alone: `.brand` gap 10px, `.tab` padding's 13px, `.tab-unseen-badge`'s 1px/6px/2px, `.app-version`/`.tab-unseen-badge` font-size 10px — none match |
 | Banners | not started | 0 of 1 | 0 of 3 | |
 | Save indicator | not started | 0 of 0 | 0 of 1 | |
 | Icon buttons | not started | — | — | not separately inventoried by the audit's grep pass |

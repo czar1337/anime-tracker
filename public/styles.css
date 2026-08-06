@@ -240,7 +240,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 28px;
-  padding: 16px 28px;
+  padding: var(--sp-4) 28px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--line);
   position: sticky;
@@ -296,7 +296,7 @@ kbd {
 .tabs {
   position: relative;
   display: flex;
-  gap: 24px;
+  gap: var(--sp-6);
   flex: 1;
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
@@ -334,7 +334,7 @@ kbd {
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   transition: color var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
   white-space: nowrap;
 }
@@ -389,7 +389,7 @@ kbd {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .app-version {
