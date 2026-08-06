@@ -110,6 +110,28 @@ function mockAniListDetail(page, anilistId) {
 test('token conversion baseline: every scene\'s computed styles match the checked-in snapshot', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
+    // Seeds one entry airing "today" so the Home page's Tonight list
+    // (.tonight-row, a real converted class) actually renders a row. Airing
+    // data lives in a separate Class B cache file (airing-cache.json), never
+    // in library.json, so the fixture library alone can never produce
+    // Tonight content — without this, .tonight-row's converted padding/gap
+    // would sit permanently uncaptured by every scene despite the home scene
+    // existing. airingAt is pinned to today's local noon so it always falls
+    // in "today"'s bucket regardless of what wall-clock time the suite runs
+    // at; only computed styles are asserted, so the exact displayed time
+    // text being real-clock-dependent doesn't affect determinism.
+    const todayNoon = new Date();
+    todayNoon.setHours(12, 0, 0, 0);
+    fs.writeFileSync(
+      path.join(server.dataDir, 'airing-cache.json'),
+      JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        entries: {
+          101922: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 6, airingAt: Math.floor(todayNoon.getTime() / 1000) } },
+        },
+      })
+    );
+
     // Blocks retryMissingCovers()'s background AniList calls so this test
     // never depends on network for anything except the one detail-view fetch
     // this test deliberately mocks below (see mockAniListDetail).
@@ -120,26 +142,61 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     const captured = {};
     Object.assign(captured, await captureScene(page, 'header', '.app-header'));
 
+    // Home dashboard (.hero, .home-hero, .home-stats, .home-tiles,
+    // .disc-head, .tonight-row, …) — a DISTINCT view from every tab above,
+    // reached only via the brand button, not a [data-tab] click. Missing
+    // entirely from the first version of this test: nothing else ever
+    // visits it, so `.hero`/`.disc-head`/`.tonight-row` had zero coverage
+    // despite the test passing — the same class of blind spot the Series
+    // card section's conversion already found once for conditionally-
+    // rendered states; this one is a whole separate PAGE that was simply
+    // never opened. (`.home-continue h3` in styles.css is separately
+    // confirmed dead CSS — render.js's Home view uses `.disc-head h3` for
+    // that heading, never `.home-continue` — so it was never a coverage gap
+    // to begin with; untouched by this substep either way, since 14px
+    // matches neither token scale.)
+    await page.click('#brand-home');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'home', '#app'));
+
+    // Every tab click writes the `activeTab` preference through the same
+    // debounced persist() as any real edit (events.js: "activeTab alone is
+    // written on every single tab click") — a real rotateBackup() on the
+    // server 300ms later. The 150ms render-wait alone is shorter than that
+    // debounce, so whether a given click's save fires before or after the
+    // NEXT click resets the timer is real-clock jitter, not anything this
+    // test controls — and it changes how many distinct backup files exist
+    // by the time the backup-overlay scene lists them below. Found via a
+    // ~1-in-12 baseline flake (an extra `backup-row#3`) that reproduced
+    // identically on an unmodified rerun, so it wasn't caused by any CSS
+    // edit. Waiting for the save indicator to settle after each tab click
+    // forces one fully-completed save per click instead of an
+    // indeterminate number of coalesced ones.
     for (const tabName of ['watching', 'watchlist', 'watched', 'dropped']) {
       await page.click(`[data-tab="${tabName}"]`);
       await page.waitForTimeout(150);
+      await page.waitForSelector('#save-indicator[data-state="saved"]');
       Object.assign(captured, await captureScene(page, `tab-${tabName}`, '#app'));
     }
 
     await page.click('[data-tab="schedule"]');
     await page.waitForTimeout(150);
+    await page.waitForSelector('#save-indicator[data-state="saved"]');
     Object.assign(captured, await captureScene(page, 'schedule', '#app'));
 
     await page.click('[data-tab="discover"]');
     await page.waitForTimeout(150);
+    await page.waitForSelector('#save-indicator[data-state="saved"]');
     Object.assign(captured, await captureScene(page, 'discover', '#app'));
 
     await page.click('[data-tab="stats"]');
     await page.waitForTimeout(150);
+    await page.waitForSelector('#save-indicator[data-state="saved"]');
     Object.assign(captured, await captureScene(page, 'statistics', '#app'));
 
     await page.click('[data-tab="watching"]');
     await page.waitForTimeout(150);
+    await page.waitForSelector('#save-indicator[data-state="saved"]');
 
     // Franchise grouping (.season-row, .season-select, .season-controls-row)
     // — collapsed by default, so it must be expanded to render at all. Found
@@ -160,7 +217,11 @@ test('token conversion baseline: every scene\'s computed styles match the checke
 
     // Inline episode edit (.episode-input) — click the progress label on the
     // fixture's first watching entry to swap it for a real input.
-    await page.click('.card[data-id="101922"] [data-action="edit-episode"]');
+    // Scoped to #grid specifically: #home-view (hidden but always present in
+    // the DOM) renders its own "continue watching" copy of this same entry's
+    // card markup, so an unscoped selector resolves to two elements — one
+    // hidden — and Playwright's retry loop can get stuck on the wrong one.
+    await page.click('#grid .card[data-id="101922"] [data-action="edit-episode"]');
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'tab-watching-episode-edit', '#app'));
     await page.keyboard.press('Escape');
@@ -194,7 +255,8 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     await page.keyboard.press('Escape');
 
     // A toast: increment a watching entry's episode, which always shows one.
-    await page.click('[data-action="increment"]');
+    // Scoped to #grid for the same reason as the edit-episode click above.
+    await page.click('#grid [data-action="increment"]');
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'toast', '.toast'));
 
@@ -202,7 +264,7 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     // .detail-genres, .detail-foot, …) — needs a real AniList response to
     // reach 'ready', unlike every scene above.
     await mockAniListDetail(page, 101922);
-    await page.click('.card[data-id="101922"] [data-action="show-detail"]');
+    await page.click('#grid .card[data-id="101922"] [data-action="show-detail"]');
     await page.waitForSelector('[data-action="show-new-tag-form"]');
     Object.assign(captured, await captureScene(page, 'detail-overlay', '#detail-content'));
     await page.keyboard.press('Escape');

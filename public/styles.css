@@ -1547,7 +1547,7 @@ kbd {
   flex-direction: column;
   gap: 28px;
 }
-.home-hero h2 { margin: 0 0 4px; font: 700 calc(22px * var(--text-scale))/1.2 var(--display); letter-spacing: var(--tr-display); }
+.home-hero h2 { margin: 0 0 var(--sp-1); font: 700 calc(22px * var(--text-scale))/1.2 var(--display); letter-spacing: var(--tr-display); }
 .home-hero p { margin: 0; color: var(--dim); font-size: 14px; }
 
 .home-stats {
@@ -1561,7 +1561,7 @@ kbd {
 }
 .home-stats .stat {
   position: relative;
-  padding-left: 16px;
+  padding-left: var(--sp-4);
   border-left: 2px solid var(--line-lit);
 }
 .home-stats .stat-value { font-size: 24px; }
@@ -1569,7 +1569,7 @@ kbd {
 .home-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 16px;
+  gap: var(--sp-4);
 }
 .home-tile {
   appearance: none;
@@ -1588,7 +1588,7 @@ kbd {
 .home-tile:hover { transform: translateY(-3px); box-shadow: var(--sh-2); }
 .home-tile-icon { font-size: 20px; color: var(--tile-accent, var(--accent-lit)); }
 .home-tile-count { font-size: 26px; font-weight: 800; }
-.home-tile-label { font-size: 13px; color: var(--dim); }
+.home-tile-label { font-size: var(--fs-body); color: var(--dim); }
 
 .home-tile[data-nav="watching"] { --tile-accent: var(--accent); }
 .home-tile[data-nav="watchlist"] { --tile-accent: var(--warning); }
@@ -1641,17 +1641,17 @@ kbd {
   letter-spacing: var(--tr-nano);
   text-transform: uppercase;
   color: var(--accent-lit);
-  margin-bottom: 12px;
+  margin-bottom: var(--sp-3);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 .hero.calm .kick { color: var(--faint); }
 .hero .kick i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; flex-shrink: 0; }
 .hero h2 {
   font: var(--t-display-l);
   letter-spacing: var(--tr-display);
-  margin: 0 0 8px;
+  margin: 0 0 var(--sp-2);
   cursor: pointer;
 }
 .hero h2:hover { color: var(--accent-lit); }
@@ -1665,9 +1665,9 @@ kbd {
    Hero above, then two columns: pick-up-where-you-left-off cards on the
    left, Tonight + This year on the right (design §09 remaining-surfaces —
    "not a second library": at most 4 pickup cards, at most 3 Tonight rows). */
-.home-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: start; }
+.home-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--sp-4); align-items: start; }
 @media (max-width: 900px) { .home-cols { grid-template-columns: 1fr; } }
-.disc-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.disc-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .disc-head h3 { margin: 0; font-size: 16px; font-family: 'Sora', 'Inter', system-ui, sans-serif; font-weight: 600; }
 .disc-head .rule { flex: 1; height: 1px; background: var(--line); }
 .home-pickup { grid-template-columns: repeat(2, 1fr); }
@@ -1677,14 +1677,14 @@ kbd {
 .tonight-row {
   display: grid;
   grid-template-columns: 52px 1fr;
-  gap: 12px;
+  gap: var(--sp-3);
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 9px;
-  padding: 10px 12px;
+  padding: 10px var(--sp-3);
 }
 .tonight-row .num { font: var(--t-card); color: var(--accent-lit); }
-.tonight-row > span:last-child { font: var(--t-body); font-size: 12.5px; }
+.tonight-row > span:last-child { font: var(--t-body); font-size: var(--fs-action); }
 .meta-line { display: block; font: var(--t-meta); color: var(--faint); }
 
 .stat-display { display: block; font: var(--t-display-m); letter-spacing: var(--tr-display); }
