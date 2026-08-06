@@ -201,7 +201,7 @@ function cardBodyForList(entry, list, isSeasonRow = false) {
         <div class="completion-prompt">
           <span>Finished! Move to Watched?</span>
           ${isSeasonRow ? scoreSelectHtml(entry) : scoreStripHtml(entry)}
-          <button class="text-btn primary" data-action="complete" style="align-self:flex-start;padding:6px 12px;">Move to Watched</button>
+          <button class="text-btn primary" data-action="complete" style="align-self:flex-start;padding:6px var(--sp-3);">Move to Watched</button>
         </div>` : ''}
       ${isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry)}
     `;
@@ -1679,7 +1679,7 @@ function themeGridHtml(currentId) {
     )
     .join('');
   const toggle = expanded
-    ? (COLOR_THEMES.length > THEME_PREVIEW_COUNT ? `<button class="btn btn-quiet sm" id="theme-view-fewer-btn" style="margin-top:8px">Show fewer</button>` : '')
+    ? (COLOR_THEMES.length > THEME_PREVIEW_COUNT ? `<button class="btn btn-quiet sm" id="theme-view-fewer-btn" style="margin-top:var(--sp-2)">Show fewer</button>` : '')
     : `<p style="margin:10px 0 0;font:var(--t-meta);color:var(--faint)">Showing ${THEME_PREVIEW_COUNT} of ${COLOR_THEMES.length}. <button class="btn btn-quiet sm" id="theme-view-more-btn">View more</button></p>`;
   return `<div class="themegrid">${swatches}</div>${toggle}`;
 }
@@ -1746,7 +1746,7 @@ function tagsManagerBodyHtml() {
         </div>
       </div>
     `
-    : `<button class="btn btn-ghost sm rip-host" id="tags-create-btn" style="margin-top:8px">${escapeHtml(copy('tags.create.button'))}</button>`;
+    : `<button class="btn btn-ghost sm rip-host" id="tags-create-btn" style="margin-top:var(--sp-2)">${escapeHtml(copy('tags.create.button'))}</button>`;
   return `${rows}${form}`;
 }
 
@@ -1786,7 +1786,7 @@ function listsManagerBodyHtml() {
         </div>
       </div>
     `
-    : `<button class="btn btn-ghost sm rip-host" id="lists-create-btn" style="margin-top:8px">${escapeHtml(copy('lists.create.button'))}</button>`;
+    : `<button class="btn btn-ghost sm rip-host" id="lists-create-btn" style="margin-top:var(--sp-2)">${escapeHtml(copy('lists.create.button'))}</button>`;
   return `${rows}${form}`;
 }
 
@@ -1840,7 +1840,7 @@ function renderSettingsPanel(container, currentThemeId) {
       copy('dataSafety.description'),
       `
       <ul id="snapshot-list" class="backup-list"><li class="backup-empty">${escapeHtml(copy('dataSafety.snapshotList.loading'))}</li></ul>
-      <div class="row" style="margin-top:8px">
+      <div class="row" style="margin-top:var(--sp-2)">
         <button id="snapshot-create-btn" class="btn btn-ghost sm rip-host">${escapeHtml(copy('dataSafety.takeSnapshot'))}</button>
         <button id="download-export-btn" class="btn btn-ghost sm rip-host">${escapeHtml(copy('dataSafety.downloadExport'))}</button>
         <button id="reset-everything-btn" class="btn btn-danger sm rip-host">${escapeHtml(copy('dataSafety.resetEverything'))}</button>
