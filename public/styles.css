@@ -1704,7 +1704,7 @@ kbd {
 }
 
 /* ---------- Schedule page ---------- */
-.schedule-section { margin-bottom: 32px; }
+.schedule-section { margin-bottom: var(--sp-8); }
 .schedule-section h3 { font-size: 15px; font-weight: 700; margin: 0 0 14px; color: var(--text); }
 .schedule-release-date { color: var(--faint); }
 
@@ -1713,7 +1713,7 @@ kbd {
   grid-template-columns: repeat(7, minmax(120px, 1fr));
   gap: 10px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: var(--sp-1);
 }
 .schedule-day {
   background: var(--card);
@@ -1724,7 +1724,7 @@ kbd {
   min-height: 130px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-2);
   opacity: 0;
   animation: cardEnter 0.5s cubic-bezier(.16,1,.3,1) both;
 }
@@ -1736,7 +1736,7 @@ kbd {
   padding-bottom: 6px;
   border-bottom: 1px solid var(--line);
 }
-.schedule-day-name { font-size: 12px; font-weight: 700; color: var(--text); }
+.schedule-day-name { font-size: var(--fs-card); font-weight: 700; color: var(--text); }
 .schedule-day.is-today .schedule-day-name { color: var(--accent); }
 .schedule-day-date { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .schedule-day-items { display: flex; flex-direction: column; gap: 6px; flex: 1; }
@@ -1747,7 +1747,7 @@ kbd {
   color: var(--text);
   text-align: left;
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 6px var(--sp-2);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -1756,7 +1756,7 @@ kbd {
 }
 .schedule-item:hover { border-color: var(--accent); transform: translateY(-1px); }
 .schedule-item-title {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   line-height: 1.3;
   display: -webkit-box;
@@ -1765,7 +1765,7 @@ kbd {
   overflow: hidden;
 }
 .schedule-item-ep { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.schedule-day-empty { font-size: 11px; color: var(--faint); margin: 0; }
+.schedule-day-empty { font-size: var(--fs-meta); color: var(--faint); margin: 0; }
 
 .stats-grid-2col {
   display: grid;
@@ -1782,8 +1782,8 @@ kbd {
 }
 .stats-section:hover { border-color: var(--line-lit); }
 .stats-section h3 {
-  margin: 0 0 16px;
-  font-size: 12px;
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-card);
   font-weight: 700;
   color: var(--faint);
   text-transform: uppercase;
@@ -1796,8 +1796,8 @@ kbd {
   display: grid;
   grid-template-columns: 96px 1fr 34px;
   align-items: center;
-  gap: 12px;
-  font-size: 12px;
+  gap: var(--sp-3);
+  font-size: var(--fs-card);
   padding: 6px 0;
 }
 .stat-bar-label { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1811,7 +1811,7 @@ kbd {
 .stats-section--genre .stat-bar-fill { background: linear-gradient(90deg, var(--support), color-mix(in srgb, var(--support) 55%, var(--text))); }
 .stats-section--decade .stat-bar-fill { background: linear-gradient(90deg, var(--accent), var(--accent-lit)); }
 
-.stat-mini-list { display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow-y: auto; }
+.stat-mini-list { display: flex; flex-direction: column; gap: var(--sp-1); max-height: 420px; overflow-y: auto; }
 .stat-mini-row {
   display: flex;
   align-items: center;
@@ -1824,14 +1824,14 @@ kbd {
   width: 18px;
   flex-shrink: 0;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
 .stat-mini-cover { width: 32px; height: 46px; object-fit: cover; border-radius: 4px; background: var(--line); flex-shrink: 0; }
 .stat-mini-info { min-width: 0; }
-.stat-mini-title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-mini-title { font-size: var(--fs-card); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- Empty states ---------- */
 .empty-state {
