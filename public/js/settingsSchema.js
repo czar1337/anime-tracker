@@ -21,6 +21,7 @@
 // so this is unit-testable without a browser.
 
 import { DEFAULT_THEME_ID } from './themes.js';
+import { DEFAULT_UI_FONT, DEFAULT_HEADING_FONT, DEFAULT_NUMBERS_FONT, isValidFontId } from './fonts.js';
 
 export const TITLE_LANGUAGES = ['romaji', 'english', 'native'];
 // Standard is the only tier reachable without the P6.4 unlock gate; the
@@ -89,6 +90,13 @@ export function defaultSettings() {
     decorDensity: DEFAULT_DECOR_DENSITY,
     originalTitles: DEFAULT_ORIGINAL_TITLES,
     colorTheme: DEFAULT_THEME_ID,
+    // P3.1: uiFont/headingFont/numbersFont default to today's actual,
+    // already-shipped typography (Schibsted Grotesk/Zen Old Mincho) —
+    // picking none of the 9 new families this substep adds is
+    // indistinguishable from not having the feature at all.
+    uiFont: DEFAULT_UI_FONT,
+    headingFont: DEFAULT_HEADING_FONT,
+    numbersFont: DEFAULT_NUMBERS_FONT,
   };
 }
 
@@ -128,6 +136,9 @@ export function ensureSettingsShape(preferences) {
   prefs.decorDensity = DECOR_DENSITIES.includes(prefs.decorDensity) ? prefs.decorDensity : defaults.decorDensity;
   prefs.originalTitles = ORIGINAL_TITLES_MODES.includes(prefs.originalTitles) ? prefs.originalTitles : defaults.originalTitles;
   prefs.colorTheme = typeof prefs.colorTheme === 'string' && prefs.colorTheme ? prefs.colorTheme : defaults.colorTheme;
+  prefs.uiFont = isValidFontId(prefs.uiFont) ? prefs.uiFont : defaults.uiFont;
+  prefs.headingFont = isValidFontId(prefs.headingFont) ? prefs.headingFont : defaults.headingFont;
+  prefs.numbersFont = isValidFontId(prefs.numbersFont) ? prefs.numbersFont : defaults.numbersFont;
 
   return prefs;
 }

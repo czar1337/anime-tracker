@@ -14,8 +14,10 @@
 // AniList for the detail view and search — so "everywhere" means every
 // surface that has a live AniList response to read one from.
 //
-// P1.3: these 6 keys (the 5 below plus colorTheme, owned by themes.js) used
+// P1.3: these keys (the 5 below plus colorTheme, owned by themes.js) used
 // to live ONLY here, in localStorage — no server/backup protection at all.
+// P3.1 adds uiFont/headingFont/numbersFont to the same cosmetic-settings
+// mechanism (owned by fonts.js/fontLoader.js).
 // They're now also part of library.json's Class A `preferences` (see
 // settingsSchema.js), with localStorage kept as exactly the "read-through
 // mirror" docs/v2-spec.md's rule 12 asks for: still the fast, synchronous
@@ -24,6 +26,8 @@
 // below are what keep it from silently drifting from what's actually saved.
 
 import { Themes } from './themes.js';
+import { Fonts } from './fonts.js';
+import { FontLoader } from './fontLoader.js';
 import {
   TEXT_SIZES,
   TEXT_WEIGHTS,
@@ -45,6 +49,9 @@ const KEYS = {
   decor: 'anime-tracker-decor',
   decorDensity: 'anime-tracker-decor-density',
   originalTitles: 'anime-tracker-original-titles',
+  uiFont: 'anime-tracker-ui-font',
+  headingFont: 'anime-tracker-heading-font',
+  numbersFont: 'anime-tracker-numbers-font',
 };
 
 // Set exactly once per browser profile, the first time reconcileFirstBoot()
@@ -89,6 +96,34 @@ function setOriginalTitlesMode(mode) {
   localStorage.setItem(KEYS.originalTitles, mode);
 }
 
+// A font slot writes a real CSS custom property (--ui/--display/--numbers),
+// not a data-attribute — font stacks aren't a small closed enum CSS can
+// switch on via [data-x] selectors the way textSize/decor are; every
+// component rule that already reads var(--ui) etc. picks up the override
+// for free, with zero changes to any component rule. Also loads the
+// font's CSS the moment it's applied (idempotent — a no-op if already
+// loaded), so calling this setter is the one thing any caller (a Settings
+// click, or syncFromLibrary on every boot) needs to do to make a
+// selection actually render.
+function fontPref(cssVarName, storageKey, defaultId) {
+  return {
+    get: () => {
+      const v = localStorage.getItem(storageKey);
+      return Fonts.isValidFontId(v) ? v : defaultId;
+    },
+    set(fontId) {
+      if (!Fonts.isValidFontId(fontId)) return;
+      FontLoader.ensureFontLoaded(fontId);
+      document.documentElement.style.setProperty(cssVarName, Fonts.getCssStack(fontId));
+      localStorage.setItem(storageKey, fontId);
+    },
+  };
+}
+
+const uiFontPref = fontPref('--ui', KEYS.uiFont, Fonts.DEFAULT_UI_FONT);
+const headingFontPref = fontPref('--display', KEYS.headingFont, Fonts.DEFAULT_HEADING_FONT);
+const numbersFontPref = fontPref('--numbers', KEYS.numbersFont, Fonts.DEFAULT_NUMBERS_FONT);
+
 // The 6 cosmetic settings, keyed by their name inside library.json's
 // `preferences` (matches settingsSchema.js's defaultSettings() field names)
 // — walked generically by syncFromLibrary/reconcileFirstBoot rather than 6
@@ -100,6 +135,9 @@ const COSMETIC_SETTERS = {
   decorDensity: setDecorDensity,
   originalTitles: setOriginalTitlesMode,
   colorTheme: Themes.setColorTheme,
+  uiFont: uiFontPref.set,
+  headingFont: headingFontPref.set,
+  numbersFont: numbersFontPref.set,
 };
 const COSMETIC_RAW_KEYS = {
   textSize: KEYS.textSize,
@@ -108,7 +146,11 @@ const COSMETIC_RAW_KEYS = {
   decorDensity: KEYS.decorDensity,
   originalTitles: KEYS.originalTitles,
   colorTheme: Themes.STORAGE_KEY,
+  uiFont: KEYS.uiFont,
+  headingFont: KEYS.headingFont,
+  numbersFont: KEYS.numbersFont,
 };
+const FONT_IDS = Fonts.FONT_CATALOG.map((f) => f.id);
 const COSMETIC_VALID = {
   textSize: TEXT_SIZES,
   textWeight: TEXT_WEIGHTS,
@@ -116,6 +158,9 @@ const COSMETIC_VALID = {
   decorDensity: DECOR_DENSITIES,
   originalTitles: ORIGINAL_TITLES_MODES,
   colorTheme: Themes.COLOR_THEMES.map((t) => t.id),
+  uiFont: FONT_IDS,
+  headingFont: FONT_IDS,
+  numbersFont: FONT_IDS,
 };
 
 // Library wins: applies every cosmetic value the given (already-defaulted)
@@ -178,6 +223,12 @@ export const Preferences = {
   setDecorDensity,
   getOriginalTitlesMode,
   setOriginalTitlesMode,
+  getUiFont: uiFontPref.get,
+  setUiFont: uiFontPref.set,
+  getHeadingFont: headingFontPref.get,
+  setHeadingFont: headingFontPref.set,
+  getNumbersFont: numbersFontPref.get,
+  setNumbersFont: numbersFontPref.set,
   syncFromLibrary,
   reconcileFirstBoot,
 };

@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -132,7 +132,30 @@ function migrate_5_to_6(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6 };
+// P3.1: uiFont/headingFont/numbersFont. Same shape as migrate_4_to_5's
+// preferences additions — inlined literal defaults, deliberately decoupled
+// from public/js/settingsSchema.js's live defaultSettings()/fonts.js's
+// live DEFAULT_UI_FONT etc. (a migration is a frozen snapshot of what
+// defaulted at this version). The defaults are today's actual, already-
+// shipped typography (schibsted-grotesk/zen-old-mincho), so this migration
+// changes nothing about how an existing library renders.
+function migrate_6_to_7(data) {
+  const out = { ...data };
+  out.schemaVersion = 7;
+  const before = out.preferences || {};
+  out.preferences = {
+    ...before,
+    uiFont: before.uiFont !== undefined ? before.uiFont : 'schibsted-grotesk',
+    headingFont: before.headingFont !== undefined ? before.headingFont : 'zen-old-mincho',
+    numbersFont: before.numbersFont !== undefined ? before.numbersFont : 'schibsted-grotesk',
+  };
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_6_to_7 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -159,4 +182,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7 };

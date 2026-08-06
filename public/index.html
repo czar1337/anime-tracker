@@ -13,6 +13,17 @@
      migrates every consumer to --display/--ui and nothing references them. -->
 <link rel="stylesheet" href="/fonts/zen-old-mincho.css">
 <link rel="stylesheet" href="/fonts/schibsted-grotesk.css">
+<!-- P3.1: the Japanese fallback backbone, always registered regardless of
+     which font a user selects (design/v2-spec.md: "always loaded as a
+     fallback even when not selected") — every font's own CSS stack
+     (public/js/fonts.js's getCssStack) inserts "Noto Sans JP" as a
+     fallback link, so this @font-face rule must always exist for that
+     fallback to actually resolve. Registering the rule here does not
+     eagerly download the ~1.1MB file: browsers only fetch an @font-face's
+     src on demand, when text on screen actually needs one of its glyphs
+     (e.g. a native Japanese title), same as font-display: swap already
+     relies on for every other font here. -->
+<link rel="stylesheet" href="/fonts/noto-sans-jp.css">
 <link rel="stylesheet" href="/styles.css">
 <script>
   // Applied synchronously, before the stylesheet paints anything, so the
