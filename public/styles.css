@@ -406,11 +406,11 @@ kbd {
 .banner {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sp-3);
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   font: var(--t-meta);
-  font-size: 12px;
+  font-size: var(--fs-card);
   text-decoration: none;
   white-space: nowrap;
 }
