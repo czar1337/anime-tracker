@@ -17,6 +17,11 @@ export async function showDetail(anilistId) {
   // close) — previously this set `hidden = false` directly and skipped all
   // of that.
   openOverlay('detail-overlay');
+  // P1.7: a fresh open must never inherit another entry's still-open "+ New
+  // tag"/"+ New list" form — refreshDetailIfOpen (below) re-renders the SAME
+  // entry after a mutation and deliberately does NOT reset these, so a form
+  // left open survives a toggle-tag click; only a genuinely new entry clears it.
+  Render.resetDetailCreateForms();
   const myGeneration = generation;
   const localEntry = Store.getEntry(anilistId);
 

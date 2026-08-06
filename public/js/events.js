@@ -15,6 +15,7 @@ import { BackupClient } from './backupClient.js';
 import { EventLog } from './eventLog.js';
 import { isViewStatePreference } from './eventTypes.js';
 import { copy } from './copy.js';
+import { LISTS_AND_TAGS } from '../../config/tuning.js';
 
 // P1.5's restore route reports `skippedStores` when the snapshot predates a
 // newer Class A store; until P1.6 nothing surfaced it, so a partial restore
@@ -1447,6 +1448,68 @@ function bindDetailOverlay() {
     }
     else if (action === 'detail-mark-next') handleIncrement(null, id);
     else if (action === 'detail-drop') confirmDrop(id);
+    // P1.7: tag/list membership toggles and the two inline create forms.
+    // Every branch re-renders both the card grid (so a chip appears there
+    // immediately too) and the detail view in place, then persists — the
+    // same three-call shape every other detail-view mutation already uses.
+    else if (action === 'toggle-entry-tag') {
+      Store.toggleEntryTag(id, actionEl.dataset.tagId);
+      refreshGridOnly();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+    }
+    else if (action === 'toggle-entry-list') {
+      Store.toggleEntryCustomList(id, actionEl.dataset.listId);
+      refreshGridOnly();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+    }
+    else if (action === 'show-new-tag-form') {
+      Render.toggleDetailNewTagForm(true);
+      Detail.refreshDetailIfOpen(id);
+    }
+    else if (action === 'cancel-new-tag') {
+      Render.toggleDetailNewTagForm(false);
+      Detail.refreshDetailIfOpen(id);
+    }
+    else if (action === 'pick-new-tag-color') {
+      Render.setDetailNewTagColor(actionEl.dataset.colorId);
+      Detail.refreshDetailIfOpen(id);
+    }
+    else if (action === 'confirm-new-tag') {
+      const input = content.querySelector('#detail-new-tag-name');
+      const tag = Store.createTag(input ? input.value : '', Render.getDetailNewTagColor());
+      if (!tag) {
+        // Covers both "empty name" and "duplicate name" — createTag returns
+        // null for either, and the duplicate case is the one worth a message
+        // for; an empty submit is just a no-op click, not an error.
+        if (input && input.value.trim()) Render.showToast(copy('tags.create.duplicateName'));
+        return;
+      }
+      Store.toggleEntryTag(id, tag.id); // creating a tag from an entry's view also applies it
+      Render.toggleDetailNewTagForm(false);
+      refreshGridOnly();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+    }
+    else if (action === 'show-new-list-form') {
+      Render.toggleDetailNewListForm(true);
+      Detail.refreshDetailIfOpen(id);
+    }
+    else if (action === 'cancel-new-list') {
+      Render.toggleDetailNewListForm(false);
+      Detail.refreshDetailIfOpen(id);
+    }
+    else if (action === 'confirm-new-list') {
+      const input = content.querySelector('#detail-new-list-name');
+      const list = Store.createCustomList(input ? input.value : '');
+      if (!list) return; // empty name — no-op, same as the tag form above
+      Store.toggleEntryCustomList(id, list.id);
+      Render.toggleDetailNewListForm(false);
+      refreshGridOnly();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+    }
   });
 
   content.addEventListener(
@@ -1460,7 +1523,27 @@ function bindDetailOverlay() {
     true
   );
 
+  // P1.7: keeps the in-progress tag name in sync with render.js's module
+  // state WITHOUT re-rendering on every keystroke (that would fight the
+  // cursor) — only so that an unrelated re-render (picking a colour swatch)
+  // has something correct to pre-fill the input with, instead of wiping out
+  // whatever the user had already typed. See setDetailNewTagName's comment.
+  content.addEventListener('input', (e) => {
+    if (e.target.id === 'detail-new-tag-name') Render.setDetailNewTagName(e.target.value);
+  });
+
   content.addEventListener('keydown', (e) => {
+    // P1.7: Enter submits either inline create form, matching how the
+    // episode-jump input (below) and the reset-confirm typed-phrase input
+    // both already treat Enter as "commit" rather than requiring a click.
+    if (e.key === 'Enter' && e.target.id === 'detail-new-tag-name') {
+      e.target.closest('.inline-create-form').querySelector('[data-action="confirm-new-tag"]').click();
+      return;
+    }
+    if (e.key === 'Enter' && e.target.id === 'detail-new-list-name') {
+      e.target.closest('.inline-create-form').querySelector('[data-action="confirm-new-list"]').click();
+      return;
+    }
     if (!(e.target.dataset && e.target.dataset.action === 'detail-jump-episode' && e.key === 'Enter')) return;
     const id = Number(content.dataset.anilistId);
     const entry = Store.getEntry(id);
@@ -1618,6 +1701,168 @@ function bindSettingsPanel() {
       return;
     }
 
+    // P1.7: Tags manager. Every branch ends in repaintSettings(), which
+    // rebuilds the whole panel from its live Store state — the same "full
+    // rebuild on every change" the rest of this panel already relies on.
+    if (e.target.closest('#tags-create-btn')) {
+      Render.toggleSettingsNewTagForm(true);
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+    const tagColorSwatch = e.target.closest('[data-action="pick-settings-new-tag-color"]');
+    if (tagColorSwatch) {
+      Render.setSettingsNewTagColor(tagColorSwatch.dataset.colorId);
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+    if (e.target.closest('[data-action="cancel-settings-new-tag"]')) {
+      Render.toggleSettingsNewTagForm(false);
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+    if (e.target.closest('[data-action="confirm-settings-new-tag"]')) {
+      const input = document.getElementById('settings-new-tag-name');
+      const tag = Store.createTag(input ? input.value : '', Render.getSettingsNewTagColor());
+      if (!tag) {
+        if (input && input.value.trim()) Render.showToast(copy('tags.create.duplicateName'));
+        return;
+      }
+      Render.toggleSettingsNewTagForm(false);
+      persist();
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+    const renameTagBtn = e.target.closest('[data-action="rename-tag"]');
+    if (renameTagBtn) {
+      // Same inline "swap the label for an input" idiom as handleEditEpisode —
+      // commit on blur/Enter, discard on Escape by simply repainting without
+      // having called renameTag.
+      const row = renameTagBtn.closest('.manager-row');
+      const nameEl = row.querySelector('.nm');
+      const tagId = renameTagBtn.dataset.tagId;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = nameEl.textContent;
+      input.maxLength = LISTS_AND_TAGS.maxNameLength;
+      input.style.flex = '1';
+      nameEl.replaceWith(input);
+      input.focus();
+      input.select();
+      let committed = false;
+      const commit = () => {
+        if (committed) return;
+        committed = true;
+        const renamed = Store.renameTag(tagId, input.value);
+        if (!renamed && input.value.trim()) Render.showToast(copy('tags.create.duplicateName'));
+        if (renamed) persist();
+        repaintSettings(Themes.getCurrentThemeId());
+      };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (ke) => {
+        if (ke.key === 'Enter') input.blur();
+        else if (ke.key === 'Escape') {
+          committed = true;
+          repaintSettings(Themes.getCurrentThemeId());
+        }
+      });
+      return;
+    }
+    const deleteTagBtn = e.target.closest('[data-action="delete-tag"]');
+    if (deleteTagBtn) {
+      const tagId = deleteTagBtn.dataset.tagId;
+      const name = deleteTagBtn.dataset.tagName;
+      confirmDialog({
+        title: copy('tags.delete.dialog.title', undefined, { name }),
+        body: copy('tags.delete.dialog.body'),
+        confirmLabel: copy('tags.delete.dialog.confirm'),
+        onConfirm: () => {
+          Store.deleteTag(tagId);
+          refreshGridOnly();
+          Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
+          persist();
+          repaintSettings(Themes.getCurrentThemeId());
+        },
+      });
+      return;
+    }
+
+    // P1.7: Custom lists manager — mirrors the tags manager above exactly,
+    // minus the colour picker.
+    if (e.target.closest('#lists-create-btn')) {
+      Render.toggleSettingsNewListForm(true);
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+    if (e.target.closest('[data-action="cancel-settings-new-list"]')) {
+      Render.toggleSettingsNewListForm(false);
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+    if (e.target.closest('[data-action="confirm-settings-new-list"]')) {
+      const input = document.getElementById('settings-new-list-name');
+      const list = Store.createCustomList(input ? input.value : '');
+      if (!list) return;
+      Render.toggleSettingsNewListForm(false);
+      persist();
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+    const toggleEntriesBtn = e.target.closest('[data-action="toggle-list-entries"]');
+    if (toggleEntriesBtn) {
+      Render.toggleManagerListExpanded(toggleEntriesBtn.dataset.listId);
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+    const renameListBtn = e.target.closest('[data-action="rename-list"]');
+    if (renameListBtn) {
+      const row = renameListBtn.closest('.manager-row');
+      const nameEl = row.querySelector('.nm');
+      const listId = renameListBtn.dataset.listId;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = nameEl.textContent;
+      input.maxLength = LISTS_AND_TAGS.maxNameLength;
+      input.style.flex = '1';
+      nameEl.replaceWith(input);
+      input.focus();
+      input.select();
+      let committed = false;
+      const commit = () => {
+        if (committed) return;
+        committed = true;
+        const renamed = Store.renameCustomList(listId, input.value);
+        if (renamed) persist();
+        repaintSettings(Themes.getCurrentThemeId());
+      };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (ke) => {
+        if (ke.key === 'Enter') input.blur();
+        else if (ke.key === 'Escape') {
+          committed = true;
+          repaintSettings(Themes.getCurrentThemeId());
+        }
+      });
+      return;
+    }
+    const deleteListBtn = e.target.closest('[data-action="delete-list"]');
+    if (deleteListBtn) {
+      const listId = deleteListBtn.dataset.listId;
+      const name = deleteListBtn.dataset.listName;
+      confirmDialog({
+        title: copy('lists.delete.dialog.title', undefined, { name }),
+        body: copy('lists.delete.dialog.body'),
+        confirmLabel: copy('lists.delete.dialog.confirm'),
+        onConfirm: () => {
+          Store.deleteCustomList(listId);
+          refreshGridOnly();
+          Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
+          persist();
+          repaintSettings(Themes.getCurrentThemeId());
+        },
+      });
+      return;
+    }
+
     const segBtn = e.target.closest('.seg button');
     if (!segBtn) return;
     const seg = segBtn.closest('.seg').dataset.seg;
@@ -1643,6 +1888,19 @@ function bindSettingsPanel() {
     recordSettingChange(seg, beforeSetting, value);
     persist();
     repaintSettings(Themes.getCurrentThemeId());
+  });
+
+  // P1.7: Enter submits either inline create form, same as the detail view's.
+  body.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    if (e.target.id === 'settings-new-tag-name') body.querySelector('[data-action="confirm-settings-new-tag"]')?.click();
+    else if (e.target.id === 'settings-new-list-name') body.querySelector('[data-action="confirm-settings-new-list"]')?.click();
+  });
+
+  // Same colour-swatch-loses-the-typed-name fix as the detail view's — see
+  // setSettingsNewTagName's comment.
+  body.addEventListener('input', (e) => {
+    if (e.target.id === 'settings-new-tag-name') Render.setSettingsNewTagName(e.target.value);
   });
 }
 
