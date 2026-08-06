@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -165,13 +165,64 @@ async function run() {
     assert.equal(migrated.preferences.activeTab, v4.preferences.activeTab);
   });
 
-  await test('migration chain: a v1 fixture reaches schemaVersion 5 with every P1.3 field defaulted', () => {
+  await test('migration v5->v6 (P1.7): adds tags/customLists and backfills tagIds/customListIds onto every entry', () => {
+    const v5 = readFixture('schema-v5-library.json');
+    const migrated = migrate_5_to_6(v5);
+    assert.equal(migrated.schemaVersion, 6);
+    assert.deepEqual(migrated.tags, []);
+    assert.deepEqual(migrated.customLists, []);
+    assert.equal(migrated.entries.length, v5.entries.length);
+    for (const entry of migrated.entries) {
+      assert.deepEqual(entry.tagIds, []);
+      assert.deepEqual(entry.customListIds, []);
+    }
+    // Every other field on the entry survives untouched.
+    assert.equal(migrated.entries[0].anilistId, v5.entries[0].anilistId);
+    assert.equal(migrated.entries[0].myScore, v5.entries[0].myScore);
+  });
+
+  await test('migration v5->v6: never overwrites already-present tags/customLists/tagIds/customListIds (idempotent)', () => {
+    const v5 = readFixture('schema-v5-library.json');
+    const alreadyMigrated = {
+      ...v5,
+      tags: [{ id: 'tag_x', name: 'Existing', color: 'rose', createdAt: '2026-01-01T00:00:00.000Z' }],
+      customLists: [{ id: 'list_x', name: 'Existing list', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }],
+      entries: v5.entries.map((e) => ({ ...e, tagIds: ['tag_x'], customListIds: ['list_x'] })),
+    };
+    const migrated = migrate_5_to_6(alreadyMigrated);
+    assert.deepEqual(migrated.tags, alreadyMigrated.tags);
+    assert.deepEqual(migrated.customLists, alreadyMigrated.customLists);
+    assert.deepEqual(migrated.entries[0].tagIds, ['tag_x']);
+    assert.deepEqual(migrated.entries[0].customListIds, ['list_x']);
+    // Running it again produces the exact same result.
+    const migratedTwice = migrate_5_to_6(migrated);
+    assert.deepEqual(migratedTwice, migrated);
+  });
+
+  await test('migration v5->v6: never touches preferences or any other entry field', () => {
+    const v5 = readFixture('schema-v5-library.json');
+    const migrated = migrate_5_to_6(v5);
+    assert.deepEqual(migrated.preferences, v5.preferences);
+    assert.deepEqual(migrated.dismissedItems, v5.dismissedItems);
+    for (let i = 0; i < v5.entries.length; i++) {
+      const { tagIds, customListIds, ...originalFieldsOnly } = migrated.entries[i];
+      assert.deepEqual(originalFieldsOnly, v5.entries[i]);
+    }
+  });
+
+  await test('migration chain: a v1 fixture reaches CURRENT_SCHEMA_VERSION with every P1.3/P1.7 field defaulted', () => {
     const v1 = readFixture('schema-v1-library.json');
     const migrated = migrate(v1);
-    assert.equal(migrated.schemaVersion, 5);
+    assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.equal(migrated.preferences.titleLanguage, 'english');
     assert.equal(migrated.preferences.contentTier, 'standard');
     assert.equal(migrated.preferences.colorTheme, 'moonlit-shrine');
+    assert.deepEqual(migrated.tags, []);
+    assert.deepEqual(migrated.customLists, []);
+    for (const entry of migrated.entries) {
+      assert.deepEqual(entry.tagIds, []);
+      assert.deepEqual(entry.customListIds, []);
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -940,6 +991,209 @@ async function run() {
   });
 
   // -------------------------------------------------------------------------
+  // P1.7's tags/customLists mutators on Store — pure, no DOM. Membership
+  // lives on the entry (tagIds/customListIds); the registries
+  // (state.tags/state.customLists) hold pure metadata only.
+  // -------------------------------------------------------------------------
+  function libraryWithOneEntry() {
+    return { schemaVersion: 6, entries: [{ anilistId: 1, listStatus: 'watching' }], preferences: {}, dismissedItems: [], tags: [], customLists: [] };
+  }
+
+  await test('createTag adds a tag with a generated id, trimmed name, and the given colour', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const tag = Store.createTag('  Comfort  ', 'rose');
+    assert.equal(tag.name, 'Comfort');
+    assert.equal(tag.color, 'rose');
+    assert.match(tag.id, /^tag_/);
+    assert.deepEqual(Store.getTags(), [tag]);
+  });
+
+  await test('createTag rejects an empty name and a case-insensitive duplicate, without creating anything', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    Store.createTag('Comfort');
+    assert.equal(Store.createTag(''), null);
+    assert.equal(Store.createTag('   '), null);
+    assert.equal(Store.createTag('comfort'), null, 'case-insensitive duplicate must be rejected');
+    assert.equal(Store.createTag(' COMFORT '), null, 'whitespace + case must both be normalized before the duplicate check');
+    assert.equal(Store.getTags().length, 1);
+  });
+
+  await test('renameTag updates the name but rejects a duplicate against a DIFFERENT tag, and allows renaming a tag to its own current name', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const a = Store.createTag('Comfort');
+    const b = Store.createTag('Hype');
+    assert.equal(Store.renameTag(b.id, 'comfort'), null, 'renaming into a collision with another tag must fail');
+    assert.equal(Store.getTags().find((t) => t.id === b.id).name, 'Hype', 'the rejected rename must not have changed anything');
+    assert.notEqual(Store.renameTag(a.id, 'Comfort'), null, 'renaming a tag to the name it already has must succeed (excludeId)');
+    const renamed = Store.renameTag(a.id, 'Cozy');
+    assert.equal(renamed.name, 'Cozy');
+  });
+
+  await test('recolorTag changes only the colour, never the name or id', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const tag = Store.createTag('Comfort', 'rose');
+    const recolored = Store.recolorTag(tag.id, 'teal');
+    assert.equal(recolored.color, 'teal');
+    assert.equal(recolored.name, 'Comfort');
+    assert.equal(recolored.id, tag.id);
+  });
+
+  await test('toggleEntryTag adds then removes membership, and deleteTag scrubs the id from every entry that had it', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const tag = Store.createTag('Comfort');
+    Store.toggleEntryTag(1, tag.id);
+    assert.deepEqual(Store.getEntry(1).tagIds, [tag.id]);
+    Store.toggleEntryTag(1, tag.id);
+    assert.deepEqual(Store.getEntry(1).tagIds, [], 'a second toggle removes membership');
+    Store.toggleEntryTag(1, tag.id); // back on, to prove deleteTag scrubs it
+    Store.deleteTag(tag.id);
+    assert.deepEqual(Store.getTags(), []);
+    assert.deepEqual(Store.getEntry(1).tagIds, [], 'the deleted tag must be scrubbed from every entry, not just removed from the registry');
+  });
+
+  await test('toggleEntryTag / deleteTag return null/false for a nonexistent entry/tag rather than throwing', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    assert.equal(Store.toggleEntryTag(999, 'tag_nope'), null, 'nonexistent entry');
+    assert.equal(Store.deleteTag('tag_nope'), false, 'nonexistent tag');
+  });
+
+  await test('createCustomList/renameCustomList allow duplicate names (unlike tags) since lists are matched by id, not name', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const a = Store.createCustomList('Rewatch queue');
+    const b = Store.createCustomList('Rewatch queue');
+    assert.notEqual(a.id, b.id);
+    assert.equal(Store.renameCustomList(b.id, 'Rewatch queue').name, 'Rewatch queue');
+  });
+
+  await test('createCustomList rejects an empty/whitespace-only name', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    assert.equal(Store.createCustomList(''), null);
+    assert.equal(Store.createCustomList('   '), null);
+  });
+
+  await test('toggleEntryCustomList / deleteCustomList: same membership + scrub-on-delete behaviour as tags', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const list = Store.createCustomList('Rewatch queue');
+    Store.toggleEntryCustomList(1, list.id);
+    assert.deepEqual(Store.getEntry(1).customListIds, [list.id]);
+    assert.deepEqual(Store.getEntriesInCustomList(list.id).map((e) => e.anilistId), [1]);
+    Store.deleteCustomList(list.id);
+    assert.deepEqual(Store.getCustomLists(), []);
+    assert.deepEqual(Store.getEntry(1).customListIds, []);
+  });
+
+  await test('getEntriesInCustomList reflects membership changes live and returns none for an unknown list id', () => {
+    Store.setLibrary({
+      schemaVersion: 6,
+      entries: [{ anilistId: 1, listStatus: 'watching' }, { anilistId: 2, listStatus: 'watched' }],
+      preferences: {},
+      dismissedItems: [],
+      tags: [],
+      customLists: [],
+    });
+    const list = Store.createCustomList('Favourites');
+    Store.toggleEntryCustomList(1, list.id);
+    Store.toggleEntryCustomList(2, list.id);
+    assert.deepEqual(Store.getEntriesInCustomList(list.id).map((e) => e.anilistId).sort(), [1, 2]);
+    Store.toggleEntryCustomList(1, list.id);
+    assert.deepEqual(Store.getEntriesInCustomList(list.id).map((e) => e.anilistId), [2]);
+    assert.deepEqual(Store.getEntriesInCustomList('list_unknown'), []);
+  });
+
+  await test('addEntry defaults tagIds/customListIds to empty arrays', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const entry = Store.addEntry({ anilistId: 2, listStatus: 'watchlist' });
+    assert.deepEqual(entry.tagIds, []);
+    assert.deepEqual(entry.customListIds, []);
+  });
+
+  await test('tags/customLists round-trip through setLibrary/toJSON', () => {
+    const tags = [{ id: 'tag_1', name: 'Comfort', color: 'rose', createdAt: '2026-01-01T00:00:00.000Z' }];
+    const customLists = [{ id: 'list_1', name: 'Queue', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }];
+    Store.setLibrary({ schemaVersion: 6, entries: [], preferences: {}, dismissedItems: [], tags, customLists });
+    const saved = Store.toJSON();
+    assert.deepEqual(saved.tags, tags);
+    assert.deepEqual(saved.customLists, customLists);
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/listsAndTags.js — pure, DOM-free, loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('listsAndTags.js');
+  const listsAndTagsUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'listsAndTags.js').replace(/\\/g, '/');
+  const {
+    TAG_COLORS,
+    DEFAULT_TAG_COLOR_ID,
+    isKnownTagColorId,
+    tagColorHex,
+    createTagId,
+    createListId,
+    normalizeName,
+    isDuplicateTagName,
+  } = await import(listsAndTagsUrl);
+
+  await test('TAG_COLORS is a non-empty, fully-specified palette, and the default id is a real member of it', () => {
+    assert.ok(TAG_COLORS.length >= 6, 'a usable palette needs more than a couple of choices');
+    for (const c of TAG_COLORS) {
+      assert.match(c.hex, /^#[0-9a-f]{6}$/i, `${c.id} has a malformed hex value`);
+      assert.equal(typeof c.name, 'string');
+      assert.ok(c.name.length > 0);
+    }
+    const ids = TAG_COLORS.map((c) => c.id);
+    assert.equal(new Set(ids).size, ids.length, 'no duplicate colour ids');
+    assert.ok(isKnownTagColorId(DEFAULT_TAG_COLOR_ID));
+  });
+
+  await test('tagColorHex resolves a known id and falls back to the first palette colour for an unknown one', () => {
+    assert.equal(tagColorHex(TAG_COLORS[2].id), TAG_COLORS[2].hex);
+    assert.equal(tagColorHex('not-a-real-color'), TAG_COLORS[0].hex);
+    assert.equal(tagColorHex(undefined), TAG_COLORS[0].hex);
+  });
+
+  await test('createTagId/createListId produce distinct, correctly-prefixed ids', () => {
+    const t1 = createTagId();
+    const t2 = createTagId();
+    const l1 = createListId();
+    assert.match(t1, /^tag_/);
+    assert.match(l1, /^list_/);
+    assert.notEqual(t1, t2, 'two calls must not collide');
+    assert.notEqual(t1, l1);
+  });
+
+  await test('normalizeName trims and collapses internal whitespace runs to one space', () => {
+    assert.equal(normalizeName('  Comfort   rewatches  '), 'Comfort rewatches');
+    assert.equal(normalizeName(''), '');
+    assert.equal(normalizeName(null), '');
+    assert.equal(normalizeName(undefined), '');
+  });
+
+  await test('isDuplicateTagName is case-insensitive and whitespace-normalized, and excludeId lets a tag match itself', () => {
+    const tags = [{ id: 'tag_1', name: 'Comfort' }];
+    assert.equal(isDuplicateTagName(tags, 'comfort'), true);
+    assert.equal(isDuplicateTagName(tags, '  COMFORT  '), true);
+    assert.equal(isDuplicateTagName(tags, 'Hype'), false);
+    assert.equal(isDuplicateTagName(tags, ''), false, 'an empty name is never a "duplicate" — createTag/renameTag reject it separately');
+    assert.equal(isDuplicateTagName(tags, 'Comfort', 'tag_1'), false, 'excludeId lets a tag be "renamed" to its own current name');
+    assert.equal(isDuplicateTagName(tags, 'Comfort', 'tag_2'), true, 'excludeId only excuses the tag whose id actually matches');
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/achievementHook.js — the P7A stub. P1.7 defines the documented
+  // no-op only; nothing calls it yet (P4.4 is the first caller).
+  // -------------------------------------------------------------------------
+  console.log('achievementHook.js');
+  const achievementHookUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'achievementHook.js').replace(/\\/g, '/');
+  const { notifyAchievementEngine } = await import(achievementHookUrl);
+
+  await test('notifyAchievementEngine is callable with anything and does nothing', () => {
+    assert.doesNotThrow(() => notifyAchievementEngine());
+    assert.doesNotThrow(() => notifyAchievementEngine(undefined));
+    assert.doesNotThrow(() => notifyAchievementEngine({ entries: [], tags: [] }));
+    assert.doesNotThrow(() => notifyAchievementEngine(null));
+    assert.equal(notifyAchievementEngine({ anything: true }), undefined, 'a documented no-op returns nothing');
+  });
+
+  // -------------------------------------------------------------------------
   // Recommendations (public/js/recommendLogic.js) — pure, loaded via dynamic
   // import() since it's an ES module (this test file is CommonJS).
   // -------------------------------------------------------------------------
@@ -1437,15 +1691,41 @@ async function run() {
     ...overrides,
   });
 
-  await test('buildExport covers every registered store, including P1.5\'s two new ones', () => {
+  await test('buildExport covers every registered store, including P1.5\'s and P1.7\'s new ones', () => {
     const sources = fullSources();
     const result = buildExport(CLASS_A_STORES, sources);
-    assert.deepEqual(Object.keys(result.stores).sort(), ['counters', 'dismissedItems', 'entries', 'eventLog', 'preferences']);
+    assert.deepEqual(Object.keys(result.stores).sort(), ['counters', 'customLists', 'dismissedItems', 'entries', 'eventLog', 'preferences', 'tags']);
     assert.deepEqual(result.stores.entries, sources.library.entries);
     assert.deepEqual(result.stores.preferences, sources.library.preferences);
     assert.deepEqual(result.stores.dismissedItems, sources.library.dismissedItems);
     assert.deepEqual(result.stores.eventLog, []);
     assert.deepEqual(result.stores.counters, {});
+    assert.deepEqual(result.stores.tags, []);
+    assert.deepEqual(result.stores.customLists, []);
+  });
+
+  await test('P1.7: the tags/customLists stores are registered as exact-match records keyed by id, and read real (non-empty) data', () => {
+    const byId = new Map(CLASS_A_STORES.map((s) => [s.id, s]));
+    for (const id of ['tags', 'customLists']) {
+      const store = byId.get(id);
+      assert.equal(store.kind, 'records');
+      assert.equal(store.recordId, 'id');
+      assert.deepEqual(store.restoreTarget, { kind: 'libraryField', field: id });
+      assert.equal(store.restoreVerification, undefined, 'no override — these are exact-match like entries/dismissedItems');
+    }
+    const nonEmpty = fullSources({
+      library: {
+        schemaVersion: 6,
+        entries: [],
+        preferences: {},
+        dismissedItems: [],
+        tags: [{ id: 'tag_1', name: 'Comfort', color: 'rose', createdAt: '2026-01-01T00:00:00.000Z' }],
+        customLists: [{ id: 'list_1', name: 'Queue', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }],
+      },
+    });
+    const result = buildExport(CLASS_A_STORES, nonEmpty);
+    assert.deepEqual(result.stores.tags, nonEmpty.library.tags);
+    assert.deepEqual(result.stores.customLists, nonEmpty.library.customLists);
   });
 
   await test('buildExport is registry-driven: a synthetic extra store flows through with no code change', () => {
@@ -1757,7 +2037,11 @@ async function run() {
     // Against the REAL registry, so a future store cannot silently opt out of
     // verification by forgetting to declare a mode.
     const realExact = Snapshots.storeIdsWithExactRestoreVerification(CLASS_A_STORES);
-    assert.deepEqual(realExact.sort(), ['dismissedItems', 'entries', 'preferences'], 'library-backed stores stay byte-exact');
+    assert.deepEqual(
+      realExact.sort(),
+      ['customLists', 'dismissedItems', 'entries', 'preferences', 'tags'],
+      'library-backed stores stay byte-exact'
+    );
 
     const byId = new Map(CLASS_A_STORES.map((s) => [s.id, s]));
     // The log is union-restored, so it legitimately ends up with MORE than the

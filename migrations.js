@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -109,7 +109,30 @@ function migrate_4_to_5(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5 };
+// P1.7: custom lists and tags. `tags`/`customLists` are new top-level
+// registries (pure metadata; see public/js/listsAndTags.js's header for why
+// membership lives on the entry instead); `tagIds`/`customListIds` are new
+// per-entry membership fields, backfilled onto every existing entry the same
+// way migrate_4_to_5 backfilled preference fields.
+function migrate_5_to_6(data) {
+  const out = { ...data };
+  out.schemaVersion = 6;
+  out.tags = Array.isArray(data.tags) ? data.tags : [];
+  out.customLists = Array.isArray(data.customLists) ? data.customLists : [];
+  out.entries = (data.entries || []).map((e) => ({
+    ...e,
+    tagIds: Array.isArray(e.tagIds) ? e.tagIds : [],
+    customListIds: Array.isArray(e.customListIds) ? e.customListIds : [],
+  }));
+  // Same defense-in-depth self-check migrate_4_to_5 uses: this migration must
+  // never drop or add an entry, only add fields to each one.
+  if ((data.entries || []).length !== out.entries.length) {
+    throw new Error('migrate_5_to_6 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -136,4 +159,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6 };

@@ -3,6 +3,7 @@
 // a running session and is kept in sync via api.saveLibrary (debounced).
 
 import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
+import { createTagId, createListId, normalizeName, isDuplicateTagName, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 
 const LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
 
@@ -16,6 +17,12 @@ const state = {
   entries: [],
   preferences: DEFAULT_PREFERENCES(),
   dismissedItems: [],
+  // P1.7: pure metadata registries. Membership is recorded on the entry
+  // (entry.tagIds / entry.customListIds below), not here — see
+  // listsAndTags.js's header for why that symmetry was chosen over mirroring
+  // membership on these objects.
+  tags: [],
+  customLists: [],
 };
 
 // Tracks the server's ETag for whatever library content this Store currently
@@ -29,7 +36,7 @@ let currentEtag = null;
 // Top-level library.json fields this module actively models. Anything else
 // the server sends is preserved verbatim in `unknownTopLevelFields` below and
 // handed straight back on save — see setLibrary/toJSON.
-const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dismissedItems'];
+const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dismissedItems', 'tags', 'customLists'];
 
 // Everything the server sent that this build doesn't model, kept so toJSON()
 // can hand it back untouched (docs/v2-spec.md rule 13, "forward
@@ -57,6 +64,8 @@ function setLibrary(data, etag = null) {
   state.entries = Array.isArray(data.entries) ? data.entries : [];
   state.preferences = data.preferences || DEFAULT_PREFERENCES();
   state.dismissedItems = Array.isArray(data.dismissedItems) ? data.dismissedItems : [];
+  state.tags = Array.isArray(data.tags) ? data.tags : [];
+  state.customLists = Array.isArray(data.customLists) ? data.customLists : [];
   unknownTopLevelFields = {};
   for (const key of Object.keys(data || {})) {
     if (!KNOWN_TOP_LEVEL_FIELDS.includes(key)) unknownTopLevelFields[key] = data[key];
@@ -82,6 +91,8 @@ function toJSON() {
     entries: state.entries,
     preferences: state.preferences,
     dismissedItems: state.dismissedItems,
+    tags: state.tags,
+    customLists: state.customLists,
   };
 }
 
@@ -147,6 +158,8 @@ function addEntry(entry) {
     myScore: entry.myScore ?? null,
     notes: entry.notes || '',
     relatedIds: entry.relatedIds || [],
+    tagIds: entry.tagIds || [],
+    customListIds: entry.customListIds || [],
     addedAt: nowIso(),
     updatedAt: nowIso(),
     completedAt: entry.listStatus === 'watched' ? nowIso() : null,
@@ -168,6 +181,130 @@ function removeEntry(anilistId) {
   if (idx === -1) return null;
   const [removed] = state.entries.splice(idx, 1);
   return removed;
+}
+
+// ---------------------------------------------------------------------------
+// P1.7: custom lists and tags. Registries hold pure metadata; membership
+// lives on the entry (entry.tagIds / entry.customListIds) — see
+// listsAndTags.js's header for why.
+// ---------------------------------------------------------------------------
+
+function getTags() {
+  return state.tags;
+}
+
+function getCustomLists() {
+  return state.customLists;
+}
+
+// Returns null (rather than throwing) on a duplicate name, mirroring
+// updateEntry's "null means it didn't happen" contract — callers decide how
+// to surface that (a toast, a form error) rather than this module owning UI
+// concerns.
+function createTag(name, colorId = DEFAULT_TAG_COLOR_ID) {
+  const normalized = normalizeName(name);
+  if (!normalized || isDuplicateTagName(state.tags, normalized)) return null;
+  const tag = { id: createTagId(), name: normalized, color: colorId, createdAt: nowIso() };
+  state.tags.push(tag);
+  return tag;
+}
+
+function renameTag(id, name) {
+  const tag = state.tags.find((t) => t.id === id);
+  if (!tag) return null;
+  const normalized = normalizeName(name);
+  if (!normalized || isDuplicateTagName(state.tags, normalized, id)) return null;
+  tag.name = normalized;
+  return tag;
+}
+
+function recolorTag(id, colorId) {
+  const tag = state.tags.find((t) => t.id === id);
+  if (!tag) return null;
+  tag.color = colorId;
+  return tag;
+}
+
+// Removes the tag from the registry AND scrubs its id out of every entry that
+// referenced it — a stale tagId left behind would be an id an entry carries
+// forever that resolves to nothing, invisible in the UI (no chip can render
+// for a tag that no longer exists) but still sitting in every future export
+// and snapshot. Renaming/recolouring never need this, since entries only ever
+// hold the id.
+function deleteTag(id) {
+  const existed = state.tags.some((t) => t.id === id);
+  if (!existed) return false;
+  state.tags = state.tags.filter((t) => t.id !== id);
+  for (const entry of state.entries) {
+    if (entry.tagIds && entry.tagIds.includes(id)) {
+      entry.tagIds = entry.tagIds.filter((tagId) => tagId !== id);
+    }
+  }
+  return true;
+}
+
+// Toggles this entry's membership of the given tag. Returns null if the entry
+// doesn't exist (matching updateEntry's contract); the tag itself is not
+// validated to exist here — deleteTag already scrubs stale references, so a
+// toggle against an id that was deleted a moment ago is harmless.
+function toggleEntryTag(anilistId, tagId) {
+  const entry = getEntry(anilistId);
+  if (!entry) return null;
+  if (!Array.isArray(entry.tagIds)) entry.tagIds = [];
+  const has = entry.tagIds.includes(tagId);
+  entry.tagIds = has ? entry.tagIds.filter((id) => id !== tagId) : [...entry.tagIds, tagId];
+  entry.updatedAt = nowIso();
+  return { entryId: anilistId, tagId, member: !has };
+}
+
+function createCustomList(name) {
+  const normalized = normalizeName(name);
+  if (!normalized) return null;
+  const list = { id: createListId(), name: normalized, createdAt: nowIso(), updatedAt: nowIso() };
+  state.customLists.push(list);
+  return list;
+}
+
+function renameCustomList(id, name) {
+  const list = state.customLists.find((l) => l.id === id);
+  if (!list) return null;
+  const normalized = normalizeName(name);
+  if (!normalized) return null;
+  list.name = normalized;
+  list.updatedAt = nowIso();
+  return list;
+}
+
+// Same scrub-on-delete reasoning as deleteTag: the list disappears from the
+// registry and every entry's reference to it goes with it. The entries
+// themselves are never touched otherwise — this only ever removes a grouping,
+// never library data — which is exactly what the reset/restore confirm
+// dialogs already promise elsewhere in this app ("your entries remain in your
+// library unchanged").
+function deleteCustomList(id) {
+  const existed = state.customLists.some((l) => l.id === id);
+  if (!existed) return false;
+  state.customLists = state.customLists.filter((l) => l.id !== id);
+  for (const entry of state.entries) {
+    if (entry.customListIds && entry.customListIds.includes(id)) {
+      entry.customListIds = entry.customListIds.filter((listId) => listId !== id);
+    }
+  }
+  return true;
+}
+
+function toggleEntryCustomList(anilistId, listId) {
+  const entry = getEntry(anilistId);
+  if (!entry) return null;
+  if (!Array.isArray(entry.customListIds)) entry.customListIds = [];
+  const has = entry.customListIds.includes(listId);
+  entry.customListIds = has ? entry.customListIds.filter((id) => id !== listId) : [...entry.customListIds, listId];
+  entry.updatedAt = nowIso();
+  return { entryId: anilistId, listId, member: !has };
+}
+
+function getEntriesInCustomList(id) {
+  return state.entries.filter((e) => Array.isArray(e.customListIds) && e.customListIds.includes(id));
 }
 
 // Swaps the AniList-sourced fields of an entry (title, cover, episodes, genres...)
@@ -414,4 +551,16 @@ export const Store = {
   addDismissedItem,
   removeDismissedItem,
   registerUnseenLookup,
+  getTags,
+  createTag,
+  renameTag,
+  recolorTag,
+  deleteTag,
+  toggleEntryTag,
+  getCustomLists,
+  createCustomList,
+  renameCustomList,
+  deleteCustomList,
+  toggleEntryCustomList,
+  getEntriesInCustomList,
 };
