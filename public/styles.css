@@ -43,6 +43,15 @@
   --display:"Zen Old Mincho",Georgia,serif;
   --ui:"Schibsted Grotesk",system-ui,sans-serif;
   --mono:ui-monospace,"Cascadia Mono","SF Mono",monospace;
+  /* P3.1: font picker overrides --ui/--display/--numbers directly via an
+     inline style on documentElement (see preferences.js) — this block's
+     own values stay the fallback for anyone who's never opened the
+     picker. --numbers defaults to var(--ui) (today's actual, implicit
+     behaviour for .stat-value/.home-tile-count — neither ever set
+     font-family before, they just inherited body's --ui), not a new
+     hardcoded family, so introducing this token changes nothing until a
+     user actually picks a numbersFont. */
+  --numbers:var(--ui);
 
   /* user-controlled typography */
   --text-scale:1;
@@ -578,7 +587,7 @@ kbd {
 /* Shared by the Watched-tab mini stats header, the Home dashboard, and the
    Statistics page — every "big number + small label" stat uses this. */
 .stat { display: flex; flex-direction: column; gap: var(--sp-1); }
-.stat-value { font-size: 20px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat-value { font-family: var(--numbers); font-size: 20px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat-label { font-size: var(--fs-meta); color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---------- Filter bar ----------
@@ -1587,7 +1596,7 @@ kbd {
 }
 .home-tile:hover { transform: translateY(-3px); box-shadow: var(--sh-2); }
 .home-tile-icon { font-size: 20px; color: var(--tile-accent, var(--accent-lit)); }
-.home-tile-count { font-size: 26px; font-weight: 800; }
+.home-tile-count { font-family: var(--numbers); font-size: 26px; font-weight: 800; }
 .home-tile-label { font-size: var(--fs-body); color: var(--dim); }
 
 .home-tile[data-nav="watching"] { --tile-accent: var(--accent); }
@@ -1973,6 +1982,43 @@ kbd {
 .themegrid .sw2 { height: 34px; display: flex; align-items: flex-end; gap: 3px; padding: 5px; }
 .themegrid .sw2 i { width: 8px; height: 8px; border-radius: 2px; }
 .themegrid .nm { display: block; font: var(--t-nano); letter-spacing: .04em; color: var(--dim); padding: 6px 5px 7px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* P3.1's font picker — one of these per slot (ui/heading/numbers). Same
+   scrollable-grid shape as .themegrid, plain text buttons instead of
+   swatches (each rendered in its own typeface via an inline style, the
+   one deliberate exception to this app's token-only rule — see
+   render.js's fontGridBodyHtml). */
+.font-grid-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  color: var(--text);
+  font: var(--t-body);
+}
+.font-grid-search:focus { outline: none; border-color: var(--line-lit); }
+.font-grid { display: flex; flex-direction: column; gap: var(--sp-1); max-height: 280px; overflow-y: auto; padding-right: 2px; }
+.font-grid-category { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); margin-top: var(--sp-2); }
+.font-grid-category:first-child { margin-top: 0; }
+.font-grid button {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: var(--sp-2) var(--sp-3);
+  background: none;
+  color: var(--text);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  transition: border-color var(--d-2), background var(--d-2);
+}
+.font-grid button:hover { border-color: var(--line-lit); background: color-mix(in srgb, var(--text) 3%, transparent); }
+.font-grid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 /* ---------- Help panel ---------- */
 .help-tabs { display: flex; gap: 22px; padding: 0 0 var(--sp-3); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-4); }

@@ -2507,3 +2507,239 @@ following); `v2/P2` retained, not deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin` until
 a new version is wanted — is still in force.
+
+## P3.1 Fonts, loader and per-font manifest
+
+Branch `v2/P3.1` off `main` (through P2 merged). 4 commits: font
+infrastructure (catalog, generated manifest, loader, 9 new self-hosted
+families), settings wiring (schema, migration, localStorage mirror,
+tokens), Settings panel UI + event wiring, and tests.
+
+**Resolved ambiguity #1 (asked, user confirmed before implementation).**
+The spec's nine families (Inter, DM Sans, Nunito, Space Grotesk, Bebas
+Neue, Instrument Serif, JetBrains Mono, Noto Sans JP, System default)
+don't include the app's actual current typography (Schibsted Grotesk for
+UI, Zen Old Mincho for headings — the Moonlit Shrine pairing
+`design/moonlit-shrine-design-system.md` commits to, noting "Sora and
+Inter can be removed" once fully in place). The spec's literal wording
+makes Inter the picker's default, which would visibly change every
+existing user's font on upgrade, violating the Global Constraint's
+"zero visual change until opt-in." **User confirmed: keep today's look
+as the default.** Implemented as a refinement on that answer: rather
+than a single bundled "Moonlit Shrine" meta-option (which would need to
+set two independent settings from one click, a shape nothing else in
+this settings architecture has), Schibsted Grotesk and Zen Old Mincho
+stay as two ordinary `FONT_CATALOG` entries, each simply the
+pre-selected default for its own slot — same end result, no special-cased
+setting.
+
+**Resolved ambiguity #2 (asked, user confirmed before fetching
+anything).** 7 of the 9 families weren't in the repo. **I fetched them
+from Google Fonts**, stating the exact URL, license (SIL OFL 1.1, matching
+every existing font) and size for each of the 8 files before downloading
+(~1.35 MB total, the ~1.1 MB Noto Sans JP Japanese subset dominating
+that). Also replaced the existing 5 static Inter weight files with one
+variable file, matching the spec's own "Inter (variable, default)"
+wording and Sora's existing variable-font pattern — the old files were
+never wired to a live token (`--ui` is Schibsted Grotesk, `--display` is
+Zen Old Mincho) so nothing depended on them.
+
+**A scope decision made and flagged, not asked:** the optional third
+slot ("a third font for numbers and stats **if** the app shows many
+counters") — it does (Statistics page, Home tile counts, the Watched-tab
+stats header), so `numbersFont` shipped alongside `uiFont`/`headingFont`.
+And: the per-font manifest generator needed to read real binary font
+tables (weights, variable axes, Japanese glyph coverage), which
+`package.json`'s own stated "no runtime dependencies" philosophy doesn't
+forbid for a **dev**Dependency (Playwright already sets that precedent) —
+added `fontkit`, used only by `scripts/generate-font-manifest.js`, never
+imported under `public/`.
+
+**A real, mid-implementation blind spot found by the manifest generator
+itself:** Google's CSS2 API splits Noto Sans JP's full glyph set across
+124 tiny per-frequency-tier chunks — impractical to self-host as 124
+separate files. Switched to a single pre-built "Japanese subset" file
+from the Fontsource project (same OFL-licensed Google Fonts source,
+pre-subsetted into one ~1.1 MB file) instead, flagged to the user as a
+refinement of the already-approved fetch plan before executing it.
+
+**A real bug found by the e2e suite, not assumed away:**
+`font-settings.spec.js`'s "each option renders its own name in its own
+typeface" test caught that the font-grid buttons' inline
+`style="font-family:..."` attribute silently broke — the CSS value
+itself contains double-quoted family names (e.g. `"Space Grotesk"`),
+which prematurely closed the double-quoted HTML attribute, leaving every
+button rendered in the inherited `--ui` font instead of its own. Fixed
+by switching that one attribute to single quotes.
+
+### Design
+
+- `public/js/fonts.js`: hand-authored `FONT_CATALOG` (11 entries: the 2
+  current defaults + the 9 spec families), `getCssStack()` inserts
+  `"Noto Sans JP"` as a fallback in every stack except its own, so a
+  kanji in a real anime title never shows as tofu regardless of which
+  primary font is active.
+- `scripts/generate-font-manifest.js` → `public/js/fontManifest.js`
+  (generated, do-not-hand-edit): weights/variable axes/JP-coverage per
+  family, inspected from the real files, mirroring
+  `scripts/generate-themes.js`'s own "script writes generated data, app
+  statically imports it" pattern. Consumed by P3.2.
+- `public/js/fontLoader.js`: idempotent `ensureFontLoaded()`, one
+  `<link>` injected the first time a family is selected or previewed.
+  Nothing loads eagerly except the two current defaults (already
+  statically linked in `index.html`) and Noto Sans JP's `@font-face`
+  registration (also static — but its ~1.1 MB file is fetched only on
+  actual on-screen JP-glyph demand, per normal browser font-loading
+  behaviour, not on page load).
+- `uiFont`/`headingFont`/`numbersFont`: new `settingsSchema.js` fields
+  (validated against `fonts.js`'s live catalog, same pattern
+  `colorTheme` already uses), `migrate_6_to_7` (schemaVersion 7,
+  defaults preserve today's typography), `preferences.js`'s new
+  `fontPref()` helper (writes a real CSS custom property —
+  `--ui`/`--display`/`--numbers` — plus calls `ensureFontLoaded`, wired
+  into the existing generic cosmetic-settings tables so `syncFromLibrary`
+  — already called on every boot — applies the saved selection for
+  free, no separate boot-time path needed). New `--numbers` token
+  defaults to `var(--ui)` (today's actual, implicit behaviour for
+  `.stat-value`/`.home-tile-count`, which never set `font-family`
+  before), so introducing it changes nothing by default.
+- Settings panel: three new rows (Interface/Heading/Numbers font),
+  `fontGridBodyHtml`/`fontGridHtml` extend `themeGridHtml`'s scrollable-
+  grid pattern with a search input and category grouping. Bebas Neue
+  (display-only) is structurally absent from the ui/numbers grids —
+  `getFamiliesForSlot()` excludes it by declared `slots`, not a
+  dismissible warning after the fact. Each option renders its own name
+  in its own typeface (the one deliberate inline-style exception to the
+  token-only rule).
+- `font_previewed`: `eventTypes.js` already listed it in
+  `EVENT_TYPES`/`UNREACHABLE_EVENT_TYPES` with a comment naming this
+  exact substep — now wired to a real call site (fires once per distinct
+  selection) and removed from the unreachable list.
+
+### Verification
+
+**1. Automated checks.**
+```
+node tests/run-all.js
+...
+scripts/check-copy-registry.js
+  ok — the real registry passes every build-time copy check
+
+215 passed, 0 failed
+```
+```
+npx playwright test
+...
+ok 68 tests\e2e\token-conversion-baseline.spec.js:110:1 › token conversion baseline: every scene's computed styles match the checked-in snapshot (12.1s)
+ok 69 tests\e2e\two-tab-race.spec.js:94:1 › two tabs saving concurrently: exactly one wins, the loser gets a recoverable conflict, no silent data loss (3.5s)
+
+69 passed (1.2m)
+```
+```
+node scripts/check-copy-registry.js
+check-copy-registry: OK — 75 entries, 225 variants, 8 v2 files scanned for raw sink literals.
+```
+No typecheck/lint/build commands exist beyond these plus the SEA
+packaging script (rebuilt below).
+
+**2. Data safety.** Not a new Class A store — `uiFont`/`headingFont`/
+`numbersFont` are new fields inside `preferences`, already Class A since
+P1.1. Extended `settings-round-trip.spec.js`'s existing 9-field
+round-trip test to 12 fields, proving export/snapshot/wipe/restore
+carries all three exactly. `migrate_6_to_7` dry-run proof:
+`tests/fixtures/schema-v6-library.json` (schemaVersion 6, no font
+fields) → schemaVersion 7 with all three defaulted to today's actual
+typography, entry count and every other preference field unchanged
+(unit tests). The "does an old snapshot restore cleanly" case
+(analogous to P1.7's tags/customLists concern) needed no new test: these
+are fields inside an already-registered store, not a new one, so it's
+the exact same migration-on-restore path `settings-migration.spec.js`'s
+existing schema-chain tests already prove for every other
+schemaVersion bump — now asserting 7 instead of 6.
+
+**3. Manual smoke test**, production build (`npm start`), **against a
+disposable copy of the real 222-entry library** (temp dir, `ANIME_TRACKER_DATA_DIR`
+pointed at the copy, original never touched):
+1. Booted: real library loaded (222 entries, schemaVersion 4 → migrated
+   to 7 on boot), zero console errors, `--ui` computed as `"Schibsted
+   Grotesk", "Noto Sans JP", sans-serif` — the default, unchanged look.
+2. Opened Settings: all three font grids present with correct option
+   counts (8 ui-eligible, 9 heading-eligible — Bebas Neue confirmed
+   present only in heading), Bebas Neue confirmed absent from both
+   ui and numbers grids.
+3. Selected DM Sans for the UI font: `--ui` updated live to `"DM Sans",
+   "Noto Sans JP", sans-serif`, the button gained `.on`, saved to
+   `library.json` (`uiFont: "dm-sans"`) after the debounce.
+4. **The Japanese-glyph functional test** (spec: "test with a real
+   Japanese title before calling this done"): set Original titles to
+   "everywhere", opened a real entry's detail view — the native title
+   rendered as real text (`魔入りました！入間くん 第4シリーズ`), computed
+   `font-family` on `.detail-native` was `"Zen Old Mincho", "Noto Sans
+   JP", serif` — confirming the fallback is genuinely wired into the
+   live stack, not just present in the catalog.
+5. Re-fingerprinted the **original** `library.json` afterward: 222
+   entries, still schemaVersion 4, untouched. Disposable copy and its
+   server process removed after the test.
+
+Observed but unrelated: a handful of `net::ERR_BLOCKED_BY_CLIENT`
+console messages present from the very first page load, before any font
+interaction — every actual app resource (including all new font files)
+returned 200 in the network log; not investigated further as out of
+scope for this substep.
+
+**4. Performance.** The Tuning table names no budget for Settings-panel
+rendering or font loading. Stating that explicitly rather than inventing
+one. (Font-loading *behaviour* — lazy, preload-on-select, subset
+aggressively — is the spec's own explicit requirement here, not a
+numeric budget; satisfied by design: nothing loads until selected or
+previewed except the two current defaults and the always-present Noto
+Sans JP fallback registration, whose actual bytes still only fetch on
+real glyph demand.)
+
+**5. Accessibility.** Font-grid buttons are native `<button>` elements
+(keyboard/focus support for free, same as every other settings control).
+The search input is a plain text `<input>`, tab-reachable, no custom
+widget. Contrast for the grid's `.on`/hover states reuses the same
+`--accent`/`--line-lit` tokens every other settings control already
+uses, so it's checked against whichever theme is active exactly like
+the rest of the panel. No screen-reader run requested — say so if one is
+wanted before merge, following the same judgment call P1.7's own
+criterion-5 note made (nothing structurally new for a screen reader:
+native buttons and a native text input, no custom ARIA invented).
+
+**6. Rollback.** Revert the `v2/P3.1` commit range (`7d05700`..`06c8fd7`,
+4 commits). This substep **does** migrate `library.json` (schemaVersion
+6 → 7), so per rule 13 forward-compatibility is what makes a code
+revert safe: the reverted (pre-P3.1) build's `KNOWN_TOP_LEVEL_FIELDS`
+and preference-shape logic don't know about `uiFont`/`headingFont`/
+`numbersFont`, but nothing about those three fields requires the
+top-level whitelist to change (they live inside the already-known
+`preferences` object) — a reverted build simply never reads or writes
+them, and `ensureSettingsShape`'s additive-repair pattern in the
+reverted code doesn't touch fields it doesn't know about. A
+schemaVersion-7 library opened by reverted code continues saving
+correctly with those three fields preserved untouched, same reasoning
+P1.7's rollback note already established for `tags`/`customLists`.
+
+**Status: P3.1 substantially complete.** All six acceptance criteria
+have evidence in this session. Criterion 5 flagged rather than silently
+satisfied — say so if a screen-reader pass is wanted before merge.
+
+## P3.1 close out
+
+The user reviewed the accessibility framing above (every new control is
+a native `<button>`/`<input>`, no custom widgets or ARIA — the same
+"nothing structurally new" judgment call P1.7's own close-out made) and
+confirmed: close out and merge now, no separate screen-reader pass
+needed.
+
+No other code changed in this closing commit.
+
+**Status: P3.1 done.** All six acceptance criteria satisfied (criterion
+5 explicitly deferred by user choice, not silently skipped). Merged into
+`main` in this session's close-out (see the merge commit immediately
+following); `v2/P3.1` retained, not deleted, per the spec's branching
+rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin` until
+a new version is wanted — is still in force.

@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -210,13 +210,46 @@ async function run() {
     }
   });
 
-  await test('migration chain: a v1 fixture reaches CURRENT_SCHEMA_VERSION with every P1.3/P1.7 field defaulted', () => {
+  await test('migration v6->v7 (P3.1): adds uiFont/headingFont/numbersFont, defaulting to today\'s actual typography', () => {
+    const v6 = readFixture('schema-v6-library.json');
+    const migrated = migrate_6_to_7(v6);
+    assert.equal(migrated.schemaVersion, 7);
+    assert.equal(migrated.preferences.uiFont, 'schibsted-grotesk');
+    assert.equal(migrated.preferences.headingFont, 'zen-old-mincho');
+    assert.equal(migrated.preferences.numbersFont, 'schibsted-grotesk');
+    assert.equal(migrated.entries.length, v6.entries.length);
+  });
+
+  await test('migration v6->v7: never overwrites already-present uiFont/headingFont/numbersFont (idempotent)', () => {
+    const v6 = readFixture('schema-v6-library.json');
+    const alreadyMigrated = { ...v6, preferences: { ...v6.preferences, uiFont: 'inter', headingFont: 'bebas-neue', numbersFont: 'jetbrains-mono' } };
+    const migrated = migrate_6_to_7(alreadyMigrated);
+    assert.equal(migrated.preferences.uiFont, 'inter');
+    assert.equal(migrated.preferences.headingFont, 'bebas-neue');
+    assert.equal(migrated.preferences.numbersFont, 'jetbrains-mono');
+    // Running it again produces the exact same result.
+    const migratedTwice = migrate_6_to_7(migrated);
+    assert.deepEqual(migratedTwice, migrated);
+  });
+
+  await test('migration v6->v7: never touches entries or any other preference field', () => {
+    const v6 = readFixture('schema-v6-library.json');
+    const migrated = migrate_6_to_7(v6);
+    assert.deepEqual(migrated.entries, v6.entries);
+    const { uiFont, headingFont, numbersFont, ...otherPrefsOnly } = migrated.preferences;
+    assert.deepEqual(otherPrefsOnly, v6.preferences);
+  });
+
+  await test('migration chain: a v1 fixture reaches CURRENT_SCHEMA_VERSION with every field defaulted, P3.1 included', () => {
     const v1 = readFixture('schema-v1-library.json');
     const migrated = migrate(v1);
     assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.equal(migrated.preferences.titleLanguage, 'english');
     assert.equal(migrated.preferences.contentTier, 'standard');
     assert.equal(migrated.preferences.colorTheme, 'moonlit-shrine');
+    assert.equal(migrated.preferences.uiFont, 'schibsted-grotesk');
+    assert.equal(migrated.preferences.headingFont, 'zen-old-mincho');
+    assert.equal(migrated.preferences.numbersFont, 'schibsted-grotesk');
     assert.deepEqual(migrated.tags, []);
     assert.deepEqual(migrated.customLists, []);
     for (const entry of migrated.entries) {
@@ -249,6 +282,9 @@ async function run() {
     assert.equal(shaped.streamerMode, false);
     assert.equal(shaped.textSize, 's');
     assert.equal(shaped.colorTheme, 'moonlit-shrine');
+    assert.equal(shaped.uiFont, 'schibsted-grotesk');
+    assert.equal(shaped.headingFont, 'zen-old-mincho');
+    assert.equal(shaped.numbersFont, 'schibsted-grotesk');
     assert.deepEqual(shaped.filters.watching, defaultSettings().filters.watching);
   });
 
@@ -259,12 +295,22 @@ async function run() {
     assert.equal(shaped.textSize, 's');
   });
 
+  await test('ensureSettingsShape repairs an invalid font id back to default (P3.1)', () => {
+    const shaped = ensureSettingsShape({ uiFont: 'comic-sans', headingFont: '', numbersFont: 42 });
+    assert.equal(shaped.uiFont, 'schibsted-grotesk');
+    assert.equal(shaped.headingFont, 'zen-old-mincho');
+    assert.equal(shaped.numbersFont, 'schibsted-grotesk');
+  });
+
   await test('ensureSettingsShape preserves an already-valid, non-default value (never overwrites a real choice)', () => {
-    const shaped = ensureSettingsShape({ titleLanguage: 'native', contentTier: 'madara', streamerMode: true, colorTheme: 'wisteria' });
+    const shaped = ensureSettingsShape({ titleLanguage: 'native', contentTier: 'madara', streamerMode: true, colorTheme: 'wisteria', uiFont: 'inter', headingFont: 'bebas-neue', numbersFont: 'jetbrains-mono' });
     assert.equal(shaped.titleLanguage, 'native');
     assert.equal(shaped.contentTier, 'madara');
     assert.equal(shaped.streamerMode, true);
     assert.equal(shaped.colorTheme, 'wisteria');
+    assert.equal(shaped.uiFont, 'inter');
+    assert.equal(shaped.headingFont, 'bebas-neue');
+    assert.equal(shaped.numbersFont, 'jetbrains-mono');
   });
 
   await test('ensureSettingsShape preserves an unknown future field untouched (rule 13 forward-compatibility)', () => {
@@ -275,6 +321,117 @@ async function run() {
   await test('TITLE_LANGUAGES / CONTENT_TIERS export the expected enum values', () => {
     assert.deepEqual(TITLE_LANGUAGES, ['romaji', 'english', 'native']);
     assert.deepEqual(CONTENT_TIERS, ['standard', 'familyFriendly', 'madara']);
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/fonts.js (P3.1) — the font catalog, pure/no-DOM, loaded via
+  // dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('fonts.js');
+  const fontsUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'fonts.js').replace(/\\/g, '/');
+  const {
+    FONT_CATEGORIES,
+    FONT_SLOTS,
+    FONT_CATALOG,
+    DEFAULT_UI_FONT,
+    DEFAULT_HEADING_FONT,
+    DEFAULT_NUMBERS_FONT,
+    isValidFontId,
+    getFontById,
+    getCssStack,
+    getFamiliesForSlot,
+  } = await import(fontsUrl);
+
+  await test('every FONT_CATALOG entry has the required fields, and slots/category are from the declared enums', () => {
+    for (const f of FONT_CATALOG) {
+      assert.equal(typeof f.id, 'string');
+      assert.equal(typeof f.name, 'string');
+      assert.ok(FONT_CATEGORIES.includes(f.category), `${f.id}'s category "${f.category}" is not a declared category`);
+      assert.equal(typeof f.displayOnly, 'boolean');
+      assert.ok(Array.isArray(f.slots) && f.slots.length > 0, `${f.id} must be eligible for at least one slot`);
+      for (const s of f.slots) assert.ok(FONT_SLOTS.includes(s), `${f.id}'s slot "${s}" is not a declared slot`);
+    }
+  });
+
+  await test('FONT_CATALOG ids are unique', () => {
+    const ids = FONT_CATALOG.map((f) => f.id);
+    assert.equal(new Set(ids).size, ids.length);
+  });
+
+  await test('the default id for each slot is itself eligible for that slot', () => {
+    assert.ok(getFontById(DEFAULT_UI_FONT).slots.includes('ui'));
+    assert.ok(getFontById(DEFAULT_HEADING_FONT).slots.includes('heading'));
+    assert.ok(getFontById(DEFAULT_NUMBERS_FONT).slots.includes('numbers'));
+  });
+
+  await test('isValidFontId accepts every real catalog id and rejects anything else', () => {
+    for (const f of FONT_CATALOG) assert.equal(isValidFontId(f.id), true);
+    assert.equal(isValidFontId('comic-sans'), false);
+    assert.equal(isValidFontId(''), false);
+    assert.equal(isValidFontId(undefined), false);
+  });
+
+  await test('Bebas Neue (display-only) is eligible for the heading slot only, never ui or numbers', () => {
+    const bebas = getFontById('bebas-neue');
+    assert.equal(bebas.displayOnly, true);
+    assert.deepEqual(bebas.slots, ['heading']);
+    assert.ok(!getFamiliesForSlot('ui').some((f) => f.id === 'bebas-neue'));
+    assert.ok(!getFamiliesForSlot('numbers').some((f) => f.id === 'bebas-neue'));
+    assert.ok(getFamiliesForSlot('heading').some((f) => f.id === 'bebas-neue'));
+  });
+
+  await test('getCssStack inserts "Noto Sans JP" as a fallback for every family except its own entry', () => {
+    assert.equal(getCssStack('schibsted-grotesk'), '"Schibsted Grotesk", "Noto Sans JP", sans-serif');
+    assert.equal(getCssStack('zen-old-mincho'), '"Zen Old Mincho", "Noto Sans JP", serif');
+    assert.equal(getCssStack('system-default'), 'system-ui, "Noto Sans JP", sans-serif');
+    assert.equal(getCssStack('noto-sans-jp'), '"Noto Sans JP", sans-serif');
+  });
+
+  await test('getCssStack falls back to system-default for an unknown id rather than throwing', () => {
+    assert.equal(getCssStack('not-a-real-font'), getCssStack('system-default'));
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/fontManifest.js (P3.1) — GENERATED by
+  // scripts/generate-font-manifest.js from the real files in public/fonts/.
+  // Pure data, loaded via dynamic import(). This test proves the generated
+  // file's shape matches fonts.js's catalog exactly (every id present, no
+  // extras) and spot-checks facts a hand-written manifest could get wrong.
+  // -------------------------------------------------------------------------
+  console.log('fontManifest.js');
+  const fontManifestUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'fontManifest.js').replace(/\\/g, '/');
+  const { FONT_MANIFEST } = await import(fontManifestUrl);
+
+  await test('FONT_MANIFEST has exactly one entry per FONT_CATALOG id, no missing, no extra', () => {
+    const catalogIds = new Set(FONT_CATALOG.map((f) => f.id));
+    const manifestIds = new Set(Object.keys(FONT_MANIFEST));
+    assert.deepEqual([...manifestIds].sort(), [...catalogIds].sort());
+  });
+
+  await test('each manifest entry declares either weights or variableAxes, never both, except the fileless system-default', () => {
+    for (const [id, data] of Object.entries(FONT_MANIFEST)) {
+      if (id === 'system-default') {
+        assert.equal(data.weights, null);
+        assert.equal(data.variableAxes, null);
+        continue;
+      }
+      const hasWeights = Array.isArray(data.weights);
+      const hasAxes = data.variableAxes !== null && typeof data.variableAxes === 'object';
+      assert.notEqual(hasWeights, hasAxes, `${id} should declare exactly one of weights/variableAxes`);
+    }
+  });
+
+  await test('Noto Sans JP is the only manifest entry with real Japanese glyph coverage', () => {
+    for (const [id, data] of Object.entries(FONT_MANIFEST)) {
+      assert.equal(data.jpCoverage, id === 'noto-sans-jp', `${id}'s jpCoverage should be ${id === 'noto-sans-jp'}`);
+    }
+  });
+
+  await test('the variable families report a real, non-degenerate weight range', () => {
+    for (const id of ['inter', 'dm-sans', 'nunito', 'space-grotesk', 'jetbrains-mono']) {
+      const [min, max] = FONT_MANIFEST[id].variableAxes.wght;
+      assert.ok(min < max, `${id}'s variable weight range should span more than one value`);
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -591,8 +748,10 @@ async function run() {
     assert.equal(EVENT_SCHEMA_VERSION, 1);
   });
 
-  await test('the three unreachable types are declared in the union but flagged as having no action yet', () => {
-    assert.deepEqual(UNREACHABLE_EVENT_TYPES, ['rewatch_started', 'review_written', 'font_previewed']);
+  await test('the remaining unreachable types are declared in the union but flagged as having no action yet', () => {
+    // font_previewed moved out of this list in P3.1 — the font picker
+    // (events.js's .font-grid button handler) is now a real call site.
+    assert.deepEqual(UNREACHABLE_EVENT_TYPES, ['rewatch_started', 'review_written']);
     for (const t of UNREACHABLE_EVENT_TYPES) assert.ok(EVENT_TYPES.includes(t));
   });
 

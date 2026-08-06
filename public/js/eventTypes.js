@@ -55,9 +55,9 @@ export const EVENT_TYPES = [
 //   review_written   - no review field exists; the free-text `notes` field is
 //                      a partial equivalent but no word count is stored
 //                      anywhere. Review text lands in P6.2.
-//   font_previewed   - no font-family picker exists; font families are
-//                      hardcoded. Fonts land in P3.1/P3.2.
-export const UNREACHABLE_EVENT_TYPES = ['rewatch_started', 'review_written', 'font_previewed'];
+// font_previewed is no longer unreachable: P3.1's font picker (events.js's
+// .font-grid button click handler) emits it on every distinct selection.
+export const UNREACHABLE_EVENT_TYPES = ['rewatch_started', 'review_written'];
 
 export function isKnownEventType(type) {
   return EVENT_TYPES.includes(type);
