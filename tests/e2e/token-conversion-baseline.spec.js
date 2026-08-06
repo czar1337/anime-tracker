@@ -332,6 +332,22 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     Object.assign(captured, await captureScene(page, 'detail-overlay', '#detail-content'));
     await page.keyboard.press('Escape');
 
+    // Mobile nav menu (.nav-hamburger, .nav-menu-item, and the @media
+    // (max-width: 900px)/(max-width: 720px) overrides on .app-header/
+    // .app-main/.card-grid) — none of this is reachable at the default
+    // desktop viewport every scene above runs at: .nav-hamburger is
+    // display:none above 900px, and the media queries themselves simply
+    // never apply, so their converted values would sit completely
+    // unverified without actually narrowing the viewport.
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.waitForTimeout(150);
+    await page.click('#nav-hamburger');
+    await page.waitForSelector('#nav-menu-list .nav-menu-item');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'mobile-nav-menu', '#app'));
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1280, height: 800 });
+
     if (fs.existsSync(BASELINE_FILE)) {
       const baseline = JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf8'));
       expect(captured).toEqual(baseline);
