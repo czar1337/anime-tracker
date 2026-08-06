@@ -2723,8 +2723,23 @@ P1.7's rollback note already established for `tags`/`customLists`.
 
 **Status: P3.1 substantially complete.** All six acceptance criteria
 have evidence in this session. Criterion 5 flagged rather than silently
-satisfied — say so if a screen-reader pass is wanted before merge. Not
-yet merged into `main`; awaiting user review.
+satisfied — say so if a screen-reader pass is wanted before merge.
+
+## P3.1 close out
+
+The user reviewed the accessibility framing above (every new control is
+a native `<button>`/`<input>`, no custom widgets or ARIA — the same
+"nothing structurally new" judgment call P1.7's own close-out made) and
+confirmed: close out and merge now, no separate screen-reader pass
+needed.
+
+No other code changed in this closing commit.
+
+**Status: P3.1 done.** All six acceptance criteria satisfied (criterion
+5 explicitly deferred by user choice, not silently skipped). Merged into
+`main` in this session's close-out (see the merge commit immediately
+following); `v2/P3.1` retained, not deleted, per the spec's branching
+rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin` until
 a new version is wanted — is still in force.
