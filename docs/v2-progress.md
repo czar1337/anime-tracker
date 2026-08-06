@@ -55,7 +55,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P1.4 Token layer, tuning config, inventory | done | 2026-08-02 | this session, see "P1.4 implementation session" and "P1.4 close out" below | — |
 | P1.5 Event log v1 | done | 2026-08-05 | this session, see "P1.5 implementation session" and "P1.5 close out" below | — |
 | P1.6 Copy registry, new v2 surfaces only | done | 2026-08-05 | this session, see "P1.6 implementation session" and "P1.6 close out" below | — |
-| P1.7 Lists, collections, tags, achievement hook | in progress | 2026-08-06 | this session, see "P1.7 implementation session" below | all six acceptance criteria have full evidence this same session; awaiting user review, close-out commit and merge into `main` |
+| P1.7 Lists, collections, tags, achievement hook | done | 2026-08-06 | this session, see "P1.7 implementation session" and "P1.7 close out" below | — |
 | P2 Token conversion, batched per directory | not started | — | — | — |
 | P3.1 Nine fonts, loader, per-font manifest | not started | — | — | — |
 | P3.2 Typography sliders | not started | — | — | — |
@@ -2300,3 +2300,24 @@ satisfied, since no user-executed screen-reader step was requested this
 time — say so if you'd like one before merge. Not yet merged into `main`;
 awaiting user review before a `v2(P1.7): close out` commit and merge. Push
 to `origin` remains held per the standing instruction from P1.4.
+
+## P1.7 close out
+
+The user reviewed the implementation session's evidence and, when asked
+whether to run a manual screen-reader pass before closing out (this substep,
+unlike P1.6, ships real new UI), chose to skip it: every new interaction
+reuses an existing, already-audited pattern verbatim (native `<button>`
+chips, the P1.3 theme-swatch grid for the tag-colour picker with only the
+data attribute and palette swapped, the existing inline-rename idiom, the
+existing `confirmDialog` for destructive deletes) — nothing structurally new
+for a screen reader to encounter.
+
+No other code changed in this closing commit.
+
+**Status: P1.7 done.** All six acceptance criteria satisfied (criterion 5
+explicitly deferred by user choice, not silently skipped). Merged into `main`
+in this session's close-out (see the merge commit immediately following);
+`v2/P1.7` retained, not deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction from the P1.4 session — hold pushes
+to `origin` until a new version is wanted — is still in force.
