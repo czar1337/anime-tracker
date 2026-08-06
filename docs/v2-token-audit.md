@@ -214,8 +214,8 @@ run after every single section, before its commit.
 | Banners | **done** | 1 of 1 | 1 of 3 | `.banner`'s `font-size: 12px` → `--fs-card`, `gap: 12px` → `--sp-3`. `.banner`'s `padding: 10px 14px` and `.banner.error`'s `padding: 10px 28px` match nothing. Confirmed both `#update-banner`/`#error-banner` are genuinely captured by the baseline (they're static, always-in-DOM siblings toggled via `hidden`, not conditionally rendered) — checked the raw JSON directly, not just a passing test, since a silently-uncaptured element would make this whole section's "zero visual change" claim worthless |
 | Save indicator | **done** | — | 0 of 1 | `.save`'s `gap: 7px` matches nothing; nothing else in this block is a spacing/font-size literal |
 | Icon buttons | **done** (nothing to convert) | — | — | not separately inventoried by the audit's grep pass; reviewed now — `.icn`'s `width`/`height: 31px`/`28px` are dimensions, not spacing/font-size |
-| Buttons, four levels | not started | 0 of 0 | 0 of 2 | |
-| Main / toolbar | not started | 0 of 2 | 0 of 6 | |
+| Buttons, four levels | **done** | — | 2 of 2 | `.btn`'s `padding: 10px 16px` → `10px var(--sp-4)` (10 has no match); `.btn.sm`'s `padding: 6px 12px` → `6px var(--sp-3)` (6 has no match) |
+| Main / toolbar | **done** | 1 of 2 | 5 of 6 (some partial) | `.stat-label` 11px → `--fs-meta`; `.stat-value` 20px matches nothing. Spacing: `.app-main` padding 24/28/60 → `var(--sp-6) 28px 60px` (only the 24 matches); `.list-toolbar` gap 16→`--sp-4`, margin-bottom 24→`--sp-6` (both fully match); `.stats-header` padding 16/20 → `var(--sp-4) 20px` (only the 16 matches); `.stat` gap 4→`--sp-1` (fully matches). `.stats-header`'s own `gap: 28px` matches nothing and is the one declaration left fully untouched |
 | Filter bar | not started | 0 of 5 | 0 of 22 | |
 | Card grid | not started | 0 of 0 | 0 of 1 | |
 | Series card, six states | not started | 0 of 25 | 0 of 52 | largest section |
