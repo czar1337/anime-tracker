@@ -396,6 +396,36 @@ export const COPY_REGISTRY = {
   // Detail-view section headings/buttons.
   'detail.tags.heading': { familyFriendly: 'Tags', standard: 'Tags', madara: 'Tags' },
   'detail.lists.heading': { familyFriendly: 'Lists', standard: 'Lists', madara: 'Lists' },
+
+  // ---------------------------------------------------------------------------
+  // P3.1 — font picker. A NEW v2 surface, registry entries from the start
+  // per the same P1.6 rule P1.7's tags/lists section above already follows.
+  // ---------------------------------------------------------------------------
+
+  'fonts.ui.heading': { familyFriendly: 'Interface font', standard: 'Interface font', madara: 'Interface font' },
+  'fonts.ui.description': {
+    familyFriendly: 'Used for menus, buttons and body text everywhere.',
+    standard: 'Used for menus, buttons and body text everywhere.',
+    madara: 'Used for menus, buttons and body text everywhere.',
+  },
+  'fonts.heading.heading': { familyFriendly: 'Heading font', standard: 'Heading font', madara: 'Heading font' },
+  'fonts.heading.description': {
+    familyFriendly: 'Used for series titles and section headings.',
+    standard: 'Used for series titles and section headings.',
+    madara: 'Used for series titles and section headings.',
+  },
+  'fonts.numbers.heading': { familyFriendly: 'Numbers font', standard: 'Numbers font', madara: 'Numbers font' },
+  'fonts.numbers.description': {
+    familyFriendly: 'Used for episode counts and statistics.',
+    standard: 'Used for episode counts and statistics.',
+    madara: 'Used for episode counts and statistics.',
+  },
+  'fonts.search.placeholder': { familyFriendly: 'Search fonts…', standard: 'Search fonts…', madara: 'Search fonts…' },
+  'fonts.search.empty': {
+    familyFriendly: 'No fonts match your search.',
+    standard: 'No fonts match your search.',
+    madara: 'No fonts match your search.',
+  },
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

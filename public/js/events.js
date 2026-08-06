@@ -1626,6 +1626,25 @@ function bindSettingsPanel() {
       return;
     }
 
+    const fontBtn = e.target.closest('.font-grid button');
+    if (fontBtn) {
+      const slot = fontBtn.dataset.fontSlot; // 'ui' | 'heading' | 'numbers'
+      const fontId = fontBtn.dataset.fontId;
+      const prefKey = `${slot}Font`;
+      const setter = { ui: Preferences.setUiFont, heading: Preferences.setHeadingFont, numbers: Preferences.setNumbersFont }[slot];
+      setter(fontId);
+      const before = Store.state.preferences[prefKey];
+      Store.setPreference([prefKey], fontId);
+      recordSettingChange(prefKey, before, fontId);
+      // font_previewed: fires once per distinct selection (not on every
+      // render/hover) — the spec's own "emit on preview" trigger, since
+      // trying a font in this picker IS the preview.
+      if (before !== fontId) EventLog.record('font_previewed', { meta: { slot, fontId } });
+      persist();
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+
     const createBtn = e.target.closest('#snapshot-create-btn');
     if (createBtn) {
       createBtn.disabled = true;
@@ -1901,6 +1920,18 @@ function bindSettingsPanel() {
   // setSettingsNewTagName's comment.
   body.addEventListener('input', (e) => {
     if (e.target.id === 'settings-new-tag-name') Render.setSettingsNewTagName(e.target.value);
+
+    const searchSlot = e.target.dataset.fontSearchSlot;
+    if (searchSlot) {
+      Render.setFontSearchDraft(searchSlot, e.target.value);
+      // Deliberately NOT a full repaintSettings() call: that replaces the
+      // whole panel's innerHTML, which would steal focus/cursor position
+      // out of this very input on every keystroke. Only the grid div next
+      // to it needs to change.
+      const currentFontId = { ui: Preferences.getUiFont, heading: Preferences.getHeadingFont, numbers: Preferences.getNumbersFont }[searchSlot]();
+      const grid = document.getElementById(`font-grid-${searchSlot}`);
+      if (grid) grid.innerHTML = Render.fontGridBodyHtml(searchSlot, currentFontId);
+    }
   });
 }
 

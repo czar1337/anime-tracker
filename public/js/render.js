@@ -7,6 +7,7 @@ import { Api } from './api.js';
 import { copy } from './copy.js';
 import { TAG_COLORS, tagColorHex, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 import { LISTS_AND_TAGS } from '../../config/tuning.js';
+import { Fonts } from './fonts.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -1684,6 +1685,66 @@ function themeGridHtml(currentId) {
   return `<div class="themegrid">${swatches}</div>${toggle}`;
 }
 
+// P3.1's font picker — one search draft per slot (module-level, same
+// "a re-render from an unrelated click shouldn't wipe a half-typed value"
+// reasoning as settingsNewTagName above, since repaintSettings() rebuilds
+// the whole panel on every change, including one made in a DIFFERENT
+// slot's grid).
+const fontSearchDrafts = { ui: '', heading: '', numbers: '' };
+
+function setFontSearchDraft(slot, query) {
+  fontSearchDrafts[slot] = query;
+}
+
+// Extends themeGridHtml's pattern (scrollable grid of buttons, `.on` for
+// the current selection) with a text filter and category grouping, per
+// spec ("searchable, grouped by category"). Bebas Neue (or any future
+// displayOnly-flagged face) never appears outside the heading slot at
+// all — getFamiliesForSlot() already excludes it, not a dismissible
+// warning shown after the fact. Each option renders its own name in its
+// own typeface (spec requirement) via an inline font-family style — the
+// one place this substep writes an inline font-family literal outside
+// the token system, unavoidably, since the whole point is previewing a
+// font the user hasn't applied yet.
+//
+// Split into a body (just the grid's own contents) and a wrapper (the
+// body plus the search input around it) so events.js's search-input
+// handler can replace ONLY the #font-grid-<slot> div's innerHTML on every
+// keystroke — repaintSettings() rebuilds the entire panel from scratch,
+// which would destroy the input's own focus/cursor position on every
+// character typed, exactly the same problem the detail view's/Settings'
+// new-tag-name input already solved by never re-rendering itself.
+function fontGridBodyHtml(slot, currentId) {
+  const query = fontSearchDrafts[slot].trim().toLowerCase();
+  const families = Fonts.getFamiliesForSlot(slot);
+  const filtered = query ? families.filter((f) => f.name.toLowerCase().includes(query)) : families;
+  const byCategory = new Map();
+  for (const f of filtered) {
+    if (!byCategory.has(f.category)) byCategory.set(f.category, []);
+    byCategory.get(f.category).push(f);
+  }
+  const sections = Fonts.FONT_CATEGORIES.filter((cat) => byCategory.has(cat))
+    .map((cat) => {
+      const buttons = byCategory
+        .get(cat)
+        .map(
+          (f) => `
+        <button class="${f.id === currentId ? 'on' : ''}" data-font-slot="${slot}" data-font-id="${f.id}" style='font-family:${escapeHtml(Fonts.getCssStack(f.id))}'>${escapeHtml(f.name)}</button>`
+        )
+        .join('');
+      return `<div class="font-grid-category">${escapeHtml(cat)}</div>${buttons}`;
+    })
+    .join('');
+  return sections || `<p class="card-meta">${escapeHtml(copy('fonts.search.empty'))}</p>`;
+}
+
+function fontGridHtml(slot, currentId) {
+  return `
+    <input type="text" class="font-grid-search" data-font-search-slot="${slot}" placeholder="${escapeHtml(copy('fonts.search.placeholder'))}" value="${escapeHtml(fontSearchDrafts[slot])}">
+    <div class="font-grid" id="font-grid-${slot}">${fontGridBodyHtml(slot, currentId)}</div>
+  `;
+}
+
 // P1.7's Settings "Tags"/"Custom lists" manager state — same
 // module-level-transient-UI-state reasoning as themesExpanded above.
 let settingsShowNewTagForm = false;
@@ -1805,11 +1866,18 @@ function renderSettingsPanel(container, currentThemeId) {
   // single swatch click. That second one is what made picking between two
   // themes in the grid's bottom rows feel like the panel kept jumping back
   // to the top — restoring only the outer scroll wouldn't have touched it.
+  // Same scroll-loss problem as .themegrid's own comment describes, now for
+  // three more scrollable grids (#font-grid-ui/-heading/-numbers) that are
+  // equally rebuilt from scratch on every re-render.
+  const SCROLLABLE_GRID_SELECTORS = ['.themegrid', '#font-grid-ui', '#font-grid-heading', '#font-grid-numbers'];
   const scroller = container.closest('.overlay-panel') || container;
   const scrollTop = scroller.scrollTop;
-  const themeGridScrollTop = container.querySelector('.themegrid')?.scrollTop || 0;
+  const gridScrollTops = SCROLLABLE_GRID_SELECTORS.map((sel) => container.querySelector(sel)?.scrollTop || 0);
   container.innerHTML = `
     ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, themeGridHtml(currentThemeId))}
+    ${settingsRowHtml(copy('fonts.ui.heading'), copy('fonts.ui.description'), fontGridHtml('ui', Preferences.getUiFont()))}
+    ${settingsRowHtml(copy('fonts.heading.heading'), copy('fonts.heading.description'), fontGridHtml('heading', Preferences.getHeadingFont()))}
+    ${settingsRowHtml(copy('fonts.numbers.heading'), copy('fonts.numbers.description'), fontGridHtml('numbers', Preferences.getNumbersFont()))}
     ${settingsRowHtml(
       'Text size',
       'Changes every size in the app at once.',
@@ -1850,9 +1918,14 @@ function renderSettingsPanel(container, currentThemeId) {
     ${settingsRowHtml(copy('tags.settings.heading'), copy('tags.settings.description'), tagsManagerBodyHtml())}
     ${settingsRowHtml(copy('lists.settings.heading'), copy('lists.settings.description'), listsManagerBodyHtml())}
   `;
+  function restoreGridScrollTops() {
+    SCROLLABLE_GRID_SELECTORS.forEach((sel, i) => {
+      const grid = container.querySelector(sel);
+      if (grid) grid.scrollTop = gridScrollTops[i];
+    });
+  }
   scroller.scrollTop = scrollTop;
-  const newGrid = container.querySelector('.themegrid');
-  if (newGrid) newGrid.scrollTop = themeGridScrollTop;
+  restoreGridScrollTops();
   // Belt-and-suspenders: a real (not synthetic) click focuses the button
   // being clicked before this handler even runs; when that button is gone a
   // moment later, the browser's own focus-recovery can re-scroll the nearest
@@ -1860,8 +1933,7 @@ function renderSettingsPanel(container, currentThemeId) {
   // Re-assert once after that settles.
   requestAnimationFrame(() => {
     scroller.scrollTop = scrollTop;
-    const grid = container.querySelector('.themegrid');
-    if (grid) grid.scrollTop = themeGridScrollTop;
+    restoreGridScrollTops();
   });
 }
 
@@ -1987,4 +2059,6 @@ export const Render = {
   getSettingsNewTagColor,
   toggleSettingsNewListForm,
   toggleManagerListExpanded,
+  setFontSearchDraft,
+  fontGridBodyHtml,
 };
