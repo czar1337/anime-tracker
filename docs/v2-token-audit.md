@@ -175,6 +175,80 @@ a component — flagged here so P2 explicitly decides whether to account for
 it or exclude it the same way the CSS theme file is excluded, rather than
 it being silently forgotten.
 
+## P2 conversion progress (resume state)
+
+Per docs/v2-spec.md's P2 section: "A session ending mid-sweep is normal. The
+audit file's done markers plus `git log --all` are the resume state." This
+table is that resume state — check it, plus
+`git log --all --oneline --grep "^v2(P2)"`, before continuing.
+
+**Token-target decision** (see the `v2(P2)` commit that added the baseline
+test for the full reasoning): convert to the OLD, already-live token system
+(`--fs-*`/`--sp-*`/`--t-*`, driven by the existing Text Size setting), never
+the new dormant P1.4 system (`--font-scale` etc.) — that stays P3.2's job to
+wire up.
+
+**Mechanical rule**: a literal converts ONLY when it EXACTLY matches an
+existing `--fs-*` or `--sp-*` value. A near-miss (e.g. 10px vs. `--fs-micro`'s
+10.5px) is never snapped — that would be a real, if tiny, visual change, which
+the spec forbids ("does not license touching logic. Values only"). Non-matches
+are left alone and reported below with why.
+
+`--fs-*` base values (before `--text-scale` multiplies): display-l 30,
+display-m 21, display-s 19, body 13, action 12.5, card 12, meta 11, micro
+10.5, nano 9.5. `--sp-*` values: sp-1 4, sp-2 8, sp-3 12, sp-4 16, sp-6 24,
+sp-8 32, sp-12 48, sp-16 64.
+
+One directory (styles.css section, or one `public/js/` file) per commit, per
+the spec. Baseline check (`npx playwright test
+tests/e2e/token-conversion-baseline.spec.js`) plus the full unit+e2e suites
+run after every single section, before its commit.
+
+### `public/styles.css`, by section (in file order)
+
+| Section | Status | Font-size converted | Spacing converted | Notes |
+| --- | --- | --- | --- | --- |
+| Moonlit Shrine tokens (the `:root` block itself) | out of scope | — | — | this IS the token source; nothing to convert |
+| Atmosphere | **done** | 1 of 1 (`kbd` 11px → `--fs-meta`) | 0 of 1 | `kbd`'s `padding: 1px 6px` matches no `--sp-*` value; left alone |
+| Header | not started | 0 of 2 | 0 of 9 | |
+| Banners | not started | 0 of 1 | 0 of 3 | |
+| Save indicator | not started | 0 of 0 | 0 of 1 | |
+| Icon buttons | not started | — | — | not separately inventoried by the audit's grep pass |
+| Buttons, four levels | not started | 0 of 0 | 0 of 2 | |
+| Main / toolbar | not started | 0 of 2 | 0 of 6 | |
+| Filter bar | not started | 0 of 5 | 0 of 22 | |
+| Card grid | not started | 0 of 0 | 0 of 1 | |
+| Series card, six states | not started | 0 of 25 | 0 of 52 | largest section |
+| Home dashboard | not started | 0 of 6 | 0 of 9 | |
+| Hero | not started | 0 of 0 | 0 of 9 | |
+| Home | not started | 0 of 2 | 0 of 6 | |
+| Statistics page | not started | 0 of 0 | 0 of 1 | |
+| Discover page | not started | — | — | not separately inventoried by the audit's grep pass |
+| Schedule page | not started | 0 of 10 | 0 of 20 | |
+| Empty states | not started | 0 of 1 | 0 of 3 | |
+| Overlays | not started | 0 of 1 | 0 of 5 | |
+| Confirm dialog | not started | 0 of 1 | 0 of 6 | |
+| Settings panel | not started | 0 of 0 | 0 of 12 | |
+| Help panel | not started | 0 of 8 | 0 of 49 | |
+| Import steps + confidence review | not started | 0 of 7 | 0 of 19 | |
+| Anime detail overlay | not started | 0 of 2 | 0 of 28 | |
+| Toasts | not started | 0 of 1 | 0 of 4 | |
+| Mobile nav menu (hamburger) | not started | — | 0 of 7 | |
+| The 4 raw colour literals (all `rgba()` overlays in Series card) | not started | — | — | P2 must decide separately whether an `rgba()` scrim has any equivalent token to convert to, or is left alone — not a font-size/spacing question |
+
+Section boundaries drift slightly from the line ranges recorded earlier in
+this file — P1.6/P1.7 added CSS after this audit was written. Re-run
+`grep -n "^/\* ----------" public/styles.css` to get current boundaries
+before starting a section; trust that over the numbers above.
+
+### `public/js/`, by file
+
+| File | Status | Notes |
+| --- | --- | --- |
+| `render.js` (inline spacing in template strings) | not started | 8 occurrences |
+| `statsExport.js` (canvas `ctx.font` sizes) | not started | 9 occurrences; scoping question flagged in the audit above still open — whether an exported-PNG's pixel dimensions count as "spacing" for token purposes at all |
+| every other `public/js/*.js` file | out of scope | zero inventoried literals |
+
 ## Totals
 
 | Category | Count |
