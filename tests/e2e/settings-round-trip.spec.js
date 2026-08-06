@@ -25,9 +25,14 @@ const NON_DEFAULT_PREFS = {
   decorDensity: 'many',
   originalTitles: 'everywhere',
   colorTheme: 'wisteria',
+  // P3.1: same "preferences was already Class A, no registry change
+  // needed" reasoning — proves these 3 specifically round-trip too.
+  uiFont: 'inter',
+  headingFont: 'bebas-neue',
+  numbersFont: 'jetbrains-mono',
 };
 
-test('export, snapshot, wipe, restore round trip preserves all 9 new/promoted preference fields exactly', async () => {
+test('export, snapshot, wipe, restore round trip preserves all 12 new/promoted preference fields exactly', async () => {
   const server = await startFixtureServer(FIXTURE);
   try {
     const before = await (await fetch(`${server.url}/api/library`)).json();
