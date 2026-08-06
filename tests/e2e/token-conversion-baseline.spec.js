@@ -241,6 +241,19 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     await page.waitForSelector('#snapshot-list .backup-row');
     Object.assign(captured, await captureScene(page, 'settings', '#theme-picker-overlay'));
 
+    // Settings' tag/list manager has two more states never captured above:
+    // the inline "+ New tag" form (.inline-create-form, .color-swatch-grid
+    // — only rendered once revealed, unlike the detail overlay's equivalent
+    // which lists-and-tags.spec.js already exercises) and a custom list's
+    // expanded "show entries" state (.manager-entries-list).
+    await page.click('#tags-create-btn');
+    await page.waitForSelector('.inline-create-form');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'settings-new-tag-form', '#theme-picker-overlay'));
+    await page.click('[data-action="toggle-list-entries"]');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'settings-list-entries', '#theme-picker-overlay'));
+
     // Confirm dialog (.dialog, .confirm-type-row and its input) — never
     // opened by any scene above, another whole-surface blind spot the same
     // shape as the Home page one. Triggered via "Reset everything"
@@ -258,9 +271,44 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
 
+    // Help panel (.help-tabs, .tour/.tour-h, .keys, .faq) — .help-tabs
+    // itself (the static tab-bar markup in index.html) is always present in
+    // the DOM regardless of whether Help has ever been opened, so it was
+    // already silently captured by every #app-rooted scene above. But its
+    // BODY (renderHelpPanel) replaces #help-body's entire innerHTML with
+    // whichever ONE sub-tab is active — 'basics'/.tour is the default, and
+    // 'keyboard'/.keys and 'questions'/.faq only ever exist in the DOM after
+    // actually clicking those sub-tabs, so without this, two of the three
+    // sub-tab bodies would have sat at zero coverage despite the panel
+    // itself "having been opened" via the default tab.
+    await page.click('#shortcuts-trigger');
+    await page.waitForSelector('#shortcuts-overlay:not([hidden])');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'help-basics', '#shortcuts-overlay'));
+    await page.click('.help-tabs [data-help-tab="keyboard"]');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'help-keyboard', '#shortcuts-overlay'));
+    await page.click('.help-tabs [data-help-tab="questions"]');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'help-questions', '#shortcuts-overlay'));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+
     await page.click('#search-trigger');
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'search-overlay', '#search-overlay'));
+    // .search-empty was still uncovered even with the overlay open: it only
+    // renders after a real search attempt (empty or failed), never on open.
+    // Typing a query drives runSearch() into its existing network-blocked
+    // catch path (same **/graphql.anilist.co/** abort every other AniList
+    // call in this test already relies on) — a real "could not search"
+    // state, not a synthetic one. The 400ms debounce plus the near-instant
+    // abort makes the transient .search-skeleton-row loading flash too
+    // short to capture reliably, but nothing in that class matched either
+    // token scale, so there is nothing there this test needs to verify.
+    await page.fill('#search-input', 'Attack');
+    await page.waitForTimeout(600);
+    Object.assign(captured, await captureScene(page, 'search-overlay-empty', '#search-overlay'));
     await page.keyboard.press('Escape');
 
     await page.click('#backup-menu-trigger');
