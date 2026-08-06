@@ -1840,7 +1840,7 @@ kbd {
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 12px;
+  gap: var(--sp-3);
   padding: 100px 20px;
   color: var(--dim);
 }
@@ -1925,8 +1925,8 @@ kbd {
 }
 .overlay-close:hover { color: var(--accent-lit); border-color: var(--accent); }
 
-.overlay-panel h2 { margin: 0 40px 12px 0; font: var(--t-display-m); letter-spacing: var(--tr-display); }
-.overlay-panel h3 { margin: 16px 0 8px; font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.overlay-panel h2 { margin: 0 40px var(--sp-3) 0; font: var(--t-display-m); letter-spacing: var(--tr-display); }
+.overlay-panel h3 { margin: var(--sp-4) 0 var(--sp-2); font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
 
 /* Small flex-row utility used throughout the dialog/detail/settings/help
    markup below (design reference's own `.row`). */
@@ -1937,7 +1937,7 @@ kbd {
    destructive that always names what is kept." One shared overlay,
    populated per-use by events.js's confirmDialog(). */
 .dialog { max-width: 420px; padding: 22px; }
-.dialog h4 { margin: 0 0 8px; font: var(--t-display-m); font-size: 18px; letter-spacing: var(--tr-display); }
+.dialog h4 { margin: 0 0 var(--sp-2); font: var(--t-display-m); font-size: 18px; letter-spacing: var(--tr-display); }
 .dialog p { margin: 0 0 18px; font: var(--t-body); color: var(--dim); }
 .dialog-actions { justify-content: flex-end; }
 /* Type-to-confirm variant (currently only "Reset everything") — hidden by
@@ -1950,7 +1950,7 @@ kbd {
   background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 9px 12px;
+  padding: 9px var(--sp-3);
   font: var(--t-body);
   color: var(--text);
 }

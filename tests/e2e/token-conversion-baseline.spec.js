@@ -240,6 +240,21 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     // finished first.
     await page.waitForSelector('#snapshot-list .backup-row');
     Object.assign(captured, await captureScene(page, 'settings', '#theme-picker-overlay'));
+
+    // Confirm dialog (.dialog, .confirm-type-row and its input) — never
+    // opened by any scene above, another whole-surface blind spot the same
+    // shape as the Home page one. Triggered via "Reset everything"
+    // specifically rather than e.g. delete-tag: both share the same
+    // .dialog markup, but only the reset flow passes requireTypedPhrase, so
+    // this one open captures the typed-phrase row too. openOverlay() hides
+    // every other overlay before showing a new one (hideAllOverlaysOnly()),
+    // so clicking this replaces the settings overlay rather than stacking
+    // on top of it — cancelled via Escape without ever typing the phrase or
+    // confirming, so nothing is actually reset and no further save fires.
+    await page.click('#reset-everything-btn');
+    await page.waitForSelector('#confirm-overlay:not([hidden])');
+    await page.waitForTimeout(150);
+    Object.assign(captured, await captureScene(page, 'confirm-dialog', '#confirm-overlay'));
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
 
