@@ -2246,19 +2246,19 @@ kbd {
 .detail-score span { font: var(--t-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 
 .detail-body { padding: 22px 24px 24px; min-width: 0; }
-.detail-title { margin: 0 0 4px; font: var(--t-display-m); letter-spacing: var(--tr-display); }
+.detail-title { margin: 0 0 var(--sp-1); font: var(--t-display-m); letter-spacing: var(--tr-display); }
 /* The one place italic Mincho is used (design system §4.3): the AniList
    native-script title, shown per the Settings panel's "Original titles"
    preference (default: detail view only — see Preferences.getOriginalTitlesMode). */
 .detail-native { font-family: var(--display); font-style: italic; font-size: 13.5px; color: var(--dim); margin: 0 0 14px; }
 .detail-meta-row { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px; }
-.detail-score-row { display: flex; flex-wrap: wrap; gap: 12px; font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; margin-bottom: 12px; }
+.detail-score-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; margin-bottom: var(--sp-3); }
 .detail-genres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .detail-genre-chip {
   font: var(--t-nano);
   letter-spacing: .1em;
   text-transform: uppercase;
-  padding: 4px 10px;
+  padding: var(--sp-1) 10px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-lit);
@@ -2267,7 +2267,7 @@ kbd {
   font: var(--t-nano);
   letter-spacing: .08em;
   text-transform: uppercase;
-  padding: 4px 10px;
+  padding: var(--sp-1) 10px;
   border-radius: 999px;
   background: var(--card);
   border: 1px solid var(--line);
@@ -2282,7 +2282,7 @@ kbd {
 
 /* Episode squares (design/HANDOVER §14: stay up to 50, one <i> per episode,
    f = watched, n = the next one to mark, pulsing to invite a click). */
-.eps { display: flex; flex-wrap: wrap; gap: 4px; }
+.eps { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
 .eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background var(--d-2); }
 .eps i.f { background: color-mix(in srgb, var(--accent) 80%, transparent); }
 .eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); animation: epsBlip 2.4s ease-in-out infinite; }
@@ -2292,14 +2292,14 @@ kbd {
    with only the last 18 squares still shown as a tail (design/HANDOVER §14). */
 .detail-ep-summary { justify-content: space-between; margin-bottom: 10px; font: var(--t-card); }
 .detail-ep-summary .num { font: var(--t-meta); color: var(--faint); }
-.barfallback { height: 5px; background: color-mix(in srgb, var(--text) 9%, transparent); border-radius: 99px; position: relative; overflow: hidden; margin-bottom: 12px; }
+.barfallback { height: 5px; background: color-mix(in srgb, var(--text) 9%, transparent); border-radius: 99px; position: relative; overflow: hidden; margin-bottom: var(--sp-3); }
 .barfallback i { position: absolute; left: 0; top: 0; height: 5px; background: var(--accent); border-radius: 99px; }
-.detail-jump-row { margin-bottom: 4px; }
+.detail-jump-row { margin-bottom: var(--sp-1); }
 .detail-jump-field { max-width: 190px; }
 .detail-jump-field input { flex: 1; border: none; background: transparent; color: var(--text); font: var(--t-body); min-width: 0; }
 .detail-jump-field input:focus { outline: none; }
 .detail-eps-tail { align-items: center; margin-top: 6px; }
-.detail-eps-tail-label { font: var(--t-meta); color: var(--faint); margin-left: 8px; }
+.detail-eps-tail-label { font: var(--t-meta); color: var(--faint); margin-left: var(--sp-2); }
 
 .detail-note {
   width: 100%;
@@ -2308,7 +2308,7 @@ kbd {
   border-radius: var(--radius-sm);
   color: var(--text);
   font: var(--t-body);
-  padding: 10px 12px;
+  padding: 10px var(--sp-3);
   resize: none;
   height: 60px;
 }
@@ -2317,9 +2317,9 @@ kbd {
 .detail-meta-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px 20px;
+  gap: var(--sp-3) 20px;
   padding: 14px 0;
-  margin-bottom: 16px;
+  margin-bottom: var(--sp-4);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }

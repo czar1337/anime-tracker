@@ -348,6 +348,20 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     Object.assign(captured, await captureScene(page, 'detail-overlay', '#detail-content'));
     await page.keyboard.press('Escape');
 
+    // Detail overlay's >50-episode layout (.barfallback, .detail-jump-row,
+    // .detail-jump-field, .detail-eps-tail, .detail-eps-tail-label) — a
+    // mutually exclusive alternative to .eps's individual squares (design/
+    // HANDOVER §14: squares stay up to 50 episodes, a compact bar plus a
+    // jump field beyond that). Entry 101922 above has 25 episodes, so it
+    // only ever exercises .eps — this whole alternative layout sat at zero
+    // coverage until now. Entry 11061 (Hunter x Hunter, 148 episodes) in
+    // the fixture exists for exactly this.
+    await mockAniListDetail(page, 11061);
+    await page.click('#grid .card[data-id="11061"] [data-action="show-detail"]');
+    await page.waitForSelector('#detail-content .barfallback');
+    Object.assign(captured, await captureScene(page, 'detail-overlay-long-series', '#detail-content'));
+    await page.keyboard.press('Escape');
+
     // Mobile nav menu (.nav-hamburger, .nav-menu-item, and the @media
     // (max-width: 900px)/(max-width: 720px) overrides on .app-header/
     // .app-main/.card-grid) — none of this is reachable at the default
