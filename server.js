@@ -1837,7 +1837,19 @@ const server = http.createServer(async (req, res) => {
           writeLibraryAtomic(migrated);
           return {
             status: 200,
-            body: { ok: true, verified: true, restoredFrom: file, migratedTo: SCHEMA_VERSION },
+            body: {
+              ok: true,
+              verified: true,
+              restoredFrom: file,
+              migratedTo: SCHEMA_VERSION,
+              // This branch predates skippedStores (P1.3 vs. P1.5) and never
+              // carried it, so a snapshot old enough to need BOTH a schema
+              // migration AND a Class-A-store skip silently dropped the
+              // second half of that information — found by a P1.7 test that
+              // was the first to combine the two conditions. Fixed here
+              // rather than left as a gap the next such substep would repeat.
+              skippedStores: restorePlan.skippedStores,
+            },
             etag: computeLibraryEtag(migrated),
           };
         }

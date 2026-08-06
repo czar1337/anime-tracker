@@ -55,7 +55,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P1.4 Token layer, tuning config, inventory | done | 2026-08-02 | this session, see "P1.4 implementation session" and "P1.4 close out" below | — |
 | P1.5 Event log v1 | done | 2026-08-05 | this session, see "P1.5 implementation session" and "P1.5 close out" below | — |
 | P1.6 Copy registry, new v2 surfaces only | done | 2026-08-05 | this session, see "P1.6 implementation session" and "P1.6 close out" below | — |
-| P1.7 Lists, collections, tags, achievement hook | not started | — | — | — |
+| P1.7 Lists, collections, tags, achievement hook | done | 2026-08-06 | this session, see "P1.7 implementation session" and "P1.7 close out" below | — |
 | P2 Token conversion, batched per directory | not started | — | — | — |
 | P3.1 Nine fonts, loader, per-font manifest | not started | — | — | — |
 | P3.2 Typography sliders | not started | — | — | — |
@@ -2083,3 +2083,241 @@ spec's branching rule.
 
 **Not pushed.** The standing instruction from the P1.4 session — hold pushes to
 `origin` until a new version is wanted — is still in force.
+
+## P1.7 implementation session
+
+Branch `v2/P1.7`, from `main` (P1.1-P1.6 merged). Reconciled against
+`git log --all --oneline --grep "^v2("` first: P1.6 is the latest landed
+substep, P1.7 had no prior commits anywhere.
+
+Used plan mode. This substep is one of rule 3a's seven Class A additions
+(P1.3, P1.5, **P1.7**, P5A.4, P6.2, P7A, P8H) and the first one to land after
+P1.5's/P1.6's snapshot-compatibility fix — so it doubles as that fix's first
+real test: does adding a genuinely new store still leave every older snapshot
+verified and restorable? Confirmed yes, both in a dedicated e2e test and by
+inspection (see "Findings" below).
+
+### Resolved ambiguity: lists vs. collections
+
+The spec names "custom lists, collections, and tags" as though lists and
+collections were separate structures, but never defines what distinguishes
+one from the other anywhere in the document, and no later substep ever reads
+a standalone "collection" concept — P6.2 only ever enriches "lists"
+(ordering, icons). Per the spec's own scope-discipline rule ("stop and ask
+before any product decision... not covered here"), this was checked with the
+user rather than guessed: **one unified concept, custom lists**, confirmed.
+
+A refinement on top of that answer, made while designing the mutation paths:
+the approved preview modeled membership on the list object
+(`list.entryIds`). Implementation moved to **full symmetry with tags
+instead** — membership lives on the entry (`entry.customListIds`,
+`entry.tagIds`), and both registries (`state.customLists`, `state.tags`) hold
+pure metadata only. This is a purer version of the same approved concept, not
+a different one, and it matters concretely for P4.4's bulk actions: patching
+N selected entries' own arrays is the same shape every other bulk action
+there already uses (set score, add tags), where writing into one shared
+list's `entryIds` array under concurrent bulk edits would not be.
+
+### What landed, in commit order
+
+- `public/js/listsAndTags.js` (new) — id generation (`tag_`/`list_`-prefixed
+  `crypto.randomUUID()`), `normalizeName()` (trim + collapse whitespace),
+  `isDuplicateTagName()` (case-insensitive — tags behave like GitHub labels;
+  lists do **not** enforce uniqueness, since a list is matched by id and two
+  same-named lists cause no real confusion), and a small fixed 10-swatch
+  `TAG_COLORS` palette. Domain content, not a tunable — same split
+  `themes.js`'s `COLOR_THEMES` already establishes, so it does **not** live
+  in `config/tuning.js`.
+- `public/js/achievementHook.js` (new) — the documented no-op
+  `notifyAchievementEngine(stateSnapshot)` the spec asks for. P1.7 defines it
+  only; nothing calls it yet ("P4.4 calls it, P7A implements it — this is how
+  bulk actions ship before the engine exists").
+- `public/js/state.js` — `tags`/`customLists` top-level fields (added to
+  `KNOWN_TOP_LEVEL_FIELDS`, `setLibrary`/`toJSON`, same pattern
+  `dismissedItems` already established), `entry.tagIds`/`customListIds`
+  defaults in `addEntry`, and ten new pure mutators
+  (create/rename/recolor/delete/toggle for tags, the same five minus recolor
+  for lists, plus `getEntriesInCustomList`). Delete **scrubs** the deleted
+  id off every entry that referenced it — a stale reference would resolve to
+  nothing (no chip can render for a tag that no longer exists) but would
+  still sit in every future export and snapshot forever.
+- `migrations.js` — `migrate_5_to_6`: bumps to schemaVersion 6, defaults
+  `tags`/`customLists` to `[]`, backfills `tagIds`/`customListIds` onto every
+  entry, with the same entry-count self-check `migrate_4_to_5` uses. New
+  fixture `tests/fixtures/schema-v5-library.json`.
+- `public/js/exportRegistry.js` — two new Class A stores (`tags`,
+  `customLists`), both plain `library.json` fields with exact-match
+  verification (no `restoreVerification` override needed, unlike P1.5's
+  stores) — **no `server.js` changes were needed at all**, since
+  `buildClassASources()` already passes the whole library object and both
+  new stores are `{ kind: 'libraryField', field: ... }`. Per-entry
+  `tagIds`/`customListIds` need no separate registration either: they live
+  inside records the already-registered `entries` store checksums.
+- `config/tuning.js` — a new `LISTS_AND_TAGS.maxNameLength` (60), the one
+  genuinely adjustable value this feature introduces.
+- `public/js/copyRegistry.js` — 30 new entries. P1.6 states the going-forward
+  rule plainly ("Wire only new v2 surfaces plus achievement copy through the
+  registry"), so this substep's new copy was added to the registry from the
+  start rather than inlined and retrofitted later.
+- UI (`render.js`/`events.js`/`styles.css`): a read-only tag-chip row on
+  cards (rendered only when an entry actually has tags — the default,
+  untagged case is byte-identical to before); two new detail-overlay
+  sections (Tags, Custom lists) with toggle chips and an inline "+ New
+  tag"/"+ New list" form, the tag form reusing the exact color-swatch-grid
+  interaction the theme picker already established; two new Settings panel
+  sections (create/rename/delete for both, list rows also showing entry
+  count and an expandable plain-title member list). Assignment is
+  deliberately **detail-view-only** — cards gain no new buttons, keeping
+  every existing card's surface unchanged for the common case.
+
+### A real bug found during manual verification, fixed
+
+Testing the create-tag flow by hand: typing a name, then picking a colour
+swatch, silently **erased the just-typed name**. Root cause: picking a colour
+calls `Detail.refreshDetailIfOpen()`, which rebuilds the whole detail overlay
+from scratch — including the name `<input>`, whose typed value is live DOM
+state a full re-render has no way to preserve. Fixed by tracking the
+in-progress name in `render.js`'s module state (mirroring the existing
+`detailNewTagColorId` pattern), kept in sync on every keystroke via a
+lightweight `input` listener that does **not** itself trigger a re-render
+(that would fight the cursor), and used only to pre-fill the rebuilt input
+when some other action causes one. Applied identically to the Settings
+panel's own create-tag form, which has the same colour picker and the same
+failure mode. A dedicated e2e regression test locks in the exact
+type-then-pick-colour order that broke before the fix.
+
+A second, unrelated bug surfaced by the **e2e** test for this exact
+scenario (not manual testing): `server.js`'s restore route has two response
+branches — one when the restored snapshot needs no migration, one when it
+does. `skippedStores` was added to the first branch when P1.6 built the
+compatibility fix, but the second (migration) branch predates that fix by
+three substeps (P1.3) and was never updated — so a snapshot old enough to
+need **both** a schema migration **and** a Class-A-store skip silently
+dropped the second half of that information. No prior test had combined
+both conditions until this substep's own legacy-snapshot regression test
+did. Fixed by adding `skippedStores` to that branch too.
+
+### Verification method note
+
+Two rounds of manual UI testing were done: first via raw CDP script
+injection (`javascript_tool`), which reliably exercises click-driven flows
+(create, toggle, delete) but turned out to be **unreliable for focus/blur**
+— a scripted `.blur()` call on a freshly-focused input did not reliably fire
+a `blur` event in that harness, which looked like a broken rename feature.
+Re-tested the identical rename flow with real Playwright `fill()`/`press()`
+interaction (which drives actual browser input/focus events, not raw CDP
+evaluation) and it worked correctly on the first try — confirming the
+apparent bug was a limitation of the ad-hoc verification tool, not the app.
+Recorded here so a future session doesn't waste time chasing the same
+false lead: **CDP `Runtime.evaluate`-driven `.blur()` calls are not a
+reliable way to test blur-commit UI patterns in this environment; use a
+real Playwright test instead.**
+
+### Acceptance criteria
+
+**1. Automated checks.** `node tests/run-all.js`: **200 passed, 0 failed**
+(+22 this substep). `npx playwright test`: **60 passed, 0 failed** (+8).
+`node scripts/check-copy-registry.js`: passes (67 entries, 201 variants).
+No lint/typecheck command exists in this project beyond the scripts in
+`scripts/` (unchanged finding from P0.1).
+
+**2. Data safety.** This substep adds two Class A stores, so rule 3a
+applies in full. The round trip is proven twice: a dedicated e2e test
+(`rule 3a: NON-EMPTY tags and customLists survive export, snapshot, wipe
+and restore`) with genuinely non-empty content in both stores (an empty
+store would pass trivially and prove nothing), and a second e2e test
+proving the harder case rule 3a's own text calls out — **a snapshot that
+predates the new stores entirely** stays `verified: true`, restores
+cleanly, and correctly defaults `tags`/`customLists` to `[]` via
+`migrate_5_to_6` rather than failing. This is the first real-world exercise
+of P1.5's/P1.6's snapshot-compatibility mechanism against an actual new
+Class A addition (as opposed to the hand-built synthetic snapshots P1.6's
+own tests used), and it worked as designed on the first attempt aside from
+the `skippedStores`-in-the-migration-branch gap described above, which is
+now fixed.
+
+**3. Manual smoke test**, production build (`npm start`), **against a
+disposable copy of the real 222-entry library only**:
+1. Fingerprinted (sha256 + mtime) the real `library.json` and every
+   `snapshots/` file first.
+2. Booted against the copy: migrated cleanly from schemaVersion 4 straight
+   through to 6 (running both the pre-existing 4→5 step and the new 5→6
+   step in one boot), all 222 real entries backfilled with empty
+   `tagIds`/`customListIds`, **no console errors**.
+3. Opened Settings: both new sections render correctly against real data
+   (empty states, since the real library had never used the feature).
+4. Created a tag against a real entry (Attack on Titan, anilistId 16498)
+   and saved through the real `Api.saveLibrary` path — the library.json on
+   the copy showed the new tag and the correct membership.
+5. Switched to the Watched tab (where that real entry lives) and confirmed
+   the card rendered the new read-only tag chip correctly against real
+   card markup.
+6. Re-fingerprinted the **original**: byte- and mtime-identical; still
+   schemaVersion 4, still no `tags` field — completely untouched.
+
+Also rebuilt the packaged `.exe` (60 embedded assets, up from 58 — the two
+new `public/js` modules) and confirmed it boots.
+
+**4. Performance.** No Tuning-table budget names lists, tags or
+collections — the table predates this feature entirely (P1.6 already
+established this same finding for its own surface). Stated explicitly per
+the spec's own reduction rule. The one new adjustable value this substep
+introduces (`maxNameLength`) is a UI input clamp, not a performance
+concern.
+
+**5. Accessibility.** The new detail-view sections and Settings rows reuse
+existing, already-audited interaction patterns exactly: the toggle chips
+are `<button>` elements (native keyboard/focus support, no custom ARIA
+needed), the colour swatch grid is the P1.3 theme-picker's own grid with
+only the data attribute and palette swapped, and the inline rename input
+is the identical pattern `handleEditEpisode` already uses elsewhere in this
+app (swap label for input, focus, commit on blur/Enter, discard on
+Escape). Destructive actions (delete tag/delete list) route through the
+existing `confirmDialog`, which already carries its own accessibility
+guarantees. No new interaction pattern was invented. Given that, and that
+this is a Foundations-tier feature addition rather than a new visual
+design, **no separate user-executed screen-reader step is being requested
+this session** — flagged here rather than silently skipped, so the user
+can ask for one if they'd rather have it before merge.
+
+**6. Rollback.** Revert the `v2(P1.7)` commit range. This substep **does**
+migrate `library.json` (schemaVersion 5 → 6), so per the spec's own rule a
+code revert alone is not sufficient — forward compatibility is what makes
+it safe anyway: the reverted (pre-P1.7) build's `KNOWN_TOP_LEVEL_FIELDS`
+does not include `tags`/`customLists`, so under P1.5's B1 fix those two
+fields are preserved verbatim in `unknownTopLevelFields` rather than being
+read, torn up, or dropped — and `entry.tagIds`/`customListIds` are simply
+extra fields the reverted `addEntry`/`updateEntry` never touch. A reverted
+build can open a schemaVersion-6 library and continue saving it completely
+safely; the "down-migration" the spec asks about is therefore a no-op by
+construction, not something this substep needed to write. Restoring a
+pre-P1.7 snapshot remains fully supported either way, exactly as this
+substep's own dedicated test proves.
+
+**Status: P1.7 substantially complete.** All six criteria have full
+evidence in this same session. Criterion 5 is flagged rather than silently
+satisfied, since no user-executed screen-reader step was requested this
+time — say so if you'd like one before merge. Not yet merged into `main`;
+awaiting user review before a `v2(P1.7): close out` commit and merge. Push
+to `origin` remains held per the standing instruction from P1.4.
+
+## P1.7 close out
+
+The user reviewed the implementation session's evidence and, when asked
+whether to run a manual screen-reader pass before closing out (this substep,
+unlike P1.6, ships real new UI), chose to skip it: every new interaction
+reuses an existing, already-audited pattern verbatim (native `<button>`
+chips, the P1.3 theme-swatch grid for the tag-colour picker with only the
+data attribute and palette swapped, the existing inline-rename idiom, the
+existing `confirmDialog` for destructive deletes) — nothing structurally new
+for a screen reader to encounter.
+
+No other code changed in this closing commit.
+
+**Status: P1.7 done.** All six acceptance criteria satisfied (criterion 5
+explicitly deferred by user choice, not silently skipped). Merged into `main`
+in this session's close-out (see the merge commit immediately following);
+`v2/P1.7` retained, not deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction from the P1.4 session — hold pushes
+to `origin` until a new version is wanted — is still in force.

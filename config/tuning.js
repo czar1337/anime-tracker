@@ -145,3 +145,14 @@ export const ACHIEVEMENTS = {
   levelCurveK: 7,
   maxLevel: 20,
 };
+
+// P1.7's custom lists and tags. Not in the Tuning table (the feature didn't
+// exist when that table was written), but a max name length is exactly the
+// "adjustable product value" the constants-location rule describes, so it
+// lives here rather than hardcoded in render.js's input elements. The colour
+// palette itself is domain CONTENT, not a tunable number, so it stays in
+// public/js/listsAndTags.js instead (the same split themes.js's COLOR_THEMES
+// already establishes).
+export const LISTS_AND_TAGS = {
+  maxNameLength: 60,
+};

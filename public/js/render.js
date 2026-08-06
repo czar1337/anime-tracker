@@ -5,6 +5,8 @@ import { formatReleaseDate } from './scheduleLogic.js';
 import { Preferences } from './preferences.js';
 import { Api } from './api.js';
 import { copy } from './copy.js';
+import { TAG_COLORS, tagColorHex, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
+import { LISTS_AND_TAGS } from '../../config/tuning.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -62,6 +64,31 @@ const expandedGroups = new Set();
 // that a full re-render would otherwise wipe out.
 let selectMode = false;
 const selectedIds = new Set();
+
+// P1.7's inline "+ New tag"/"+ New list" forms in the detail overlay —
+// module-level so a refresh after toggling a tag/list membership (which
+// re-renders the whole overlay from scratch) doesn't collapse a form the user
+// still has open. detail.js's showDetail() resets these via
+// resetDetailCreateForms() on every fresh open of a (possibly different)
+// entry, so they never leak from one entry's detail view into another's.
+let detailShowNewTagForm = false;
+let detailNewTagColorId = DEFAULT_TAG_COLOR_ID;
+// Tracks the name field's in-progress text too, not just whether the form is
+// open. Found in manual testing: picking a colour swatch calls
+// Detail.refreshDetailIfOpen(), which rebuilds #detail-content from scratch —
+// without this, typing a name and THEN picking a colour silently wiped out
+// whatever had just been typed, because the input is live DOM state that a
+// full re-render discards. Kept in sync on every keystroke (see events.js's
+// 'input' listener) rather than only on submit.
+let detailNewTagName = '';
+let detailShowNewListForm = false;
+
+function resetDetailCreateForms() {
+  detailShowNewTagForm = false;
+  detailNewTagColorId = DEFAULT_TAG_COLOR_ID;
+  detailNewTagName = '';
+  detailShowNewListForm = false;
+}
 
 function isSelectMode() {
   return selectMode;
@@ -269,11 +296,28 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
           ${entry.totalEpisodes ? `<span>${entry.totalEpisodes} ep</span>` : ''}
         </div>
         ${cardBodyForList(entry, list, Boolean(seasonLabel))}
+        ${cardTagChipsHtml(entry)}
         <button class="notes-toggle" data-action="toggle-notes">${entry.notes ? 'Edit note' : '+ Add note'}</button>
         <textarea class="notes-field" data-action="edit-notes" placeholder="Personal notes…" hidden>${escapeHtml(entry.notes)}</textarea>
       </div>
     </article>
   `;
+}
+
+// P1.7: read-only on the card — tag ASSIGNMENT happens from the detail view,
+// where every entry can already be opened, so cards don't gain two more
+// buttons apiece. Renders nothing at all for the untagged majority (the
+// default), so "an existing user sees zero visual change" holds exactly as it
+// does for every other new v2 preference/feature.
+function cardTagChipsHtml(entry) {
+  if (!entry.tagIds || entry.tagIds.length === 0) return '';
+  const tags = Store.getTags();
+  const chips = entry.tagIds
+    .map((id) => tags.find((t) => t.id === id))
+    .filter(Boolean)
+    .map((t) => `<span class="tag-chip" style="background:${tagColorHex(t.color)}22;color:${tagColorHex(t.color)}">${escapeHtml(t.name)}</span>`)
+    .join('');
+  return chips ? `<div class="card-tag-chips">${chips}</div>` : '';
 }
 
 function franchiseCardHtml(group, list, index = 0) {
@@ -1496,6 +1540,8 @@ function renderDetailOverlay(container, state) {
           <p class="detail-lbl">Note</p>
           <textarea class="detail-note" placeholder="Your notes…" data-action="detail-note">${escapeHtml(local.notes || '')}</textarea>
         </div>
+        <div class="detail-section">${detailTagsSectionHtml(local)}</div>
+        <div class="detail-section">${detailListsSectionHtml(local)}</div>
       ` : ''}
       <div class="detail-meta-grid">
         ${studios ? `<div><span class="detail-meta-label">Studio</span><span>${escapeHtml(studios)}</span></div>` : ''}
@@ -1512,6 +1558,89 @@ function renderDetailOverlay(container, state) {
       ` : ''}
     </div>
   `;
+}
+
+// P1.7's detail-view Tags section: every registry tag as a toggle chip
+// (membership on THIS entry), plus an inline "+ New tag" form. Assignment
+// lives here rather than on the card, so cards don't gain two more buttons
+// apiece for a feature most entries won't use.
+function detailTagsSectionHtml(local) {
+  const tags = Store.getTags();
+  const chips = tags
+    .map((t) => {
+      const on = (local.tagIds || []).includes(t.id);
+      const hex = tagColorHex(t.color);
+      return `<button class="tag-chip-toggle ${on ? 'on' : ''}" style="color:${hex}" data-action="toggle-entry-tag" data-tag-id="${t.id}"><span class="sw" style="background:${hex}"></span>${escapeHtml(t.name)}</button>`;
+    })
+    .join('');
+  const form = detailShowNewTagForm
+    ? `
+      <div class="inline-create-form">
+        <input type="text" id="detail-new-tag-name" placeholder="${escapeHtml(copy('tags.create.namePlaceholder'))}" maxlength="${LISTS_AND_TAGS.maxNameLength}" value="${escapeHtml(detailNewTagName)}">
+        <div class="color-swatch-grid">
+          ${TAG_COLORS.map((c) => `<button class="${c.id === detailNewTagColorId ? 'on' : ''}" style="background:${c.hex}" data-action="pick-new-tag-color" data-color-id="${c.id}" title="${escapeHtml(c.name)}" aria-label="${escapeHtml(c.name)}"></button>`).join('')}
+        </div>
+        <div class="row">
+          <button class="btn btn-primary sm" data-action="confirm-new-tag">${escapeHtml(copy('tags.create.confirm'))}</button>
+          <button class="btn btn-quiet sm" data-action="cancel-new-tag">${escapeHtml(copy('tags.create.cancel'))}</button>
+        </div>
+      </div>
+    `
+    : `<button class="btn btn-ghost sm rip-host" data-action="show-new-tag-form">${escapeHtml(copy('tags.create.button'))}</button>`;
+  return `
+    <p class="detail-lbl">${escapeHtml(copy('detail.tags.heading'))}</p>
+    <div class="detail-genres">${chips}</div>
+    ${form}
+  `;
+}
+
+// Mirrors detailTagsSectionHtml exactly, minus the colour picker — lists have
+// no colour, only a name.
+function detailListsSectionHtml(local) {
+  const lists = Store.getCustomLists();
+  const chips = lists
+    .map((l) => {
+      const on = (local.customListIds || []).includes(l.id);
+      return `<button class="tag-chip-toggle ${on ? 'on' : ''}" data-action="toggle-entry-list" data-list-id="${l.id}">${escapeHtml(l.name)}</button>`;
+    })
+    .join('');
+  const form = detailShowNewListForm
+    ? `
+      <div class="inline-create-form">
+        <input type="text" id="detail-new-list-name" placeholder="${escapeHtml(copy('lists.create.namePlaceholder'))}" maxlength="${LISTS_AND_TAGS.maxNameLength}">
+        <div class="row">
+          <button class="btn btn-primary sm" data-action="confirm-new-list">${escapeHtml(copy('lists.create.confirm'))}</button>
+          <button class="btn btn-quiet sm" data-action="cancel-new-list">${escapeHtml(copy('lists.create.cancel'))}</button>
+        </div>
+      </div>
+    `
+    : `<button class="btn btn-ghost sm rip-host" data-action="show-new-list-form">${escapeHtml(copy('lists.create.button'))}</button>`;
+  return `
+    <p class="detail-lbl">${escapeHtml(copy('detail.lists.heading'))}</p>
+    <div class="detail-genres">${chips}</div>
+    ${form}
+  `;
+}
+
+function toggleDetailNewTagForm(show) {
+  detailShowNewTagForm = show;
+  if (!show) detailNewTagName = '';
+}
+
+function toggleDetailNewListForm(show) {
+  detailShowNewListForm = show;
+}
+
+function setDetailNewTagColor(colorId) {
+  detailNewTagColorId = colorId;
+}
+
+function setDetailNewTagName(name) {
+  detailNewTagName = name;
+}
+
+function getDetailNewTagColor() {
+  return detailNewTagColorId;
 }
 
 function settingsRowHtml(label, description, body) {
@@ -1553,6 +1682,112 @@ function themeGridHtml(currentId) {
     ? (COLOR_THEMES.length > THEME_PREVIEW_COUNT ? `<button class="btn btn-quiet sm" id="theme-view-fewer-btn" style="margin-top:8px">Show fewer</button>` : '')
     : `<p style="margin:10px 0 0;font:var(--t-meta);color:var(--faint)">Showing ${THEME_PREVIEW_COUNT} of ${COLOR_THEMES.length}. <button class="btn btn-quiet sm" id="theme-view-more-btn">View more</button></p>`;
   return `<div class="themegrid">${swatches}</div>${toggle}`;
+}
+
+// P1.7's Settings "Tags"/"Custom lists" manager state — same
+// module-level-transient-UI-state reasoning as themesExpanded above.
+let settingsShowNewTagForm = false;
+let settingsNewTagColorId = DEFAULT_TAG_COLOR_ID;
+// Same fix as detailNewTagName above, for the same reason: a colour-swatch
+// pick re-renders the whole panel (repaintSettings), which would otherwise
+// discard whatever the user had already typed into the name field.
+let settingsNewTagName = '';
+let settingsShowNewListForm = false;
+const expandedManagerListIds = new Set();
+
+function toggleSettingsNewTagForm(show) {
+  settingsShowNewTagForm = show;
+  if (!show) settingsNewTagName = '';
+}
+function setSettingsNewTagColor(colorId) {
+  settingsNewTagColorId = colorId;
+}
+function getSettingsNewTagColor() {
+  return settingsNewTagColorId;
+}
+function setSettingsNewTagName(name) {
+  settingsNewTagName = name;
+}
+function toggleSettingsNewListForm(show) {
+  settingsShowNewListForm = show;
+}
+function toggleManagerListExpanded(listId) {
+  if (expandedManagerListIds.has(listId)) expandedManagerListIds.delete(listId);
+  else expandedManagerListIds.add(listId);
+}
+
+function tagsManagerBodyHtml() {
+  const tags = Store.getTags();
+  const rows = tags.length
+    ? `<ul class="manager-list">${tags
+        .map(
+          (t) => `
+        <li class="manager-row">
+          <span class="sw" style="background:${tagColorHex(t.color)}"></span>
+          <span class="nm">${escapeHtml(t.name)}</span>
+          <span class="actions">
+            <button class="btn btn-ghost sm" data-action="rename-tag" data-tag-id="${t.id}">${escapeHtml(copy('tags.rename.button'))}</button>
+            <button class="btn btn-ghost sm" data-action="delete-tag" data-tag-id="${t.id}" data-tag-name="${escapeHtml(t.name)}">${escapeHtml(copy('tags.delete.button'))}</button>
+          </span>
+        </li>`
+        )
+        .join('')}</ul>`
+    : `<p class="manager-empty" style="font:var(--t-meta);color:var(--faint)">${escapeHtml(copy('tags.settings.empty'))}</p>`;
+  const form = settingsShowNewTagForm
+    ? `
+      <div class="inline-create-form">
+        <input type="text" id="settings-new-tag-name" placeholder="${escapeHtml(copy('tags.create.namePlaceholder'))}" maxlength="${LISTS_AND_TAGS.maxNameLength}" value="${escapeHtml(settingsNewTagName)}">
+        <div class="color-swatch-grid">
+          ${TAG_COLORS.map((c) => `<button class="${c.id === settingsNewTagColorId ? 'on' : ''}" style="background:${c.hex}" data-action="pick-settings-new-tag-color" data-color-id="${c.id}" title="${escapeHtml(c.name)}" aria-label="${escapeHtml(c.name)}"></button>`).join('')}
+        </div>
+        <div class="row">
+          <button class="btn btn-primary sm" data-action="confirm-settings-new-tag">${escapeHtml(copy('tags.create.confirm'))}</button>
+          <button class="btn btn-quiet sm" data-action="cancel-settings-new-tag">${escapeHtml(copy('tags.create.cancel'))}</button>
+        </div>
+      </div>
+    `
+    : `<button class="btn btn-ghost sm rip-host" id="tags-create-btn" style="margin-top:8px">${escapeHtml(copy('tags.create.button'))}</button>`;
+  return `${rows}${form}`;
+}
+
+function listsManagerBodyHtml() {
+  const lists = Store.getCustomLists();
+  const rows = lists.length
+    ? `<ul class="manager-list">${lists
+        .map((l) => {
+          const count = Store.getEntriesInCustomList(l.id).length;
+          const expanded = expandedManagerListIds.has(l.id);
+          const entries = expanded
+            ? `<ul class="manager-entries-list">${Store.getEntriesInCustomList(l.id)
+                .map((e) => `<li>${escapeHtml(e.titleEnglish || e.titleRomaji)}</li>`)
+                .join('') || `<li>${escapeHtml(copy('lists.settings.empty'))}</li>`}</ul>`
+            : '';
+          return `
+        <li class="manager-row" style="flex-wrap:wrap">
+          <span class="nm">${escapeHtml(l.name)}</span>
+          <span class="count">${copy('lists.settings.entryCount', undefined, { count })}</span>
+          <span class="actions">
+            <button class="btn btn-ghost sm" data-action="toggle-list-entries" data-list-id="${l.id}">${escapeHtml(expanded ? copy('lists.settings.hideEntries') : copy('lists.settings.showEntries'))}</button>
+            <button class="btn btn-ghost sm" data-action="rename-list" data-list-id="${l.id}">${escapeHtml(copy('lists.rename.button'))}</button>
+            <button class="btn btn-ghost sm" data-action="delete-list" data-list-id="${l.id}" data-list-name="${escapeHtml(l.name)}">${escapeHtml(copy('lists.delete.button'))}</button>
+          </span>
+          ${entries}
+        </li>`;
+        })
+        .join('')}</ul>`
+    : `<p class="manager-empty" style="font:var(--t-meta);color:var(--faint)">${escapeHtml(copy('lists.settings.empty'))}</p>`;
+  const form = settingsShowNewListForm
+    ? `
+      <div class="inline-create-form">
+        <input type="text" id="settings-new-list-name" placeholder="${escapeHtml(copy('lists.create.namePlaceholder'))}" maxlength="${LISTS_AND_TAGS.maxNameLength}">
+        <div class="row">
+          <button class="btn btn-primary sm" data-action="confirm-settings-new-list">${escapeHtml(copy('lists.create.confirm'))}</button>
+          <button class="btn btn-quiet sm" data-action="cancel-settings-new-list">${escapeHtml(copy('lists.create.cancel'))}</button>
+        </div>
+      </div>
+    `
+    : `<button class="btn btn-ghost sm rip-host" id="lists-create-btn" style="margin-top:8px">${escapeHtml(copy('lists.create.button'))}</button>`;
+  return `${rows}${form}`;
 }
 
 // Settings panel (design/HANDOVER.md §4 Phase 3: "theme grid, text size,
@@ -1612,6 +1847,8 @@ function renderSettingsPanel(container, currentThemeId) {
       </div>
       `
     )}
+    ${settingsRowHtml(copy('tags.settings.heading'), copy('tags.settings.description'), tagsManagerBodyHtml())}
+    ${settingsRowHtml(copy('lists.settings.heading'), copy('lists.settings.description'), listsManagerBodyHtml())}
   `;
   scroller.scrollTop = scrollTop;
   const newGrid = container.querySelector('.themegrid');
@@ -1738,4 +1975,16 @@ export const Render = {
   showError,
   clearError,
   escapeHtml,
+  resetDetailCreateForms,
+  toggleDetailNewTagForm,
+  toggleDetailNewListForm,
+  setDetailNewTagColor,
+  setDetailNewTagName,
+  getDetailNewTagColor,
+  toggleSettingsNewTagForm,
+  setSettingsNewTagColor,
+  setSettingsNewTagName,
+  getSettingsNewTagColor,
+  toggleSettingsNewListForm,
+  toggleManagerListExpanded,
 };

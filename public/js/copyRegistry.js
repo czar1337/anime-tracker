@@ -311,6 +311,91 @@ export const COPY_REGISTRY = {
     standard: 'Reset failed',
     madara: 'Reset failed',
   },
+
+  // ---------------------------------------------------------------------------
+  // P1.7 — custom lists and tags. A NEW v2 surface, so per P1.6's own stated
+  // rule ("Wire only new v2 surfaces plus achievement copy through the
+  // registry") these are registry entries from the start, not inlined
+  // strings. Tag/list NAMES are user-authored content and are never registry
+  // entries — only the surrounding app copy is.
+  // ---------------------------------------------------------------------------
+
+  'tags.settings.heading': { familyFriendly: 'Tags', standard: 'Tags', madara: 'Tags' },
+  'tags.settings.description': {
+    familyFriendly: 'Free-form, coloured labels you can put on any entry.',
+    standard: 'Free-form, coloured labels you can put on any entry.',
+    madara: 'Free-form, coloured labels you can put on any entry.',
+  },
+  'tags.settings.empty': {
+    familyFriendly: 'No tags yet — create one from any entry’s detail view.',
+    standard: 'No tags yet — create one from any entry’s detail view.',
+    madara: 'No tags yet — create one from any entry’s detail view.',
+  },
+  'tags.create.button': { familyFriendly: '+ New tag', standard: '+ New tag', madara: '+ New tag' },
+  'tags.create.namePlaceholder': { familyFriendly: 'Tag name…', standard: 'Tag name…', madara: 'Tag name…' },
+  'tags.create.confirm': { familyFriendly: 'Create', standard: 'Create', madara: 'Create' },
+  'tags.create.cancel': { familyFriendly: 'Cancel', standard: 'Cancel', madara: 'Cancel' },
+  'tags.create.duplicateName': {
+    familyFriendly: 'A tag with that name already exists.',
+    standard: 'A tag with that name already exists.',
+    madara: 'A tag with that name already exists.',
+  },
+  'tags.rename.button': { familyFriendly: 'Rename', standard: 'Rename', madara: 'Rename' },
+  'tags.delete.button': { familyFriendly: 'Delete', standard: 'Delete', madara: 'Delete' },
+  'tags.delete.dialog.title': {
+    familyFriendly: (p) => `Delete the tag "${p.name}"?`,
+    standard: (p) => `Delete the tag "${p.name}"?`,
+    madara: (p) => `Delete the tag "${p.name}"?`,
+  },
+  'tags.delete.dialog.body': {
+    familyFriendly:
+      'Removes it from every entry it is on. Your entries and everything else about them stay exactly as they are.',
+    standard:
+      'Removes it from every entry it is on. Your entries and everything else about them stay exactly as they are.',
+    madara:
+      'Removes it from every entry it is on. Your entries and everything else about them stay exactly as they are.',
+  },
+  'tags.delete.dialog.confirm': { familyFriendly: 'Delete tag', standard: 'Delete tag', madara: 'Delete tag' },
+
+  'lists.settings.heading': { familyFriendly: 'Custom lists', standard: 'Custom lists', madara: 'Custom lists' },
+  'lists.settings.description': {
+    familyFriendly: 'Group any entries together, independent of watching/watched/watchlist/dropped.',
+    standard: 'Group any entries together, independent of watching/watched/watchlist/dropped.',
+    madara: 'Group any entries together, independent of watching/watched/watchlist/dropped.',
+  },
+  'lists.settings.empty': {
+    familyFriendly: 'No custom lists yet — create one from any entry’s detail view.',
+    standard: 'No custom lists yet — create one from any entry’s detail view.',
+    madara: 'No custom lists yet — create one from any entry’s detail view.',
+  },
+  'lists.settings.entryCount': {
+    familyFriendly: (p) => `${p.count} ${p.count === 1 ? 'entry' : 'entries'}`,
+    standard: (p) => `${p.count} ${p.count === 1 ? 'entry' : 'entries'}`,
+    madara: (p) => `${p.count} ${p.count === 1 ? 'entry' : 'entries'}`,
+  },
+  'lists.settings.showEntries': { familyFriendly: 'Show entries', standard: 'Show entries', madara: 'Show entries' },
+  'lists.settings.hideEntries': { familyFriendly: 'Hide entries', standard: 'Hide entries', madara: 'Hide entries' },
+  'lists.create.button': { familyFriendly: '+ New list', standard: '+ New list', madara: '+ New list' },
+  'lists.create.namePlaceholder': { familyFriendly: 'List name…', standard: 'List name…', madara: 'List name…' },
+  'lists.create.confirm': { familyFriendly: 'Create', standard: 'Create', madara: 'Create' },
+  'lists.create.cancel': { familyFriendly: 'Cancel', standard: 'Cancel', madara: 'Cancel' },
+  'lists.rename.button': { familyFriendly: 'Rename', standard: 'Rename', madara: 'Rename' },
+  'lists.delete.button': { familyFriendly: 'Delete', standard: 'Delete', madara: 'Delete' },
+  'lists.delete.dialog.title': {
+    familyFriendly: (p) => `Delete the list "${p.name}"?`,
+    standard: (p) => `Delete the list "${p.name}"?`,
+    madara: (p) => `Delete the list "${p.name}"?`,
+  },
+  'lists.delete.dialog.body': {
+    familyFriendly: 'Your entries stay in your library, exactly as they are — only this grouping goes away.',
+    standard: 'Your entries stay in your library, exactly as they are — only this grouping goes away.',
+    madara: 'Your entries stay in your library, exactly as they are — only this grouping goes away.',
+  },
+  'lists.delete.dialog.confirm': { familyFriendly: 'Delete list', standard: 'Delete list', madara: 'Delete list' },
+
+  // Detail-view section headings/buttons.
+  'detail.tags.heading': { familyFriendly: 'Tags', standard: 'Tags', madara: 'Tags' },
+  'detail.lists.heading': { familyFriendly: 'Lists', standard: 'Lists', madara: 'Lists' },
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

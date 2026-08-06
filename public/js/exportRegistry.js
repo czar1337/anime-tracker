@@ -102,6 +102,29 @@ const CLASS_A_STORES = [
     restoreVerification: 'derived',
     verifiedSubset: ['baseline'],
   },
+  // P1.7's two new Class A stores. Both are plain library.json fields — pure
+  // metadata registries, exactly like `preferences` — so no requiredSources
+  // guard is needed (they default to empty the same uncontroversial way
+  // `entries`/`dismissedItems` already do) and no new restoreTarget kind is
+  // needed either. Per-entry membership (entry.tagIds/customListIds) needs no
+  // registration of its own: it lives inside the records the `entries` store
+  // above already checksums, so the round trip covers it for free.
+  {
+    id: 'tags',
+    label: 'Tags',
+    kind: 'records',
+    recordId: 'id',
+    get: (sources) => (Array.isArray(sources.library?.tags) ? sources.library.tags : []),
+    restoreTarget: { kind: 'libraryField', field: 'tags' },
+  },
+  {
+    id: 'customLists',
+    label: 'Custom lists',
+    kind: 'records',
+    recordId: 'id',
+    get: (sources) => (Array.isArray(sources.library?.customLists) ? sources.library.customLists : []),
+    restoreTarget: { kind: 'libraryField', field: 'customLists' },
+  },
 ];
 
 // Walks `registry` generically — never references a store by name — so adding a

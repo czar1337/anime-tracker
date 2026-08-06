@@ -1301,6 +1301,37 @@ kbd {
 .tag.warn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); color: var(--warning); }
 .tag.air { border-color: color-mix(in srgb, var(--positive) 45%, transparent); color: var(--positive); }
 
+/* P1.7: user-created tag chips — a distinct class from .tag above (that one is
+   fixed status badges; this one is free-form, per-tag-coloured content), same
+   pill shape as .detail-genre-chip. Read-only on cards (no button chrome);
+   the colour itself is set inline per-tag via listsAndTags.js's tagColorHex(),
+   so no CSS variable per swatch is needed here. */
+.card-tag-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.tag-chip {
+  font: var(--t-nano);
+  letter-spacing: .06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+/* Interactive variant used in the detail view: same base shape, toggled
+   on/off with an explicit selected state (never colour alone, §13) since the
+   colour is user-chosen and not guaranteed to contrast enough on its own. */
+.tag-chip-toggle {
+  font: var(--t-nano);
+  letter-spacing: .06em;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+  transition: border-color var(--d-2), transform var(--d-2);
+}
+.tag-chip-toggle:hover { transform: translateY(-1px); }
+.tag-chip-toggle.on { border-color: currentColor; font-weight: 600; }
+.tag-chip-toggle .sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
 /* Finished: support-coloured progress, alongside the n/total text — never
    colour alone. Dropped: reduced opacity plus the .tag.drop above, same
    reasoning. */
@@ -2083,6 +2114,52 @@ kbd {
 .backup-time { font-variant-numeric: tabular-nums; color: var(--faint); flex-shrink: 0; }
 .backup-time.recent { color: var(--accent-lit); }
 .backup-file { color: var(--faint); font-family: var(--mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* P1.7's Settings "Tags"/"Custom lists" manager rows — same list shape as
+   .backup-list above, but each row is a static container (name + inline
+   action buttons) rather than one big clickable button, since a row here has
+   several independent actions instead of one. */
+.manager-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow-y: auto; }
+.manager-list .manager-empty { font: var(--t-meta); color: var(--faint); padding: 6px 2px; }
+.manager-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font: var(--t-body);
+  font-size: 12.5px;
+}
+.manager-row .sw { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.manager-row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.manager-row .count { color: var(--faint); font: var(--t-meta); flex-shrink: 0; }
+.manager-row .actions { display: flex; gap: 6px; flex-shrink: 0; }
+.manager-entries-list { list-style: none; margin: 6px 0 0; padding: 8px 0 0; border-top: 1px solid color-mix(in srgb, var(--text) 5%, transparent); font: var(--t-meta); color: var(--dim); }
+.manager-entries-list li { padding: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Colour-swatch grid for creating/recolouring a tag — same interaction shape
+   as .themegrid's colour-theme picker (button per swatch, .on for selected),
+   just smaller and un-paginated since the tag palette is a fixed ~10 items. */
+.color-swatch-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.color-swatch-grid button {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--d-2), border-color var(--d-2);
+}
+.color-swatch-grid button:hover { transform: scale(1.12); }
+.color-swatch-grid button.on { border-color: var(--text); }
+
+/* Inline "+ New tag"/"+ New list" creation form — a name input plus
+   confirm/cancel, revealed in place rather than as a nested overlay (avoids
+   stacking a second focus trap on top of whichever overlay is already open:
+   the detail view or the Settings panel). */
+.inline-create-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; }
+.inline-create-form input[type="text"] { width: 100%; box-sizing: border-box; }
+.inline-create-form .row { display: flex; gap: 8px; }
 
 /* Recovery/blocked screens (design system §16: "New design, deliberately
    plain") — no accent fills, no glow, nothing that could look like it's
