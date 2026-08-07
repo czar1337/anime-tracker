@@ -19,8 +19,6 @@ const NON_DEFAULT_PREFS = {
   titleLanguage: 'native',
   contentTier: 'madara',
   streamerMode: true,
-  textSize: 'xl',
-  textWeight: 'bold',
   decor: 'half',
   decorDensity: 'many',
   originalTitles: 'everywhere',
@@ -30,9 +28,20 @@ const NON_DEFAULT_PREFS = {
   uiFont: 'inter',
   headingFont: 'bebas-neue',
   numbersFont: 'jetbrains-mono',
+  // P3.2: textSize/textWeight string enums replaced by 8 independent 1-10
+  // sliders — same reasoning, non-default (never 5) so a silent fallback
+  // to defaults would be caught.
+  textSizeStep: 8,
+  textWeightStep: 7,
+  lineHeightStep: 9,
+  letterSpacingStep: 2,
+  densityStep: 3,
+  radiusStep: 10,
+  coverWidthStep: 1,
+  animationStep: 6,
 };
 
-test('export, snapshot, wipe, restore round trip preserves all 12 new/promoted preference fields exactly', async () => {
+test('export, snapshot, wipe, restore round trip preserves all 18 new/promoted preference fields exactly', async () => {
   const server = await startFixtureServer(FIXTURE);
   try {
     const before = await (await fetch(`${server.url}/api/library`)).json();
