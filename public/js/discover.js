@@ -307,6 +307,8 @@ export function initDiscover({ persistFn } = {}) {
         duration: media.duration,
         genres: media.genres,
         averageScore: media.averageScore,
+        popularity: media.popularity ?? null,
+        season: media.season || null,
         studio: Api.extractStudio(media),
         airingStatus: media.status || null,
         listStatus: 'watchlist',

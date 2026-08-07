@@ -72,13 +72,29 @@ const LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
 // two copies against each other today.
 export function defaultSettings() {
   return {
-    sort: { watching: 'addedAt', watchlist: 'addedAt', watched: 'completedAt', dropped: 'updatedAt' },
-    sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc' },
+    // P4.1: key NAMES changed to match sortLogic.js's SORT_KEYS catalog
+    // (addedAt -> dateAdded, updatedAt -> lastUpdated) even though the
+    // actual default ORDERING for each list is unchanged — migrate_8_to_9
+    // renames any already-stored old-style value for an existing library,
+    // since this function's own defaults are only ever consulted for a
+    // field that's genuinely missing, never to rewrite one that's already
+    // present. 'discover' is a fifth key alongside the four lists, reusing
+    // this same shape rather than inventing a parallel one — Discover had
+    // no sort concept before this substep. 'recommended' ignores direction
+    // (see sortLogic.js's isNoopSort), so sortDir.discover's value is a
+    // placeholder; kept 'desc' for consistency with the four lists' own
+    // unchanged defaults below.
+    sort: { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', discover: 'recommended' },
+    sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc', discover: 'desc' },
     filters: {
-      watching: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
-      watchlist: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
-      watched: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
-      dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false },
+      // P4.1: airingStatus is new (AniList's own status enum, or '' for
+      // "any") — a filter dimension distinct from the four tabs (which
+      // already ARE the listStatus filter), matching the existing
+      // format/studio fields' shape exactly.
+      watching: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
+      watchlist: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
+      watched: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
+      dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
     },
     activeTab: 'watching',
     discoverExcludedGenres: [],

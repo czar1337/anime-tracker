@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 9;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -211,7 +211,67 @@ function migrate_7_to_8(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8 };
+// P4.1: the "one sort component" gains a fifth view ('discover', alongside
+// the four lists) and every list's filters gain an airingStatus dimension —
+// both additive-only backfills, same "spread defaults under whatever's
+// already there" convention settingsSchema.js's own ensureSettingsShape()
+// already uses, just frozen here as a migration snapshot.
+//
+// Separately, and NOT additive: public/js/sortLogic.js's SORT_KEYS renamed
+// several of the raw key strings a list's `sort[list]` can hold (the
+// *default* ordering per list is unchanged, only the string naming it is),
+// so an existing library's already-CHOSEN sort key must be renamed to keep
+// meaning what it already meant — ensureSettingsShape's additive merge
+// would never touch an already-present value, so this rename can only
+// happen here. Frozen 1:1 map, not derived from the live SORT_KEYS catalog
+// (same "migration is a snapshot" convention as migrate_7_to_8's own
+// TEXT_SIZE_TO_STEP table): 'year' consolidates into 'date' (release
+// date + season now supersedes the old year-only option, see sortLogic.js's
+// own header for why), 'episodesWatched' becomes 'episodesWatchedCount'
+// (freeing the plain name for the new progress-percent/remaining concept),
+// and 'titleRomaji'/'averageScore'/'updatedAt'/'addedAt' just drop their
+// old field-name spelling for the catalog's own short label-shaped key.
+// Any value not in this map (e.g. already-renamed, or genuinely unknown)
+// passes through unchanged, per rule 13.
+const SORT_KEY_RENAME = {
+  titleRomaji: 'title',
+  averageScore: 'rating',
+  updatedAt: 'lastUpdated',
+  addedAt: 'dateAdded',
+  year: 'date',
+  episodesWatched: 'episodesWatchedCount',
+};
+const LIST_KEYS_FOR_MIGRATION = ['watching', 'watchlist', 'watched', 'dropped'];
+
+function migrate_8_to_9(data) {
+  const out = { ...data };
+  out.schemaVersion = 9;
+  const before = out.preferences || {};
+  const renamedSort = { ...before.sort };
+  for (const list of LIST_KEYS_FOR_MIGRATION) {
+    const old = renamedSort[list];
+    if (old !== undefined && SORT_KEY_RENAME[old] !== undefined) renamedSort[list] = SORT_KEY_RENAME[old];
+  }
+  out.preferences = {
+    ...before,
+    sort: { ...renamedSort, discover: before.sort?.discover !== undefined ? before.sort.discover : 'recommended' },
+    sortDir: { ...before.sortDir, discover: before.sortDir?.discover !== undefined ? before.sortDir.discover : 'desc' },
+    filters: { ...before.filters },
+  };
+  for (const list of LIST_KEYS_FOR_MIGRATION) {
+    const listFilters = before.filters?.[list] || {};
+    out.preferences.filters[list] = {
+      ...listFilters,
+      airingStatus: listFilters.airingStatus !== undefined ? listFilters.airingStatus : '',
+    };
+  }
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_8_to_9 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -238,4 +298,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9 };

@@ -4,6 +4,7 @@
 
 import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
 import { createTagId, createListId, normalizeName, isDuplicateTagName, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
+import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partitionAiringLast, compareValues } from './sortLogic.js';
 
 const LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
 
@@ -151,6 +152,13 @@ function addEntry(entry) {
     duration: entry.duration || null,
     genres: entry.genres || [],
     averageScore: entry.averageScore ?? null,
+    // P4.1: sort-only fields, additive and lazily defaulted like studio/
+    // airingStatus above -- not migration-versioned (entry fields never
+    // are, unlike preferences). An entry added before this substep simply
+    // lacks them until next added/refreshed; sortLogic.js's missing-last
+    // rule handles the gap, no backfill needed.
+    popularity: entry.popularity ?? null,
+    season: entry.season || null,
     studio: entry.studio || null,
     airingStatus: entry.airingStatus || null,
     listStatus: entry.listStatus || 'watchlist',
@@ -326,6 +334,8 @@ function replaceEntryMedia(oldId, media) {
     duration: media.duration || null,
     genres: media.genres || [],
     averageScore: media.averageScore,
+    popularity: media.popularity ?? null,
+    season: media.season || null,
     episodesWatched: total ? Math.min(old.episodesWatched, total) : old.episodesWatched,
     relatedIds: media.relatedIds || [],
     updatedAt: nowIso(),
@@ -428,23 +438,75 @@ function registerUnseenLookup(fn) {
   unseenLookup = fn;
 }
 
+// A franchise group's total episode count: null (unknown/still airing) the
+// moment ANY member's own totalEpisodes is null, rather than silently
+// summing only the known ones — a franchise that's "12 done + unknown more"
+// has an unknown total, not a misleadingly-precise partial one. Shared by
+// progressPercent/episodesRemaining and by isGroupAiringUnknown below, so
+// both agree on what "this group's episode count" means.
+function groupTotalEpisodes(group) {
+  if (group.some((e) => e.totalEpisodes == null)) return null;
+  return group.reduce((s, e) => s + (e.totalEpisodes || 0), 0);
+}
+function groupEpisodesWatched(group) {
+  return group.reduce((s, e) => s + (e.episodesWatched || 0), 0);
+}
+function isGroupAiringUnknown(group) {
+  return groupTotalEpisodes(group) == null;
+}
+
+// Extracts the value for `sortKey` (public/js/sortLogic.js's SORT_KEYS) from
+// one franchise group, so sortLogic.js's compareValues() has two already-
+// extracted values to compare. Group-level aggregation (averaging a score,
+// taking the latest date, summing episodes) is this function's own job —
+// sortLogic.js has no equivalent concept, since Discover's flat candidates
+// were never grouped by relation in the first place.
 function groupSortValue(group, sortKey) {
   const primary = group[0];
-  if (sortKey === 'myScore') {
-    return groupMyScore(group);
+  switch (sortKey) {
+    case 'myScore':
+      return groupMyScore(group);
+    case 'rating':
+      return primary.averageScore;
+    case 'popularity':
+      return primary.popularity;
+    case 'title':
+      return primary.titleRomaji;
+    case 'date':
+      return dateSortValue(primary.year, primary.season);
+    case 'episodeCount':
+      return primary.totalEpisodes;
+    case 'dateAdded':
+      return primary.addedAt;
+    case 'lastUpdated':
+      return primary.updatedAt;
+    case 'completedAt': {
+      const dates = group.map((e) => e.completedAt).filter(Boolean).sort();
+      return dates.length ? dates[dates.length - 1] : null;
+    }
+    case 'episodesWatchedCount':
+      return groupEpisodesWatched(group);
+    case 'unseenEpisodes':
+      return unseenLookup ? group.reduce((s, e) => s + unseenLookup(e.anilistId), 0) : 0;
+    case 'progressPercent':
+      return computeProgressPercent(groupEpisodesWatched(group), groupTotalEpisodes(group));
+    case 'episodesRemaining':
+      return computeEpisodesRemaining(groupEpisodesWatched(group), groupTotalEpisodes(group));
+    default:
+      return primary[sortKey];
   }
-  if (sortKey === 'completedAt') {
-    const dates = group.map((e) => e.completedAt).filter(Boolean).sort();
-    return dates.length ? dates[dates.length - 1] : null;
-  }
-  if (sortKey === 'episodesWatched') {
-    return group.reduce((s, e) => s + (e.episodesWatched || 0), 0);
-  }
-  if (sortKey === 'unseenEpisodes') {
-    return unseenLookup ? group.reduce((s, e) => s + unseenLookup(e.anilistId), 0) : 0;
-  }
-  return primary[sortKey];
 }
+
+// Each list's own existing default sort key (unchanged from before P4.1),
+// under the "Recommended" label the spec's unified sort component shares
+// with Discover — this is what keeps "Recommended" meaningful on a list
+// (a real field-based order matching today's exact default) rather than a
+// structural no-op, which is what "Recommended" means on Discover instead
+// (isNoopSort — the scored candidate pool's own order already IS
+// "Recommended" there, nothing to substitute). Resolved BEFORE any sorting
+// happens, so groupSortValue/compareValues never actually see the literal
+// key 'recommended' for a list.
+const LIST_RECOMMENDED_KEY = { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated' };
 
 // Free-text title filter is intentionally NOT persisted (like a Ctrl-F, not
 // a lasting preference) — kept as simple in-memory state per list.
@@ -458,14 +520,25 @@ function getTitleFilter(list) {
 
 function getGroupedFilteredSorted(list) {
   const filters = state.preferences.filters[list];
-  const sortKey = state.preferences.sort[list];
+  const rawSortKey = state.preferences.sort[list];
+  const sortKey = rawSortKey === 'recommended' ? LIST_RECOMMENDED_KEY[list] || 'dateAdded' : rawSortKey;
   const sortDir = state.preferences.sortDir[list];
 
   let groups = buildGroups(getEntriesByList(list));
 
+  // P4.1: search now also matches tag names and studio, not just title/
+  // notes — a tag id only means something once resolved to its name, so
+  // that lookup is built once per call rather than per entry.
   const titleQuery = titleFilters[list].trim().toLowerCase();
   if (titleQuery) {
-    groups = groups.filter((g) => g.some((e) => `${e.titleRomaji} ${e.titleEnglish || ''} ${e.notes || ''}`.toLowerCase().includes(titleQuery)));
+    const tagNameById = new Map(state.tags.map((t) => [t.id, (t.name || '').toLowerCase()]));
+    groups = groups.filter((g) =>
+      g.some((e) => {
+        const tagNames = (e.tagIds || []).map((id) => tagNameById.get(id) || '').join(' ');
+        const haystack = `${e.titleRomaji} ${e.titleEnglish || ''} ${e.notes || ''} ${e.studio || ''} ${tagNames}`.toLowerCase();
+        return haystack.includes(titleQuery);
+      })
+    );
   }
   if (filters.genres.length) {
     groups = groups.filter((g) => filters.genres.every((genre) => g.some((e) => (e.genres || []).includes(genre))));
@@ -476,6 +549,11 @@ function getGroupedFilteredSorted(list) {
   if (filters.studio) {
     groups = groups.filter((g) => g.some((e) => e.studio === filters.studio));
   }
+  // P4.1: new filter dimension, distinct from the tabs (which already ARE
+  // the listStatus filter) — AniList's own airing-status enum.
+  if (filters.airingStatus) {
+    groups = groups.filter((g) => g.some((e) => e.airingStatus === filters.airingStatus));
+  }
   if (filters.unratedOnly) {
     groups = groups.filter((g) => groupMyScore(g) == null);
   } else if (filters.myScoreMin != null) {
@@ -485,17 +563,20 @@ function getGroupedFilteredSorted(list) {
     });
   }
 
-  groups = [...groups].sort((a, b) => {
-    const av = groupSortValue(a, sortKey);
-    const bv = groupSortValue(b, sortKey);
-    if (av == null && bv == null) return 0;
-    if (av == null) return 1;
-    if (bv == null) return -1;
-    if (typeof av === 'string') return av.localeCompare(bv) * (sortDir === 'asc' ? 1 : -1);
-    return (av - bv) * (sortDir === 'asc' ? 1 : -1);
-  });
-
-  return groups;
+  // Airing-episode-count-unknown groups render as one labelled trailing
+  // section for progressPercent/episodesRemaining specifically (spec:
+  // "surface them in a labelled group at the end rather than dropping them
+  // silently") — partitionAiringLast is a no-op {sortable: groups, airing:
+  // []} for every other sort key, so this is safe to call unconditionally.
+  const { sortable, airing } = partitionAiringLast(groups, sortKey, isGroupAiringUnknown);
+  const sortFn = (a, b) => compareValues(groupSortValue(a, sortKey), groupSortValue(b, sortKey), sortKey, sortDir);
+  const result = [...sortable].sort(sortFn).concat([...airing].sort(sortFn));
+  // Not part of the array's own data, just a convenience for the one caller
+  // (render.js's grid) that needs to know where to draw the trailing
+  // section's heading — every other caller (e.g. a plain filtered count)
+  // keeps working unchanged, since this is still just an array.
+  result.airingCount = airing.length;
+  return result;
 }
 
 function allGenres() {
