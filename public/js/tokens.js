@@ -4,11 +4,25 @@
 // step arrays from config/tuning.js rather than restating them (that file
 // is the single source of truth per the "Where constants live" rule).
 //
-// Nothing in the app calls into this module yet. P1.4's job is to build it,
-// not wire it up — a real 1-to-10 slider ships in P3.2, real theme colour
-// values in P6.1. Until then this is dormant, deliberately: per the Global
-// Constraints rule ("every new setting defaults to today's behaviour"),
-// building unused infrastructure changes nothing a user can see.
+// P3.2 SUPERSEDES the typography half of this file (TYPOGRAPHY_TOKEN_NAMES,
+// computeTypographyTokens, applyTypographyStep) without deleting it — never
+// delete a file, same reasoning as P3.1's orphaned static Inter files. This
+// module anticipated ONE shared step driving every typography token at
+// once, writing brand-new custom-property names
+// (--font-scale/--font-weight-base/--radius-surface/--radius-control) that
+// no selector in styles.css has ever read. The real feature that shipped is
+// EIGHT independent 1-10 sliders (public/js/typographySliders.js), each
+// scaled relative to its own step-5 value and written onto the CSS custom
+// property names styles.css already consumed pre-P3.2 (--text-scale, the
+// four --w-* weight roles, --sp-1..--sp-16, --radius/-sm/-xs/-lg, --d-press
+// through --d-5) — see that file's header for why. Nothing here was wrong,
+// it just doesn't fit eight-independent-sliders as originally written, so
+// it stays as dormant, unreferenced history rather than active code a
+// future reader might mistake for what the sliders actually run on.
+//
+// The colour half (COLOR_TOKEN_NAMES, setColorTokens) and MIN_FONT_SIZE_PX
+// are untouched by P3.2 and still dormant exactly as before: real theme
+// colour values are P6.1's job.
 //
 // Pure aside from the DOM calls in apply*() themselves — the array lookups
 // and radius-control derivation are plain functions, unit-testable by

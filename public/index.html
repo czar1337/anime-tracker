@@ -31,10 +31,14 @@
   // same reasoning as the old light/dark toggle, just a bigger visual delta
   // now that themes are full color identities instead of light vs dark.
   document.documentElement.dataset.colorTheme = localStorage.getItem('anime-tracker-color-theme') || 'moonlit-shrine';
-  // Text size/weight (design/moonlit-shrine-design-system.md §4.2) — same
-  // synchronous-before-paint treatment as the theme above, so nothing jumps.
-  document.documentElement.dataset.textSize = localStorage.getItem('anime-tracker-text-size') || 's';
-  document.documentElement.dataset.textWeight = localStorage.getItem('anime-tracker-text-weight') || 'normal';
+  // P3.2: text size/weight used to get the same synchronous pre-paint
+  // treatment as the theme above, via [data-text-size]/[data-text-weight].
+  // Both are gone — replaced by 8 independent sliders whose CSS custom
+  // properties are applied by public/js/preferences.js on module boot, the
+  // same (accepted, not pre-paint-synced) timing P3.1 already established
+  // for uiFont/headingFont/numbersFont. A non-default slider value can
+  // flash its default appearance briefly before that module runs, exactly
+  // like a non-default font selection already can — not a new tradeoff.
   // Decoration (design/moonlit-shrine-design-system.md §11) has no visible
   // effect yet — the atmosphere layer it will gate is Phase 4 — but the
   // attribute is applied here now so a saved preference already sticks.
