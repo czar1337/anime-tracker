@@ -376,6 +376,7 @@ async function boot() {
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
   Render.renderAll(initialList);
   Atmosphere.initAtmosphere();
+  Preferences.initReducedMotionWatch();
   repositionTabPill(); // real tab-count text is in now, which can shift tab widths from initEvents' earlier "0" placeholder measurement
   showVersionBanner();
   Airing.ensureFreshOnOpen(); // background only — never blocks startup, never fetches more than once/day

@@ -1,10 +1,5 @@
-// Text size, text weight, decoration level and the "original titles" display
-// preference. The first two already had their data-attribute/localStorage
-// bootstrap wired in Phase 1 (see index.html's head script + styles.css's
-// [data-text-size]/[data-text-weight] blocks) but no UI ever wrote to them —
-// this module is what the new Settings panel (Phase 3) calls into.
-//
-// Decoration follows the same data-attribute pattern for consistency, but has
+// Decoration level and the "original titles" display preference.
+// Decoration follows the data-attribute pattern below, but has
 // no consumer yet — the atmosphere layer it will gate (leaves, feathers,
 // canopy) is Phase 4 scope. Original titles has no CSS consumer at all: it
 // only decides, in render.js, whether the AniList *native* (Japanese-script)
@@ -28,24 +23,19 @@
 import { Themes } from './themes.js';
 import { Fonts } from './fonts.js';
 import { FontLoader } from './fontLoader.js';
+import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySliders.js';
 import {
-  TEXT_SIZES,
-  TEXT_WEIGHTS,
   DECOR_LEVELS,
   DECOR_DENSITIES,
   ORIGINAL_TITLES_MODES,
-  DEFAULT_TEXT_SIZE,
-  DEFAULT_TEXT_WEIGHT,
   DEFAULT_DECOR,
   DEFAULT_DECOR_DENSITY,
   DEFAULT_ORIGINAL_TITLES,
 } from './settingsSchema.js';
 
-export { TEXT_SIZES, TEXT_WEIGHTS, DECOR_LEVELS, DECOR_DENSITIES, ORIGINAL_TITLES_MODES };
+export { DECOR_LEVELS, DECOR_DENSITIES, ORIGINAL_TITLES_MODES };
 
 const KEYS = {
-  textSize: 'anime-tracker-text-size',
-  textWeight: 'anime-tracker-text-weight',
   decor: 'anime-tracker-decor',
   decorDensity: 'anime-tracker-decor-density',
   originalTitles: 'anime-tracker-original-titles',
@@ -53,6 +43,10 @@ const KEYS = {
   headingFont: 'anime-tracker-heading-font',
   numbersFont: 'anime-tracker-numbers-font',
 };
+// One localStorage key per slider, keyed by its own SLIDER_KEYS name (e.g.
+// 'anime-tracker-slider-textSize'), separate from the fixed KEYS map above
+// since there are 8 of them, generated rather than hand-listed.
+const SLIDER_STORAGE_KEYS = Object.fromEntries(SLIDER_KEYS.map((key) => [key, `anime-tracker-slider-${key}`]));
 
 // Set exactly once per browser profile, the first time reconcileFirstBoot()
 // runs (see below) — never re-checked against data shape, only against this
@@ -70,9 +64,67 @@ function attrPref(attr, storageKey, valid, def) {
   };
 }
 
-const textSizePref = attrPref('textSize', KEYS.textSize, TEXT_SIZES, DEFAULT_TEXT_SIZE);
-const textWeightPref = attrPref('textWeight', KEYS.textWeight, TEXT_WEIGHTS, DEFAULT_TEXT_WEIGHT);
 const decorPref = attrPref('decor', KEYS.decor, DECOR_LEVELS, DEFAULT_DECOR);
+
+// P3.2: a slider writes whatever CSS custom properties
+// typographySliders.js's computeSliderTokens() says that slider owns
+// (e.g. 'density' -> all eight --sp-* tokens at once) — not a
+// data-attribute, since a 1-10 step isn't a small closed enum CSS can
+// switch on via [data-x] selectors the way decor's 3 levels are, and not
+// a single CSS variable either, since some sliders (textWeight, density,
+// radius, animation) own several tokens each. Same
+// validate-then-apply-then-mirror-to-localStorage shape as attrPref/
+// fontPref above.
+//
+// textSize is the one exception: it also toggles a boolean
+// [data-text-compact] attribute for step <= COMPACT_TITLE_MAX_STEP. This
+// preserves a real pre-P3.2 behaviour (single-line, ellipsized card
+// titles at the smaller of the old five textSize levels — 'xs' and 's')
+// that the removed [data-text-size="xs"|"s"] CSS selectors used to gate.
+// The threshold (5) is 's' 's own migrated step (see migrations.js's
+// TEXT_SIZE_TO_STEP), so the untouched default step (5) keeps rendering
+// single-line titles exactly as it does today.
+const COMPACT_TITLE_MAX_STEP = 5;
+
+// P3.2: "prefers-reduced-motion clamps effective animation to instant,
+// without touching the stored step" (spec) — the animation slider is the
+// one slider the OS's own accessibility preference overrides. Same inline
+// matchMedia query atmosphere.js/events.js/render.js already each use ad
+// hoc; no shared helper exists in this codebase for it, so this follows
+// that established pattern rather than importing atmosphere.js here (which
+// already imports this module, the other direction).
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function sliderPref(key, def) {
+  return {
+    get: () => {
+      const raw = Number(localStorage.getItem(SLIDER_STORAGE_KEYS[key]));
+      return Number.isInteger(raw) && raw >= 1 && raw <= 10 ? raw : def;
+    },
+    set(step) {
+      const n = Number(step);
+      if (!Number.isInteger(n) || n < 1 || n > 10) return;
+      const tokens = computeSliderTokens(key, n);
+      // Clamp only the DOM-applied tokens, never localStorage below — a
+      // user who later disables OS reduced-motion should see their real
+      // chosen step come back, not step 5.
+      if (key === 'animation' && prefersReducedMotion()) {
+        for (const name of Object.keys(tokens)) tokens[name] = '0ms';
+      }
+      for (const [name, value] of Object.entries(tokens)) {
+        document.documentElement.style.setProperty(name, value);
+      }
+      if (key === 'textSize') {
+        if (n <= COMPACT_TITLE_MAX_STEP) document.documentElement.dataset.textCompact = 'true';
+        else delete document.documentElement.dataset.textCompact;
+      }
+      localStorage.setItem(SLIDER_STORAGE_KEYS[key], String(n));
+    },
+  };
+}
+const sliderPrefs = Object.fromEntries(SLIDER_KEYS.map((key) => [key, sliderPref(key, DEFAULT_STEP)]));
 
 // Not a data-attribute, same reasoning as original-titles below — only
 // atmosphere.js's JS reads this, nothing in CSS needs to select on it.
@@ -124,13 +176,16 @@ const uiFontPref = fontPref('--ui', KEYS.uiFont, Fonts.DEFAULT_UI_FONT);
 const headingFontPref = fontPref('--display', KEYS.headingFont, Fonts.DEFAULT_HEADING_FONT);
 const numbersFontPref = fontPref('--numbers', KEYS.numbersFont, Fonts.DEFAULT_NUMBERS_FONT);
 
-// The 6 cosmetic settings, keyed by their name inside library.json's
+// The cosmetic settings, keyed by their name inside library.json's
 // `preferences` (matches settingsSchema.js's defaultSettings() field names)
-// — walked generically by syncFromLibrary/reconcileFirstBoot rather than 6
-// hand-written branches apiece.
+// — walked generically by syncFromLibrary/reconcileFirstBoot rather than
+// hand-written branches apiece. The 8 sliders' library-field names carry a
+// "Step" suffix (settingsSchema.js's SLIDER_STEP_KEYS, e.g. "textSizeStep")
+// while typographySliders.js's own SLIDER_KEYS/sliderPrefs stay unsuffixed
+// ("textSize") — bridged here via the same SLIDER_KEYS list both modules
+// already share, so the two naming schemes can't silently drift apart.
+const FONT_IDS = Fonts.FONT_CATALOG.map((f) => f.id);
 const COSMETIC_SETTERS = {
-  textSize: textSizePref.set,
-  textWeight: textWeightPref.set,
   decor: decorPref.set,
   decorDensity: setDecorDensity,
   originalTitles: setOriginalTitlesMode,
@@ -138,10 +193,9 @@ const COSMETIC_SETTERS = {
   uiFont: uiFontPref.set,
   headingFont: headingFontPref.set,
   numbersFont: numbersFontPref.set,
+  ...Object.fromEntries(SLIDER_KEYS.map((key) => [`${key}Step`, sliderPrefs[key].set])),
 };
 const COSMETIC_RAW_KEYS = {
-  textSize: KEYS.textSize,
-  textWeight: KEYS.textWeight,
   decor: KEYS.decor,
   decorDensity: KEYS.decorDensity,
   originalTitles: KEYS.originalTitles,
@@ -149,11 +203,16 @@ const COSMETIC_RAW_KEYS = {
   uiFont: KEYS.uiFont,
   headingFont: KEYS.headingFont,
   numbersFont: KEYS.numbersFont,
+  ...Object.fromEntries(SLIDER_KEYS.map((key) => [`${key}Step`, SLIDER_STORAGE_KEYS[key]])),
 };
-const FONT_IDS = Fonts.FONT_CATALOG.map((f) => f.id);
+// reconcileFirstBoot()'s validity check below expects a raw localStorage
+// STRING to test — sliders store their step as a numeric string, so
+// "valid" here means "parses to an integer 1-10", not membership in a
+// fixed list the way every other cosmetic setting's COSMETIC_VALID entry
+// works. `{ includes }` duck-types the one method reconcileFirstBoot
+// actually calls, so it doesn't need its own separate code path for steps.
+const STEP_VALID = { includes: (raw) => { const n = Number(raw); return Number.isInteger(n) && n >= 1 && n <= 10; } };
 const COSMETIC_VALID = {
-  textSize: TEXT_SIZES,
-  textWeight: TEXT_WEIGHTS,
   decor: DECOR_LEVELS,
   decorDensity: DECOR_DENSITIES,
   originalTitles: ORIGINAL_TITLES_MODES,
@@ -161,6 +220,7 @@ const COSMETIC_VALID = {
   uiFont: FONT_IDS,
   headingFont: FONT_IDS,
   numbersFont: FONT_IDS,
+  ...Object.fromEntries(SLIDER_KEYS.map((key) => [`${key}Step`, STEP_VALID])),
 };
 
 // Library wins: applies every cosmetic value the given (already-defaulted)
@@ -203,20 +263,51 @@ function reconcileFirstBoot(libraryPreferences) {
     for (const key of Object.keys(COSMETIC_RAW_KEYS)) {
       const raw = localStorage.getItem(COSMETIC_RAW_KEYS[key]);
       if (raw == null || !COSMETIC_VALID[key].includes(raw)) continue;
+      // Every other cosmetic value is a string both in localStorage and in
+      // library.json — a slider step is a NUMBER in library.json but
+      // localStorage.getItem always returns a string, so it needs parsing
+      // before comparing OR promoting, otherwise "5" !== 5 would always
+      // look like a real difference and the promoted value itself would
+      // save back as a string instead of an integer. In practice a slider
+      // key's raw is always null anyway (these localStorage keys didn't
+      // exist before this substep), but a bug should stay fixed on the
+      // merits, not on how likely it is to ever actually fire.
+      const value = COSMETIC_VALID[key] === STEP_VALID ? Number(raw) : raw;
       // Only worth promoting when it actually changes something — if the
       // library already agrees with localStorage there's nothing to do.
-      if (raw !== libraryPreferences[key]) promoted[key] = raw;
+      if (value !== libraryPreferences[key]) promoted[key] = value;
     }
   }
   localStorage.setItem(COSMETIC_SYNCED_KEY, '1');
   return promoted;
 }
 
+// Generic pair over all 8 sliders (getSliderStep('textSize')) rather than
+// 16 individually-named methods — render.js's Settings rows iterate
+// SLIDER_KEYS to build the 8 rows, so a parameterized getter/setter fits
+// that loop directly instead of a per-key method the caller would have to
+// look up by name anyway.
+function getSliderStep(key) {
+  return sliderPrefs[key].get();
+}
+function setSliderStep(key, step) {
+  sliderPrefs[key].set(step);
+}
+
+// Re-applies the animation slider's own tokens whenever the OS's
+// reduced-motion preference flips, live — re-invoking set() with the
+// SAME stored step it already returns, so the only thing that changes is
+// whether sliderPref's own clamp above kicks in, never the stored value.
+// Called once from app.js at boot (same explicit-init pattern as
+// Atmosphere.initAtmosphere()), deliberately not a module-top-level side
+// effect, so importing this module never assumes a real `window` exists.
+function initReducedMotionWatch() {
+  window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', () => {
+    sliderPrefs.animation.set(sliderPrefs.animation.get());
+  });
+}
+
 export const Preferences = {
-  getTextSize: textSizePref.get,
-  setTextSize: textSizePref.set,
-  getTextWeight: textWeightPref.get,
-  setTextWeight: textWeightPref.set,
   getDecor: decorPref.get,
   setDecor: decorPref.set,
   getDecorDensity,
@@ -229,6 +320,9 @@ export const Preferences = {
   setHeadingFont: headingFontPref.set,
   getNumbersFont: numbersFontPref.get,
   setNumbersFont: numbersFontPref.set,
+  getSliderStep,
+  setSliderStep,
+  initReducedMotionWatch,
   syncFromLibrary,
   reconcileFirstBoot,
 };
