@@ -22,6 +22,7 @@
 
 import { DEFAULT_THEME_ID } from './themes.js';
 import { DEFAULT_UI_FONT, DEFAULT_HEADING_FONT, DEFAULT_NUMBERS_FONT, isValidFontId } from './fonts.js';
+import { SLIDER_KEYS, DEFAULT_STEP, MIN_STEP, MAX_STEP } from './typographySliders.js';
 
 export const TITLE_LANGUAGES = ['romaji', 'english', 'native'];
 // Standard is the only tier reachable without the P6.4 unlock gate; the
@@ -31,8 +32,11 @@ export const CONTENT_TIERS = ['standard', 'familyFriendly', 'madara'];
 // Moved here from preferences.js (P1.3): single source for valid values, so
 // preferences.js's localStorage-mirror setters and this module's own
 // ensureSettingsShape() validate against the exact same list.
-export const TEXT_SIZES = ['xs', 's', 'm', 'l', 'xl'];
-export const TEXT_WEIGHTS = ['light', 'normal', 'clear', 'bold'];
+//
+// P3.2 REMOVES textSize/textWeight from here — the spec's own framing is
+// "replace the... controls," not "add alongside" — see SLIDER_STEP_KEYS
+// below for what supersedes them (migrate_7_to_8 maps the old enum values
+// onto the new numeric steps for existing libraries).
 export const DECOR_LEVELS = ['on', 'half', 'off'];
 export const DECOR_DENSITIES = ['few', 'normal', 'many'];
 export const ORIGINAL_TITLES_MODES = ['off', 'details', 'everywhere'];
@@ -41,11 +45,20 @@ export const ORIGINAL_TITLES_MODES = ['off', 'details', 'everywhere'];
 // attrPref() calls and this module's own defaultSettings() both read from
 // one place — previously these were hardcoded twice as coincidentally-equal
 // inline literals, which a future edit could silently drift apart.
-export const DEFAULT_TEXT_SIZE = 's';
-export const DEFAULT_TEXT_WEIGHT = 'normal';
 export const DEFAULT_DECOR = 'on';
 export const DEFAULT_DECOR_DENSITY = 'normal';
 export const DEFAULT_ORIGINAL_TITLES = 'details';
+
+// P3.2: the eight independent typography sliders, each a plain integer
+// 1-10 (not a fixed string enum — the first numeric-range preference
+// field in this schema). Preference key name is the slider key + "Step"
+// (e.g. SLIDER_KEYS' 'textSize' -> preferences.textSizeStep), matching
+// public/js/typographySliders.js's own SLIDER_KEYS list exactly so
+// nothing here can silently drift from that module's key set.
+export const SLIDER_STEP_KEYS = SLIDER_KEYS.map((key) => `${key}Step`);
+function isValidStep(v) {
+  return Number.isInteger(v) && v >= MIN_STEP && v <= MAX_STEP;
+}
 
 const LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
 
@@ -84,8 +97,6 @@ export function defaultSettings() {
     // Promoted from localStorage-only to Class A (P1.3) — same default
     // values preferences.js/themes.js already fell back to, so promoting
     // them changes nothing about today's behavior.
-    textSize: DEFAULT_TEXT_SIZE,
-    textWeight: DEFAULT_TEXT_WEIGHT,
     decor: DEFAULT_DECOR,
     decorDensity: DEFAULT_DECOR_DENSITY,
     originalTitles: DEFAULT_ORIGINAL_TITLES,
@@ -97,6 +108,12 @@ export function defaultSettings() {
     uiFont: DEFAULT_UI_FONT,
     headingFont: DEFAULT_HEADING_FONT,
     numbersFont: DEFAULT_NUMBERS_FONT,
+    // P3.2: all eight sliders default to step 5 (spec: "default 5"), which
+    // typographySliders.js's computeSliderTokens() guarantees resolves to
+    // today's exact existing token values for every one of them — see
+    // that module's own header for why (a step's tuning-table value
+    // divided by its own step-5 value is always exactly 1.0).
+    ...Object.fromEntries(SLIDER_STEP_KEYS.map((key) => [key, DEFAULT_STEP])),
   };
 }
 
@@ -130,8 +147,6 @@ export function ensureSettingsShape(preferences) {
   prefs.titleLanguage = TITLE_LANGUAGES.includes(prefs.titleLanguage) ? prefs.titleLanguage : defaults.titleLanguage;
   prefs.contentTier = CONTENT_TIERS.includes(prefs.contentTier) ? prefs.contentTier : defaults.contentTier;
   prefs.streamerMode = Boolean(prefs.streamerMode);
-  prefs.textSize = TEXT_SIZES.includes(prefs.textSize) ? prefs.textSize : defaults.textSize;
-  prefs.textWeight = TEXT_WEIGHTS.includes(prefs.textWeight) ? prefs.textWeight : defaults.textWeight;
   prefs.decor = DECOR_LEVELS.includes(prefs.decor) ? prefs.decor : defaults.decor;
   prefs.decorDensity = DECOR_DENSITIES.includes(prefs.decorDensity) ? prefs.decorDensity : defaults.decorDensity;
   prefs.originalTitles = ORIGINAL_TITLES_MODES.includes(prefs.originalTitles) ? prefs.originalTitles : defaults.originalTitles;
@@ -139,6 +154,9 @@ export function ensureSettingsShape(preferences) {
   prefs.uiFont = isValidFontId(prefs.uiFont) ? prefs.uiFont : defaults.uiFont;
   prefs.headingFont = isValidFontId(prefs.headingFont) ? prefs.headingFont : defaults.headingFont;
   prefs.numbersFont = isValidFontId(prefs.numbersFont) ? prefs.numbersFont : defaults.numbersFont;
+  for (const key of SLIDER_STEP_KEYS) {
+    prefs[key] = isValidStep(prefs[key]) ? prefs[key] : defaults[key];
+  }
 
   return prefs;
 }

@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -240,7 +240,50 @@ async function run() {
     assert.deepEqual(otherPrefsOnly, v6.preferences);
   });
 
-  await test('migration chain: a v1 fixture reaches CURRENT_SCHEMA_VERSION with every field defaulted, P3.1 included', () => {
+  await test('migration v7->v8 (P3.2): maps textSize/textWeight to their closest step, defaults the other 6 sliders to 5', () => {
+    const v7 = readFixture('schema-v7-library.json'); // textSize:'l', textWeight:'clear'
+    const migrated = migrate_7_to_8(v7);
+    assert.equal(migrated.schemaVersion, 8);
+    assert.equal(migrated.preferences.textSizeStep, 8); // TEXT_SIZE_TO_STEP.l
+    assert.equal(migrated.preferences.textWeightStep, 6); // TEXT_WEIGHT_TO_STEP.clear
+    for (const key of ['lineHeightStep', 'letterSpacingStep', 'densityStep', 'radiusStep', 'coverWidthStep', 'animationStep']) {
+      assert.equal(migrated.preferences[key], 5, `${key} should default to 5`);
+    }
+    assert.equal('textSize' in migrated.preferences, false);
+    assert.equal('textWeight' in migrated.preferences, false);
+    assert.equal(migrated.entries.length, v7.entries.length);
+  });
+
+  await test('migration v7->v8: unmapped/unknown old textSize or textWeight values fall back to step 5', () => {
+    const v7 = readFixture('schema-v7-library.json');
+    const withUnknown = { ...v7, preferences: { ...v7.preferences, textSize: 'gigantic', textWeight: 'feather' } };
+    const migrated = migrate_7_to_8(withUnknown);
+    assert.equal(migrated.preferences.textSizeStep, 5);
+    assert.equal(migrated.preferences.textWeightStep, 5);
+  });
+
+  await test('migration v7->v8: never overwrites already-present *Step fields (idempotent)', () => {
+    const v7 = readFixture('schema-v7-library.json');
+    const alreadyMigrated = { ...v7, preferences: { ...v7.preferences, textSizeStep: 3, textWeightStep: 7, animationStep: 1 } };
+    const migrated = migrate_7_to_8(alreadyMigrated);
+    assert.equal(migrated.preferences.textSizeStep, 3);
+    assert.equal(migrated.preferences.textWeightStep, 7);
+    assert.equal(migrated.preferences.animationStep, 1);
+    // Running it again produces the exact same result.
+    const migratedTwice = migrate_7_to_8(migrated);
+    assert.deepEqual(migratedTwice, migrated);
+  });
+
+  await test('migration v7->v8: never touches entries or any other preference field', () => {
+    const v7 = readFixture('schema-v7-library.json');
+    const migrated = migrate_7_to_8(v7);
+    assert.deepEqual(migrated.entries, v7.entries);
+    assert.equal(migrated.preferences.uiFont, v7.preferences.uiFont);
+    assert.equal(migrated.preferences.headingFont, v7.preferences.headingFont);
+    assert.equal(migrated.preferences.colorTheme, v7.preferences.colorTheme);
+  });
+
+  await test('migration chain: a v1 fixture reaches CURRENT_SCHEMA_VERSION with every field defaulted, P3.2 included', () => {
     const v1 = readFixture('schema-v1-library.json');
     const migrated = migrate(v1);
     assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
@@ -250,6 +293,9 @@ async function run() {
     assert.equal(migrated.preferences.uiFont, 'schibsted-grotesk');
     assert.equal(migrated.preferences.headingFont, 'zen-old-mincho');
     assert.equal(migrated.preferences.numbersFont, 'schibsted-grotesk');
+    for (const key of ['textSizeStep', 'textWeightStep', 'lineHeightStep', 'letterSpacingStep', 'densityStep', 'radiusStep', 'coverWidthStep', 'animationStep']) {
+      assert.equal(migrated.preferences[key], 5, `${key} should default to 5`);
+    }
     assert.deepEqual(migrated.tags, []);
     assert.deepEqual(migrated.customLists, []);
     for (const entry of migrated.entries) {
@@ -270,7 +316,12 @@ async function run() {
     const live = defaultSettings();
     const v4 = readFixture('schema-v4-library.json');
     const migrated = migrate_4_to_5(v4);
-    for (const key of ['titleLanguage', 'contentTier', 'streamerMode', 'textSize', 'textWeight', 'decor', 'decorDensity', 'originalTitles', 'colorTheme']) {
+    // textSize/textWeight dropped from this comparison (not renamed): P3.2
+    // removed them from settingsSchema.js's current default shape entirely,
+    // replacing them with 8 independent *Step fields — migrate_4_to_5 is a
+    // frozen historical snapshot from before that existed and correctly
+    // keeps hardcoding its own 's'/'normal' literals regardless.
+    for (const key of ['titleLanguage', 'contentTier', 'streamerMode', 'decor', 'decorDensity', 'originalTitles', 'colorTheme']) {
       assert.equal(migrated.preferences[key], live[key], `default for "${key}" drifted between migrations.js and settingsSchema.js`);
     }
   });
@@ -280,7 +331,8 @@ async function run() {
     assert.equal(shaped.titleLanguage, 'english');
     assert.equal(shaped.contentTier, 'standard');
     assert.equal(shaped.streamerMode, false);
-    assert.equal(shaped.textSize, 's');
+    assert.equal(shaped.textSizeStep, 5);
+    assert.equal(shaped.textWeightStep, 5);
     assert.equal(shaped.colorTheme, 'moonlit-shrine');
     assert.equal(shaped.uiFont, 'schibsted-grotesk');
     assert.equal(shaped.headingFont, 'zen-old-mincho');
@@ -289,10 +341,18 @@ async function run() {
   });
 
   await test('ensureSettingsShape repairs an invalid enum value back to default rather than crashing', () => {
-    const shaped = ensureSettingsShape({ titleLanguage: 'klingon', contentTier: 'unknown-tier', textSize: 'huge' });
+    const shaped = ensureSettingsShape({ titleLanguage: 'klingon', contentTier: 'unknown-tier', textSizeStep: 'huge' });
     assert.equal(shaped.titleLanguage, 'english');
     assert.equal(shaped.contentTier, 'standard');
-    assert.equal(shaped.textSize, 's');
+    assert.equal(shaped.textSizeStep, 5);
+  });
+
+  await test('ensureSettingsShape repairs an out-of-range or non-integer slider step back to default (P3.2)', () => {
+    const shaped = ensureSettingsShape({ textSizeStep: 0, textWeightStep: 11, lineHeightStep: 2.5, densityStep: 'ten' });
+    assert.equal(shaped.textSizeStep, 5);
+    assert.equal(shaped.textWeightStep, 5);
+    assert.equal(shaped.lineHeightStep, 5);
+    assert.equal(shaped.densityStep, 5);
   });
 
   await test('ensureSettingsShape repairs an invalid font id back to default (P3.1)', () => {
@@ -303,7 +363,17 @@ async function run() {
   });
 
   await test('ensureSettingsShape preserves an already-valid, non-default value (never overwrites a real choice)', () => {
-    const shaped = ensureSettingsShape({ titleLanguage: 'native', contentTier: 'madara', streamerMode: true, colorTheme: 'wisteria', uiFont: 'inter', headingFont: 'bebas-neue', numbersFont: 'jetbrains-mono' });
+    const shaped = ensureSettingsShape({
+      titleLanguage: 'native',
+      contentTier: 'madara',
+      streamerMode: true,
+      colorTheme: 'wisteria',
+      uiFont: 'inter',
+      headingFont: 'bebas-neue',
+      numbersFont: 'jetbrains-mono',
+      textSizeStep: 8,
+      animationStep: 1,
+    });
     assert.equal(shaped.titleLanguage, 'native');
     assert.equal(shaped.contentTier, 'madara');
     assert.equal(shaped.streamerMode, true);
@@ -311,6 +381,8 @@ async function run() {
     assert.equal(shaped.uiFont, 'inter');
     assert.equal(shaped.headingFont, 'bebas-neue');
     assert.equal(shaped.numbersFont, 'jetbrains-mono');
+    assert.equal(shaped.textSizeStep, 8);
+    assert.equal(shaped.animationStep, 1);
   });
 
   await test('ensureSettingsShape preserves an unknown future field untouched (rule 13 forward-compatibility)', () => {
@@ -563,6 +635,173 @@ async function run() {
       '--warning',
       '--danger',
     ]);
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/typographySliders.js (P3.2) — the eight independent 1-10
+  // typography sliders. Pure, DOM-free, loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('typographySliders.js');
+  const slidersUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'typographySliders.js').replace(/\\/g, '/');
+  const { SLIDER_KEYS, DEFAULT_STEP, MIN_STEP, MAX_STEP, computeSliderTokens, getEffectiveMax, getCollapsedWeightOptions } =
+    await import(slidersUrl);
+  // FONT_MANIFEST already imported above (tokens.js/fonts.js section) — reused here.
+
+  await test('every slider is byte-identical to today\'s rendering at the default step (5) — "zero visual change until opt-in"', () => {
+    assert.deepEqual(computeSliderTokens('textSize', DEFAULT_STEP), { '--text-scale': '1' });
+    assert.deepEqual(computeSliderTokens('textWeight', DEFAULT_STEP), {
+      '--w-body': '400',
+      '--w-med': '500',
+      '--w-strong': '600',
+      '--w-display': '600',
+    }); // today's exact "normal" row
+    assert.deepEqual(computeSliderTokens('lineHeight', DEFAULT_STEP), { '--line-height': '1.5' });
+    assert.deepEqual(computeSliderTokens('letterSpacing', DEFAULT_STEP), { '--letter-spacing': '0em' });
+    assert.deepEqual(computeSliderTokens('density', DEFAULT_STEP), {
+      '--sp-1': '4px', '--sp-2': '8px', '--sp-3': '12px', '--sp-4': '16px',
+      '--sp-6': '24px', '--sp-8': '32px', '--sp-12': '48px', '--sp-16': '64px',
+    });
+    assert.deepEqual(computeSliderTokens('radius', DEFAULT_STEP), {
+      '--radius-xs': '4px', '--radius-sm': '7px', '--radius': '12px', '--radius-lg': '16px',
+    });
+    assert.deepEqual(computeSliderTokens('coverWidth', DEFAULT_STEP), { '--cover-width': '170px' });
+    assert.deepEqual(computeSliderTokens('animation', DEFAULT_STEP), {
+      '--d-press': '90ms', '--d-1': '120ms', '--d-2': '200ms', '--d-3': '280ms', '--d-4': '380ms', '--d-5': '800ms',
+    });
+  });
+
+  await test('textSize/textWeight scale correctly at the extremes', () => {
+    assert.deepEqual(computeSliderTokens('textSize', 1), { '--text-scale': '0.82' });
+    assert.deepEqual(computeSliderTokens('textSize', 10), { '--text-scale': '1.35' });
+    assert.deepEqual(computeSliderTokens('textWeight', 1), {
+      '--w-body': '200', '--w-med': '300', '--w-strong': '400', '--w-display': '400',
+    });
+    assert.deepEqual(computeSliderTokens('textWeight', 10), {
+      '--w-body': '700', '--w-med': '800', '--w-strong': '900', '--w-display': '900',
+    });
+  });
+
+  await test('animation step 1 (animationDurationMult[0] = 0) yields 0ms everywhere — "step 1 is off"', () => {
+    assert.deepEqual(computeSliderTokens('animation', 1), {
+      '--d-press': '0ms', '--d-1': '0ms', '--d-2': '0ms', '--d-3': '0ms', '--d-4': '0ms', '--d-5': '0ms',
+    });
+  });
+
+  await test('animation step 10 scales every duration by the same ratio', () => {
+    assert.deepEqual(computeSliderTokens('animation', 10), {
+      '--d-press': '205.71ms', '--d-1': '274.29ms', '--d-2': '457.14ms', '--d-3': '640ms', '--d-4': '868.57ms', '--d-5': '1828.57ms',
+    });
+  });
+
+  await test('radius step 10 caps controls at 12px and surfaces at 24px — never turns inputs into pills', () => {
+    assert.deepEqual(computeSliderTokens('radius', 10), {
+      '--radius-xs': '12px', '--radius-sm': '12px', '--radius': '24px', '--radius-lg': '24px',
+    });
+  });
+
+  await test('density and coverWidth scale ratio-relative to step 5, matching today\'s exact literals at the extremes', () => {
+    assert.equal(computeSliderTokens('density', 1)['--sp-1'], '3px');
+    assert.equal(computeSliderTokens('density', 10)['--sp-16'], '96px');
+    assert.equal(computeSliderTokens('coverWidth', 1)['--cover-width'], '103.66px');
+    assert.equal(computeSliderTokens('coverWidth', 10)['--cover-width'], '273.66px');
+  });
+
+  await test('computeSliderTokens rejects an out-of-range or non-integer step rather than silently clamping', () => {
+    assert.throws(() => computeSliderTokens('textSize', 0), RangeError);
+    assert.throws(() => computeSliderTokens('textSize', 11), RangeError);
+    assert.throws(() => computeSliderTokens('textSize', 5.5), RangeError);
+  });
+
+  await test('computeSliderTokens rejects an unknown slider key', () => {
+    assert.throws(() => computeSliderTokens('notASlider', 5), /Unknown slider key/);
+  });
+
+  await test('SLIDER_KEYS lists all 8 sliders in spec order, MIN/MAX/DEFAULT match the spec (1-10, default 5)', () => {
+    assert.deepEqual(SLIDER_KEYS, ['textSize', 'textWeight', 'lineHeight', 'letterSpacing', 'density', 'radius', 'coverWidth', 'animation']);
+    assert.equal(MIN_STEP, 1);
+    assert.equal(MAX_STEP, 10);
+    assert.equal(DEFAULT_STEP, 5);
+  });
+
+  await test('getEffectiveMax/getCollapsedWeightOptions: a variable font (Inter) keeps the full 1-10 range', () => {
+    const inter = FONT_MANIFEST['inter'];
+    assert.equal(getCollapsedWeightOptions(inter), null);
+    assert.equal(getEffectiveMax('textWeight', inter), 10);
+    assert.equal(getEffectiveMax('textSize', inter), 10); // only textWeight ever collapses
+  });
+
+  await test('getEffectiveMax/getCollapsedWeightOptions: a single-weight static font (Bebas Neue) collapses', () => {
+    const bebas = FONT_MANIFEST['bebas-neue'];
+    assert.deepEqual(getCollapsedWeightOptions(bebas), [400]);
+    assert.equal(getEffectiveMax('textWeight', bebas), 1);
+  });
+
+  await test('getCollapsedWeightOptions: a static font with 4+ weights does not collapse', () => {
+    const manyWeights = { weights: [300, 400, 500, 600, 700], variableAxes: null };
+    assert.equal(getCollapsedWeightOptions(manyWeights), null);
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/contrastCheck.js (P3.2) — WCAG AA contrast check for the Text
+  // size slider's inline warning. Pure, DOM-free, loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('contrastCheck.js');
+  const contrastUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'contrastCheck.js').replace(/\\/g, '/');
+  const { WCAG_AA_NORMAL_RATIO, WCAG_AA_LARGE_RATIO, isLargeText, parseRgb, relativeLuminance, contrastRatio, checkContrastAA } =
+    await import(contrastUrl);
+
+  await test('WCAG thresholds match the real standard (4.5:1 normal, 3:1 large), not this app\'s own stricter theme-generator target', () => {
+    assert.equal(WCAG_AA_NORMAL_RATIO, 4.5);
+    assert.equal(WCAG_AA_LARGE_RATIO, 3.0);
+  });
+
+  await test('relativeLuminance matches known reference values: black = 0, white = 1', () => {
+    assert.equal(relativeLuminance([0, 0, 0]), 0);
+    assert.equal(relativeLuminance([255, 255, 255]), 1);
+  });
+
+  await test('contrastRatio matches known reference values: black/white = 21:1', () => {
+    assert.equal(Math.round(contrastRatio([0, 0, 0], [255, 255, 255])), 21);
+  });
+
+  await test('contrastRatio matches the textbook WCAG boundary example: #767676 on white ≈ 4.54:1', () => {
+    const ratio = contrastRatio([0x76, 0x76, 0x76], [255, 255, 255]);
+    assert.ok(Math.abs(ratio - 4.54) < 0.01, `expected ~4.54, got ${ratio}`);
+  });
+
+  await test('parseRgb reads both rgb() and rgba() strings, ignoring alpha', () => {
+    assert.deepEqual(parseRgb('rgb(18, 20, 24)'), [18, 20, 24]);
+    assert.deepEqual(parseRgb('rgba(18, 20, 24, 0.5)'), [18, 20, 24]);
+    assert.equal(parseRgb('not-a-color'), null);
+    assert.equal(parseRgb(''), null);
+  });
+
+  await test('isLargeText: the real WCAG boundary is 24px normal weight or 18.66px at 700+', () => {
+    assert.equal(isLargeText(24, 400), true);
+    assert.equal(isLargeText(23.9, 400), false);
+    assert.equal(isLargeText(18.66, 700), true);
+    assert.equal(isLargeText(18, 700), false);
+    assert.equal(isLargeText(18.66, 400), false); // bold threshold does not apply at normal weight
+  });
+
+  await test('checkContrastAA: passes at normal text only above 4.5:1, fails just under it', () => {
+    const passing = checkContrastAA([0, 0, 0], [255, 255, 255], 13, 400);
+    assert.equal(passing.passes, true);
+    assert.equal(passing.threshold, WCAG_AA_NORMAL_RATIO);
+    const failing = checkContrastAA([0x76, 0x76, 0x76], [0x80, 0x80, 0x80], 13, 400);
+    assert.equal(failing.passes, false);
+  });
+
+  await test('checkContrastAA: the same low-contrast pair can flip from failing to passing at large text size', () => {
+    // #8a8a8a on white is ~3.45:1 — fails the 4.5:1 normal threshold but
+    // clears the more lenient 3:1 large-text one.
+    const fg = [0x8a, 0x8a, 0x8a];
+    const bg = [255, 255, 255];
+    const normalResult = checkContrastAA(fg, bg, 13, 400);
+    const largeResult = checkContrastAA(fg, bg, 24, 400);
+    assert.equal(normalResult.passes, false);
+    assert.equal(largeResult.passes, true);
+    assert.equal(largeResult.threshold, WCAG_AA_LARGE_RATIO);
   });
 
   // -------------------------------------------------------------------------

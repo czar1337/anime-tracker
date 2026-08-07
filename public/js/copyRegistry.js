@@ -426,6 +426,78 @@ export const COPY_REGISTRY = {
     standard: 'No fonts match your search.',
     madara: 'No fonts match your search.',
   },
+
+  // ---------------------------------------------------------------------------
+  // P3.2 — typography sliders. A NEW v2 surface, registry entries from the
+  // start, same rule as the fonts section above.
+  // ---------------------------------------------------------------------------
+
+  'sliders.textSize.heading': { familyFriendly: 'Text size', standard: 'Text size', madara: 'Text size' },
+  'sliders.textSize.description': {
+    familyFriendly: 'How big body text renders everywhere.',
+    standard: 'How big body text renders everywhere.',
+    madara: 'How big body text renders everywhere.',
+  },
+  'sliders.textWeight.heading': { familyFriendly: 'Text weight', standard: 'Text weight', madara: 'Text weight' },
+  'sliders.textWeight.description': {
+    familyFriendly: 'How bold body text, labels and headings look.',
+    standard: 'How bold body text, labels and headings look.',
+    madara: 'How bold body text, labels and headings look.',
+  },
+  'sliders.lineHeight.heading': { familyFriendly: 'Line height', standard: 'Line height', madara: 'Line height' },
+  'sliders.lineHeight.description': {
+    familyFriendly: 'Spacing between lines of text.',
+    standard: 'Spacing between lines of text.',
+    madara: 'Spacing between lines of text.',
+  },
+  'sliders.letterSpacing.heading': { familyFriendly: 'Letter spacing', standard: 'Letter spacing', madara: 'Letter spacing' },
+  'sliders.letterSpacing.description': {
+    familyFriendly: 'Spacing between letters.',
+    standard: 'Spacing between letters.',
+    madara: 'Spacing between letters.',
+  },
+  'sliders.density.heading': { familyFriendly: 'UI density', standard: 'UI density', madara: 'UI density' },
+  'sliders.density.description': {
+    familyFriendly: 'How much breathing room sits around cards, rows and buttons.',
+    standard: 'How much breathing room sits around cards, rows and buttons.',
+    madara: 'How much breathing room sits around cards, rows and buttons.',
+  },
+  'sliders.radius.heading': { familyFriendly: 'Corner radius', standard: 'Corner radius', madara: 'Corner radius' },
+  'sliders.radius.description': {
+    familyFriendly: 'How rounded cards, buttons and fields look.',
+    standard: 'How rounded cards, buttons and fields look.',
+    madara: 'How rounded cards, buttons and fields look.',
+  },
+  'sliders.coverWidth.heading': { familyFriendly: 'Cover art size', standard: 'Cover art size', madara: 'Cover art size' },
+  'sliders.coverWidth.description': {
+    familyFriendly: 'How wide cover art renders in the card grid.',
+    standard: 'How wide cover art renders in the card grid.',
+    madara: 'How wide cover art renders in the card grid.',
+  },
+  'sliders.animation.heading': { familyFriendly: 'Animation', standard: 'Animation', madara: 'Animation' },
+  'sliders.animation.description': {
+    familyFriendly: 'How long transitions and motion take. Lowest is instant.',
+    standard: 'How long transitions and motion take. Lowest is instant.',
+    madara: 'How long transitions and motion take. Lowest is instant.',
+  },
+  'sliders.resetAll.heading': { familyFriendly: 'Reset typography', standard: 'Reset typography', madara: 'Reset typography' },
+  'sliders.resetAll.description': {
+    familyFriendly: 'Puts all eight sliders above back to their defaults.',
+    standard: 'Puts all eight sliders above back to their defaults.',
+    madara: 'Puts all eight sliders above back to their defaults.',
+  },
+  'sliders.resetAll.button': { familyFriendly: 'Reset all', standard: 'Reset all', madara: 'Reset all' },
+  'sliders.reset.button': { familyFriendly: 'Reset', standard: 'Reset', madara: 'Reset' },
+  'sliders.weightCollapsed.note': {
+    familyFriendly: (p) => `${p.font} only comes in a few weights, so this picks the closest one instead of a full range.`,
+    standard: (p) => `${p.font} only comes in a few weights, so this picks the closest one instead of a full range.`,
+    madara: (p) => `${p.font} only comes in a few weights, so this picks the closest one instead of a full range.`,
+  },
+  'sliders.contrastWarning': {
+    familyFriendly: (p) => `Text and background contrast is ${p.ratio}:1, below the ${p.threshold}:1 recommended minimum. Some text may be hard to read.`,
+    standard: (p) => `Text and background contrast is ${p.ratio}:1, below the ${p.threshold}:1 recommended minimum. Some text may be hard to read.`,
+    madara: (p) => `Text and background contrast is ${p.ratio}:1, below the ${p.threshold}:1 recommended minimum. Some text may be hard to read.`,
+  },
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

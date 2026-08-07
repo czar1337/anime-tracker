@@ -16,6 +16,7 @@ import { EventLog } from './eventLog.js';
 import { isViewStatePreference } from './eventTypes.js';
 import { copy } from './copy.js';
 import { LISTS_AND_TAGS } from '../../config/tuning.js';
+import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySliders.js';
 
 // P1.5's restore route reports `skippedStores` when the snapshot predates a
 // newer Class A store; until P1.6 nothing surfaced it, so a partial restore
@@ -1645,6 +1646,62 @@ function bindSettingsPanel() {
       return;
     }
 
+    // P3.2: the weight slider collapsed to the current UI font's own
+    // discrete weights (fewer than 4 real weights available).
+    const weightOptionBtn = e.target.closest('[data-slider-weight-option]');
+    if (weightOptionBtn) {
+      // The collapsed UI still stores a 1-10 step (the schema doesn't
+      // change), so a click picks whichever step's own derivation lands
+      // closest to the chosen weight — render.js's sliderRowHtml already
+      // did this same nearest-match work to decide which button shows
+      // `.on`, so this just re-derives the same step from the same
+      // formula rather than inventing a second mapping.
+      const chosenWeight = Number(weightOptionBtn.dataset.sliderWeightOption);
+      let bestStep = 1;
+      let bestDiff = Infinity;
+      for (let step = 1; step <= 10; step++) {
+        const diff = Math.abs(Number(computeSliderTokens('textWeight', step)['--w-body']) - chosenWeight);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestStep = step;
+        }
+      }
+      Preferences.setSliderStep('textWeight', bestStep);
+      const before = Store.state.preferences.textWeightStep;
+      Store.setPreference(['textWeightStep'], bestStep);
+      recordSettingChange('textWeightStep', before, bestStep);
+      persist();
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+
+    const sliderResetBtn = e.target.closest('[data-slider-reset]');
+    if (sliderResetBtn) {
+      const key = sliderResetBtn.dataset.sliderReset;
+      Preferences.setSliderStep(key, DEFAULT_STEP);
+      const prefKey = `${key}Step`;
+      const before = Store.state.preferences[prefKey];
+      Store.setPreference([prefKey], DEFAULT_STEP);
+      recordSettingChange(prefKey, before, DEFAULT_STEP);
+      persist();
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+
+    const resetAllBtn = e.target.closest('[data-action="reset-all-sliders"]');
+    if (resetAllBtn) {
+      for (const key of SLIDER_KEYS) {
+        Preferences.setSliderStep(key, DEFAULT_STEP);
+        const prefKey = `${key}Step`;
+        const before = Store.state.preferences[prefKey];
+        Store.setPreference([prefKey], DEFAULT_STEP);
+        recordSettingChange(prefKey, before, DEFAULT_STEP);
+      }
+      persist();
+      repaintSettings(Themes.getCurrentThemeId());
+      return;
+    }
+
     const createBtn = e.target.closest('#snapshot-create-btn');
     if (createBtn) {
       createBtn.disabled = true;
@@ -1886,9 +1943,7 @@ function bindSettingsPanel() {
     if (!segBtn) return;
     const seg = segBtn.closest('.seg').dataset.seg;
     const value = segBtn.dataset.value;
-    if (seg === 'textSize') Preferences.setTextSize(value);
-    else if (seg === 'textWeight') Preferences.setTextWeight(value);
-    else if (seg === 'decor') Preferences.setDecor(value);
+    if (seg === 'decor') Preferences.setDecor(value);
     else if (seg === 'decorDensity') {
       Preferences.setDecorDensity(value);
       Atmosphere.resyncDensity();
@@ -1932,6 +1987,49 @@ function bindSettingsPanel() {
       const grid = document.getElementById(`font-grid-${searchSlot}`);
       if (grid) grid.innerHTML = Render.fontGridBodyHtml(searchSlot, currentFontId);
     }
+
+    // P3.2: live preview while dragging. Deliberately NOT a repaintSettings()
+    // call here either — replacing a <input type="range"> mid-drag would
+    // drop the browser's own pointer capture and cancel the gesture. Only
+    // the CSS custom properties and the adjacent numeric readout update;
+    // persist() is already debounced, so calling it on every drag tick is
+    // harmless, not a flood. The rest of the row (contrast warning,
+    // disabled reset state, the collapsed-weight note) catches up on
+    // 'change' below, once the drag actually settles.
+    const sliderKey = e.target.dataset.slider;
+    if (sliderKey) {
+      const step = Number(e.target.value);
+      Preferences.setSliderStep(sliderKey, step);
+      const prefKey = `${sliderKey}Step`;
+      Store.setPreference([prefKey], step);
+      persist();
+      const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
+      if (readout) readout.textContent = String(step);
+    }
+  });
+
+  // 'change' (drag release, or a committed keyboard step) — safe to fully
+  // re-render here: refreshes the contrast warning, the reset button's
+  // disabled state, and the weight slider's collapsed-note text, none of
+  // which the lightweight 'input' handler above touches.
+  //
+  // repaintSettings() replaces the whole panel's innerHTML, which destroys
+  // the very <input> the user is mid-keyboard-navigating with (arrows/
+  // Home/End all fire 'change' on every discrete step, not just on
+  // drag-release) — without restoring focus afterward, the FIRST arrow
+  // press would silently end keyboard operability for the rest of that
+  // slider interaction. Re-focusing the recreated element by its own
+  // data-slider attribute is what keeps arrows/Home/End usable across
+  // consecutive key presses, the spec's explicit requirement.
+  body.addEventListener('change', (e) => {
+    const sliderKey = e.target.dataset.slider;
+    if (!sliderKey) return;
+    const step = Number(e.target.value);
+    const prefKey = `${sliderKey}Step`;
+    const before = Store.state.preferences[prefKey];
+    recordSettingChange(prefKey, before, step);
+    repaintSettings(Themes.getCurrentThemeId());
+    body.querySelector(`[data-slider="${sliderKey}"]`)?.focus();
   });
 }
 

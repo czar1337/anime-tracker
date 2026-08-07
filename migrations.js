@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -155,7 +155,63 @@ function migrate_6_to_7(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7 };
+// P3.2: replaces the old textSize/textWeight string enums with eight
+// independent 1-10 integer sliders (textSizeStep, textWeightStep,
+// lineHeightStep, letterSpacingStep, densityStep, radiusStep,
+// coverWidthStep, animationStep). The spec's own framing is "replace,"
+// not "add alongside," so textSize/textWeight are dropped from
+// `preferences` here, not just left as unread orphans.
+//
+// textSize/textWeight map onto the new steps by the CLOSEST MATCH against
+// public/js/typographySliders.js's derivation (frozen here as literal
+// numbers, per every migration's own "snapshot, not live import"
+// convention — recomputed by hand once, not derived at migration time):
+//
+//   textSize (old --text-scale -> closest config/tuning.js fontScale entry):
+//     xs (.92) -> step 3 (.91, |diff|=.01, closest of any step)
+//     s  (1)   -> step 5 (1.0, EXACT — matches the slider's own default)
+//     m  (1.08)-> step 6 (1.06, |diff|=.02)
+//     l  (1.18)-> step 8 (1.19, |diff|=.01)
+//     xl (1.32)-> step 10 (1.35, |diff|=.03)
+//
+//   textWeight (old 4-role {body,med,strong,display} -> closest step by
+//   summed absolute difference across all four of typographySliders.js's
+//   derived roles; ties broken toward preserving the old scale's own
+//   light<normal<clear<bold ordering):
+//     light  (400,400,500,400) -> step 3  (300,400,500,500 derived; sum diff 200, lowest)
+//     normal (400,500,600,600) -> step 5  (400,500,600,600 derived — EXACT)
+//     clear  (500,600,600,600) -> step 6  (450,550,650,650 derived; sum diff 200, tied with steps 5 & 7 — step 6 picked to keep clear's derived weight between normal's and bold's)
+//     bold   (500,600,700,700) -> step 7  (500,600,700,700 derived — EXACT)
+//
+// Any textSize/textWeight value outside these four-and-five known enums
+// (shouldn't exist, but rule 13 forward-compat means never trust that)
+// falls back to step 5, same as a missing field would.
+const TEXT_SIZE_TO_STEP = { xs: 3, s: 5, m: 6, l: 8, xl: 10 };
+const TEXT_WEIGHT_TO_STEP = { light: 3, normal: 5, clear: 6, bold: 7 };
+
+function migrate_7_to_8(data) {
+  const out = { ...data };
+  out.schemaVersion = 8;
+  const before = out.preferences || {};
+  const { textSize, textWeight, ...restPreferences } = before;
+  out.preferences = {
+    ...restPreferences,
+    textSizeStep: before.textSizeStep !== undefined ? before.textSizeStep : TEXT_SIZE_TO_STEP[textSize] || 5,
+    textWeightStep: before.textWeightStep !== undefined ? before.textWeightStep : TEXT_WEIGHT_TO_STEP[textWeight] || 5,
+    lineHeightStep: before.lineHeightStep !== undefined ? before.lineHeightStep : 5,
+    letterSpacingStep: before.letterSpacingStep !== undefined ? before.letterSpacingStep : 5,
+    densityStep: before.densityStep !== undefined ? before.densityStep : 5,
+    radiusStep: before.radiusStep !== undefined ? before.radiusStep : 5,
+    coverWidthStep: before.coverWidthStep !== undefined ? before.coverWidthStep : 5,
+    animationStep: before.animationStep !== undefined ? before.animationStep : 5,
+  };
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_7_to_8 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -182,4 +238,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8 };

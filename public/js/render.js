@@ -8,6 +8,9 @@ import { copy } from './copy.js';
 import { TAG_COLORS, tagColorHex, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 import { LISTS_AND_TAGS } from '../../config/tuning.js';
 import { Fonts } from './fonts.js';
+import { FONT_MANIFEST } from './fontManifest.js';
+import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, computeSliderTokens } from './typographySliders.js';
+import { checkContrastAA, parseRgb } from './contrastCheck.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -1654,6 +1657,86 @@ function segHtml(name, options, current) {
     .join('')}</div>`;
 }
 
+// A plain-language descriptor for a 1-10 step, shared by every slider's
+// aria-valuetext (spec example: "Text size 7 of 10, large"). A coarse
+// 6-bucket mapping rather than 80 hand-authored per-slider-per-step
+// strings — accessible and genuinely descriptive without that much copy.
+function stepDescriptor(step) {
+  if (step <= 2) return 'very small';
+  if (step <= 4) return 'small';
+  if (step === 5) return 'default';
+  if (step <= 7) return 'large';
+  return 'very large';
+}
+
+// P3.2's eight independent 1-10 sliders (spec: "integer sliders, 1 to 10,
+// default 5, numeric value beside the label, live preview... Keyboard
+// operable: arrows per step, Home and End, click-on-track"). A native
+// <input type="range"> gets all of that keyboard/click behaviour for
+// free from the browser — the first such element in this app, unlike
+// every other Settings control's hand-built .seg/grid buttons.
+//
+// The weight slider is the one exception: when the current UI font
+// (P3.1) has fewer than 4 real weights (getCollapsedWeightOptions,
+// reading P3.1's generated fontManifest.js), it collapses to discrete
+// buttons for just that font's own weights instead of a 1-10 range —
+// "letting the slider silently do nothing recreates the exact complaint
+// that started this" (spec).
+function sliderRowHtml(key, label, description) {
+  const step = Preferences.getSliderStep(key);
+  if (key === 'textWeight') {
+    const entry = FONT_MANIFEST[Preferences.getUiFont()];
+    const collapsed = getCollapsedWeightOptions(entry);
+    if (collapsed) {
+      const fontName = Fonts.getFontById(Preferences.getUiFont())?.name || 'This font';
+      // Which of the font's own weights is "closest" to the stored step's
+      // intended weight — computed from the same derivation
+      // typographySliders.js uses for a normal (non-collapsed) slider,
+      // not an arbitrary heuristic, so a font gaining more weights later
+      // wouldn't need this logic to change.
+      const intendedWeight = Number(computeSliderTokens('textWeight', step)['--w-body']);
+      const closest = collapsed.reduce((best, w) => (Math.abs(w - intendedWeight) < Math.abs(best - intendedWeight) ? w : best), collapsed[0]);
+      const buttons = collapsed
+        .map((w) => `<button class="${w === closest ? 'on' : ''}" data-slider-weight-option="${w}">${w}</button>`)
+        .join('');
+      return `
+        <div class="seg" data-slider-weight-options role="group" aria-label="${escapeHtml(label)}">${buttons}</div>
+        <p class="slider-collapsed-note">${escapeHtml(copy('sliders.weightCollapsed.note', undefined, { font: fontName }))}</p>
+      `;
+    }
+  }
+  const max = key === 'textWeight' ? getEffectiveMax(key, FONT_MANIFEST[Preferences.getUiFont()]) : MAX_STEP;
+  const valuetext = `${label} ${step} of ${max}, ${stepDescriptor(step)}`;
+  const resetDisabled = step === DEFAULT_STEP ? 'disabled' : '';
+  return `
+    <div class="slider-row">
+      <input type="range" class="slider-input" data-slider="${key}" min="1" max="${max}" step="1" value="${step}" aria-label="${escapeHtml(label)}" aria-valuetext="${escapeHtml(valuetext)}">
+      <span class="slider-value">${step}</span>
+      <button class="btn btn-ghost sm" data-action="reset-slider" data-slider-reset="${key}" ${resetDisabled}>${escapeHtml(copy('sliders.reset.button'))}</button>
+    </div>
+    ${key === 'textSize' ? contrastWarningHtml() : ''}
+  `;
+}
+
+// Inline WCAG AA warning under the Text size row specifically — the one
+// slider whose value changes which threshold applies (a bigger step can
+// legitimately drop a combination from failing to passing, since large
+// text only needs 3:1, not 4.5:1). Reads the ACTUAL live computed colors,
+// so it reflects whichever theme is active, not a hardcoded pair. "Warn,
+// do not block: it is the user's app."
+function contrastWarningHtml() {
+  const bodyEl = document.body;
+  const cs = getComputedStyle(bodyEl);
+  const fg = parseRgb(cs.getPropertyValue('--text'));
+  const bg = parseRgb(cs.getPropertyValue('--bg'));
+  if (!fg || !bg) return '';
+  const fontSizePx = parseFloat(cs.getPropertyValue('--fs-body')) || 13;
+  const weight = parseFloat(cs.getPropertyValue('--w-body')) || 400;
+  const { ratio, threshold, passes } = checkContrastAA(fg, bg, fontSizePx, weight);
+  if (passes) return '';
+  return `<p class="slider-contrast-warning">${escapeHtml(copy('sliders.contrastWarning', undefined, { ratio: ratio.toFixed(1), threshold }))}</p>`;
+}
+
 const THEME_PREVIEW_COUNT = 12;
 // Persists for the session, same reasoning as render.js's own genre-chip
 // overflow toggle — reopening Settings shouldn't collapse it back down
@@ -1878,15 +1961,18 @@ function renderSettingsPanel(container, currentThemeId) {
     ${settingsRowHtml(copy('fonts.ui.heading'), copy('fonts.ui.description'), fontGridHtml('ui', Preferences.getUiFont()))}
     ${settingsRowHtml(copy('fonts.heading.heading'), copy('fonts.heading.description'), fontGridHtml('heading', Preferences.getHeadingFont()))}
     ${settingsRowHtml(copy('fonts.numbers.heading'), copy('fonts.numbers.description'), fontGridHtml('numbers', Preferences.getNumbersFont()))}
+    ${settingsRowHtml(copy('sliders.textSize.heading'), copy('sliders.textSize.description'), sliderRowHtml('textSize', copy('sliders.textSize.heading')))}
+    ${settingsRowHtml(copy('sliders.textWeight.heading'), copy('sliders.textWeight.description'), sliderRowHtml('textWeight', copy('sliders.textWeight.heading')))}
+    ${settingsRowHtml(copy('sliders.lineHeight.heading'), copy('sliders.lineHeight.description'), sliderRowHtml('lineHeight', copy('sliders.lineHeight.heading')))}
+    ${settingsRowHtml(copy('sliders.letterSpacing.heading'), copy('sliders.letterSpacing.description'), sliderRowHtml('letterSpacing', copy('sliders.letterSpacing.heading')))}
+    ${settingsRowHtml(copy('sliders.density.heading'), copy('sliders.density.description'), sliderRowHtml('density', copy('sliders.density.heading')))}
+    ${settingsRowHtml(copy('sliders.radius.heading'), copy('sliders.radius.description'), sliderRowHtml('radius', copy('sliders.radius.heading')))}
+    ${settingsRowHtml(copy('sliders.coverWidth.heading'), copy('sliders.coverWidth.description'), sliderRowHtml('coverWidth', copy('sliders.coverWidth.heading')))}
+    ${settingsRowHtml(copy('sliders.animation.heading'), copy('sliders.animation.description'), sliderRowHtml('animation', copy('sliders.animation.heading')))}
     ${settingsRowHtml(
-      'Text size',
-      'Changes every size in the app at once.',
-      segHtml('textSize', [['xs', 'Small'], ['s', 'Normal'], ['m', 'Comfortable'], ['l', 'Large'], ['xl', 'Largest']], Preferences.getTextSize())
-    )}
-    ${settingsRowHtml(
-      'Text weight',
-      'Makes text thinner or thicker.',
-      segHtml('textWeight', [['light', 'Light'], ['normal', 'Normal'], ['clear', 'Clear'], ['bold', 'Bold']], Preferences.getTextWeight())
+      copy('sliders.resetAll.heading'),
+      copy('sliders.resetAll.description'),
+      `<button class="btn btn-ghost sm" data-action="reset-all-sliders">${escapeHtml(copy('sliders.resetAll.button'))}</button>`
     )}
     ${settingsRowHtml(
       'Decoration',

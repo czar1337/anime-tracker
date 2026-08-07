@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 7,
+  "entries": [
+    {
+      "anilistId": 101922,
+      "titleRomaji": "Shingeki no Kyojin",
+      "titleEnglish": "Attack on Titan",
+      "coverFile": "covers/101922.jpg",
+      "format": "TV",
+      "year": 2013,
+      "totalEpisodes": 25,
+      "duration": 24,
+      "genres": ["Action", "Drama"],
+      "averageScore": 84,
+      "listStatus": "watched",
+      "episodesWatched": 25,
+      "myScore": 9,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    }
+  ],
+  "preferences": {
+    "sort": { "watching": "addedAt", "watchlist": "addedAt", "watched": "completedAt", "dropped": "updatedAt" },
+    "sortDir": { "watching": "desc", "watchlist": "desc", "watched": "desc", "dropped": "desc" },
+    "filters": {
+      "watching": { "genres": [], "format": "", "studio": "", "myScoreMin": null, "myScoreMax": null, "unratedOnly": false },
+      "watchlist": { "genres": [], "format": "", "studio": "", "myScoreMin": null, "myScoreMax": null, "unratedOnly": false },
+      "watched": { "genres": [], "format": "", "studio": "", "myScoreMin": null, "myScoreMax": null, "unratedOnly": false },
+      "dropped": { "genres": [], "format": "", "studio": "", "myScoreMin": null, "myScoreMax": null, "unratedOnly": false }
+    },
+    "activeTab": "watched",
+    "titleLanguage": "english",
+    "contentTier": "standard",
+    "streamerMode": false,
+    "textSize": "l",
+    "textWeight": "clear",
+    "decor": "on",
+    "decorDensity": "normal",
+    "originalTitles": "details",
+    "colorTheme": "moonlit-shrine",
+    "uiFont": "inter",
+    "headingFont": "bebas-neue",
+    "numbersFont": "jetbrains-mono"
+  },
+  "dismissedItems": [{ "anilistId": 555, "title": "Some Dismissed Show", "coverImage": null }],
+  "tags": [],
+  "customLists": []
+}

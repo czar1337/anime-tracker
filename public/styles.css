@@ -56,12 +56,21 @@
   /* user-controlled typography */
   --text-scale:1;
   --w-body:400; --w-med:500; --w-strong:600; --w-display:600;
-  --fs-display-l:calc(30px * var(--text-scale));
-  --fs-display-m:calc(21px * var(--text-scale));
-  --fs-display-s:calc(19px * var(--text-scale));
-  --fs-body:calc(13px * var(--text-scale));
-  --fs-action:calc(12.5px * var(--text-scale));
-  --fs-card:calc(12px * var(--text-scale));
+  /* P3.2: "minimum effective font size after scaling: 12px" (tuning table) --
+     floored with max(), not clamp() (no ceiling wanted), and only for the
+     6 tokens whose UNSCALED base is already >=12px. --fs-meta/-micro/-nano
+     are already below 12px at scale 1 today (11/10.5/9.5px) -- an existing,
+     unrelated design choice; flooring those too would change today's
+     default rendering, violating "zero visual change until opt-in". The
+     floor only ever engages once the new text-size slider actually scales
+     one of the 6 down past 12px -- at the default scale (1) every one of
+     them already clears it, so max() is a no-op there. */
+  --fs-display-l:max(12px, calc(30px * var(--text-scale)));
+  --fs-display-m:max(12px, calc(21px * var(--text-scale)));
+  --fs-display-s:max(12px, calc(19px * var(--text-scale)));
+  --fs-body:max(12px, calc(13px * var(--text-scale)));
+  --fs-action:max(12px, calc(12.5px * var(--text-scale)));
+  --fs-card:max(12px, calc(12px * var(--text-scale)));
   --fs-meta:calc(11px * var(--text-scale));
   --fs-micro:calc(10.5px * var(--text-scale));
   --fs-nano:calc(9.5px * var(--text-scale));
@@ -89,16 +98,14 @@
   --sp-6:24px; --sp-8:32px; --sp-12:48px; --sp-16:64px;
 }
 
-[data-text-size="xs"]{--text-scale:.92}
-[data-text-size="s"] {--text-scale:1}
-[data-text-size="m"] {--text-scale:1.08}
-[data-text-size="l"] {--text-scale:1.18}
-[data-text-size="xl"]{--text-scale:1.32}
-
-[data-text-weight="light"] {--w-body:400;--w-med:400;--w-strong:500;--w-display:400}
-[data-text-weight="normal"]{--w-body:400;--w-med:500;--w-strong:600;--w-display:600}
-[data-text-weight="clear"] {--w-body:500;--w-med:600;--w-strong:600;--w-display:600}
-[data-text-weight="bold"]  {--w-body:500;--w-med:600;--w-strong:700;--w-display:700}
+/* P3.2: the [data-text-size]/[data-text-weight] attribute blocks that used
+   to live here are gone — replaced, not left dead alongside the new
+   sliders (the spec's own framing: "replace the... controls"). --text-scale/
+   --w-body/--w-med/--w-strong/--w-display now come from this block's own
+   defaults above (today's exact "normal"/"s" values, unchanged) until a
+   slider overrides them via an inline style on documentElement — public/js/
+   preferences.js's sliderPref, the same override mechanism P3.1's font
+   pickers already use for --ui/--display/--numbers. */
 
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
@@ -1162,8 +1169,15 @@ kbd {
    title fix earlier in this file for the same issue). Season rows already
    have their own unconditional one-line rule, so excluded here to avoid
    fighting it. */
-[data-text-size="xs"] .card:not(.season-row) .card-title,
-[data-text-size="s"] .card:not(.season-row) .card-title {
+/* P3.2: was [data-text-size="xs"|"s"] — those two enum values no longer
+   exist, but the behaviour they gated (single-line title at smaller text
+   sizes) still needs to fire at the two migrated steps that used to
+   trigger it (xs->3, s->5) so the DEFAULT step (5) keeps rendering
+   exactly as before. [data-text-compact] is the boolean equivalent,
+   toggled by preferences.js's textSize slider setter for step<=5 —
+   the same threshold that made s (step 5) the highest step this rule
+   used to fire for. */
+[data-text-compact] .card:not(.season-row) .card-title {
   display: block;
   -webkit-line-clamp: unset;
   white-space: nowrap;
@@ -2019,6 +2033,13 @@ kbd {
 }
 .font-grid button:hover { border-color: var(--line-lit); background: color-mix(in srgb, var(--text) 3%, transparent); }
 .font-grid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+/* ---------- P3.2: typography sliders ---------- */
+.slider-row { display: flex; align-items: center; gap: var(--sp-3); }
+.slider-input { flex: 1; accent-color: var(--accent); }
+.slider-value { min-width: 2.5ch; text-align: right; font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; }
+.slider-contrast-warning { margin-top: var(--sp-2); font: var(--t-meta); color: var(--warning); }
+.slider-collapsed-note { margin-top: var(--sp-2); font: var(--t-meta); color: var(--faint); }
 
 /* ---------- Help panel ---------- */
 .help-tabs { display: flex; gap: 22px; padding: 0 0 var(--sp-3); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-4); }

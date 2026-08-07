@@ -63,17 +63,15 @@ test('the schemaVersion 4->CURRENT (P1.3-P1.7 chain) migration is a dry-run-safe
   try {
     const migrated = await (await fetch(`${server.url}/api/library`)).json();
     // Booting runs the FULL chain to whatever CURRENT_SCHEMA_VERSION is today
-    // (7, since P3.1), not just the 4->5 step this test was originally named
+    // (8, since P3.2), not just the 4->5 step this test was originally named
     // for — a real schemaVersion-4 library on disk is exactly the case that
     // exercises every step at once.
-    expect(migrated.schemaVersion).toBe(7);
+    expect(migrated.schemaVersion).toBe(8);
     expect(migrated.entries.length).toBe(entryCountBefore);
     expect(migrated.preferences).toMatchObject({
       titleLanguage: 'english',
       contentTier: 'standard',
       streamerMode: false,
-      textSize: 's',
-      textWeight: 'normal',
       decor: 'on',
       decorDensity: 'normal',
       originalTitles: 'details',
@@ -81,6 +79,16 @@ test('the schemaVersion 4->CURRENT (P1.3-P1.7 chain) migration is a dry-run-safe
       uiFont: 'schibsted-grotesk',
       headingFont: 'zen-old-mincho',
       numbersFont: 'schibsted-grotesk',
+      // P3.2: textSize/textWeight enums replaced by 8 independent sliders,
+      // every one defaulting to step 5.
+      textSizeStep: 5,
+      textWeightStep: 5,
+      lineHeightStep: 5,
+      letterSpacingStep: 5,
+      densityStep: 5,
+      radiusStep: 5,
+      coverWidthStep: 5,
+      animationStep: 5,
     });
     // P1.7: the two new registries default empty, and every real entry gets
     // backfilled membership arrays.
