@@ -603,6 +603,17 @@ function allStudios() {
   return [...set].sort();
 }
 
+// P4.1: same "only offer values actually present" convention as
+// allFormats/allStudios above, not the full fixed AniList enum — an
+// airingStatus the library has zero entries for isn't worth a dropdown row.
+function allAiringStatuses() {
+  const set = new Set();
+  for (const e of state.entries) {
+    if (e.airingStatus) set.add(e.airingStatus);
+  }
+  return [...set].sort();
+}
+
 export const Store = {
   LISTS,
   state,
@@ -627,6 +638,7 @@ export const Store = {
   allGenres,
   allFormats,
   allStudios,
+  allAiringStatuses,
   getDismissedIds,
   getDismissedItems,
   addDismissedItem,

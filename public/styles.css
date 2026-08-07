@@ -488,8 +488,13 @@ kbd {
 .icn.small { width: 28px; height: 28px; }
 /* Sort direction: one icon flips vertically to show direction instead of
    swapping its glyph — see sortDirBtn.classList.toggle('is-asc', ...) in
-   render.js. */
+   render.js. P4.1: the icon alone isn't a readable label (spec: "keep
+   labels readable... no bare arrow with no text"), so .sort-dir-btn widens
+   the otherwise-circular .icn into an auto-width pill to fit the text
+   render.js writes into .sort-dir-label beside it. */
 .icn.is-asc svg { transform: scaleY(-1); }
+.sort-dir-btn { width: auto; border-radius: 8px; padding: 0 var(--sp-3) 0 var(--sp-2); gap: var(--sp-1); }
+.sort-dir-label { font: var(--t-meta); white-space: nowrap; }
 
 /* ---------- Buttons, four levels ----------
    design/moonlit-shrine-design-system.md §8: primary (--accent-fill, one
@@ -784,6 +789,18 @@ kbd {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(calc(170px * var(--text-scale)), 1fr));
   gap: 14px;
+}
+/* P4.1: the progressPercent/episodesRemaining "still airing" trailing
+   group's heading — spans every column so it reads as a section break in
+   the same continuous card flow, not a card-sized cell of its own. */
+.grid-section-heading {
+  grid-column: 1 / -1;
+  font: var(--t-micro);
+  letter-spacing: var(--tr-micro);
+  text-transform: uppercase;
+  color: var(--faint);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--line);
 }
 
 /* ---------- Series card, six states ----------
