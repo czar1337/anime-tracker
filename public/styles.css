@@ -56,12 +56,21 @@
   /* user-controlled typography */
   --text-scale:1;
   --w-body:400; --w-med:500; --w-strong:600; --w-display:600;
-  --fs-display-l:calc(30px * var(--text-scale));
-  --fs-display-m:calc(21px * var(--text-scale));
-  --fs-display-s:calc(19px * var(--text-scale));
-  --fs-body:calc(13px * var(--text-scale));
-  --fs-action:calc(12.5px * var(--text-scale));
-  --fs-card:calc(12px * var(--text-scale));
+  /* P3.2: "minimum effective font size after scaling: 12px" (tuning table) --
+     floored with max(), not clamp() (no ceiling wanted), and only for the
+     6 tokens whose UNSCALED base is already >=12px. --fs-meta/-micro/-nano
+     are already below 12px at scale 1 today (11/10.5/9.5px) -- an existing,
+     unrelated design choice; flooring those too would change today's
+     default rendering, violating "zero visual change until opt-in". The
+     floor only ever engages once the new text-size slider actually scales
+     one of the 6 down past 12px -- at the default scale (1) every one of
+     them already clears it, so max() is a no-op there. */
+  --fs-display-l:max(12px, calc(30px * var(--text-scale)));
+  --fs-display-m:max(12px, calc(21px * var(--text-scale)));
+  --fs-display-s:max(12px, calc(19px * var(--text-scale)));
+  --fs-body:max(12px, calc(13px * var(--text-scale)));
+  --fs-action:max(12px, calc(12.5px * var(--text-scale)));
+  --fs-card:max(12px, calc(12px * var(--text-scale)));
   --fs-meta:calc(11px * var(--text-scale));
   --fs-micro:calc(10.5px * var(--text-scale));
   --fs-nano:calc(9.5px * var(--text-scale));

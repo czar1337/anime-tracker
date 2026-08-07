@@ -143,6 +143,28 @@ test('the textSize slider is keyboard-operable: ArrowRight, Home and End all mov
   }
 });
 
+test('minimum effective font size clamps at 12px even at the smallest text-size step', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card, .empty');
+    await openSettings(page);
+
+    await setSlider(page, 'textSize', 1); // --text-scale: 0.82 -> --fs-body would be 10.66px unfloored
+    const fsBodyPx = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.style.fontSize = 'var(--fs-body)';
+      document.body.appendChild(probe);
+      const px = parseFloat(getComputedStyle(probe).fontSize);
+      probe.remove();
+      return px;
+    });
+    expect(fsBodyPx).toBe(12);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('a slider\'s live readout span updates as it moves, and persists across a reload (Class A, not transient)', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
