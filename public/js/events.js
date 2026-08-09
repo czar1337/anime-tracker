@@ -19,6 +19,8 @@ import { LISTS_AND_TAGS } from '../../config/tuning.js';
 import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySliders.js';
 import { DEFAULT_SORT_DIR } from './sortLogic.js';
 import { notifyAchievementEngine } from './achievementHook.js';
+import { buildSelectionJSON, buildSelectionCSV } from './selectionExport.js';
+import { triggerDownload } from './download.js';
 
 // Every destructive/lossy toast passes this as its onExpire — a no-op today
 // (see achievementHook.js), wired for real once P7A implements the engine.
@@ -936,6 +938,26 @@ function handleBulkMarkCompleted() {
   });
 }
 
+// Export selection (P4.4): non-destructive, so no confirm dialog and no
+// Undo toast — just a plain result toast (matching every other existing
+// export in this app, e.g. the backup export button). Selection is left as
+// it was, since exporting shouldn't imply the user is done with it.
+function exportSelection(format) {
+  const ids = Render.getSelectedIds();
+  const entries = ids.map((id) => Store.getEntry(id)).filter(Boolean);
+  if (entries.length === 0) return;
+  const stamp = new Date().toISOString().slice(0, 10);
+  if (format === 'json') {
+    const blob = new Blob([JSON.stringify(buildSelectionJSON(entries), null, 2)], { type: 'application/json' });
+    triggerDownload(blob, `anime-tracker-selection-${stamp}.json`);
+  } else {
+    const csv = buildSelectionCSV(entries, { tags: Store.getTags(), customLists: Store.getCustomLists() });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    triggerDownload(blob, `anime-tracker-selection-${stamp}.csv`);
+  }
+  Render.showToast(`Exported ${entries.length} items as ${format.toUpperCase()}`);
+}
+
 function handleDelete(id) {
   const entry = Store.getEntry(id);
   if (!entry) return;
@@ -1152,6 +1174,128 @@ function bindBulkActionBar() {
     if (e.target.closest('[data-action="bulk-cancel"]')) {
       Render.clearSelection();
       refreshGridOnly();
+    }
+    if (e.target.closest('[data-action="open-bulk-more"]')) {
+      Render.renderBulkMoreMenu(document.getElementById('bulk-more-content'), activeList);
+      openOverlay('bulk-more-overlay');
+    }
+  });
+}
+
+// The rest of P4.4's bulk verbs (score, progress, tags, lists, mark
+// completed, export) — every button here closes the menu first, then opens
+// the same confirmDialog()/"state exactly what happens and to how many
+// items" pattern the bar's own move/delete buttons already use, before the
+// actual handler runs.
+function bindBulkMoreMenu() {
+  document.getElementById('bulk-more-content').addEventListener('click', (e) => {
+    const count = Render.getSelectedIds().length;
+    if (count === 0) return;
+
+    const scoreBtn = e.target.closest('[data-action="bulk-set-score"]');
+    if (scoreBtn) {
+      const score = Number(scoreBtn.dataset.score);
+      closeAllOverlays();
+      confirmDialog({
+        title: `Set score to ${score} for ${count} items?`,
+        body: 'Any existing score for these items is replaced.',
+        confirmLabel: 'Set score',
+        onConfirm: () => handleBulkSetScore(score),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-clear-score"]')) {
+      closeAllOverlays();
+      confirmDialog({
+        title: `Clear score for ${count} items?`,
+        body: 'This can be undone right after, but not once you close or reload the tab.',
+        confirmLabel: 'Clear score',
+        onConfirm: () => handleBulkClearScore(),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-increment"]')) {
+      closeAllOverlays();
+      confirmDialog({
+        title: `Advance ${count} items by one episode?`,
+        body: 'Items already at their last known episode are left unchanged.',
+        confirmLabel: 'Advance',
+        onConfirm: () => handleBulkIncrement(),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-decrement"]')) {
+      closeAllOverlays();
+      confirmDialog({
+        title: `Move ${count} items back by one episode?`,
+        body: 'Items already at 0 are left unchanged.',
+        confirmLabel: 'Move back',
+        onConfirm: () => handleBulkDecrement(),
+      });
+      return;
+    }
+    const addTagBtn = e.target.closest('[data-action="bulk-add-tag"]');
+    if (addTagBtn) {
+      const tagId = addTagBtn.dataset.tagId;
+      const tagName = Store.getTags().find((t) => t.id === tagId)?.name || 'this tag';
+      closeAllOverlays();
+      confirmDialog({
+        title: `Add "${tagName}" to ${count} items?`,
+        body: 'Items that already have this tag are left unchanged.',
+        confirmLabel: 'Add tag',
+        onConfirm: () => handleBulkAddTag(tagId),
+      });
+      return;
+    }
+    const removeTagBtn = e.target.closest('[data-action="bulk-remove-tag"]');
+    if (removeTagBtn) {
+      const tagId = removeTagBtn.dataset.tagId;
+      const tagName = Store.getTags().find((t) => t.id === tagId)?.name || 'this tag';
+      closeAllOverlays();
+      confirmDialog({
+        title: `Remove "${tagName}" from ${count} items?`,
+        body: 'This can be undone right after, but not once you close or reload the tab.',
+        confirmLabel: 'Remove tag',
+        onConfirm: () => handleBulkRemoveTag(tagId),
+      });
+      return;
+    }
+    const addListBtn = e.target.closest('[data-action="bulk-add-to-list"]');
+    if (addListBtn) {
+      const listId = addListBtn.dataset.listId;
+      const listName = Store.getCustomLists().find((l) => l.id === listId)?.name || 'this list';
+      closeAllOverlays();
+      confirmDialog({
+        title: `Add ${count} items to "${listName}"?`,
+        body: 'Items already on this list are left unchanged.',
+        confirmLabel: 'Add to list',
+        onConfirm: () => handleBulkAddToList(listId),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-mark-completed"]')) {
+      const { eligible, skipped } = partitionForMarkCompleted(Render.getSelectedIds());
+      closeAllOverlays();
+      const skippedBody =
+        skipped.length > 0
+          ? ` ${skipped.length} item(s) with an unknown episode count are skipped and named in the result: ${skipped.map((e) => e.titleRomaji).join(', ')}.`
+          : '';
+      confirmDialog({
+        title: `Mark ${eligible.length} items completed?`,
+        body: `Progress is set to the full episode count and a completion date is stamped.${skippedBody}`,
+        confirmLabel: 'Mark completed',
+        onConfirm: () => handleBulkMarkCompleted(),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-export-json"]')) {
+      closeAllOverlays();
+      exportSelection('json');
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-export-csv"]')) {
+      closeAllOverlays();
+      exportSelection('csv');
     }
   });
 }
@@ -2517,6 +2661,7 @@ export function initEvents({ initialList, persistFn }) {
   bindHoldToSelect();
   bindFilterBar();
   bindBulkActionBar();
+  bindBulkMoreMenu();
   bindAiringStatus();
   bindSearchOverlay();
   bindBackupOverlay();

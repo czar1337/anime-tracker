@@ -2502,6 +2502,17 @@ kbd {
    7-item tab row legible in the same space. */
 .nav-hamburger { display: none; }
 .nav-menu-panel { max-width: 320px; }
+
+/* P4.4's More-actions overlay — one section per bulk verb group, each a
+   labelled block (score, progress, tags, lists, mark completed, export).
+   Reuses .detail-lbl/.tag-chip-toggle/.score-strip/.score-dot/.row exactly
+   as the detail overlay and existing card controls already do. */
+.bulk-more-panel { max-width: 420px; }
+.bulk-more-section { margin-bottom: var(--sp-4); }
+.bulk-more-section:last-child { margin-bottom: 0; }
+.bulk-more-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: 6px; }
+.bulk-more-row .tag-chip-toggle { flex: 1; cursor: default; }
+.bulk-more-row .tag-chip-toggle:hover { transform: none; }
 .nav-menu-list { display: flex; flex-direction: column; gap: 2px; }
 .nav-menu-item {
   display: flex;

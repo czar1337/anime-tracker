@@ -173,6 +173,18 @@
     </div>
   </div>
 
+  <!-- P4.4: the rest of the bulk verbs beyond the bar's own move/delete
+       (score, progress, tags, lists, mark completed, export) — populated
+       per-open by Render.renderBulkMoreMenu(), same reasoning as the nav
+       menu above. -->
+  <div id="bulk-more-overlay" class="overlay" hidden>
+    <div class="overlay-panel bulk-more-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>More actions</h2>
+      <div id="bulk-more-content"></div>
+    </div>
+  </div>
+
   <!-- Search overlay -->
   <div id="search-overlay" class="overlay" hidden>
     <div class="overlay-panel search-panel">
