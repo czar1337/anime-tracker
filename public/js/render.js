@@ -11,6 +11,7 @@ import { Fonts } from './fonts.js';
 import { FONT_MANIFEST } from './fontManifest.js';
 import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, computeSliderTokens } from './typographySliders.js';
 import { checkContrastAA, parseRgb } from './contrastCheck.js';
+import { buildPalette, hslToRgb, themeInputFromAccent } from './themeBuilder.js';
 import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 
 const grid = document.getElementById('grid');
@@ -2009,6 +2010,32 @@ function appearanceSlotThemeGridHtml(slotKey, slot) {
   return `<div class="themegrid">${swatches}${customTile}</div>`;
 }
 
+// Verifies, rather than just asserts, that a custom accent's derived
+// palette clears real WCAG AA — reusing contrastCheck.js's own
+// checkContrastAA() (the exact standard 4.5:1/3:1 thresholds) against
+// buildPalette()'s OWN output, independent of that module's internal
+// audit numbers (which enforce stricter 12:1/7:1/4.6:1 targets and would
+// just be trusting the same code twice). Always passes by construction
+// (ensure() nudges text/dim/faint until they clear their own stricter
+// targets, which are all tighter than real AA) — this renders the
+// receipt, not a "fix" action, since there is no reachable failing state
+// (see docs/v2-progress.md's P6.1 entry). Font metrics are read off the
+// live document (--fs-body/--w-body apply globally regardless of which
+// appearance slot is being edited), same source contrastWarningHtml
+// above already reads from.
+function customAccentContrastHtml(slotKey, slot) {
+  const light = slotKey === 'light';
+  const palette = buildPalette(themeInputFromAccent(slot.accent, light));
+  const toRgb255 = ([h, s, l]) => hslToRgb(h, s, l).map((v) => Math.round(v * 255));
+  const cs = getComputedStyle(document.body);
+  const fontSizePx = parseFloat(cs.getPropertyValue('--fs-body')) || 13;
+  const weight = parseFloat(cs.getPropertyValue('--w-body')) || 400;
+  const { ratio, passes } = checkContrastAA(toRgb255(palette.colours.text), toRgb255(palette.surf.bg), fontSizePx, weight);
+  return passes
+    ? `✓ Meets WCAG AA automatically (${ratio.toFixed(1)}:1)`
+    : `⚠ ${ratio.toFixed(1)}:1 — below WCAG AA`;
+}
+
 // The custom-accent controls (hex input, eyedropper where the browser
 // supports it, and the contrast confirmation line P6.1's design keeps in
 // place of a "fix contrast" button — see docs/v2-progress.md's P6.1 entry
@@ -2023,7 +2050,7 @@ function customAccentControlsHtml(slotKey, slot) {
     <div class="row custom-accent-row" style="margin-top:var(--sp-2)">
       <input type="color" class="custom-accent-input" data-action="set-custom-accent" data-slot="${slotKey}" value="${slot.accent}" aria-label="Custom accent colour">
       ${eyedropperBtn}
-      <span class="contrast-confirm" data-contrast-confirm="${slotKey}"></span>
+      <span class="contrast-confirm" data-contrast-confirm="${slotKey}">${customAccentContrastHtml(slotKey, slot)}</span>
     </div>`;
 }
 
