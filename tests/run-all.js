@@ -1704,6 +1704,60 @@ async function run() {
     assert.deepEqual(Store.getEntriesInCustomList('list_unknown'), []);
   });
 
+  // P4.4: non-toggling counterparts, needed because a bulk "add this tag to
+  // N selected items" must not remove it from whichever ones already had it
+  // the way toggleEntryTag would for a mixed selection.
+  await test('addEntryTag/removeEntryTag are idempotent and report changed:false on a no-op', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const tag = Store.createTag('Comfort');
+    const first = Store.addEntryTag(1, tag.id);
+    assert.equal(first.changed, true);
+    assert.deepEqual(Store.getEntry(1).tagIds, [tag.id]);
+    const second = Store.addEntryTag(1, tag.id);
+    assert.equal(second.changed, false, 'adding a tag the entry already has must be a no-op, not a toggle-off');
+    assert.deepEqual(Store.getEntry(1).tagIds, [tag.id]);
+    const removed = Store.removeEntryTag(1, tag.id);
+    assert.equal(removed.changed, true);
+    assert.deepEqual(Store.getEntry(1).tagIds, []);
+    const removedAgain = Store.removeEntryTag(1, tag.id);
+    assert.equal(removedAgain.changed, false, 'removing a tag the entry never had must be a no-op');
+  });
+
+  await test('addEntryTag on a mixed selection only changes the entries that did not already have it', () => {
+    Store.setLibrary({
+      schemaVersion: 6,
+      entries: [{ anilistId: 1, listStatus: 'watching' }, { anilistId: 2, listStatus: 'watching' }],
+      preferences: {},
+      dismissedItems: [],
+      tags: [],
+      customLists: [],
+    });
+    const tag = Store.createTag('Comfort');
+    Store.addEntryTag(1, tag.id); // entry 1 already tagged before the "bulk" add below
+    const results = [1, 2].map((id) => Store.addEntryTag(id, tag.id));
+    assert.equal(results[0].changed, false, 'entry 1 already had the tag');
+    assert.equal(results[1].changed, true, 'entry 2 did not');
+    assert.deepEqual(Store.getEntry(1).tagIds, [tag.id]);
+    assert.deepEqual(Store.getEntry(2).tagIds, [tag.id]);
+  });
+
+  await test('addEntryTag/removeEntryTag return null for a nonexistent entry rather than throwing', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    assert.equal(Store.addEntryTag(999, 'tag_nope'), null);
+    assert.equal(Store.removeEntryTag(999, 'tag_nope'), null);
+  });
+
+  await test('addEntryToCustomList/removeEntryFromCustomList: same idempotent, changed-flag behaviour as tags', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const list = Store.createCustomList('Rewatch queue');
+    assert.equal(Store.addEntryToCustomList(1, list.id).changed, true);
+    assert.equal(Store.addEntryToCustomList(1, list.id).changed, false, 'already a member');
+    assert.deepEqual(Store.getEntry(1).customListIds, [list.id]);
+    assert.equal(Store.removeEntryFromCustomList(1, list.id).changed, true);
+    assert.equal(Store.removeEntryFromCustomList(1, list.id).changed, false, 'already not a member');
+    assert.deepEqual(Store.getEntry(1).customListIds, []);
+  });
+
   await test('addEntry defaults tagIds/customListIds to empty arrays', () => {
     Store.setLibrary(libraryWithOneEntry());
     const entry = Store.addEntry({ anilistId: 2, listStatus: 'watchlist' });
@@ -2929,6 +2983,54 @@ async function run() {
   await test('hasSufficientFreeSpace: true exactly at the floor boundary, false just under it', () => {
     assert.equal(hasSufficientFreeSpace(1000, 500, 500), true); // 1000 - 500 == 500
     assert.equal(hasSufficientFreeSpace(999, 500, 500), false); // 999 - 500 < 500
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/selectionExport.js (P4.4) — "export selection as JSON and
+  // CSV". Pure, DOM-free, loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('selectionExport.js');
+  const selectionExportUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'selectionExport.js').replace(/\\/g, '/');
+  const { buildSelectionJSON, buildSelectionCSV } = await import(selectionExportUrl);
+
+  await test('buildSelectionJSON returns the entries verbatim, no wrapping envelope', () => {
+    const entries = [{ anilistId: 1, titleRomaji: 'A' }, { anilistId: 2, titleRomaji: 'B' }];
+    assert.deepEqual(buildSelectionJSON(entries), entries);
+  });
+
+  await test('buildSelectionCSV: header row plus one row per entry, in order', () => {
+    const entries = [
+      { anilistId: 1, titleRomaji: 'A', listStatus: 'watching', myScore: 8, episodesWatched: 3, totalEpisodes: 12, format: 'TV', year: 2024, addedAt: '', updatedAt: '', completedAt: null, tagIds: [], customListIds: [] },
+      { anilistId: 2, titleRomaji: 'B', listStatus: 'watched', myScore: null, episodesWatched: 24, totalEpisodes: 24, format: 'TV', year: 2023, addedAt: '', updatedAt: '', completedAt: '2024-01-01', tagIds: [], customListIds: [] },
+    ];
+    const csv = buildSelectionCSV(entries);
+    const lines = csv.split('\r\n');
+    assert.equal(lines.length, 3, 'header + 2 rows');
+    assert.equal(lines[0].split(',')[0], 'title');
+    assert.ok(lines[1].startsWith('A,watching,8,3,12,TV,2024'));
+    assert.ok(lines[2].startsWith('B,watched,,24,24,TV,2023'), 'a null score renders as an empty field, not "null"');
+  });
+
+  await test('buildSelectionCSV escapes commas, quotes and newlines per RFC 4180', () => {
+    const entries = [{ anilistId: 1, titleRomaji: 'Comma, Quote" and\nNewline', listStatus: 'watching', myScore: null, episodesWatched: 0, totalEpisodes: null, format: '', year: null, addedAt: '', updatedAt: '', completedAt: null, tagIds: [], customListIds: [] }];
+    const csv = buildSelectionCSV(entries);
+    const dataLine = csv.split('\r\n')[1];
+    assert.equal(dataLine.startsWith('"Comma, Quote"" and\nNewline",watching,'), true, `got: ${JSON.stringify(dataLine)}`);
+  });
+
+  await test('buildSelectionCSV resolves tagIds/customListIds to names via the registries, not raw ids', () => {
+    const entries = [{ anilistId: 1, titleRomaji: 'A', listStatus: 'watching', myScore: null, episodesWatched: 0, totalEpisodes: null, format: '', year: null, addedAt: '', updatedAt: '', completedAt: null, tagIds: ['tag_1'], customListIds: ['list_1'] }];
+    const csv = buildSelectionCSV(entries, {
+      tags: [{ id: 'tag_1', name: 'Comfort watch' }],
+      customLists: [{ id: 'list_1', name: 'Rewatch queue' }],
+    });
+    const dataLine = csv.split('\r\n')[1];
+    assert.ok(dataLine.endsWith('Comfort watch,Rewatch queue'), `got: ${JSON.stringify(dataLine)}`);
+  });
+
+  await test('buildSelectionCSV on an empty selection is just the header row', () => {
+    const csv = buildSelectionCSV([]);
+    assert.equal(csv.split('\r\n').length, 1);
   });
 
   // -------------------------------------------------------------------------

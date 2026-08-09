@@ -265,6 +265,36 @@ function toggleEntryTag(anilistId, tagId) {
   return { entryId: anilistId, tagId, member: !has };
 }
 
+// Non-toggling counterparts for bulk actions (P4.4): "add this tag to every
+// selected item" must not remove it from whichever ones already had it, the
+// way toggleEntryTag would for a mixed selection. `changed` lets a bulk
+// caller record an inverse only for entries it actually touched, so undoing
+// a bulk add never removes a tag membership the item already had before the
+// bulk action ran.
+function addEntryTag(anilistId, tagId) {
+  const entry = getEntry(anilistId);
+  if (!entry) return null;
+  if (!Array.isArray(entry.tagIds)) entry.tagIds = [];
+  const changed = !entry.tagIds.includes(tagId);
+  if (changed) {
+    entry.tagIds = [...entry.tagIds, tagId];
+    entry.updatedAt = nowIso();
+  }
+  return { entryId: anilistId, tagId, changed };
+}
+
+function removeEntryTag(anilistId, tagId) {
+  const entry = getEntry(anilistId);
+  if (!entry) return null;
+  if (!Array.isArray(entry.tagIds)) entry.tagIds = [];
+  const changed = entry.tagIds.includes(tagId);
+  if (changed) {
+    entry.tagIds = entry.tagIds.filter((id) => id !== tagId);
+    entry.updatedAt = nowIso();
+  }
+  return { entryId: anilistId, tagId, changed };
+}
+
 function createCustomList(name) {
   const normalized = normalizeName(name);
   if (!normalized) return null;
@@ -309,6 +339,35 @@ function toggleEntryCustomList(anilistId, listId) {
   entry.customListIds = has ? entry.customListIds.filter((id) => id !== listId) : [...entry.customListIds, listId];
   entry.updatedAt = nowIso();
   return { entryId: anilistId, listId, member: !has };
+}
+
+// Non-toggling counterpart for the bulk "add to list" action (P4.4) — same
+// changed-only-if-it-actually-changed reasoning as addEntryTag/removeEntryTag
+// above, and its own symmetric remover so a bulk add's undo has a precise
+// inverse rather than re-toggling (which would wrongly remove pre-existing
+// membership on any item that was already on the list before the bulk add).
+function addEntryToCustomList(anilistId, listId) {
+  const entry = getEntry(anilistId);
+  if (!entry) return null;
+  if (!Array.isArray(entry.customListIds)) entry.customListIds = [];
+  const changed = !entry.customListIds.includes(listId);
+  if (changed) {
+    entry.customListIds = [...entry.customListIds, listId];
+    entry.updatedAt = nowIso();
+  }
+  return { entryId: anilistId, listId, changed };
+}
+
+function removeEntryFromCustomList(anilistId, listId) {
+  const entry = getEntry(anilistId);
+  if (!entry) return null;
+  if (!Array.isArray(entry.customListIds)) entry.customListIds = [];
+  const changed = entry.customListIds.includes(listId);
+  if (changed) {
+    entry.customListIds = entry.customListIds.filter((id) => id !== listId);
+    entry.updatedAt = nowIso();
+  }
+  return { entryId: anilistId, listId, changed };
 }
 
 function getEntriesInCustomList(id) {
@@ -650,10 +709,14 @@ export const Store = {
   recolorTag,
   deleteTag,
   toggleEntryTag,
+  addEntryTag,
+  removeEntryTag,
   getCustomLists,
   createCustomList,
   renameCustomList,
   deleteCustomList,
   toggleEntryCustomList,
+  addEntryToCustomList,
+  removeEntryFromCustomList,
   getEntriesInCustomList,
 };

@@ -18,6 +18,18 @@ import { copy } from './copy.js';
 import { LISTS_AND_TAGS } from '../../config/tuning.js';
 import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySliders.js';
 import { DEFAULT_SORT_DIR } from './sortLogic.js';
+import { notifyAchievementEngine } from './achievementHook.js';
+import { buildSelectionJSON, buildSelectionCSV } from './selectionExport.js';
+import { triggerDownload } from './download.js';
+
+// Every destructive/lossy toast passes this as its onExpire — a no-op today
+// (see achievementHook.js), wired for real once P7A implements the engine.
+// Kept as one named function, not inlined per call site, so every call site
+// visibly agrees on what "the resulting state" means (Store.toJSON(), taken
+// AFTER the action and any undo window, never a stale snapshot from before).
+function evaluateAchievementsAfterUndoWindow() {
+  notifyAchievementEngine(Store.toJSON());
+}
 
 // P1.5's restore route reports `skippedStores` when the snapshot predates a
 // newer Class A store; until P1.6 nothing surfaced it, so a partial restore
@@ -28,6 +40,12 @@ function restoreCopyFor(result) {
   if (skipped.length === 0) return copy('restore.succeeded');
   return copy('restore.succeededPartial', undefined, { stores: skipped.join(', ') });
 }
+
+// Spec: "Every destructive or lossy action, bulk or single, fires an Undo
+// toast lasting at least 8 seconds..." — not a Tuning-table value (that file
+// is a verbatim transcription of one specific spec section this number
+// isn't part of), just a plain named constant for every such toast below.
+const UNDO_TOAST_MS = 8000;
 
 let activeList = 'watching';
 let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
@@ -386,6 +404,8 @@ function handleIncrement(card, id) {
   persist();
   Render.showToast(`Episode ${before + 1}`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       Store.updateEntry(id, { episodesWatched: before });
       // An undo is itself a real transition, recorded as one rather than
@@ -455,6 +475,18 @@ function handleDecrement(id) {
   refreshGridOnly();
   Detail.refreshDetailIfOpen(id);
   persist();
+  Render.showToast(`Episode ${before - 1}`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      Store.updateEntry(id, { episodesWatched: before });
+      recordProgressEvent(entry, before - 1, before);
+      refreshView();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+    },
+  });
 }
 
 function handleSetScore(id, score) {
@@ -469,6 +501,18 @@ function handleSetScore(id, score) {
   refreshView();
   Detail.refreshDetailIfOpen(id);
   persist();
+  Render.showToast(newScore == null ? 'Score cleared' : `Score set to ${newScore}`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      Store.updateEntry(id, { myScore: beforeScore });
+      EventLog.recordForEntry('score_set', id, { from: newScore, to: beforeScore });
+      refreshView();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+    },
+  });
 }
 
 // "Watched" means you saw all of it — but the UI never offers a progress
@@ -511,7 +555,13 @@ function handleSetStatus(id, newStatus) {
   const before = entry.listStatus;
   const patch = buildStatusPatch(entry, newStatus);
   recordStatusChange(entry, before, newStatus, patch); // before the mutation, while old values are still readable
-  Store.updateEntry(id, patch);
+  // `updateEntry` hands back a full pre-patch snapshot — capturing it (rather
+  // than hand-picking listStatus) is what makes the undo below restore
+  // episodesWatched/completedAt too, not just the status. This is the P4.4
+  // fix for the backlog's "mark watched -> undo leaves the fast-forwarded
+  // progress behind" bug: the undo now reverses the *whole* patch, because
+  // it replays the entry's actual prior state instead of a hand-picked field.
+  const { before: fullBefore } = Store.updateEntry(id, patch);
   // design system §10, "Series finished": ripple (already happens on
   // whatever button was pressed) plus one feather drifting down.
   if (newStatus === 'watched') Atmosphere.rewardFeather();
@@ -520,15 +570,14 @@ function handleSetStatus(id, newStatus) {
   persist();
   Render.showToast(`Moved to ${newStatus}`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, { listStatus: before });
-      // Status reversal only, deliberately. This undo restores listStatus but
-      // NOT the episodesWatched/completedAt that buildStatusPatch changed, so
-      // emitting a progress reversal here would claim something untrue. The
-      // underlying gap (undoing "mark watched" leaves the fast-forwarded
-      // progress behind) is a real pre-existing bug, filed in the backlog
-      // rather than papered over here.
+      Store.updateEntry(id, fullBefore);
       EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
+      if (patch.episodesWatched !== undefined && patch.episodesWatched !== fullBefore.episodesWatched) {
+        recordProgressEvent(entry, patch.episodesWatched, fullBefore.episodesWatched);
+      }
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -571,14 +620,16 @@ function handleBulkMove(newStatus) {
   for (const id of ids) {
     const entry = Store.getEntry(id);
     if (!entry || entry.listStatus === newStatus) continue;
-    changes.push({ id, before: entry.listStatus });
     const patch = buildStatusPatch(entry, newStatus);
     // Recorded per item but flushed as ONE batch — the spec's "bulk actions use
     // one transaction for the whole batch" maps directly onto the single
     // persist()/flush below, since events accumulate in the outbox and go out
     // together.
     recordStatusChange(entry, entry.listStatus, newStatus, patch);
-    Store.updateEntry(id, patch);
+    // Full before-snapshot (see handleSetStatus) so undo restores
+    // episodesWatched/completedAt too, not just listStatus.
+    const { before } = Store.updateEntry(id, patch);
+    changes.push({ id, before, patch });
   }
   if (changes.length === 0) return;
   Render.clearSelection();
@@ -587,8 +638,16 @@ function handleBulkMove(newStatus) {
   persist();
   Render.showToast(`Moved ${changes.length} to ${newStatus}`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      changes.forEach(({ id, before }) => Store.updateEntry(id, { listStatus: before }));
+      changes.forEach(({ id, before, patch }) => {
+        Store.updateEntry(id, before);
+        EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before.listStatus });
+        if (patch.episodesWatched !== undefined && patch.episodesWatched !== before.episodesWatched) {
+          recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
+        }
+      });
       refreshView();
       Render.renderTabCounts();
       persist();
@@ -606,6 +665,8 @@ function handleBulkDelete() {
   persist();
   Render.showToast(`Removed ${removed.length} titles`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       removed.forEach((snap) => Store.restoreEntrySnapshot(snap));
       refreshView();
@@ -613,6 +674,288 @@ function handleBulkDelete() {
       persist();
     },
   });
+}
+
+function handleBulkSetScore(score) {
+  const ids = Render.getSelectedIds();
+  const changes = [];
+  for (const id of ids) {
+    const entry = Store.getEntry(id);
+    if (!entry || entry.myScore === score) continue;
+    const beforeScore = entry.myScore ?? null;
+    const { before } = Store.updateEntry(id, { myScore: score });
+    EventLog.recordForEntry('score_set', id, { from: beforeScore, to: score });
+    changes.push({ id, before });
+  }
+  if (changes.length === 0) return;
+  Render.clearSelection();
+  refreshView();
+  persist();
+  Render.showToast(`Score set to ${score} for ${changes.length} items`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      changes.forEach(({ id, before }) => {
+        Store.updateEntry(id, before);
+        EventLog.recordForEntry('score_set', id, { from: score, to: before.myScore });
+      });
+      refreshView();
+      persist();
+    },
+  });
+}
+
+function handleBulkClearScore() {
+  const ids = Render.getSelectedIds();
+  const changes = [];
+  for (const id of ids) {
+    const entry = Store.getEntry(id);
+    if (!entry || entry.myScore == null) continue;
+    const beforeScore = entry.myScore;
+    const { before } = Store.updateEntry(id, { myScore: null });
+    EventLog.recordForEntry('score_set', id, { from: beforeScore, to: null });
+    changes.push({ id, before });
+  }
+  if (changes.length === 0) return;
+  Render.clearSelection();
+  refreshView();
+  persist();
+  Render.showToast(`Score cleared for ${changes.length} items`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      changes.forEach(({ id, before }) => {
+        Store.updateEntry(id, before);
+        EventLog.recordForEntry('score_set', id, { from: null, to: before.myScore });
+      });
+      refreshView();
+      persist();
+    },
+  });
+}
+
+// +1/-1, same clamp as the single-item handleIncrement/handleDecrement —
+// entries already at the clamp boundary (0, or totalEpisodes) are skipped
+// rather than counted as "changed", so the toast's count and the undo list
+// only ever include items that actually moved.
+function handleBulkIncrement() {
+  const ids = Render.getSelectedIds();
+  const changes = [];
+  for (const id of ids) {
+    const entry = Store.getEntry(id);
+    if (!entry) continue;
+    const before = entry.episodesWatched;
+    if (entry.totalEpisodes && before >= entry.totalEpisodes) continue;
+    Store.updateEntry(id, { episodesWatched: before + 1 });
+    recordProgressEvent(entry, before, before + 1);
+    changes.push({ id, before, entry });
+  }
+  if (changes.length === 0) return;
+  Render.clearSelection();
+  refreshView();
+  Render.renderTabCounts();
+  persist();
+  Render.showToast(`Advanced ${changes.length} episodes`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      changes.forEach(({ id, before, entry }) => {
+        Store.updateEntry(id, { episodesWatched: before });
+        recordProgressEvent(entry, before + 1, before);
+      });
+      refreshView();
+      Render.renderTabCounts();
+      persist();
+    },
+  });
+}
+
+function handleBulkDecrement() {
+  const ids = Render.getSelectedIds();
+  const changes = [];
+  for (const id of ids) {
+    const entry = Store.getEntry(id);
+    if (!entry || entry.episodesWatched <= 0) continue;
+    const before = entry.episodesWatched;
+    Store.updateEntry(id, { episodesWatched: before - 1 });
+    recordProgressEvent(entry, before, before - 1);
+    changes.push({ id, before, entry });
+  }
+  if (changes.length === 0) return;
+  Render.clearSelection();
+  refreshView();
+  Render.renderTabCounts();
+  persist();
+  Render.showToast(`Decreased ${changes.length} episodes`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      changes.forEach(({ id, before, entry }) => {
+        Store.updateEntry(id, { episodesWatched: before });
+        recordProgressEvent(entry, before - 1, before);
+      });
+      refreshView();
+      Render.renderTabCounts();
+      persist();
+    },
+  });
+}
+
+// Tags/lists (P4.4): via the non-toggling state.js primitives, so a mixed
+// selection (some already tagged, some not) only ever gains the tag/list
+// membership, never loses it for the ones that already had it — and the
+// `changed` flag each primitive returns means the undo list only contains
+// entries this action actually touched, never a no-op re-add/re-remove.
+function handleBulkAddTag(tagId) {
+  const tagName = Store.getTags().find((t) => t.id === tagId)?.name || 'tag';
+  const ids = Render.getSelectedIds();
+  const changed = [];
+  for (const id of ids) {
+    const result = Store.addEntryTag(id, tagId);
+    if (result && result.changed) changed.push(id);
+  }
+  if (changed.length === 0) return;
+  Render.clearSelection();
+  refreshView();
+  persist();
+  Render.showToast(`Added "${tagName}" to ${changed.length} items`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      changed.forEach((id) => Store.removeEntryTag(id, tagId));
+      refreshView();
+      persist();
+    },
+  });
+}
+
+function handleBulkRemoveTag(tagId) {
+  const tagName = Store.getTags().find((t) => t.id === tagId)?.name || 'tag';
+  const ids = Render.getSelectedIds();
+  const changed = [];
+  for (const id of ids) {
+    const result = Store.removeEntryTag(id, tagId);
+    if (result && result.changed) changed.push(id);
+  }
+  if (changed.length === 0) return;
+  Render.clearSelection();
+  refreshView();
+  persist();
+  Render.showToast(`Removed "${tagName}" from ${changed.length} items`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      changed.forEach((id) => Store.addEntryTag(id, tagId));
+      refreshView();
+      persist();
+    },
+  });
+}
+
+function handleBulkAddToList(listId) {
+  const listName = Store.getCustomLists().find((l) => l.id === listId)?.name || 'list';
+  const ids = Render.getSelectedIds();
+  const changed = [];
+  for (const id of ids) {
+    const result = Store.addEntryToCustomList(id, listId);
+    if (result && result.changed) changed.push(id);
+  }
+  if (changed.length === 0) return;
+  Render.clearSelection();
+  refreshView();
+  persist();
+  Render.showToast(`Added ${changed.length} items to "${listName}"`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      changed.forEach((id) => Store.removeEntryFromCustomList(id, listId));
+      refreshView();
+      persist();
+    },
+  });
+}
+
+// Mark completed (P4.4) is spec-distinct from a bulk move to `watched`: an
+// entry with an unknown episode count must never have its status changed at
+// all here (buildStatusPatch's own guard would silently leave it un-fast-
+// forwarded but STILL move it to watched, which is exactly the "don't invent
+// a total" rule this exists to prevent) — it's skipped outright, named in
+// the result, exported here so the confirm-dialog copy (wired in the
+// More-actions overlay) can show the same split before the user commits.
+function partitionForMarkCompleted(ids) {
+  const eligible = [];
+  const skipped = [];
+  for (const id of ids) {
+    const entry = Store.getEntry(id);
+    if (!entry) continue;
+    if (entry.totalEpisodes) eligible.push(entry);
+    else skipped.push(entry);
+  }
+  return { eligible, skipped };
+}
+
+function handleBulkMarkCompleted() {
+  const ids = Render.getSelectedIds();
+  const { eligible, skipped } = partitionForMarkCompleted(ids);
+  const changes = [];
+  for (const entry of eligible) {
+    if (entry.listStatus === 'watched' && entry.episodesWatched === entry.totalEpisodes) continue;
+    const patch = buildStatusPatch(entry, 'watched');
+    recordStatusChange(entry, entry.listStatus, 'watched', patch);
+    const { before } = Store.updateEntry(entry.anilistId, patch);
+    changes.push({ id: entry.anilistId, before, patch });
+  }
+  if (changes.length === 0 && skipped.length === 0) return;
+  Render.clearSelection();
+  refreshView();
+  Render.renderTabCounts();
+  if (changes.length > 0) Atmosphere.rewardFeather();
+  persist();
+  const skippedNote = skipped.length > 0 ? ` Skipped ${skipped.length} (unknown episode count): ${skipped.map((e) => e.titleRomaji).join(', ')}.` : '';
+  Render.showToast(`Marked ${changes.length} completed.${skippedNote}`, {
+    actionLabel: changes.length > 0 ? 'Undo' : undefined,
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      changes.forEach(({ id, before, patch }) => {
+        Store.updateEntry(id, before);
+        EventLog.recordForEntry('status_changed', id, { from: 'watched', to: before.listStatus });
+        if (patch.episodesWatched !== undefined && patch.episodesWatched !== before.episodesWatched) {
+          recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
+        }
+      });
+      refreshView();
+      Render.renderTabCounts();
+      persist();
+    },
+  });
+}
+
+// Export selection (P4.4): non-destructive, so no confirm dialog and no
+// Undo toast — just a plain result toast (matching every other existing
+// export in this app, e.g. the backup export button). Selection is left as
+// it was, since exporting shouldn't imply the user is done with it.
+function exportSelection(format) {
+  const ids = Render.getSelectedIds();
+  const entries = ids.map((id) => Store.getEntry(id)).filter(Boolean);
+  if (entries.length === 0) return;
+  const stamp = new Date().toISOString().slice(0, 10);
+  if (format === 'json') {
+    const blob = new Blob([JSON.stringify(buildSelectionJSON(entries), null, 2)], { type: 'application/json' });
+    triggerDownload(blob, `anime-tracker-selection-${stamp}.json`);
+  } else {
+    const csv = buildSelectionCSV(entries, { tags: Store.getTags(), customLists: Store.getCustomLists() });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    triggerDownload(blob, `anime-tracker-selection-${stamp}.csv`);
+  }
+  Render.showToast(`Exported ${entries.length} items as ${format.toUpperCase()}`);
 }
 
 function handleDelete(id) {
@@ -623,6 +966,8 @@ function handleDelete(id) {
   persist();
   Render.showToast(`Removed "${entry.titleRomaji}"`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       Store.restoreEntrySnapshot(removed);
       refreshView();
@@ -829,6 +1174,128 @@ function bindBulkActionBar() {
     if (e.target.closest('[data-action="bulk-cancel"]')) {
       Render.clearSelection();
       refreshGridOnly();
+    }
+    if (e.target.closest('[data-action="open-bulk-more"]')) {
+      Render.renderBulkMoreMenu(document.getElementById('bulk-more-content'), activeList);
+      openOverlay('bulk-more-overlay');
+    }
+  });
+}
+
+// The rest of P4.4's bulk verbs (score, progress, tags, lists, mark
+// completed, export) — every button here closes the menu first, then opens
+// the same confirmDialog()/"state exactly what happens and to how many
+// items" pattern the bar's own move/delete buttons already use, before the
+// actual handler runs.
+function bindBulkMoreMenu() {
+  document.getElementById('bulk-more-content').addEventListener('click', (e) => {
+    const count = Render.getSelectedIds().length;
+    if (count === 0) return;
+
+    const scoreBtn = e.target.closest('[data-action="bulk-set-score"]');
+    if (scoreBtn) {
+      const score = Number(scoreBtn.dataset.score);
+      closeAllOverlays();
+      confirmDialog({
+        title: `Set score to ${score} for ${count} items?`,
+        body: 'Any existing score for these items is replaced.',
+        confirmLabel: 'Set score',
+        onConfirm: () => handleBulkSetScore(score),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-clear-score"]')) {
+      closeAllOverlays();
+      confirmDialog({
+        title: `Clear score for ${count} items?`,
+        body: 'This can be undone right after, but not once you close or reload the tab.',
+        confirmLabel: 'Clear score',
+        onConfirm: () => handleBulkClearScore(),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-increment"]')) {
+      closeAllOverlays();
+      confirmDialog({
+        title: `Advance ${count} items by one episode?`,
+        body: 'Items already at their last known episode are left unchanged.',
+        confirmLabel: 'Advance',
+        onConfirm: () => handleBulkIncrement(),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-decrement"]')) {
+      closeAllOverlays();
+      confirmDialog({
+        title: `Move ${count} items back by one episode?`,
+        body: 'Items already at 0 are left unchanged.',
+        confirmLabel: 'Move back',
+        onConfirm: () => handleBulkDecrement(),
+      });
+      return;
+    }
+    const addTagBtn = e.target.closest('[data-action="bulk-add-tag"]');
+    if (addTagBtn) {
+      const tagId = addTagBtn.dataset.tagId;
+      const tagName = Store.getTags().find((t) => t.id === tagId)?.name || 'this tag';
+      closeAllOverlays();
+      confirmDialog({
+        title: `Add "${tagName}" to ${count} items?`,
+        body: 'Items that already have this tag are left unchanged.',
+        confirmLabel: 'Add tag',
+        onConfirm: () => handleBulkAddTag(tagId),
+      });
+      return;
+    }
+    const removeTagBtn = e.target.closest('[data-action="bulk-remove-tag"]');
+    if (removeTagBtn) {
+      const tagId = removeTagBtn.dataset.tagId;
+      const tagName = Store.getTags().find((t) => t.id === tagId)?.name || 'this tag';
+      closeAllOverlays();
+      confirmDialog({
+        title: `Remove "${tagName}" from ${count} items?`,
+        body: 'This can be undone right after, but not once you close or reload the tab.',
+        confirmLabel: 'Remove tag',
+        onConfirm: () => handleBulkRemoveTag(tagId),
+      });
+      return;
+    }
+    const addListBtn = e.target.closest('[data-action="bulk-add-to-list"]');
+    if (addListBtn) {
+      const listId = addListBtn.dataset.listId;
+      const listName = Store.getCustomLists().find((l) => l.id === listId)?.name || 'this list';
+      closeAllOverlays();
+      confirmDialog({
+        title: `Add ${count} items to "${listName}"?`,
+        body: 'Items already on this list are left unchanged.',
+        confirmLabel: 'Add to list',
+        onConfirm: () => handleBulkAddToList(listId),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-mark-completed"]')) {
+      const { eligible, skipped } = partitionForMarkCompleted(Render.getSelectedIds());
+      closeAllOverlays();
+      const skippedBody =
+        skipped.length > 0
+          ? ` ${skipped.length} item(s) with an unknown episode count are skipped and named in the result: ${skipped.map((e) => e.titleRomaji).join(', ')}.`
+          : '';
+      confirmDialog({
+        title: `Mark ${eligible.length} items completed?`,
+        body: `Progress is set to the full episode count and a completion date is stamped.${skippedBody}`,
+        confirmLabel: 'Mark completed',
+        onConfirm: () => handleBulkMarkCompleted(),
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-export-json"]')) {
+      closeAllOverlays();
+      exportSelection('json');
+      return;
+    }
+    if (e.target.closest('[data-action="bulk-export-csv"]')) {
+      closeAllOverlays();
+      exportSelection('csv');
     }
   });
 }
@@ -2194,6 +2661,7 @@ export function initEvents({ initialList, persistFn }) {
   bindHoldToSelect();
   bindFilterBar();
   bindBulkActionBar();
+  bindBulkMoreMenu();
   bindAiringStatus();
   bindSearchOverlay();
   bindBackupOverlay();

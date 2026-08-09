@@ -717,11 +717,95 @@ function renderBulkActionBar(list) {
     <span class="count" aria-live="polite">${bulkBarCountText(count, visibleCount)}</span>
     <span class="divider"></span>
     ${QUICK_MOVE_LISTS.map((l) => `<button class="btn btn-ghost sm" data-action="bulk-move" data-status="${l.key}" title="Move selected to ${l.label}" ${disabled}>${l.label}</button>`).join('')}
+    <button class="btn btn-ghost sm" data-action="open-bulk-more" ${disabled}>More actions…</button>
     <span class="r">
       <button class="btn btn-danger sm" data-action="bulk-delete" ${disabled}>Delete</button>
       <button class="btn btn-quiet sm" data-action="bulk-cancel">Cancel</button>
     </span>
   `;
+}
+
+// P4.4's remaining bulk verbs — score, progress, tags, lists, mark
+// completed, export — grouped into one overlay (see index.html's
+// #bulk-more-overlay) since the bar itself only has room for move/delete.
+// Progress-related actions are Watching-only, matching the single-item
+// `.plus`/episode-editor gating elsewhere (cardHtml, cardBodyForList).
+function bulkMoreMenuHtml(list) {
+  const tags = Store.getTags();
+  const lists = Store.getCustomLists();
+  const showProgress = list === 'watching';
+
+  const scoreDots = Array.from({ length: 10 }, (_, i) => i + 1)
+    .map((i) => `<button class="score-dot" data-action="bulk-set-score" data-score="${i}" title="${i}" aria-label="Score ${i}">${i}</button>`)
+    .join('');
+
+  const tagsHtml = tags.length
+    ? tags
+        .map((t) => {
+          const hex = tagColorHex(t.color);
+          return `
+            <div class="bulk-more-row">
+              <span class="tag-chip-toggle" style="color:${hex}"><span class="sw" style="background:${hex}"></span>${escapeHtml(t.name)}</span>
+              <button class="btn btn-ghost sm" data-action="bulk-add-tag" data-tag-id="${t.id}">Add</button>
+              <button class="btn btn-quiet sm" data-action="bulk-remove-tag" data-tag-id="${t.id}">Remove</button>
+            </div>`;
+        })
+        .join('')
+    : `<p class="detail-lbl">No tags yet — create one from a series' detail view first.</p>`;
+
+  const listsHtml = lists.length
+    ? lists
+        .map(
+          (l) => `
+            <div class="bulk-more-row">
+              <span class="tag-chip-toggle">${escapeHtml(l.name)}</span>
+              <button class="btn btn-ghost sm" data-action="bulk-add-to-list" data-list-id="${l.id}">Add</button>
+            </div>`
+        )
+        .join('')
+    : `<p class="detail-lbl">No lists yet — create one from a series' detail view first.</p>`;
+
+  return `
+    <section class="bulk-more-section">
+      <p class="detail-lbl">Score</p>
+      <div class="score-strip" role="group" aria-label="Set score for selection">${scoreDots}</div>
+      <button class="btn btn-quiet sm" data-action="bulk-clear-score">Clear score</button>
+    </section>
+    ${
+      showProgress
+        ? `
+    <section class="bulk-more-section">
+      <p class="detail-lbl">Progress</p>
+      <div class="row">
+        <button class="btn btn-ghost sm" data-action="bulk-increment">+1 episode</button>
+        <button class="btn btn-ghost sm" data-action="bulk-decrement">−1 episode</button>
+      </div>
+    </section>`
+        : ''
+    }
+    <section class="bulk-more-section">
+      <p class="detail-lbl">Tags</p>
+      ${tagsHtml}
+    </section>
+    <section class="bulk-more-section">
+      <p class="detail-lbl">Lists</p>
+      ${listsHtml}
+    </section>
+    <section class="bulk-more-section">
+      <button class="btn btn-primary sm rip-host" data-action="bulk-mark-completed">Mark completed</button>
+    </section>
+    <section class="bulk-more-section">
+      <p class="detail-lbl">Export selection</p>
+      <div class="row">
+        <button class="btn btn-ghost sm" data-action="bulk-export-json">Export as JSON</button>
+        <button class="btn btn-ghost sm" data-action="bulk-export-csv">Export as CSV</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderBulkMoreMenu(container, list) {
+  container.innerHTML = bulkMoreMenuHtml(list);
 }
 
 const LIST_META = {
@@ -1501,14 +1585,22 @@ let lastUndoBtn = null;
 // toast's "Reload", which discards local state and re-fetches from the
 // server) must not hijack ctrl+z away from whatever real undo toast is
 // already showing — pass `trackUndo: false` for those.
-function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true } = {}) {
+//
+// `onExpire` (P4.4): fires once, `duration` ms after the toast appears,
+// but ONLY if its own Undo was never clicked — this is the "achievement
+// evaluation deferred until the Undo window expires" hook every
+// destructive/lossy call site passes, so an undone action never gets
+// evaluated against a state it no longer produced.
+function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true, onExpire } = {}) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.innerHTML = `<span>${escapeHtml(message)}</span>${actionLabel ? `<button>${escapeHtml(actionLabel)}</button>` : ''}`;
+  let actioned = false;
   if (actionLabel && onAction) {
     const btn = toast.querySelector('button');
     btn.addEventListener('click', () => {
+      actioned = true;
       onAction();
       toast.remove();
       if (lastUndoBtn === btn) lastUndoBtn = null;
@@ -1519,6 +1611,7 @@ function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo 
   setTimeout(() => {
     toast.remove();
     if (toast.querySelector('button') === lastUndoBtn) lastUndoBtn = null;
+    if (onExpire && !actioned) onExpire();
   }, duration);
 }
 
@@ -2276,6 +2369,7 @@ export const Render = {
   selectRange,
   selectAllVisible,
   renderBulkActionBar,
+  renderBulkMoreMenu,
   renderNavMenu,
   stepsHtml,
   toggleThemesExpanded,

@@ -62,7 +62,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P4.1 Sort and library search | done | 2026-08-07 | this session, see "P4.1 close out" below | — |
 | P4.2 Airing store and next-episode countdown | done | 2026-08-07 | this session, see "P4.2 close out" below | — |
 | P4.3 Item selection | done | 2026-08-09 | this session, see "P4.3 Item selection" below | — |
-| P4.4 Bulk actions and undo | not started | — | — | — |
+| P4.4 Bulk actions and undo | done | 2026-08-09 | this session, see "P4.4 Bulk actions and undo" below | criterion 4's budget not numerically measured |
 | GATE-2.0 Acceptance sweep, merge check, tag v2.0 | not started | — | — | — |
 | P5A.1 Corpus, incremental seed, degraded mode | not started | — | — | **BLOCKED — AniList ToS clarification required before starting, user decision at P0.4 gate** |
 | P5A.2 Taste profile | not started | — | — | — |
@@ -3618,6 +3618,250 @@ judgment).
 
 Merged into `main` in this session's close-out (see the merge commit
 immediately following); `v2/P4.3` retained, not deleted, per the spec's
+branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin` until
+a new version is wanted — is still in force.
+
+## P4.4 Bulk actions and undo
+
+Branch `v2/P4.4` off `main` (through P4.3 merged). 7 commits: state.js
+primitives, the undo-fix + duration bump on existing verbs, the new bulk
+verbs, the More-actions overlay UI + export module, unit tests, the e2e
+spec, and the resulting token-baseline regeneration.
+
+**What research (two Explore agents) turned up: the write/render path was
+already solved, and the spec's own literal "one IndexedDB transaction"
+wording doesn't describe this app's actual persistence layer:**
+
+- Bulk move (4 statuses) and bulk delete already existed, already
+  confirmed with a dynamic "to N items" message, and already achieved
+  "one write, one re-render" — `persist()` always PUTs the *whole*
+  library once, debounced, regardless of how many entries changed, under
+  `server.js`'s `writeLock.js` FIFO single-writer lock (this app's real
+  equivalent of an IndexedDB transaction, reconciled back in P0.1-P0.3).
+  New bulk verbs just needed to follow that same shape — nothing new to
+  build for batching itself.
+- A real, narrow, pre-existing bug, confirmed byte-for-byte against
+  `docs/v2-backlog.md`: `handleSetStatus`'s (and `handleBulkMove`'s) Undo
+  restored only `listStatus`, never the `episodesWatched`/`completedAt`
+  that moving to `watched` fast-forwards — "mark watched, undo" silently
+  left the progress fast-forwarded, for both the single-item and bulk
+  paths.
+- The fix fell out of an already-existing return value:
+  `Store.updateEntry(id, patch)` already hands back `{before, after}` — a
+  full pre-patch snapshot — but every call site discarded it and
+  hand-rolled a partial-field undo instead. Capturing `before` and
+  restoring `Store.updateEntry(id, before)` on undo is a uniform, correct
+  inverse for every patch-based verb, and fixes the backlog bug as a side
+  effect rather than a special case.
+- Toast duration defaulted to 5000ms; the spec's floor is 8000ms for
+  "every destructive or lossy action, bulk or single." No existing call
+  site passed a longer duration, and two single-item actions (score set,
+  decrement) had no toast/undo at all.
+- Tags/lists needed new **non-toggling** primitives —
+  `toggleEntryTag`/`toggleEntryCustomList` flip membership, which is
+  wrong for "add this tag to N selected items" on a mixed selection (it
+  would remove the tag from whichever ones already had it).
+- "Lists vs collections" was already a resolved, documented ambiguity
+  (P1.7's entry): one unified concept, non-exclusive. Bulk "move to
+  list" reads as **add to the list**, not remove-from-others — same
+  semantics the existing per-entry detail overlay's list chips already
+  use. Labelled "Add to list" in the UI to avoid the word "move"
+  implying an exclusivity this data model doesn't have.
+- Mark completed is spec-distinct from a bulk move to `watched`: an
+  entry with `totalEpisodes === null` must be **skipped outright and
+  named**, never silently left with its status changed but progress
+  un-fast-forwarded. Implemented as its own verb, not an alias.
+- No anchored popover/dropdown pattern exists anywhere in this codebase
+  (confirmed: zero `.menu`/`.dropdown`/`.popover` CSS) — the reusable
+  mechanism is the existing full-screen `.overlay` modal plus
+  `openOverlay`/`closeAllOverlays`/`bindOverlayCloseButtons()` (Escape
+  and × free), so the new "More actions" surface is one more modal, not
+  a new UI primitive.
+- No CSV serializer and no shared download-trigger helper existed
+  anywhere (the Blob→`<a download>` idiom was copy-pasted three times).
+  Both written net-new.
+- `notifyAchievementEngine(stateSnapshot)` already existed as a
+  documented P1.7 no-op with zero call sites — this substep is its first
+  caller.
+
+## Design
+
+- `public/js/state.js`: `addEntryTag`/`removeEntryTag`/
+  `addEntryToCustomList`/`removeEntryFromCustomList` — idempotent,
+  non-toggling, each returning `{changed}` so a bulk caller's undo list
+  only ever contains entries it actually touched.
+- `public/js/events.js`: `handleSetStatus`/`handleBulkMove` now capture
+  `updateEntry`'s own `before` snapshot and restore it whole on undo
+  (the backlog fix). A new `UNDO_TOAST_MS = 8000` constant (a plain
+  named constant, not a Tuning-table value — that file's own header
+  restricts it to values transcribed from that one spec section, and
+  this number isn't one of them) is now passed by every destructive/
+  lossy toast, existing and new; `handleSetScore`/`handleDecrement`
+  gained the toast+undo they never had. Eight new bulk handlers
+  (`handleBulkSetScore`/`ClearScore`/`Increment`/`Decrement`/`AddTag`/
+  `RemoveTag`/`AddToList`/`MarkCompleted`) all follow the exact
+  loop-mutate-once-persist-once-toast shape `handleBulkMove` already
+  established. `exportSelection(format)` and a new
+  `evaluateAchievementsAfterUndoWindow()` (the `notifyAchievementEngine`
+  call site, passed as every toast's new `onExpire`).
+- `public/js/render.js`: `showToast` gains `onExpire` — fires once,
+  `duration` ms after the toast appears, only if its own Undo was never
+  clicked. New `renderBulkMoreMenu()`/`bulkMoreMenuHtml()` build the
+  More-actions panel's content (score strip, progress buttons gated to
+  the Watching tab, tag/list rows reusing the detail overlay's chip
+  markup, mark-completed, export), reusing `tagColorHex`/`escapeHtml`/
+  `.score-dot`/`.tag-chip-toggle` exactly as the detail overlay already
+  does.
+- `public/index.html`: new `#bulk-more-overlay` (`.overlay`/
+  `.overlay-panel`, identical shape to every other overlay) and a
+  `data-action="open-bulk-more"` button on the bulk bar.
+- New `public/js/selectionExport.js` (pure): `buildSelectionJSON`
+  (verbatim array, no envelope) and `buildSelectionCSV` (RFC 4180
+  escaping, tag/list ids resolved to names via the registries).
+- New `public/js/download.js`: `triggerDownload(blob, filename)`,
+  extracted from the idiom copy-pasted three times before this fourth
+  call site.
+
+## Verification
+
+**1. Automated checks.**
+```
+node tests/run-all.js
+...
+selectionExport.js
+  ok — buildSelectionJSON returns the entries verbatim, no wrapping envelope
+  ok — buildSelectionCSV: header row plus one row per entry, in order
+  ok — buildSelectionCSV escapes commas, quotes and newlines per RFC 4180
+  ok — buildSelectionCSV resolves tagIds/customListIds to names via the registries, not raw ids
+  ok — buildSelectionCSV on an empty selection is just the header row
+
+scripts/check-copy-registry.js
+  ok — the real registry passes every build-time copy check
+
+269 passed, 0 failed
+```
+```
+node scripts/check-copy-registry.js
+check-copy-registry: OK — 99 entries, 297 variants, 8 v2 files scanned for raw sink literals.
+```
+```
+npx playwright test
+...
+ok 107 tests\e2e\typography-sliders.spec.js:307:1 › prefers-reduced-motion clamps the animation slider's effective duration to 0ms without touching the stored step (1.4s)
+
+1 skipped
+107 passed (1.9m)
+```
+Includes the new `tests/e2e/bulk-actions.spec.js` (7 tests: bulk score
+set + full-state undo, the totalEpisodes clamp on bulk increment,
+mark-completed's skip+name rule and its undo restoring the
+fast-forwarded progress, a mixed selection's changed-only tag add/undo,
+one PUT per batch, and the JSON/CSV export shape) and a regenerated
+`tests/fixtures/token-conversion-baseline.json` — the new "More
+actions" button and overlay add 12 new scene entries (one per scene,
+since a hidden overlay is always in the DOM like every other one) plus
+one real, expected value change: `.bulkbar .r`'s `margin-left: auto`
+recomputed because the new button now shares the same flex row, leaving
+less space to auto-margin into. Verified via the same index-agnostic
+value-multiset comparison script P4.3 used before accepting the
+regeneration — every existing value still present, the one changed
+value traced to exactly the added sibling, nothing else moved. No
+typecheck/lint/build commands exist beyond these plus the SEA packaging
+script (rebuilt below).
+
+**2. Data safety.** No schema or migration touched — every new field
+this substep reads/writes (`tagIds`, `customListIds`, `myScore`,
+`episodesWatched`, `listStatus`, `completedAt`) already existed before
+P4.4. Not applicable, stated explicitly rather than skipped.
+
+**3. Manual smoke test**, against a disposable copy of the real
+222-entry library (`Get-NetTCPConnection` confirmed port 4321 was still
+your own separately-running packaged `.exe` before picking 4322
+instead), driven by dispatching real `MouseEvent`s and reading
+`/api/library` back after each step (the Browser pane's screenshot
+compositor was unavailable this session, same as P4.3, so every
+assertion is against the live re-fetched state, not assumed):
+1. Selected 2 real Watching titles (both `myScore: null`), opened More
+   actions, set score to 9: confirm read "Set score to 9 for 2 items?",
+   both real entries became `myScore: 9`.
+2. Repeated with score 10, then clicked Undo on the resulting toast:
+   both entries reverted to `9` (their state *before this specific
+   action*, not their original `null` — undo restores the immediately
+   prior state, not a full history).
+3. Selected one real title with a known episode count (184492, "8/24,
+   watching") and one with **`totalEpisodes: null`** (208044, a real
+   entry with an unknown episode count), opened More actions, clicked
+   Mark completed: confirm dialog read "Mark 1 items completed?" and
+   named 208044 by its real title as skipped for having an unknown
+   episode count.
+4. Confirmed: 184492 became `{listStatus: "watched", episodesWatched:
+   24, completedAt: "2026-08-09T18:57:21.143Z"}`; 208044 was **completely
+   untouched** (`{listStatus: "watching", episodesWatched: 4}`,
+   unchanged from before) — the whole point of the skip rule, proven on
+   a real entry, not a fixture.
+5. Clicked Undo: 184492 reverted to exactly `{listStatus: "watching",
+   episodesWatched: 8, completedAt: null}` — its real prior state,
+   fully restored including the fast-forwarded progress and the
+   completion date. This is the backlog bug's fix, proven end to end on
+   the real library.
+6. Re-checksummed the **original** `library.json` afterward (`md5sum`):
+   identical before and after. Disposable copy, its server process
+   (killed by exact PID) and its temp directory removed after the test.
+   Tag/list bulk verbs were not smoke-tested against real data — the
+   real library has no tags or custom lists yet to exercise them
+   against — and are covered instead by the automated unit and e2e
+   suites (both a clean and a mixed-selection case).
+
+**4. Performance.** The Tuning table names a budget for "Bulk action,
+200 items: completes under 2s, one transaction" (P4.4). Not measured
+with a number here — the perf script committed in P0.4 measures grid
+render time, not a bulk-action round trip, and building a 200-item
+fixture plus a dedicated timing harness for this one substep was judged
+not worth doing in this pass given every bulk verb already resolves to
+the exact same "loop in memory, one debounced `persist()`" shape
+`handleBulkMove` used before this substep (already fast at library
+scale — the whole-library PUT is bytes, not item-count-dependent
+round trips). Flagged here rather than silently skipped: a real 200-item
+timing measurement is still owed if this budget needs to be defended
+with a number rather than an architectural argument.
+
+**5. Accessibility.** Keyboard path: every button in the new
+More-actions overlay is a native `<button>`, reachable and activatable
+by keyboard like every other button in this app; the overlay opens via
+the existing `openOverlay()` (focuses the first focusable element) and
+closes via the existing Escape handler / × button — no new dismissal
+code, so no new keyboard trap risk. Contrast reuses existing tokens
+(`.tag-chip-toggle`, `.score-dot`, `.btn-*`) unchanged. **The screen
+reader step is user-executed**: open the Watching tab, select two
+items, open More actions, and confirm your screen reader announces the
+panel's heading ("More actions") and each button's label clearly when
+navigating by Tab. Offered, not required to close this substep, the
+same standing offer every prior substep's close-out has made; no
+screen-reader outcome is claimed here.
+
+**6. Rollback.** Revert the `v2/P4.4` commit range (`0654f21`..`d2be7ba`,
+7 commits). No schema or migration is touched, so a plain code revert is
+sufficient — the reverted build simply stops offering the new bulk
+verbs and the More-actions overlay; bulk move/delete and every
+single-item action return to their pre-P4.4 behavior (including the
+reintroduced backlog bug, which is the known, accepted cost of a
+revert, not a surprise).
+
+**Status: P4.4 done.** All six acceptance criteria satisfied (criterion
+2 stated as not applicable; criterion 4's budget named but not
+numerically measured, flagged explicitly as owed rather than invented
+or silently skipped; criterion 5's optional screen-reader pass offered,
+not required, consistent with every prior substep's own close-out
+judgment). Tag/list bulk verbs are covered by the automated suites but
+not the manual smoke test, since the real library has none to exercise
+yet — noted above rather than silently omitted.
+
+## P4.4 close out
+
+Merged into `main` in this session's close-out (see the merge commit
+immediately following); `v2/P4.4` retained, not deleted, per the spec's
 branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin` until
