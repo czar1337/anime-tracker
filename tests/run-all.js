@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -380,6 +380,59 @@ async function run() {
       assert.deepEqual(entry.tagIds, []);
       assert.deepEqual(entry.customListIds, []);
     }
+  });
+
+  await test('migration v9->v10 (P6.1): a LIGHT preset lands in the light slot, mode "light", dark slot defaults to moonlit-shrine', () => {
+    const v9 = readFixture('schema-v9-library.json'); // colorTheme: 'daybreak' (light)
+    const migrated = migrate_9_to_10(v9);
+    assert.equal(migrated.schemaVersion, 10);
+    assert.deepEqual(migrated.preferences.appearance, {
+      mode: 'light',
+      light: { type: 'preset', id: 'daybreak' },
+      dark: { type: 'preset', id: 'moonlit-shrine' },
+      background: { type: 'none', opacity: 0 },
+    });
+    assert.equal('colorTheme' in migrated.preferences, false, 'colorTheme should be dropped, not kept dead');
+  });
+
+  await test('migration v9->v10: a DARK preset lands in the dark slot, mode "dark", light slot defaults to daybreak', () => {
+    const v9 = readFixture('schema-v9-library.json');
+    const darkV9 = { ...v9, preferences: { ...v9.preferences, colorTheme: 'moonlit-shrine' } };
+    const migrated = migrate_9_to_10(darkV9);
+    assert.deepEqual(migrated.preferences.appearance, {
+      mode: 'dark',
+      light: { type: 'preset', id: 'daybreak' },
+      dark: { type: 'preset', id: 'moonlit-shrine' },
+      background: { type: 'none', opacity: 0 },
+    });
+  });
+
+  await test('migration v9->v10: a missing/falsy colorTheme defaults to moonlit-shrine (dark) rather than crashing', () => {
+    const v9 = readFixture('schema-v9-library.json');
+    const noTheme = { ...v9, preferences: { ...v9.preferences, colorTheme: undefined } };
+    const migrated = migrate_9_to_10(noTheme);
+    assert.equal(migrated.preferences.appearance.mode, 'dark');
+    assert.equal(migrated.preferences.appearance.dark.id, 'moonlit-shrine');
+  });
+
+  await test('migration v9->v10: never touches entries or any other preference field', () => {
+    const v9 = readFixture('schema-v9-library.json');
+    const migrated = migrate_9_to_10(v9);
+    assert.deepEqual(migrated.entries, v9.entries);
+    assert.equal(migrated.preferences.uiFont, v9.preferences.uiFont);
+    assert.equal(migrated.preferences.textSizeStep, v9.preferences.textSizeStep);
+    assert.deepEqual(migrated.preferences.sort, v9.preferences.sort);
+    // No idempotency test here, unlike migrate_8_to_9's own: that migration's
+    // job is to backfill a key only if missing, which is naturally
+    // idempotent. migrate_9_to_10's job is a one-way structural conversion
+    // that DELETES colorTheme on its first pass — a hypothetical second
+    // pass would find no colorTheme left and re-derive from the
+    // 'moonlit-shrine' fallback, clobbering whatever appearance the first
+    // pass actually produced. Not a real bug: migrate()'s own loop keys
+    // MIGRATIONS by fromVersion (1-9) and stops once schemaVersion reaches
+    // CURRENT (10), so this function can only ever run once per document —
+    // adding a guard against a call pattern that cannot occur would be
+    // dead defensive code, not a correctness fix.
   });
 
   // -------------------------------------------------------------------------
@@ -3047,6 +3100,135 @@ async function run() {
   await test('buildSelectionCSV on an empty selection is just the header row', () => {
     const csv = buildSelectionCSV([]);
     assert.equal(csv.split('\r\n').length, 1);
+  });
+
+  // -------------------------------------------------------------------------
+  // themeBuilder.js (public/js/themeBuilder.js) — pure colour derivation
+  // extracted from scripts/generate-themes.js (P6.1's task 114). The
+  // property this substep's whole "no fix-contrast button needed" design
+  // decision rests on: ensure() guarantees every buildPalette() output
+  // clears ITS OWN internal targets (12:1/7:1/4.6:1) for any accent, which
+  // are all strictly tighter than real WCAG AA (4.5:1/3:1) — so a spread of
+  // hues is checked against both the internal audit numbers AND the actual
+  // contrastCheck.js thresholds P6.1's render.js contrast-confirmation line
+  // (task 119) uses to verify the claim independently.
+  // -------------------------------------------------------------------------
+  console.log('themeBuilder.js');
+  const themeBuilderUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'themeBuilder.js').replace(/\\/g, '/');
+  const { buildPalette, themeInputFromAccent, hexToHsl, hex, hslToRgb, CONTRAST_TARGETS } = await import(themeBuilderUrl);
+  // checkContrastAA/parseRgb already imported above (contrastCheck.js's own section).
+
+  const SPREAD_HUES = [0, 45, 90, 135, 180, 225, 270, 315];
+
+  await test('buildPalette: text/dim/faint clear their own internal contrast targets for a spread of hues, both light and dark', () => {
+    for (const light of [false, true]) {
+      for (const hue of SPREAD_HUES) {
+        const accentHex = hex([hue, 60, light ? 50 : 55]);
+        const palette = buildPalette(themeInputFromAccent(accentHex, light));
+        assert.ok(palette.audit.text >= CONTRAST_TARGETS.text - 0.01, `hue ${hue} light=${light}: text ratio ${palette.audit.text} below target ${CONTRAST_TARGETS.text}`);
+        assert.ok(palette.audit.dim >= CONTRAST_TARGETS.dim - 0.01, `hue ${hue} light=${light}: dim ratio ${palette.audit.dim} below target ${CONTRAST_TARGETS.dim}`);
+        assert.ok(palette.audit.faint >= CONTRAST_TARGETS.faint - 0.01, `hue ${hue} light=${light}: faint ratio ${palette.audit.faint} below target ${CONTRAST_TARGETS.faint}`);
+      }
+    }
+  });
+
+  await test('buildPalette: a custom accent always produces real WCAG AA-passing body text against its own background (independent check, not the same internal audit numbers)', () => {
+    const toRgb255 = ([h, s, l]) => hslToRgb(h, s, l).map((v) => Math.round(v * 255));
+    for (const light of [false, true]) {
+      for (const hue of SPREAD_HUES) {
+        const palette = buildPalette(themeInputFromAccent(hex([hue, 55, 50]), light));
+        const { passes, ratio } = checkContrastAA(toRgb255(palette.colours.text), toRgb255(palette.surf.bg), 13, 400);
+        assert.ok(passes, `hue ${hue} light=${light}: only ${ratio}:1 against real WCAG AA`);
+      }
+    }
+  });
+
+  await test('themeInputFromAccent: clamps saturation/lightness into buildPalette-safe bounds even for extreme input hues', () => {
+    for (const accentHex of ['#000000', '#ffffff', '#ff0000', '#00ff00']) {
+      const t = themeInputFromAccent(accentHex, false);
+      const [, accentS, accentL] = t.accent;
+      assert.ok(accentS >= 30 && accentS <= 70, `accent saturation ${accentS} out of the documented 30-70 clamp for ${accentHex}`);
+      assert.ok(accentL >= 40 && accentL <= 64, `accent lightness ${accentL} out of the documented 40-64 clamp for ${accentHex}`);
+      // Must not throw and must still produce a passing palette even at
+      // these extremes (pure black/white/saturated primaries).
+      const palette = buildPalette(t);
+      assert.ok(palette.audit.text >= CONTRAST_TARGETS.text - 0.01);
+    }
+  });
+
+  await test('hexToHsl/hex round-trip: converting a hex accent to HSL and back stays visually identical', () => {
+    for (const accentHex of ['#8a6fd8', '#2ecc71', '#e74c3c', '#f5f5f5', '#101010']) {
+      const roundTripped = hex(hexToHsl(accentHex));
+      assert.equal(roundTripped, accentHex, `${accentHex} round-tripped to ${roundTripped}`);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // appearanceExport.js (public/js/appearanceExport.js) — P6.1 task 120's
+  // import/export module. validateAppearance is deliberately strict
+  // (reject, never repair) — see that function's own header comment for why
+  // this is a different contract than settingsSchema.js's sanitizers.
+  // -------------------------------------------------------------------------
+  console.log('appearanceExport.js');
+  const appearanceExportUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'appearanceExport.js').replace(/\\/g, '/');
+  const { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } = await import(appearanceExportUrl);
+
+  const SAMPLE_PRESET_APPEARANCE = {
+    mode: 'system',
+    light: { type: 'preset', id: 'daybreak' },
+    dark: { type: 'preset', id: 'moonlit-shrine' },
+    background: { type: 'gradient', opacity: 40 },
+  };
+  const SAMPLE_CUSTOM_APPEARANCE = {
+    mode: 'dark',
+    light: { type: 'preset', id: 'daybreak' },
+    dark: { type: 'custom', accent: '#8a6fd8' },
+    background: { type: 'grain', opacity: 15 },
+  };
+
+  await test('buildAppearanceJSON returns the appearance object verbatim, no wrapping envelope', () => {
+    assert.equal(buildAppearanceJSON(SAMPLE_PRESET_APPEARANCE), SAMPLE_PRESET_APPEARANCE);
+  });
+
+  await test('encodeShortCode/decodeShortCode round-trip a preset-only appearance exactly', () => {
+    assert.deepEqual(decodeShortCode(encodeShortCode(SAMPLE_PRESET_APPEARANCE)), SAMPLE_PRESET_APPEARANCE);
+  });
+
+  await test('encodeShortCode/decodeShortCode round-trip a custom-accent appearance exactly', () => {
+    assert.deepEqual(decodeShortCode(encodeShortCode(SAMPLE_CUSTOM_APPEARANCE)), SAMPLE_CUSTOM_APPEARANCE);
+  });
+
+  await test('encodeShortCode produces a URL-safe string (no +, / or = characters)', () => {
+    const code = encodeShortCode(SAMPLE_CUSTOM_APPEARANCE);
+    assert.equal(/[+/=]/.test(code), false, `short code contains a non-URL-safe character: ${code}`);
+  });
+
+  await test('decodeShortCode returns null for malformed input rather than throwing', () => {
+    assert.equal(decodeShortCode('not-valid-base64-or-json!!!'), null);
+    assert.equal(decodeShortCode(''), null);
+  });
+
+  await test('validateAppearance accepts every well-formed shape (preset, custom, every mode/background type)', () => {
+    assert.equal(validateAppearance(SAMPLE_PRESET_APPEARANCE), true);
+    assert.equal(validateAppearance(SAMPLE_CUSTOM_APPEARANCE), true);
+    for (const mode of ['light', 'dark', 'system']) {
+      assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, mode }), true);
+    }
+    for (const type of ['none', 'gradient', 'grain']) {
+      assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type, opacity: 0 } }), true);
+    }
+  });
+
+  await test('validateAppearance rejects every malformed shape named in the spec (bad hex, unknown preset id, out-of-range opacity, bad mode/background type)', () => {
+    assert.equal(validateAppearance(null), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, mode: 'sideways' }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, light: { type: 'preset', id: 'not-a-real-theme' } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: 'not-a-hex' } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#12345' } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'sparkles', opacity: 0 } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 500 } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: -1 } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 'a lot' } }), false);
   });
 
   // -------------------------------------------------------------------------
