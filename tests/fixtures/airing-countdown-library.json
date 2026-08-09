@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 4,
+  "entries": [
+    {
+      "anilistId": 301,
+      "titleRomaji": "Upcoming Episode Show",
+      "titleEnglish": "",
+      "coverFile": "",
+      "format": "TV",
+      "year": 2026,
+      "totalEpisodes": null,
+      "duration": 24,
+      "genres": ["Action"],
+      "averageScore": 75,
+      "listStatus": "watching",
+      "episodesWatched": 4,
+      "myScore": null,
+      "notes": "",
+      "relatedIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": null
+    },
+    {
+      "anilistId": 302,
+      "titleRomaji": "No Airing Data Show",
+      "titleEnglish": "",
+      "coverFile": "",
+      "format": "TV",
+      "year": 2026,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": ["Comedy"],
+      "averageScore": 65,
+      "listStatus": "watching",
+      "episodesWatched": 12,
+      "myScore": null,
+      "notes": "",
+      "relatedIds": [],
+      "addedAt": "2025-01-03T00:00:00.000Z",
+      "updatedAt": "2025-01-04T00:00:00.000Z",
+      "completedAt": null
+    }
+  ],
+  "preferences": {
+    "activeTab": "watching"
+  },
+  "dismissedItems": [],
+  "tags": [],
+  "customLists": []
+}
