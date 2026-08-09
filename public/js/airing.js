@@ -1,9 +1,12 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
-import { computeUnseenEpisodes, detectNewlyAired, buildWeekSchedule } from './airingLogic.js';
+import { computeUnseenEpisodes, detectNewlyAired, buildWeekSchedule, formatEpisodeCountdown } from './airingLogic.js';
 import { Notifications } from './notifications.js';
 
-const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on manual refresh
+// P4.2: hourly, per this store's own spec section ("at most once per
+// hour"). discover.js/schedule.js each keep their own separate 24h copy
+// of this same constant shape — unrelated stores, not touched here.
+const STALE_MS = 60 * 60 * 1000;
 const BATCH_SIZE = 50;
 
 let cacheEntries = {}; // anilistId -> { status, episodes, nextAiringEpisode }
@@ -43,6 +46,16 @@ export function getUnseenCount(anilistId) {
 
 export function getUnseenSeriesCount() {
   return Store.getEntriesByList('watching').filter((e) => getUnseenCount(e.anilistId) > 0).length;
+}
+
+// P4.2's forward-looking counterpart to getUnseenCount above — same shape
+// (entry-existence guard, then delegate to the pure function), same
+// never-guess discipline: no entry or no cached next-airing data returns
+// null, not a stale/wrong number.
+export function getNextEpisodeCountdown(anilistId) {
+  const entry = Store.getEntry(anilistId);
+  if (!entry) return null;
+  return formatEpisodeCountdown(cacheEntries[anilistId]?.nextAiringEpisode);
 }
 
 export function getCacheState() {
@@ -139,6 +152,7 @@ export const Airing = {
   refreshNow,
   getUnseenCount,
   getUnseenSeriesCount,
+  getNextEpisodeCountdown,
   getCacheState,
   getWeekSchedule,
 };

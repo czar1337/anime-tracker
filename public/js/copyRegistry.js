@@ -513,6 +513,17 @@ export const COPY_REGISTRY = {
     standard: 'Still airing — episode count unknown',
     madara: 'Still airing — episode count unknown',
   },
+
+  // ---------------------------------------------------------------------------
+  // P4.2 — airing store and next-episode countdown. New content only, same
+  // reasoning as P4.1's sort.stillAiringHeading above.
+  // ---------------------------------------------------------------------------
+
+  'airing.nextEpisodeCountdown': {
+    familyFriendly: (p) => `Next episode in ${p.days}d ${p.hours}h`,
+    standard: (p) => `Next episode in ${p.days}d ${p.hours}h`,
+    madara: (p) => `Next episode in ${p.days}d ${p.hours}h`,
+  },
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

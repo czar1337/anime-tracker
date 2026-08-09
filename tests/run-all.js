@@ -2003,7 +2003,7 @@ async function run() {
   // -------------------------------------------------------------------------
   console.log('airingLogic.js');
   const airingLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'airingLogic.js').replace(/\\/g, '/');
-  const { computeUnseenEpisodes, detectNewlyAired, buildWeekSchedule } = await import(airingLogicUrl);
+  const { computeUnseenEpisodes, detectNewlyAired, buildWeekSchedule, formatEpisodeCountdown } = await import(airingLogicUrl);
 
   await test('RELEASING: nextAiring ep 9, progress 5 -> 3 unseen', () => {
     assert.equal(computeUnseenEpisodes({ status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 9 } }, 5), 3);
@@ -2122,6 +2122,35 @@ async function run() {
     const week = buildWeekSchedule(cache, watching, now);
     const totalItems = week.reduce((s, d) => s + d.items.length, 0);
     assert.equal(totalItems, 0);
+  });
+
+  await test('formatEpisodeCountdown: a real future airingAt splits into whole days and remainder hours', () => {
+    const now = new Date('2026-08-07T00:00:00.000Z');
+    const airingAt = Math.floor(new Date('2026-08-10T04:00:00.000Z').getTime() / 1000); // 3d 4h ahead
+    assert.deepEqual(formatEpisodeCountdown({ episode: 5, airingAt }, now), { days: 3, hours: 4 });
+  });
+
+  await test('formatEpisodeCountdown: an exact 24-hour boundary rolls into 1 day, 0 hours', () => {
+    const now = new Date('2026-08-07T00:00:00.000Z');
+    const airingAt = Math.floor(new Date('2026-08-08T00:00:00.000Z').getTime() / 1000);
+    assert.deepEqual(formatEpisodeCountdown({ episode: 5, airingAt }, now), { days: 1, hours: 0 });
+  });
+
+  await test('formatEpisodeCountdown: missing nextAiringEpisode or a non-integer airingAt returns null, never a guess', () => {
+    const now = new Date('2026-08-07T00:00:00.000Z');
+    assert.equal(formatEpisodeCountdown(null, now), null);
+    assert.equal(formatEpisodeCountdown(undefined, now), null);
+    assert.equal(formatEpisodeCountdown({ episode: 5 }, now), null); // no airingAt at all
+    assert.equal(formatEpisodeCountdown({ episode: 5, airingAt: null }, now), null);
+  });
+
+  await test('formatEpisodeCountdown: an airingAt already in the past returns null — the unseen-badge\'s job, not a stale "0d 0h"', () => {
+    const now = new Date('2026-08-07T00:00:00.000Z');
+    const pastAiringAt = Math.floor(new Date('2026-08-06T00:00:00.000Z').getTime() / 1000);
+    assert.equal(formatEpisodeCountdown({ episode: 5, airingAt: pastAiringAt }, now), null);
+    // Exactly "now" (msRemaining === 0) is also not a future instant.
+    const rightNow = Math.floor(now.getTime() / 1000);
+    assert.equal(formatEpisodeCountdown({ episode: 5, airingAt: rightNow }, now), null);
   });
 
   // -------------------------------------------------------------------------

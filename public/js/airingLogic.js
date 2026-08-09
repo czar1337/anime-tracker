@@ -71,6 +71,29 @@ export function buildWeekSchedule(cacheEntries, watchingEntries, now = new Date(
   return days;
 }
 
+// P4.2's forward-looking "Next episode in Xd Yh" countdown — the opposite
+// direction from computeUnseenEpisodes above (that's "how far behind am I
+// on episodes already out"; this is "how long until the next one drops").
+// Returns null — no countdown at all, rather than a guessed or stale one —
+// whenever there's nothing to show: no nextAiringEpisode (FINISHED, hiatus,
+// or not yet fetched), no usable airingAt, or an airingAt that's already in
+// the past. That last case matters between refreshes: once an episode
+// actually airs, showing "0d 0h" forever until the next hourly refresh
+// would be noise duplicating what the unseen-badge already communicates —
+// a countdown's only job is time remaining until a REAL future instant.
+// `now` is injectable so tests don't depend on the real clock, same
+// pattern buildWeekSchedule above already uses. Returns numbers
+// ({days, hours}), not a formatted string — callers own the literal
+// "Xd Yh" text so this stays UI-string-free like every other export here.
+export function formatEpisodeCountdown(nextAiringEpisode, now = new Date()) {
+  if (!nextAiringEpisode || !Number.isInteger(nextAiringEpisode.airingAt)) return null;
+  const airingAtMs = nextAiringEpisode.airingAt * 1000; // AniList returns Unix seconds
+  const msRemaining = airingAtMs - now.getTime();
+  if (msRemaining <= 0) return null;
+  const hoursRemaining = Math.floor(msRemaining / (60 * 60 * 1000));
+  return { days: Math.floor(hoursRemaining / 24), hours: hoursRemaining % 24 };
+}
+
 // Diffs an old and new airing cache for a set of watching entries, returning
 // only the ones whose unseen-episode count went *up* as a result of the
 // refresh — i.e. a genuinely new episode aired since the last check, not
