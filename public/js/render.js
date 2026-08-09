@@ -1501,14 +1501,22 @@ let lastUndoBtn = null;
 // toast's "Reload", which discards local state and re-fetches from the
 // server) must not hijack ctrl+z away from whatever real undo toast is
 // already showing — pass `trackUndo: false` for those.
-function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true } = {}) {
+//
+// `onExpire` (P4.4): fires once, `duration` ms after the toast appears,
+// but ONLY if its own Undo was never clicked — this is the "achievement
+// evaluation deferred until the Undo window expires" hook every
+// destructive/lossy call site passes, so an undone action never gets
+// evaluated against a state it no longer produced.
+function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true, onExpire } = {}) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.innerHTML = `<span>${escapeHtml(message)}</span>${actionLabel ? `<button>${escapeHtml(actionLabel)}</button>` : ''}`;
+  let actioned = false;
   if (actionLabel && onAction) {
     const btn = toast.querySelector('button');
     btn.addEventListener('click', () => {
+      actioned = true;
       onAction();
       toast.remove();
       if (lastUndoBtn === btn) lastUndoBtn = null;
@@ -1519,6 +1527,7 @@ function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo 
   setTimeout(() => {
     toast.remove();
     if (toast.querySelector('button') === lastUndoBtn) lastUndoBtn = null;
+    if (onExpire && !actioned) onExpire();
   }, duration);
 }
 

@@ -18,6 +18,16 @@ import { copy } from './copy.js';
 import { LISTS_AND_TAGS } from '../../config/tuning.js';
 import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySliders.js';
 import { DEFAULT_SORT_DIR } from './sortLogic.js';
+import { notifyAchievementEngine } from './achievementHook.js';
+
+// Every destructive/lossy toast passes this as its onExpire — a no-op today
+// (see achievementHook.js), wired for real once P7A implements the engine.
+// Kept as one named function, not inlined per call site, so every call site
+// visibly agrees on what "the resulting state" means (Store.toJSON(), taken
+// AFTER the action and any undo window, never a stale snapshot from before).
+function evaluateAchievementsAfterUndoWindow() {
+  notifyAchievementEngine(Store.toJSON());
+}
 
 // P1.5's restore route reports `skippedStores` when the snapshot predates a
 // newer Class A store; until P1.6 nothing surfaced it, so a partial restore
@@ -28,6 +38,12 @@ function restoreCopyFor(result) {
   if (skipped.length === 0) return copy('restore.succeeded');
   return copy('restore.succeededPartial', undefined, { stores: skipped.join(', ') });
 }
+
+// Spec: "Every destructive or lossy action, bulk or single, fires an Undo
+// toast lasting at least 8 seconds..." — not a Tuning-table value (that file
+// is a verbatim transcription of one specific spec section this number
+// isn't part of), just a plain named constant for every such toast below.
+const UNDO_TOAST_MS = 8000;
 
 let activeList = 'watching';
 let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
@@ -386,6 +402,8 @@ function handleIncrement(card, id) {
   persist();
   Render.showToast(`Episode ${before + 1}`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       Store.updateEntry(id, { episodesWatched: before });
       // An undo is itself a real transition, recorded as one rather than
@@ -455,6 +473,18 @@ function handleDecrement(id) {
   refreshGridOnly();
   Detail.refreshDetailIfOpen(id);
   persist();
+  Render.showToast(`Episode ${before - 1}`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      Store.updateEntry(id, { episodesWatched: before });
+      recordProgressEvent(entry, before - 1, before);
+      refreshView();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+    },
+  });
 }
 
 function handleSetScore(id, score) {
@@ -469,6 +499,18 @@ function handleSetScore(id, score) {
   refreshView();
   Detail.refreshDetailIfOpen(id);
   persist();
+  Render.showToast(newScore == null ? 'Score cleared' : `Score set to ${newScore}`, {
+    actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      Store.updateEntry(id, { myScore: beforeScore });
+      EventLog.recordForEntry('score_set', id, { from: newScore, to: beforeScore });
+      refreshView();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+    },
+  });
 }
 
 // "Watched" means you saw all of it — but the UI never offers a progress
@@ -511,7 +553,13 @@ function handleSetStatus(id, newStatus) {
   const before = entry.listStatus;
   const patch = buildStatusPatch(entry, newStatus);
   recordStatusChange(entry, before, newStatus, patch); // before the mutation, while old values are still readable
-  Store.updateEntry(id, patch);
+  // `updateEntry` hands back a full pre-patch snapshot — capturing it (rather
+  // than hand-picking listStatus) is what makes the undo below restore
+  // episodesWatched/completedAt too, not just the status. This is the P4.4
+  // fix for the backlog's "mark watched -> undo leaves the fast-forwarded
+  // progress behind" bug: the undo now reverses the *whole* patch, because
+  // it replays the entry's actual prior state instead of a hand-picked field.
+  const { before: fullBefore } = Store.updateEntry(id, patch);
   // design system §10, "Series finished": ripple (already happens on
   // whatever button was pressed) plus one feather drifting down.
   if (newStatus === 'watched') Atmosphere.rewardFeather();
@@ -520,15 +568,14 @@ function handleSetStatus(id, newStatus) {
   persist();
   Render.showToast(`Moved to ${newStatus}`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, { listStatus: before });
-      // Status reversal only, deliberately. This undo restores listStatus but
-      // NOT the episodesWatched/completedAt that buildStatusPatch changed, so
-      // emitting a progress reversal here would claim something untrue. The
-      // underlying gap (undoing "mark watched" leaves the fast-forwarded
-      // progress behind) is a real pre-existing bug, filed in the backlog
-      // rather than papered over here.
+      Store.updateEntry(id, fullBefore);
       EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
+      if (patch.episodesWatched !== undefined && patch.episodesWatched !== fullBefore.episodesWatched) {
+        recordProgressEvent(entry, patch.episodesWatched, fullBefore.episodesWatched);
+      }
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -571,14 +618,16 @@ function handleBulkMove(newStatus) {
   for (const id of ids) {
     const entry = Store.getEntry(id);
     if (!entry || entry.listStatus === newStatus) continue;
-    changes.push({ id, before: entry.listStatus });
     const patch = buildStatusPatch(entry, newStatus);
     // Recorded per item but flushed as ONE batch — the spec's "bulk actions use
     // one transaction for the whole batch" maps directly onto the single
     // persist()/flush below, since events accumulate in the outbox and go out
     // together.
     recordStatusChange(entry, entry.listStatus, newStatus, patch);
-    Store.updateEntry(id, patch);
+    // Full before-snapshot (see handleSetStatus) so undo restores
+    // episodesWatched/completedAt too, not just listStatus.
+    const { before } = Store.updateEntry(id, patch);
+    changes.push({ id, before, patch });
   }
   if (changes.length === 0) return;
   Render.clearSelection();
@@ -587,8 +636,16 @@ function handleBulkMove(newStatus) {
   persist();
   Render.showToast(`Moved ${changes.length} to ${newStatus}`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      changes.forEach(({ id, before }) => Store.updateEntry(id, { listStatus: before }));
+      changes.forEach(({ id, before, patch }) => {
+        Store.updateEntry(id, before);
+        EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before.listStatus });
+        if (patch.episodesWatched !== undefined && patch.episodesWatched !== before.episodesWatched) {
+          recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
+        }
+      });
       refreshView();
       Render.renderTabCounts();
       persist();
@@ -606,6 +663,8 @@ function handleBulkDelete() {
   persist();
   Render.showToast(`Removed ${removed.length} titles`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       removed.forEach((snap) => Store.restoreEntrySnapshot(snap));
       refreshView();
@@ -623,6 +682,8 @@ function handleDelete(id) {
   persist();
   Render.showToast(`Removed "${entry.titleRomaji}"`, {
     actionLabel: 'Undo',
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       Store.restoreEntrySnapshot(removed);
       refreshView();
