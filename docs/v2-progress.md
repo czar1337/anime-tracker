@@ -63,7 +63,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P4.2 Airing store and next-episode countdown | done | 2026-08-07 | this session, see "P4.2 close out" below | — |
 | P4.3 Item selection | done | 2026-08-09 | this session, see "P4.3 Item selection" below | — |
 | P4.4 Bulk actions and undo | done | 2026-08-09 | this session, see "P4.4 Bulk actions and undo" below | criterion 4's budget not numerically measured |
-| GATE-2.0 Acceptance sweep, merge check, tag v2.0 | in progress | 2026-08-09 | this session, see "GATE-2.0 Acceptance sweep, merge check, tag v2.0" below | tag not yet created, pending user confirmation |
+| GATE-2.0 Acceptance sweep, merge check, tag v2.0 | done | 2026-08-09 | this session, see "GATE-2.0 Acceptance sweep, merge check, tag v2.0" below | — |
 | P5A.1 Corpus, incremental seed, degraded mode | not started | — | — | **BLOCKED — AniList ToS clarification required before starting, user decision at P0.4 gate** |
 | P5A.2 Taste profile | not started | — | — | — |
 | P5A.3 Scorer and debug panel | not started | — | — | — |
@@ -3942,8 +3942,12 @@ with the real library present.**
 
 **Step 4 — this record**, committed as `v2(GATE-2.0): release sweep`.
 
-**Step 5 — tag `v2.0` on `main`.** Not done yet: the spec is explicit
-that this happens "on the user's confirmation," which has not been
-given in this session. GATE-2.0 stays `in progress` until that
-confirmation arrives and the tag is created — everything else this gate
-asks for (steps 1 through 4) is complete.
+**Step 5 — tag `v2.0` on `main`.** User confirmed. Annotated tag `v2.0`
+created on `main` at this gate's own commit (`a1875b6`).
+
+**Status: GATE-2.0 done.** All five steps complete. The two flagged
+items from step 3 — no single Class A round-trip test covering all 7
+stores in one pass, and the library render budget still over 200ms
+pending virtualization — are real, carried-forward gaps, not failures
+of this gate; both are named above for whichever future substep is
+positioned to close them.
