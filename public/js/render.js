@@ -2052,6 +2052,24 @@ function appearanceSectionHtml(appearance) {
   return `<div class="appearance-builder">${modeSeg}${slots}</div>`;
 }
 
+// Optional ambient gradient/grain layer (spec bullet 6). The opacity row
+// only shows once a real effect is picked — at type 'none' there is
+// nothing for it to control, same "hide the irrelevant control" pattern
+// the collapsed weight slider above already uses.
+function appearanceBackgroundHtml(background) {
+  const typeSeg = segHtml('appearance-background-type', [['none', 'None'], ['gradient', 'Gradient'], ['grain', 'Grain']], background.type);
+  if (background.type === 'none') return `<div class="appearance-background">${typeSeg}</div>`;
+  const valuetext = `Background effect opacity ${background.opacity} of 100`;
+  return `
+    <div class="appearance-background">
+      ${typeSeg}
+      <div class="slider-row" style="margin-top:var(--sp-2)">
+        <input type="range" class="slider-input" data-action="set-background-opacity" min="0" max="100" step="1" value="${background.opacity}" aria-label="Background effect opacity" aria-valuetext="${escapeHtml(valuetext)}">
+        <span class="slider-value">${background.opacity}%</span>
+      </div>
+    </div>`;
+}
+
 // P3.1's font picker — one search draft per slot (module-level, same
 // "a re-render from an unrelated click shouldn't wipe a half-typed value"
 // reasoning as settingsNewTagName above, since repaintSettings() rebuilds
@@ -2247,6 +2265,7 @@ function renderSettingsPanel(container, appearance) {
   const otherGridScrollTops = OTHER_GRID_SELECTORS.map((sel) => container.querySelector(sel)?.scrollTop || 0);
   container.innerHTML = `
     ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, appearanceSectionHtml(appearance))}
+    ${settingsRowHtml('Background effect', 'An optional gradient or grain layer behind your library, at the accent colour of whichever theme is active.', appearanceBackgroundHtml(appearance.background))}
     ${settingsRowHtml(copy('fonts.ui.heading'), copy('fonts.ui.description'), fontGridHtml('ui', Preferences.getUiFont()))}
     ${settingsRowHtml(copy('fonts.heading.heading'), copy('fonts.heading.description'), fontGridHtml('heading', Preferences.getHeadingFont()))}
     ${settingsRowHtml(copy('fonts.numbers.heading'), copy('fonts.numbers.description'), fontGridHtml('numbers', Preferences.getNumbersFont()))}

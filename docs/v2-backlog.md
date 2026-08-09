@@ -112,6 +112,24 @@ real, recorded, and not any single substep's job to resolve on its own.
   `manifestChecksum` entirely — already documented in P1.1's review), which
   the fix correctly does not hide.
 
+- **Drag/settle controls never actually log `settings_changed`.** Found while
+  wiring P6.1's background-opacity slider. Every `input`/`change`-split
+  control (the 8 P3.2 typography sliders, and P6.1's custom-accent
+  color input and background-opacity slider) writes the new value to
+  `Store` on every `input` tick, then reads `Store`'s CURRENT value back out
+  at `change` time to use as the logging call's "before" — but by then
+  `input` has already overwritten it to the same final value the gesture
+  settled on, so `recordSettingChange`'s `from === to` (or
+  `JSON.stringify` for `appearance`) check always short-circuits and no
+  event is ever recorded for any of these controls, silently. Every other
+  (non-drag) setting logs correctly; this is scoped to exactly the
+  input/change-split controls. Not fixed here — needs its own before-drag
+  capture (e.g. a module-level "value at gesture start" var read at
+  `change`, set lazily by the first `input` tick and cleared after), and
+  touches P3.2 code as much as P6.1's, so it belongs to whichever substep
+  next needs `settings_changed` fidelity for a slider (or a small
+  dedicated fix) rather than a silent fold into either substep's own scope.
+
 ## Not urgent, informational
 
 - P1.6's scope-expansion exception ("if the app's total user-facing string

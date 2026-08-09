@@ -2505,6 +2505,17 @@ function bindSettingsPanel() {
       commitAppearance({ ...Store.state.preferences.appearance, mode: value });
       return;
     }
+    if (seg === 'appearance-background-type') {
+      const appearance = Store.state.preferences.appearance;
+      // Switching away from 'none' with opacity still at its default 0
+      // would apply an effect the user can't see and has no visible
+      // slider feedback for yet — 30 is a middling, clearly-visible
+      // starting point, same reasoning a volume control unmutes to
+      // something audible rather than 0.
+      const opacity = value !== 'none' && appearance.background.opacity === 0 ? 30 : appearance.background.opacity;
+      commitAppearance({ ...appearance, background: { type: value, opacity } });
+      return;
+    }
     if (seg === 'decor') Preferences.setDecor(value);
     else if (seg === 'decorDensity') {
       Preferences.setDecorDensity(value);
@@ -2586,6 +2597,22 @@ function bindSettingsPanel() {
       const swatch = accentInput.closest('.appearance-slot')?.querySelector('.custom-swatch');
       if (swatch) swatch.style.background = hex;
     }
+
+    // Same live-preview-without-repaint reasoning as the two inputs above
+    // — dragging a native range input fires 'input' continuously, and a
+    // repaintSettings() mid-drag would recreate the element and drop the
+    // browser's pointer capture, cancelling the gesture.
+    const opacityInput = e.target.closest('[data-action="set-background-opacity"]');
+    if (opacityInput) {
+      const opacity = Number(opacityInput.value);
+      const appearance = Store.state.preferences.appearance;
+      const nextAppearance = { ...appearance, background: { ...appearance.background, opacity } };
+      Store.setPreference(['appearance'], nextAppearance);
+      Themes.applyAppearance(nextAppearance);
+      persist();
+      const readout = opacityInput.closest('.slider-row')?.querySelector('.slider-value');
+      if (readout) readout.textContent = `${opacity}%`;
+    }
   });
 
   // 'change' (drag release, or a committed keyboard step) — safe to fully
@@ -2621,6 +2648,14 @@ function bindSettingsPanel() {
       const appearance = Store.state.preferences.appearance;
       recordSettingChange('appearance', appearance, appearance);
       repaintSettings();
+      return;
+    }
+
+    // Value is already applied+persisted by the 'input' handler above;
+    // this just logs the settled value once the drag ends.
+    if (e.target.closest('[data-action="set-background-opacity"]')) {
+      const appearance = Store.state.preferences.appearance;
+      recordSettingChange('appearance', appearance, appearance);
     }
   });
 }
