@@ -2054,6 +2054,32 @@ function customAccentControlsHtml(slotKey, slot) {
     </div>`;
 }
 
+// Import/export (spec bullet 7). A short code is base64url-encoded JSON
+// (appearanceExport.js's encodeShortCode) — cheap to paste into a chat
+// message, which the full JSON export below is deliberately not trying
+// to be. The output/import fields are plain text inputs, not a
+// <textarea>: a short code is one line by construction (no line breaks
+// in base64url).
+function appearanceExportImportHtml() {
+  return `
+    <div class="appearance-export">
+      <div class="row">
+        <button class="btn btn-ghost sm" data-action="export-appearance-json">Download JSON</button>
+        <button class="btn btn-ghost sm" data-action="export-appearance-code">Get short code</button>
+        <button class="btn btn-ghost sm" data-action="import-appearance-file">Upload JSON…</button>
+        <input type="file" id="import-appearance-file-input" accept="application/json" hidden>
+      </div>
+      <div class="row appearance-shortcode-row" style="margin-top:var(--sp-2)">
+        <input type="text" id="appearance-shortcode-output" class="appearance-shortcode-input" readonly placeholder="Click &quot;Get short code&quot; to generate one" aria-label="Appearance short code">
+        <button class="btn btn-ghost sm" data-action="copy-appearance-code">Copy</button>
+      </div>
+      <div class="row appearance-shortcode-row" style="margin-top:var(--sp-2)">
+        <input type="text" id="appearance-import-code-input" class="appearance-shortcode-input" placeholder="Paste a short code…" aria-label="Paste appearance short code">
+        <button class="btn btn-ghost sm" data-action="import-appearance-code">Import code</button>
+      </div>
+    </div>`;
+}
+
 function appearanceSlotHtml(appearance, slotKey, label) {
   const slot = appearance[slotKey];
   return `
@@ -2293,6 +2319,7 @@ function renderSettingsPanel(container, appearance) {
   container.innerHTML = `
     ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, appearanceSectionHtml(appearance))}
     ${settingsRowHtml('Background effect', 'An optional gradient or grain layer behind your library, at the accent colour of whichever theme is active.', appearanceBackgroundHtml(appearance.background))}
+    ${settingsRowHtml('Import & export appearance', 'Copy your whole theme setup as a short code, or download/upload it as a JSON file.', appearanceExportImportHtml())}
     ${settingsRowHtml(copy('fonts.ui.heading'), copy('fonts.ui.description'), fontGridHtml('ui', Preferences.getUiFont()))}
     ${settingsRowHtml(copy('fonts.heading.heading'), copy('fonts.heading.description'), fontGridHtml('heading', Preferences.getHeadingFont()))}
     ${settingsRowHtml(copy('fonts.numbers.heading'), copy('fonts.numbers.description'), fontGridHtml('numbers', Preferences.getNumbersFont()))}

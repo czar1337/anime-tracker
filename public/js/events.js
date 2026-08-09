@@ -20,6 +20,7 @@ import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySlid
 import { DEFAULT_SORT_DIR } from './sortLogic.js';
 import { notifyAchievementEngine } from './achievementHook.js';
 import { buildSelectionJSON, buildSelectionCSV } from './selectionExport.js';
+import { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } from './appearanceExport.js';
 import { triggerDownload } from './download.js';
 
 // Every destructive/lossy toast passes this as its onExpire — a no-op today
@@ -2181,6 +2182,41 @@ function bindSettingsPanel() {
       return;
     }
 
+    if (e.target.closest('[data-action="export-appearance-json"]')) {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const blob = new Blob([JSON.stringify(buildAppearanceJSON(Store.state.preferences.appearance), null, 2)], { type: 'application/json' });
+      triggerDownload(blob, `anime-tracker-appearance-${stamp}.json`);
+      return;
+    }
+    if (e.target.closest('[data-action="export-appearance-code"]')) {
+      const output = document.getElementById('appearance-shortcode-output');
+      if (output) output.value = encodeShortCode(Store.state.preferences.appearance);
+      return;
+    }
+    if (e.target.closest('[data-action="import-appearance-file"]')) {
+      document.getElementById('import-appearance-file-input')?.click();
+      return;
+    }
+    if (e.target.closest('[data-action="copy-appearance-code"]')) {
+      const output = document.getElementById('appearance-shortcode-output');
+      if (output?.value && navigator.clipboard) {
+        navigator.clipboard.writeText(output.value).then(() => Render.showToast('Short code copied to clipboard.'));
+      }
+      return;
+    }
+    if (e.target.closest('[data-action="import-appearance-code"]')) {
+      const input = document.getElementById('appearance-import-code-input');
+      const code = input?.value.trim();
+      if (!code) return;
+      const decoded = decodeShortCode(code);
+      if (!decoded || !validateAppearance(decoded)) {
+        Render.showToast('That short code is not valid.');
+        return;
+      }
+      commitAppearance(decoded);
+      return;
+    }
+
     const fontBtn = e.target.closest('.font-grid button');
     if (fontBtn) {
       const slot = fontBtn.dataset.fontSlot; // 'ui' | 'heading' | 'numbers'
@@ -2656,6 +2692,27 @@ function bindSettingsPanel() {
     if (e.target.closest('[data-action="set-background-opacity"]')) {
       const appearance = Store.state.preferences.appearance;
       recordSettingChange('appearance', appearance, appearance);
+      return;
+    }
+
+    if (e.target.id === 'import-appearance-file-input') {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      file.text().then((text) => {
+        let parsed = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          // parsed stays null — falls through to the same rejection path
+          // as a structurally-invalid-but-parseable file.
+        }
+        if (!parsed || !validateAppearance(parsed)) {
+          Render.showToast('That file is not a valid appearance export.');
+          return;
+        }
+        commitAppearance(parsed);
+      });
     }
   });
 }

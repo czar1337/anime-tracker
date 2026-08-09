@@ -2073,6 +2073,13 @@ kbd {
 .appearance-slot { margin-bottom: var(--sp-4); }
 .appearance-slot:last-child { margin-bottom: 0; }
 .appearance-background { display: flex; flex-direction: column; }
+.appearance-shortcode-row { flex-wrap: nowrap; }
+.appearance-shortcode-input {
+  flex: 1; min-width: 0; box-sizing: border-box;
+  font: var(--t-meta); padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card); color: var(--text);
+}
 .custom-accent-row { align-items: center; }
 .custom-accent-input { width: 40px; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
 .contrast-confirm { font: var(--t-meta); color: var(--dim); }
