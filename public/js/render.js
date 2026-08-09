@@ -209,12 +209,18 @@ function cardBodyForList(entry, list, isSeasonRow = false) {
     const pct = total ? Math.min(100, (entry.episodesWatched / total) * 100) : 0;
     const showCompletionPrompt = total && entry.episodesWatched >= total;
     const unseen = Airing.getUnseenCount(entry.anilistId);
+    // P4.2: forward-looking ("next untracked episode airs in...") — a
+    // separate concept from unseen (backward-looking, "already aired but
+    // not watched"), so both can show at once; null (no known future
+    // airing time) renders nothing, never a guess.
+    const countdown = Airing.getNextEpisodeCountdown(entry.anilistId);
     return `
       <div class="progress-row">
         <div class="progress-track"><div class="progress-fill" style="width:0%" data-target-width="${pct}"></div></div>
         <button class="progress-label" data-action="edit-episode" title="Click to type an exact episode number">${entry.episodesWatched}${total ? `/${total}` : ''}</button>
       </div>
       ${unseen > 0 ? `<div class="unseen-badge${unseenPopClass(entry.anilistId, unseen)}" title="Aired but not marked watched yet">${unseen} new episode${unseen === 1 ? '' : 's'}</div>` : ''}
+      ${countdown ? `<div class="countdown-badge">${escapeHtml(copy('airing.nextEpisodeCountdown', undefined, countdown))}</div>` : ''}
       ${showCompletionPrompt ? `
         <div class="completion-prompt">
           <span>Finished! Move to Watched?</span>
