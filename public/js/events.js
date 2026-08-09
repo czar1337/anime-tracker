@@ -931,7 +931,7 @@ function bindFilterBar() {
     let touchesPersistedState = true;
 
     if (key === '__clear_all') {
-      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false });
+      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' });
       Store.setTitleFilter(activeList, '');
     } else if (key.startsWith('genre:')) {
       const genre = key.slice('genre:'.length);
@@ -940,6 +940,8 @@ function bindFilterBar() {
       filters.format = '';
     } else if (key === 'studio') {
       filters.studio = '';
+    } else if (key === 'airingStatus') {
+      filters.airingStatus = '';
     } else if (key === 'unrated') {
       filters.unratedOnly = false;
     } else if (key === 'myscore') {
