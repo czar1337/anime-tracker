@@ -717,6 +717,18 @@ function bindGridEvents() {
     const action = actionEl?.dataset.action;
 
     if (action === 'toggle-select') {
+      // Shift+click extends a range from the last anchored click; Ctrl/Cmd
+      // is the spec's named "toggle one" gesture; a plain click also just
+      // toggles the one item — the modifiers are additive gestures on top
+      // of direct toggling, not a replacement for it.
+      if (e.shiftKey) Render.selectRange(id, activeList);
+      else Render.toggleSelected(id);
+      refreshGridOnly();
+      return;
+    }
+    else if (action === 'quick-select') {
+      // The hover-revealed entry point into select mode, before it's on.
+      if (!Render.isSelectMode()) Render.toggleSelectMode();
       Render.toggleSelected(id);
       refreshGridOnly();
       return;
@@ -1332,6 +1344,18 @@ function bindKeyboardShortcuts() {
     if (e.ctrlKey && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       Render.undoLast();
+      return;
+    }
+
+    // Ctrl/Cmd+A: select every currently filtered/visible item on the
+    // active list tab — never the whole library. Only meaningful on the
+    // four list tabs (Discover/Schedule/Home/Stats have no selection UI at
+    // all), so it's a no-op elsewhere rather than hijacking native
+    // select-all on those pages.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && Store.LISTS.includes(currentView)) {
+      e.preventDefault();
+      Render.selectAllVisible(activeList);
+      refreshGridOnly();
       return;
     }
 

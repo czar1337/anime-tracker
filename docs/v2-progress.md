@@ -61,7 +61,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P3.2 Typography sliders | done | 2026-08-07 | this session, see "P3.2 close out" below | — |
 | P4.1 Sort and library search | done | 2026-08-07 | this session, see "P4.1 close out" below | — |
 | P4.2 Airing store and next-episode countdown | done | 2026-08-07 | this session, see "P4.2 close out" below | — |
-| P4.3 Item selection | not started | — | — | existing selectMode/selectedIds is scoped to library tabs only, see backlog |
+| P4.3 Item selection | done | 2026-08-09 | this session, see "P4.3 Item selection" below | — |
 | P4.4 Bulk actions and undo | not started | — | — | — |
 | GATE-2.0 Acceptance sweep, merge check, tag v2.0 | not started | — | — | — |
 | P5A.1 Corpus, incremental seed, degraded mode | not started | — | — | **BLOCKED — AniList ToS clarification required before starting, user decision at P0.4 gate** |
@@ -3434,6 +3434,190 @@ UI).
 
 Merged into `main` in this session's close-out (see the merge commit
 immediately following); `v2/P4.2` retained, not deleted, per the spec's
+branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin` until
+a new version is wanted — is still in force.
+
+## P4.3 Item selection
+
+Branch `v2/P4.3` off `main` (through P4.2 merged). 2 commits: the
+selection interaction logic + CSS, then tests.
+
+**What research (an Explore agent, plus `docs/v2-backlog.md`'s own
+existing note) turned up: roughly half of this substep's UI already
+existed**, scoped to the four library list tabs only (confirmed zero
+selection code anywhere in Discover/Schedule):
+
+- Already solid: the `#select-mode-toggle` button (`aria-pressed` kept in
+  sync), `selectMode`/`selectedIds` module state in `render.js`, a real
+  per-card checkbox rendered while select mode is on, a working bar
+  (`renderBulkActionBar()`) with real "N selected" text, a working Clear,
+  and two real, undo-capable bulk actions (move, delete).
+- Clear-on-navigation was fully done already — every tab/view switch and
+  every completed bulk action already called `Render.clearSelection()`.
+- Genuinely missing: `Shift`+click range-select, a `Ctrl`/`Cmd`+click
+  modifier-gated toggle (toggling happened on any plain click, no
+  modifier involved), `Ctrl`/`Cmd`+`A` select-all-visible (didn't exist
+  at all), a hover-revealed checkbox as an entry point *before* select
+  mode is on, and an `aria-live` announcement of the running count.
+
+**One design correction made during implementation, against the
+approved plan:** the plan called for making `.bulkbar` `position:
+sticky` so it would stay reachable while scrolling. Implementing it
+turned up an explicit, pre-existing rule in
+`design/moonlit-shrine-design-system.md` §8 ("Select mode and bulk bar…
+The bar sits above the grid, never floating over content") that a
+sticky/floating bar directly contradicts. The spec's own requirement —
+"must not cover the last row" — is trivially satisfied by the bar's
+existing plain in-flow layout (it can't cover anything it never
+overlaps), so the sticky CSS was dropped rather than implemented; nothing
+about the bar's positioning changed in this substep.
+
+## Design
+
+- `public/js/render.js`: new `selectionAnchorId` state (the fixed end a
+  `Shift`+click range extends from, reset when select mode turns off);
+  `visibleIds(list)` flattens `Store.getGroupedFilteredSorted(list)` —
+  excluding a collapsed franchise group's own seasons, since their
+  checkboxes sit under a hidden `.franchise-seasons` block a plain click
+  can't reach either, so "visible" means the same thing for both entry
+  points; `selectRange(anilistId, list)` and `selectAllVisible(list)`
+  both build on it. `renderBulkActionBar(list)` now takes the active
+  list (needed to compute the visible count) and its count `<span>` is
+  `aria-live="polite"`, with a new `bulkBarCountText()` helper reading
+  "All N shown selected" exactly when the selection matches the full
+  visible set.
+- `public/js/events.js`: the existing `toggle-select` checkbox handler
+  gains `e.shiftKey` → `Render.selectRange`; a plain or `Ctrl`/`Cmd`
+  click both still just toggle the one item (the modifiers are additive
+  gestures on top of direct toggling, not a replacement for it). New
+  `quick-select` handler for the hover checkbox (enters select mode,
+  toggles the one card). New `Ctrl`/`Cmd`+`A` binding in
+  `bindKeyboardShortcuts()`, guarded by `isTypingTarget` like the
+  existing `Ctrl+Z` binding, and by `Store.LISTS.includes(currentView)`
+  so it's a no-op on Discover/Schedule/Home/Statistics rather than
+  hijacking native select-all there.
+- `public/js/render.js` (`cardHtml`)/`public/styles.css`: a small
+  hover-revealed checkbox (`data-action="quick-select"`) added inside the
+  existing `.card-corner-actions` block, styled as a new
+  `.corner-btn.quick-select-box` modifier — it needs no hover rule of its
+  own since it's a plain member of that already-hover-gated flex row.
+
+## Verification
+
+**1. Automated checks.**
+```
+node tests/run-all.js
+...
+scripts/check-copy-registry.js
+  ok — the real registry passes every build-time copy check
+
+260 passed, 0 failed
+```
+```
+node scripts/check-copy-registry.js
+check-copy-registry: OK — 99 entries, 297 variants, 8 v2 files scanned for raw sink literals.
+```
+```
+npx playwright test
+...
+ok 100 tests\e2e\typography-sliders.spec.js:307:1 › prefers-reduced-motion clamps the animation slider's effective duration to 0ms without touching the stored step (1.4s)
+
+1 skipped
+100 passed (1.7m)
+```
+Includes the new `tests/e2e/item-selection.spec.js` (6 tests: range
+select, `Ctrl`/`Cmd`+click toggle-one, `Ctrl`/`Cmd`+`A` scoped to the
+active filter with the "All N shown selected" text, the hover checkbox,
+the `aria-live` count, clear-on-navigation) and a regenerated
+`tests/fixtures/token-conversion-baseline.json` — the new hover checkbox
+adds a `<label>`/`<input>` pair to every card, which shifted the ordinal
+suffix of every *other* plain `input` element captured after it on the
+same scene. Verified purely additive via an index-agnostic value-multiset
+comparison script (group entries by tag+class stripping the `#N` suffix,
+confirm every old value still appears in the new capture at least as
+often as before) before accepting the regeneration — 12 new groups (one
+`label.corner-btn.quick-select-box` per scene), zero lost or changed
+values anywhere else. No typecheck/lint/build commands exist beyond
+these plus the SEA packaging script (rebuilt below).
+
+**2. Data safety.** No schema or migration touched — `selectedIds` is
+transient, in-memory, module-level UI state, the same class as the
+pre-existing `expandedGroups`/`selectMode`, never persisted. Not
+applicable, stated explicitly rather than skipped.
+
+**3. Manual smoke test**, against a disposable copy of the real
+222-entry library (`Get-NetTCPConnection` confirmed port 4321 was still
+your own separately-running packaged `.exe` (PID 37032,
+`AnimeTracker-2.1.1.exe`) before picking 4322 instead), driven by
+dispatching real `MouseEvent`/`KeyboardEvent`s with the actual modifier
+flags set (the Browser pane's screenshot compositor was unavailable this
+session, so `computer`'s coordinate-click path couldn't be used; every
+event dispatched is what a real click/keypress produces, verified
+against the live re-rendered DOM after each step, not assumed):
+1. Entered select mode on the real 12-title Watching tab. Clicked
+   checkbox 1, `Shift`+clicked checkbox 4: exactly the 4 in between
+   selected (`184492, 184356, 187538, 208044`), bar read "4 selected".
+2. `Ctrl`+clicked checkbox 2 (already selected): removed only that one,
+   the other 3 stayed selected.
+3. Filtered format to "ONA" (narrowed 12 → 3 real titles), cleared the
+   stale prior selection, pressed `Ctrl+A`: exactly the 3 visible titles
+   selected, bar read "All 3 shown selected". Cleared the filter: all 12
+   titles back, selection stayed frozen at exactly those 3 (never
+   retroactively grew), bar correctly reverted to "3 selected" (not
+   "All").
+4. With select mode off, clicked the hover checkbox on a 6th real card:
+   select mode turned on and that one card was selected — the second
+   entry point works.
+5. Selected 1 real card, switched to the Watchlist tab: select mode
+   turned off, bar hidden. Switched back to Watching: select mode still
+   off, selection empty — clears on navigation, confirmed on the real
+   list tabs, not just the fixture.
+6. Re-checksummed the **original** `library.json` afterward
+   (`md5sum`): identical before and after, since no bulk action was ever
+   executed, only selection state. Disposable copy, its server process
+   (killed by exact PID) and its temp directory removed after the test.
+
+**4. Performance.** The Tuning table names a budget for "Library list
+render, 2,000 entries" (P4.1/P4.3/P4.4), not for the selection
+interactions themselves — this substep touches no rendering path beyond
+what P4.1 already measured (an extra `<label>`/`<input>` per card is not
+a new render pass), so no new number is recorded, stated explicitly
+rather than invented.
+
+**5. Accessibility.** Keyboard path: `Shift`+click and `Ctrl`/`Cmd`+click
+are mouse gestures per the spec's own wording, but every checkbox
+remains independently keyboard-focusable and togglable via Space/Enter,
+unchanged from the pre-existing checkbox; `Ctrl`/`Cmd`+`A` is a pure
+keyboard binding, confirmed above. The bulk bar's count is now
+`aria-live="polite"`, confirmed by inspecting the live attribute against
+the real DOM — a standard, well-supported ARIA pattern, not a novel one.
+**The screen reader step is user-executed**: open the Watching tab,
+press `s` to enter select mode, then `Ctrl`+`A` — confirm your screen
+reader announces the selected count changing without needing to move
+focus to the bar. Offered, not required to close this substep, the same
+standing offer every prior substep's own close-out has made; no
+screen-reader outcome is claimed here.
+
+**6. Rollback.** Revert the `v2/P4.3` commit range (`5ac2cbf`..`faeaef4`,
+2 commits). No schema or migration is touched, so a plain code revert is
+sufficient — the reverted build simply stops offering range-select,
+`Ctrl`/`Cmd`+`A`, the hover checkbox and the `aria-live` count; the
+pre-existing toggle/bar/bulk-action behavior is exactly what it was
+before.
+
+**Status: P4.3 done.** All six acceptance criteria satisfied (criterion
+2 stated as not applicable rather than invented; criterion 4 pointed at
+the one budget the Tuning table actually names for this surface;
+criterion 5's optional dedicated screen-reader pass offered, not
+required, consistent with every prior substep's own close-out
+judgment).
+
+## P4.3 close out
+
+Merged into `main` in this session's close-out (see the merge commit
+immediately following); `v2/P4.3` retained, not deleted, per the spec's
 branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin` until
