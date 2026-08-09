@@ -355,7 +355,15 @@ async function run() {
     assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.equal(migrated.preferences.titleLanguage, 'english');
     assert.equal(migrated.preferences.contentTier, 'standard');
-    assert.equal(migrated.preferences.colorTheme, 'moonlit-shrine');
+    // P6.1: migrate_9_to_10 replaces the flat colorTheme string with
+    // appearance — a fresh v1 fixture's default 'moonlit-shrine' (not
+    // light-flagged) lands in the dark slot, mode 'dark'.
+    assert.deepEqual(migrated.preferences.appearance, {
+      mode: 'dark',
+      light: { type: 'preset', id: 'daybreak' },
+      dark: { type: 'preset', id: 'moonlit-shrine' },
+      background: { type: 'none', opacity: 0 },
+    });
     assert.equal(migrated.preferences.uiFont, 'schibsted-grotesk');
     assert.equal(migrated.preferences.headingFont, 'zen-old-mincho');
     assert.equal(migrated.preferences.numbersFont, 'schibsted-grotesk');
@@ -390,8 +398,11 @@ async function run() {
     // removed them from settingsSchema.js's current default shape entirely,
     // replacing them with 8 independent *Step fields — migrate_4_to_5 is a
     // frozen historical snapshot from before that existed and correctly
-    // keeps hardcoding its own 's'/'normal' literals regardless.
-    for (const key of ['titleLanguage', 'contentTier', 'streamerMode', 'decor', 'decorDensity', 'originalTitles', 'colorTheme']) {
+    // keeps hardcoding its own 's'/'normal' literals regardless. colorTheme
+    // dropped the same way in P6.1 — replaced by the structured `appearance`
+    // field, which migrate_4_to_5 (many steps before migrate_9_to_10 exists)
+    // correctly still has no concept of.
+    for (const key of ['titleLanguage', 'contentTier', 'streamerMode', 'decor', 'decorDensity', 'originalTitles']) {
       assert.equal(migrated.preferences[key], live[key], `default for "${key}" drifted between migrations.js and settingsSchema.js`);
     }
   });
@@ -403,7 +414,7 @@ async function run() {
     assert.equal(shaped.streamerMode, false);
     assert.equal(shaped.textSizeStep, 5);
     assert.equal(shaped.textWeightStep, 5);
-    assert.equal(shaped.colorTheme, 'moonlit-shrine');
+    assert.deepEqual(shaped.appearance, defaultSettings().appearance);
     assert.equal(shaped.uiFont, 'schibsted-grotesk');
     assert.equal(shaped.headingFont, 'zen-old-mincho');
     assert.equal(shaped.numbersFont, 'schibsted-grotesk');
@@ -437,7 +448,7 @@ async function run() {
       titleLanguage: 'native',
       contentTier: 'madara',
       streamerMode: true,
-      colorTheme: 'wisteria',
+      appearance: { mode: 'system', light: { type: 'preset', id: 'wisteria' }, dark: { type: 'custom', accent: '#3ba55d' }, background: { type: 'gradient', opacity: 40 } },
       uiFont: 'inter',
       headingFont: 'bebas-neue',
       numbersFont: 'jetbrains-mono',
@@ -447,7 +458,12 @@ async function run() {
     assert.equal(shaped.titleLanguage, 'native');
     assert.equal(shaped.contentTier, 'madara');
     assert.equal(shaped.streamerMode, true);
-    assert.equal(shaped.colorTheme, 'wisteria');
+    assert.deepEqual(shaped.appearance, {
+      mode: 'system',
+      light: { type: 'preset', id: 'wisteria' },
+      dark: { type: 'custom', accent: '#3ba55d' },
+      background: { type: 'gradient', opacity: 40 },
+    });
     assert.equal(shaped.uiFont, 'inter');
     assert.equal(shaped.headingFont, 'bebas-neue');
     assert.equal(shaped.numbersFont, 'jetbrains-mono');
@@ -1182,7 +1198,7 @@ async function run() {
     for (const k of ['sort', 'sortDir', 'filters', 'activeTab', 'discoverFilters']) {
       assert.equal(isViewStatePreference(k), true, `${k} is view state, must be excluded`);
     }
-    for (const k of ['colorTheme', 'textSize', 'textWeight', 'decor', 'decorDensity', 'originalTitles', 'notifyNewEpisodes', 'titleLanguage', 'contentTier', 'streamerMode']) {
+    for (const k of ['appearance', 'textSize', 'textWeight', 'decor', 'decorDensity', 'originalTitles', 'notifyNewEpisodes', 'titleLanguage', 'contentTier', 'streamerMode']) {
       assert.equal(isViewStatePreference(k), false, `${k} is a real setting, must be logged`);
     }
   });

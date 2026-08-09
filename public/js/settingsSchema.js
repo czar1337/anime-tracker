@@ -20,7 +20,7 @@
 // a plain dynamic import() from Node" pattern as state.js/recommendLogic.js,
 // so this is unit-testable without a browser.
 
-import { DEFAULT_THEME_ID } from './themes.js';
+import { DEFAULT_THEME_ID, COLOR_THEMES } from './themes.js';
 import { DEFAULT_UI_FONT, DEFAULT_HEADING_FONT, DEFAULT_NUMBERS_FONT, isValidFontId } from './fonts.js';
 import { SLIDER_KEYS, DEFAULT_STEP, MIN_STEP, MAX_STEP } from './typographySliders.js';
 
@@ -40,6 +40,50 @@ export const CONTENT_TIERS = ['standard', 'familyFriendly', 'madara'];
 export const DECOR_LEVELS = ['on', 'half', 'off'];
 export const DECOR_DENSITIES = ['few', 'normal', 'many'];
 export const ORIGINAL_TITLES_MODES = ['off', 'details', 'everywhere'];
+
+// P6.1: replaces the old flat `colorTheme` string (migrate_9_to_10 moves an
+// existing value here) — see migrations.js's own header for why one id
+// can't represent light/dark/system with independent per-mode choices.
+export const APPEARANCE_MODES = ['light', 'dark', 'system'];
+export const BACKGROUND_TYPES = ['none', 'gradient', 'grain'];
+export const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+export function isValidHexColor(value) {
+  return typeof value === 'string' && HEX_COLOR_RE.test(value);
+}
+
+function defaultAppearanceSlot(themeId) {
+  return { type: 'preset', id: themeId };
+}
+
+export function defaultAppearance() {
+  return {
+    mode: 'dark',
+    light: defaultAppearanceSlot('daybreak'),
+    dark: defaultAppearanceSlot(DEFAULT_THEME_ID),
+    background: { type: 'none', opacity: 0 },
+  };
+}
+
+// A slot is either { type: 'preset', id } naming a real curated theme, or
+// { type: 'custom', accent } with a real 6-digit hex — anything else
+// (corrupt/missing/an id that no longer exists) repairs to `fallback`
+// rather than crashing, same "repair, never invent beyond what's actually
+// invalid" rule every other enum field in this file already follows.
+function sanitizeAppearanceSlot(slot, fallback) {
+  if (slot && slot.type === 'custom' && isValidHexColor(slot.accent)) {
+    return { type: 'custom', accent: slot.accent.toLowerCase() };
+  }
+  if (slot && slot.type === 'preset' && COLOR_THEMES.some((t) => t.id === slot.id)) {
+    return { type: 'preset', id: slot.id };
+  }
+  return fallback;
+}
+
+function sanitizeBackground(background, fallback) {
+  const type = background && BACKGROUND_TYPES.includes(background.type) ? background.type : fallback.type;
+  const rawOpacity = background && typeof background.opacity === 'number' ? background.opacity : fallback.opacity;
+  return { type, opacity: Math.max(0, Math.min(100, rawOpacity)) };
+}
 
 // Named, exported defaults (not inline literals) so preferences.js's
 // attrPref() calls and this module's own defaultSettings() both read from
@@ -116,7 +160,7 @@ export function defaultSettings() {
     decor: DEFAULT_DECOR,
     decorDensity: DEFAULT_DECOR_DENSITY,
     originalTitles: DEFAULT_ORIGINAL_TITLES,
-    colorTheme: DEFAULT_THEME_ID,
+    appearance: defaultAppearance(),
     // P3.1: uiFont/headingFont/numbersFont default to today's actual,
     // already-shipped typography (Schibsted Grotesk/Zen Old Mincho) —
     // picking none of the 9 new families this substep adds is
@@ -166,7 +210,13 @@ export function ensureSettingsShape(preferences) {
   prefs.decor = DECOR_LEVELS.includes(prefs.decor) ? prefs.decor : defaults.decor;
   prefs.decorDensity = DECOR_DENSITIES.includes(prefs.decorDensity) ? prefs.decorDensity : defaults.decorDensity;
   prefs.originalTitles = ORIGINAL_TITLES_MODES.includes(prefs.originalTitles) ? prefs.originalTitles : defaults.originalTitles;
-  prefs.colorTheme = typeof prefs.colorTheme === 'string' && prefs.colorTheme ? prefs.colorTheme : defaults.colorTheme;
+  const appearance = prefs.appearance && typeof prefs.appearance === 'object' ? prefs.appearance : {};
+  prefs.appearance = {
+    mode: APPEARANCE_MODES.includes(appearance.mode) ? appearance.mode : defaults.appearance.mode,
+    light: sanitizeAppearanceSlot(appearance.light, defaults.appearance.light),
+    dark: sanitizeAppearanceSlot(appearance.dark, defaults.appearance.dark),
+    background: sanitizeBackground(appearance.background, defaults.appearance.background),
+  };
   prefs.uiFont = isValidFontId(prefs.uiFont) ? prefs.uiFont : defaults.uiFont;
   prefs.headingFont = isValidFontId(prefs.headingFont) ? prefs.headingFont : defaults.headingFont;
   prefs.numbersFont = isValidFontId(prefs.numbersFont) ? prefs.numbersFont : defaults.numbersFont;

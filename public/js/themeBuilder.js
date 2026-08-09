@@ -127,4 +127,49 @@ function buildPalette(t) {
   };
 }
 
-export { buildPalette, hslToRgb, lin, lum, ratio, ensure, css, cssA, hex, CONTRAST_TARGETS };
+// Inverse of hex() above — needed by the runtime custom-theme builder
+// (themes.js), which only ever collects one hex value from the user (the
+// accent) and has to get it into the same [h, s, l] shape buildPalette()
+// expects everywhere else.
+function hexToHsl(hexStr) {
+  const clean = hexStr.replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  const d = max - min;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return [h, s * 100, l * 100];
+}
+
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+// Derives the four inputs buildPalette() needs (base, accent, glow, deco)
+// from just a user's accent hex + a light/dark flag — the "custom theme
+// builder" only ever asks for one color. Not hand-tuned art like the 53
+// curated recipes (each of those varies base/glow/deco a small,
+// specifically-chosen amount from its own accent); this is a fixed,
+// good-enough-for-custom formula applied uniformly to any input hue.
+function themeInputFromAccent(accentHex, light) {
+  const [h, s, l] = hexToHsl(accentHex);
+  return {
+    base: [h, clamp(s * 0.32, 6, 26)],
+    accent: [h, clamp(s, 30, 70), clamp(l, 40, 64)],
+    glow: [h, clamp(s * 0.75, 20, 60), clamp(l + 18, 40, 85)],
+    deco: [(h + 8) % 360, clamp(s * 0.85, 20, 58), clamp(l, 44, 62)],
+    light: !!light,
+  };
+}
+
+export { buildPalette, hslToRgb, lin, lum, ratio, ensure, css, cssA, hex, hexToHsl, themeInputFromAccent, CONTRAST_TARGETS };

@@ -25,7 +25,7 @@ test('boot against a v4 fixture migrates to CURRENT_SCHEMA_VERSION, defaults eve
   const server = await startFixtureServer(FIXTURE);
   try {
     const data = await (await fetch(`${server.url}/api/library`)).json();
-    expect(data.schemaVersion).toBe(9);
+    expect(data.schemaVersion).toBe(10);
     expect(data.preferences).toMatchObject({
       titleLanguage: 'english',
       contentTier: 'standard',
@@ -33,7 +33,15 @@ test('boot against a v4 fixture migrates to CURRENT_SCHEMA_VERSION, defaults eve
       decor: 'on',
       decorDensity: 'normal',
       originalTitles: 'details',
-      colorTheme: 'moonlit-shrine',
+      // P6.1: colorTheme is gone, replaced by the structured `appearance`
+      // object — a v4 fixture's default 'moonlit-shrine' (not
+      // light-flagged) lands in the dark slot, mode 'dark'.
+      appearance: {
+        mode: 'dark',
+        light: { type: 'preset', id: 'daybreak' },
+        dark: { type: 'preset', id: 'moonlit-shrine' },
+        background: { type: 'none', opacity: 0 },
+      },
       // P3.1: defaults preserve today's actual typography.
       uiFont: 'schibsted-grotesk',
       headingFont: 'zen-old-mincho',
@@ -89,9 +97,9 @@ test('PUT /api/library migrates an old-schemaVersion body before writing', async
     });
     expect(putRes.status).toBe(200);
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(9);
+    expect(after.schemaVersion).toBe(10);
     expect(after.dismissedItems).toEqual([{ anilistId: 777, title: null, coverImage: null }]);
-    expect(after.preferences.colorTheme).toBe('moonlit-shrine');
+    expect(after.preferences.appearance.dark).toEqual({ type: 'preset', id: 'moonlit-shrine' });
   } finally {
     await server.stop();
   }
@@ -129,7 +137,7 @@ test('legacy backup restore migrates an old-schemaVersion backup file before wri
     });
     expect(res.status).toBe(200);
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(9);
+    expect(after.schemaVersion).toBe(10);
     expect(after.preferences.textSizeStep).toBe(5);
   } finally {
     await server.stop();
@@ -183,10 +191,10 @@ test('snapshot restore migrates an old-schemaVersion snapshot after restoring an
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.verified).toBe(true);
-    expect(body.migratedTo).toBe(9);
+    expect(body.migratedTo).toBe(10);
 
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(9);
+    expect(after.schemaVersion).toBe(10);
     // P1.7: this snapshot predates tags/customLists entirely (P1.6's
     // skipped-store restore), so migrate_5_to_6 is what defaults them and
     // backfills the per-entry membership arrays — same as booting a bare
@@ -194,7 +202,7 @@ test('snapshot restore migrates an old-schemaVersion snapshot after restoring an
     expect(after.entries).toEqual(oldLibrary.entries.map((e) => ({ ...e, tagIds: [], customListIds: [] })));
     expect(after.tags).toEqual([]);
     expect(after.customLists).toEqual([]);
-    expect(after.preferences.colorTheme).toBe('moonlit-shrine');
+    expect(after.preferences.appearance.dark).toEqual({ type: 'preset', id: 'moonlit-shrine' });
     expect(after.preferences.activeTab).toBe('watching');
   } finally {
     await server.stop();

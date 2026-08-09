@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 9;
+const CURRENT_SCHEMA_VERSION = 10;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -271,7 +271,48 @@ function migrate_8_to_9(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9 };
+// v9 -> v10 (P6.1): replaces the single flat `colorTheme` preference string
+// with `appearance` (a mode plus a per-mode light/dark slot, plus an
+// optional background effect) — light/dark/system modes and a custom-
+// accent picker need somewhere to keep two independent theme choices,
+// which one flat id can't represent. An existing user's currently-chosen
+// theme is placed in the slot matching its own actual light/dark-ness and
+// `mode` is set to that same slot (never 'system' here) so the very next
+// paint after upgrading shows the exact same theme, unchanged — the Global
+// constraint that a new setting never changes what an existing user sees
+// until they opt in. The *other* slot gets a sensible default the user
+// only ever sees once they switch mode or opt into 'system'.
+// Frozen snapshot of which curated ids were light-flagged as of this
+// migration (see public/js/themes.js's COLOR_THEMES) — deliberately not a
+// live import, same "migration is a snapshot" convention as
+// migrate_8_to_9's SORT_KEY_RENAME.
+const LIGHT_THEME_IDS_AT_V10 = new Set(['clean-interface', 'radiant', 'daybreak', 'parchment', 'amberlight', 'rosequartz', 'cinderglass']);
+
+function migrate_9_to_10(data) {
+  const out = { ...data };
+  out.schemaVersion = 10;
+  const before = out.preferences || {};
+  const currentThemeId = typeof before.colorTheme === 'string' && before.colorTheme ? before.colorTheme : 'moonlit-shrine';
+  const currentIsLight = LIGHT_THEME_IDS_AT_V10.has(currentThemeId);
+  const currentSlot = { type: 'preset', id: currentThemeId };
+  const otherSlot = { type: 'preset', id: currentIsLight ? 'moonlit-shrine' : 'daybreak' };
+  const { colorTheme, ...restPreferences } = before;
+  out.preferences = {
+    ...restPreferences,
+    appearance: {
+      mode: currentIsLight ? 'light' : 'dark',
+      light: currentIsLight ? currentSlot : otherSlot,
+      dark: currentIsLight ? otherSlot : currentSlot,
+      background: { type: 'none', opacity: 0 },
+    },
+  };
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_9_to_10 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -298,4 +339,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10 };

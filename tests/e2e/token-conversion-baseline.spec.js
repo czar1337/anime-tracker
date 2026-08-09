@@ -241,17 +241,11 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     await page.waitForSelector('#snapshot-list .backup-row');
     Object.assign(captured, await captureScene(page, 'settings', '#theme-picker-overlay'));
 
-    // The theme grid's "Show fewer" button (#theme-view-fewer-btn) carries
-    // an inline margin-top only rendered once expanded past the preview
-    // count — the collapsed default ("View more") is a different button
-    // with no such inline style, so this state was never captured above.
-    const themeViewMoreBtn = page.locator('#theme-view-more-btn');
-    if (await themeViewMoreBtn.count()) {
-      await themeViewMoreBtn.click();
-      await page.waitForSelector('#theme-view-fewer-btn');
-      await page.waitForTimeout(150);
-      Object.assign(captured, await captureScene(page, 'settings-themes-expanded', '#theme-picker-overlay'));
-    }
+    // P6.1 removed the theme grid's old "View more"/"Show fewer" pagination
+    // (#theme-view-more-btn/#theme-view-fewer-btn) — each mode slot's grid
+    // is now pre-filtered to that slot's own light/dark-ness (7 or 46
+    // presets) and relies on .themegrid's own existing internal scroll
+    // instead, so there is no separate "expanded" state left to capture.
 
     // Settings' tag/list manager has two more states never captured above:
     // the inline "+ New tag" form (.inline-create-form, .color-swatch-grid

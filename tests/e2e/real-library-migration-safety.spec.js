@@ -63,10 +63,10 @@ test('the schemaVersion 4->CURRENT (P1.3-P1.7 chain) migration is a dry-run-safe
   try {
     const migrated = await (await fetch(`${server.url}/api/library`)).json();
     // Booting runs the FULL chain to whatever CURRENT_SCHEMA_VERSION is today
-    // (9, since P4.1), not just the 4->5 step this test was originally named
+    // (10, since P6.1), not just the 4->5 step this test was originally named
     // for — a real schemaVersion-4 library on disk is exactly the case that
     // exercises every step at once.
-    expect(migrated.schemaVersion).toBe(9);
+    expect(migrated.schemaVersion).toBe(10);
     expect(migrated.entries.length).toBe(entryCountBefore);
     expect(migrated.preferences).toMatchObject({
       titleLanguage: 'english',
