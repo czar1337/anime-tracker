@@ -1463,6 +1463,15 @@ kbd {
 .corner-btn:active { transform: scale(0.93); }
 .corner-btn.danger:hover { background: var(--accent-fill); color: var(--accent-contrast); }
 
+/* A second, discoverable entry point into select mode: hover-revealed like
+   the rest of .card-corner-actions (it's a plain member of that same flex
+   row, so it needs no hover rule of its own), circular to visually echo
+   the real select-mode checkbox below rather than looking like a third
+   edit/delete action. */
+.corner-btn.quick-select-box { position: relative; border-radius: 50%; }
+.corner-btn.quick-select-box::after { content: '✓'; font-size: var(--fs-meta); color: transparent; }
+.corner-btn.quick-select-box input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+
 /* Select mode: an empty circle shows on every card while active (the
    affordance), filled with a check once picked — always visible, not
    hover-gated, since it's the primary interaction while select mode is on

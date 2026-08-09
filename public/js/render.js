@@ -82,6 +82,12 @@ const expandedGroups = new Set();
 // that a full re-render would otherwise wipe out.
 let selectMode = false;
 const selectedIds = new Set();
+// The last plain or Ctrl/Cmd click on a checkbox, i.e. the fixed end a
+// Shift+click range extends from. Left in place across a Shift+click (so a
+// second Shift+click still extends from the same anchor) and cleared
+// whenever select mode itself turns off, since there's nothing left to
+// extend a range from once selection is gone.
+let selectionAnchorId = null;
 
 // P1.7's inline "+ New tag"/"+ New list" forms in the detail overlay —
 // module-level so a refresh after toggling a tag/list membership (which
@@ -114,21 +120,66 @@ function isSelectMode() {
 
 function toggleSelectMode() {
   selectMode = !selectMode;
-  if (!selectMode) selectedIds.clear();
+  if (!selectMode) {
+    selectedIds.clear();
+    selectionAnchorId = null;
+  }
 }
 
 function clearSelection() {
   selectMode = false;
   selectedIds.clear();
+  selectionAnchorId = null;
 }
 
 function toggleSelected(anilistId) {
   if (selectedIds.has(anilistId)) selectedIds.delete(anilistId);
   else selectedIds.add(anilistId);
+  selectionAnchorId = anilistId;
 }
 
 function getSelectedIds() {
   return [...selectedIds];
+}
+
+// Flattens the exact same filtered/sorted view the grid itself just
+// rendered from (never the list's raw, unfiltered entries) into an ordered
+// array of ids — the one true source of "what's currently visible, in
+// what order" that both Shift+click ranges and Ctrl/Cmd+A need to agree
+// with, so a range or select-all can never reach past what's on screen. A
+// collapsed franchise group's own seasons are excluded — their checkboxes
+// sit under a hidden .franchise-seasons block a plain click can't reach
+// either, so "visible" has to mean the same thing for both entry points.
+function visibleIds(list) {
+  return Store.getGroupedFilteredSorted(list)
+    .flatMap((g) => (g.length === 1 || expandedGroups.has(groupKey(g)) ? g : []))
+    .map((e) => e.anilistId);
+}
+
+// Shift+click: extends the selection from the last anchored click (plain or
+// Ctrl/Cmd) through the clicked card, inclusive of both ends. A first
+// Shift+click with no prior anchor (e.g. select mode was just entered and
+// nothing else was clicked yet) falls back to selecting just the one id,
+// since there's no other end to draw a range from.
+function selectRange(anilistId, list) {
+  const ids = visibleIds(list);
+  const anchorIndex = ids.indexOf(selectionAnchorId);
+  const clickedIndex = ids.indexOf(anilistId);
+  if (anchorIndex === -1 || clickedIndex === -1) {
+    selectedIds.add(anilistId);
+    return;
+  }
+  const [start, end] = anchorIndex <= clickedIndex ? [anchorIndex, clickedIndex] : [clickedIndex, anchorIndex];
+  for (let i = start; i <= end; i++) selectedIds.add(ids[i]);
+}
+
+// Ctrl/Cmd+A: every currently filtered/visible id, never the whole list —
+// the spec is explicit that "select all" must mean "all shown", not "all
+// in my library". Enters select mode first if it wasn't already on, since
+// selecting everything implies wanting to see what got selected.
+function selectAllVisible(list) {
+  if (!selectMode) selectMode = true;
+  for (const id of visibleIds(list)) selectedIds.add(id);
 }
 
 function groupKey(group) {
@@ -310,6 +361,7 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
           : `<div class="card-corner-actions">
               <button class="corner-btn" data-action="fix-match" title="Fix wrong match" aria-label="Fix wrong match">${PENCIL_SVG}</button>
               <button class="corner-btn danger" data-action="delete" title="Remove from library" aria-label="Remove from library">${TRASH_SVG}</button>
+              <label class="corner-btn quick-select-box" title="Select"><input type="checkbox" data-action="quick-select" aria-label="Select"></label>
             </div>`}
         ${list === 'watching' && !selectMode ? `<button class="plus" data-action="increment" aria-label="Mark next episode watched" title="Mark next episode watched">＋</button>` : ''}
       </div>
@@ -424,7 +476,7 @@ function animateCountUp(root = document) {
 }
 
 function renderGrid(list) {
-  renderBulkActionBar();
+  renderBulkActionBar(list);
   // The hero only belongs on Watching — explicitly hidden otherwise rather
   // than just "not re-rendered", since #watching-hero lives inside
   // #list-view (shared by all four list tabs, not swapped per tab).
@@ -636,10 +688,21 @@ function renderFilterBar(list) {
   }
 
   renderActiveFilterChips(list);
-  renderBulkActionBar();
+  renderBulkActionBar(list);
 }
 
-function renderBulkActionBar() {
+// bulkBarCountText: the generic "N selected" is ambiguous exactly when N
+// equals every currently filtered/visible item — the one moment a user
+// might genuinely wonder "did I just select my whole library?" (most
+// likely right after Ctrl/Cmd+A). Naming it explicitly only in that case
+// keeps the bar's wording quiet the rest of the time.
+function bulkBarCountText(selectedCount, visibleCount) {
+  return selectedCount > 0 && selectedCount === visibleCount
+    ? `All <b>${selectedCount}</b> shown selected`
+    : `<b>${selectedCount}</b> selected`;
+}
+
+function renderBulkActionBar(list) {
   if (selectModeBtn) selectModeBtn.setAttribute('aria-pressed', String(selectMode));
   if (!bulkActionBarEl) return;
   if (!selectMode) {
@@ -648,9 +711,10 @@ function renderBulkActionBar() {
   }
   bulkActionBarEl.hidden = false;
   const count = selectedIds.size;
+  const visibleCount = list ? visibleIds(list).length : count;
   const disabled = count === 0 ? 'disabled' : '';
   bulkActionBarEl.innerHTML = `
-    <span class="count"><b>${count}</b> selected</span>
+    <span class="count" aria-live="polite">${bulkBarCountText(count, visibleCount)}</span>
     <span class="divider"></span>
     ${QUICK_MOVE_LISTS.map((l) => `<button class="btn btn-ghost sm" data-action="bulk-move" data-status="${l.key}" title="Move selected to ${l.label}" ${disabled}>${l.label}</button>`).join('')}
     <span class="r">
@@ -2209,6 +2273,8 @@ export const Render = {
   clearSelection,
   toggleSelected,
   getSelectedIds,
+  selectRange,
+  selectAllVisible,
   renderBulkActionBar,
   renderNavMenu,
   stepsHtml,
