@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const CSS_OUT = path.join(__dirname, '..', 'public', 'moonlit-shrine-themes.css');
 const AUDIT_OUT = path.join(__dirname, '..', 'design', 'theme-contrast-audit.md');
+const THEME_BUILDER_URL = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'themeBuilder.js').replace(/\\/g, '/');
 
 const themes = [
   // family: ash (blue-black + red)
@@ -80,86 +81,18 @@ const themes = [
   {key:"cinderglass",name:"Cinderglass",fam:"ash",base:[358,14],accent:[352,58,52],glow:[344,36,72],deco:[8,44,48],light:true}
 ];
 
-/* ---------- colour maths ---------- */
-const r2 = n => Math.round(n * 100) / 100;
-function hslToRgb(h, s, l) {
-  h = ((h % 360) + 360) % 360 / 360; s /= 100; l /= 100;
-  const k = n => (n + h * 12) % 12, a = s * Math.min(l, 1 - l);
-  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  return [f(0), f(8), f(4)];
-}
-const lin = c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-function lum([h, s, l]) { const [r, g, b] = hslToRgb(h, s, l); return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b); }
-function ratio(a, b) { const la = lum(a), lb = lum(b), hi = Math.max(la, lb), lo = Math.min(la, lb); return (hi + 0.05) / (lo + 0.05); }
-function ensure(col, bg, target, darken) {
-  let [h, s, l] = col, guard = 0;
-  while (ratio([h, s, l], bg) < target && guard++ < 80) l = darken ? Math.max(2, l - 1) : Math.min(98, l + 1);
-  return [h, s, l];
-}
-const css = ([h, s, l]) => `hsl(${r2(h)} ${r2(s)}% ${r2(l)}%)`;
-const cssA = ([h, s, l], a) => `hsl(${r2(h)} ${r2(s)}% ${r2(l)}% / ${a})`;
-const hex = ([h, s, l]) => '#' + hslToRgb(h, s, l).map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+/* ---------- colour maths ----------
+   Extracted to public/js/themeBuilder.js (P6.1) so the runtime custom-theme
+   builder can call the exact same derivation a user's own accent gets — see
+   that module's header comment. Imported here via dynamic import() since
+   this script is CommonJS and themeBuilder.js is a browser-loadable ESM
+   module. */
+async function main() {
+  const { buildPalette, css, cssA, hex } = await import(THEME_BUILDER_URL);
+  const out = themes.map(buildPalette);
 
-/* ---------- derivation ---------- */
-function build(t) {
-  const [bh, bs] = t.base, light = !!t.light;
-  const L = light ? [96, 99, 100, 97, 89, 74] : [5, 9, 10.5, 13.5, 17, 27];
-  const sat = light ? [bs * .35, bs * .25, bs * .2, bs * .3, bs * .4, bs * .45] : [bs, bs * .9, bs * .85, bs * .8, bs * .7, bs * .55];
-  const bg = [bh, sat[0], L[0]];
-  const surf = {
-    bg,
-    bgDeep: [bh, sat[0], light ? 92 : 3.5],
-    elevated: [bh, sat[1], L[1]],
-    card: [bh, sat[2], L[2]],
-    cardHover: [bh, sat[3], L[3]],
-    line: [bh, sat[4], L[4]],
-    lineLit: [bh, sat[5], L[5]]
-  };
-  // text: enforced against bg
-  let text = light ? [bh, Math.min(bs, 18), 12] : [bh, 10, 92];
-  let dim = light ? [bh, Math.min(bs, 14), 34] : [bh, 12, 70];
-  let faint = light ? [bh, Math.min(bs, 14), 46] : [bh, 12, 55];
-  text = ensure(text, bg, 12, light);
-  dim = ensure(dim, bg, 7, light);
-  faint = ensure(faint, bg, 4.6, light);
-  // accent
-  const accent = t.accent;
-  let accentLit = [accent[0], Math.max(30, accent[1] - 6), light ? accent[2] - 6 : accent[2] + 14];
-  accentLit = ensure(accentLit, bg, 4.6, light);
-  const accentDeep = [accent[0], accent[1], Math.max(10, accent[2] * 0.55)];
-  // text colour that sits on an accent fill
-  // --accent-fill is the accent as a *filled surface* behind text (primary
-  // button, active tab pill, "new episode" tag). --accent stays untouched for
-  // indicators, progress and borders, where its lightness carries meaning.
-  // The fill is nudged in lightness until its text colour clears 4.6:1.
-  const white = [0, 0, 100], ink = [bh, Math.min(bs, 20), 10];
-  let accentFill = accent.slice();
-  let accentContrast = ratio(white, accentFill) >= ratio(ink, accentFill) ? white : ink;
-  let g2 = 0;
-  while (ratio(accentContrast, accentFill) < 4.6 && g2++ < 90) {
-    accentFill = [accentFill[0], accentFill[1],
-      accentContrast[2] > 50 ? Math.max(8, accentFill[2] - 1) : Math.min(92, accentFill[2] + 1)];
-  }
-  const support = ensure([bh + 18, 26, light ? 46 : 62], bg, 4.6, light);
-  const positive = ensure([142, light ? 34 : 20, light ? 34 : 62], bg, 4.6, light);
-  const warning = ensure([38, light ? 58 : 45, light ? 40 : 60], bg, 4.6, light);
-
-  return {
-    ...t, light, surf,
-    colours: { text, dim, faint, accent, accentLit, accentFill, accentDeep, accentContrast, support, positive, warning, glow: t.glow, deco: t.deco },
-    audit: {
-      text: ratio(text, bg), dim: ratio(dim, bg), faint: ratio(faint, bg),
-      accentLit: ratio(accentLit, bg), accentFill: ratio(accentContrast, accentFill),
-      support: ratio(support, bg), positive: ratio(positive, bg), warning: ratio(warning, bg),
-      cardText: ratio(text, surf.card)
-    }
-  };
-}
-
-const out = themes.map(build);
-
-/* ---------- emit CSS ---------- */
-const header = `/* =====================================================================
+  /* ---------- emit CSS ---------- */
+  const header = `/* =====================================================================
    Moonlit Shrine · ${out.length} colour themes
    Generated by scripts/generate-themes.js — do not edit by hand.
    Every theme is derived from four parameters (base, accent, glow, deco)
@@ -170,9 +103,9 @@ const header = `/* =============================================================
    Default theme: moonlit-shrine
    ===================================================================== */\n\n`;
 
-const blocks = out.map(t => {
-  const c = t.colours, s = t.surf;
-  return `[data-color-theme="${t.key}"] {           /* ${t.name} · ${t.fam}${t.light ? ' · light' : ''} */
+  const blocks = out.map(t => {
+    const c = t.colours, s = t.surf;
+    return `[data-color-theme="${t.key}"] {           /* ${t.name} · ${t.fam}${t.light ? ' · light' : ''} */
   --bg: ${css(s.bg)};
   --bg-deep: ${css(s.bgDeep)};
   --bg-elevated: ${css(s.elevated)};
@@ -198,26 +131,26 @@ const blocks = out.map(t => {
   --cover-filter-hover: ${t.light ? 'saturate(1) brightness(1) contrast(1)' : 'saturate(.96) brightness(1) contrast(1.03)'};
   color-scheme: ${t.light ? 'light' : 'dark'};
 }`;
-}).join('\n\n');
+  }).join('\n\n');
 
-fs.writeFileSync(CSS_OUT, header + blocks + '\n');
+  fs.writeFileSync(CSS_OUT, header + blocks + '\n');
 
-/* ---------- emit audit ---------- */
-const fails = [];
-const rows = out.map(t => {
-  const a = t.audit;
-  const bad = [];
-  if (a.text < 12) bad.push('text');
-  if (a.dim < 7) bad.push('dim');
-  if (a.faint < 4.5) bad.push('faint');
-  if (a.accentLit < 4.5) bad.push('accent-lit');
-  if (a.accentFill < 4.5) bad.push('accent fill');
-  if (a.cardText < 4.5) bad.push('text on card');
-  if (bad.length) fails.push(`${t.key}: ${bad.join(', ')}`);
-  return `| ${t.name} | \`${t.key}\` | ${t.fam}${t.light ? ' · light' : ''} | ${hex(t.colours.accent)} | ${a.text.toFixed(1)} | ${a.dim.toFixed(1)} | ${a.faint.toFixed(1)} | ${a.accentLit.toFixed(1)} | ${a.accentFill.toFixed(1)} | ${bad.length ? '⚠ ' + bad.join(', ') : 'pass'} |`;
-});
+  /* ---------- emit audit ---------- */
+  const fails = [];
+  const rows = out.map(t => {
+    const a = t.audit;
+    const bad = [];
+    if (a.text < 12) bad.push('text');
+    if (a.dim < 7) bad.push('dim');
+    if (a.faint < 4.5) bad.push('faint');
+    if (a.accentLit < 4.5) bad.push('accent-lit');
+    if (a.accentFill < 4.5) bad.push('accent fill');
+    if (a.cardText < 4.5) bad.push('text on card');
+    if (bad.length) fails.push(`${t.key}: ${bad.join(', ')}`);
+    return `| ${t.name} | \`${t.key}\` | ${t.fam}${t.light ? ' · light' : ''} | ${hex(t.colours.accent)} | ${a.text.toFixed(1)} | ${a.dim.toFixed(1)} | ${a.faint.toFixed(1)} | ${a.accentLit.toFixed(1)} | ${a.accentFill.toFixed(1)} | ${bad.length ? '⚠ ' + bad.join(', ') : 'pass'} |`;
+  });
 
-const md = `# Theme contrast audit
+  const md = `# Theme contrast audit
 
 Generated by \`scripts/generate-themes.js\` on ${new Date().toISOString().slice(0, 10)}.
 ${out.length} themes. All ratios are measured, not estimated.
@@ -239,9 +172,12 @@ ${rows.join('\n')}
 - Themes needing dark text on the accent fill: ${out.filter(t => t.colours.accentContrast[2] < 50).map(t => '`' + t.key + '`').join(', ') || 'none'}
 - Failures: ${fails.length ? '\n  - ' + fails.join('\n  - ') : '**none**'}
 `;
-fs.writeFileSync(AUDIT_OUT, md);
+  fs.writeFileSync(AUDIT_OUT, md);
 
-console.log(`themes: ${out.length}`);
-console.log(`lowest text ${Math.min(...out.map(t => t.audit.text)).toFixed(2)} | dim ${Math.min(...out.map(t => t.audit.dim)).toFixed(2)} | faint ${Math.min(...out.map(t => t.audit.faint)).toFixed(2)} | accent-lit ${Math.min(...out.map(t => t.audit.accentLit)).toFixed(2)} | on-accent ${Math.min(...out.map(t => t.audit.accentFill)).toFixed(2)}`);
-console.log(`dark text on accent: ${out.filter(t => t.colours.accentContrast[2] < 50).map(t => t.key).join(', ') || 'none'}`);
-console.log(fails.length ? 'FAILURES:\n' + fails.join('\n') : 'no failures');
+  console.log(`themes: ${out.length}`);
+  console.log(`lowest text ${Math.min(...out.map(t => t.audit.text)).toFixed(2)} | dim ${Math.min(...out.map(t => t.audit.dim)).toFixed(2)} | faint ${Math.min(...out.map(t => t.audit.faint)).toFixed(2)} | accent-lit ${Math.min(...out.map(t => t.audit.accentLit)).toFixed(2)} | on-accent ${Math.min(...out.map(t => t.audit.accentFill)).toFixed(2)}`);
+  console.log(`dark text on accent: ${out.filter(t => t.colours.accentContrast[2] < 50).map(t => t.key).join(', ') || 'none'}`);
+  console.log(fails.length ? 'FAILURES:\n' + fails.join('\n') : 'no failures');
+}
+
+main();
