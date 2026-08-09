@@ -60,7 +60,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P3.1 Nine fonts, loader, per-font manifest | done | 2026-08-06 | this session, see "P3.1 close out" below | — |
 | P3.2 Typography sliders | done | 2026-08-07 | this session, see "P3.2 close out" below | — |
 | P4.1 Sort and library search | done | 2026-08-07 | this session, see "P4.1 close out" below | — |
-| P4.2 Airing store and next-episode countdown | not started | — | — | — |
+| P4.2 Airing store and next-episode countdown | done | 2026-08-07 | this session, see "P4.2 close out" below | — |
 | P4.3 Item selection | not started | — | — | existing selectMode/selectedIds is scoped to library tabs only, see backlog |
 | P4.4 Bulk actions and undo | not started | — | — | — |
 | GATE-2.0 Acceptance sweep, merge check, tag v2.0 | not started | — | — | — |
@@ -3279,6 +3279,162 @@ merge.
 pass both explicitly deferred, not silently dropped). Merged into `main`
 in this session's close-out (see the merge commit immediately following);
 `v2/P4.1` retained, not deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin` until
+a new version is wanted — is still in force.
+
+## P4.2 Airing store and next-episode countdown
+
+Branch `v2/P4.2` off `main` (through P4.1 merged). 2 commits: the
+countdown logic + UI + copy registry entry, then tests.
+
+**What research (an Explore agent) turned up: almost all of this
+substep's infrastructure already existed**, built in an earlier
+(pre-this-rewrite) pass:
+
+- `public/js/airing.js`/`airingLogic.js` already had exactly the Class B
+  airing-store shape the spec wants — one record per Watching title,
+  keyed by `anilistId`, holding `{status, episodes, nextAiringEpisode:
+  {episode, airingAt}}` — persisted server-side as `airing-cache.json`.
+- The batching was already correct: `api.js`'s `AIRING_BATCH_QUERY`
+  (`media(id_in: $idIn, ...)`) chunked at 50 by `airing.js` — one request
+  for any realistic Watching list, never per-card.
+- Refresh-on-open (`ensureFreshOnOpen()`, called from `app.js` at boot,
+  non-blocking) and a manual "Refresh episode data" button
+  (`#airing-refresh-btn`), already scoped to the Watching tab, both
+  already existed.
+- Class B registration (`classBEviction.js`'s `CLASS_B_STORES`, wired
+  into `server.js`'s quota/eviction machinery) was already done, with its
+  own existing e2e coverage.
+- The honest-absence discipline `computeUnseenEpisodes`/
+  `buildWeekSchedule` already follow (return 0/omit rather than guess) is
+  exactly what a countdown formatter needed to follow too.
+
+**Two genuine gaps, both narrow:**
+1. The refresh interval was daily (`STALE_MS = 24h`), not the hourly this
+   spec section asks for. `discover.js`/`schedule.js` each keep their own
+   separate 24h copy of the same constant shape for their own unrelated
+   reasons — only `airing.js`'s own copy changed.
+2. No forward-looking countdown existed anywhere — every existing airing
+   surface (`unseen-badge`, the new-episode dot, "Updated Xh ago") is
+   backward-looking. The raw ingredient (`nextAiringEpisode.airingAt`)
+   was already flowing through the cache and already consumed by
+   `buildWeekSchedule`, just never formatted or displayed as a countdown.
+
+## Design
+
+- `public/js/airingLogic.js`: new `formatEpisodeCountdown(nextAiringEpisode,
+  now = new Date())` — mirrors `buildWeekSchedule`'s `now`-injectable,
+  DOM-free shape. Returns `{days, hours}` for a genuinely future
+  `airingAt`, or `null` for anything else (missing data, or an airing
+  time already in the past — once an episode has aired, that's the
+  unseen-badge's job to communicate, not a stale "0d 0h" a countdown
+  would otherwise show forever between hourly refreshes).
+- `public/js/airing.js`: `STALE_MS` changed to 1 hour; new
+  `getNextEpisodeCountdown(anilistId)` mirrors `getUnseenCount`'s exact
+  shape (entry-existence guard, then delegate to the pure function).
+- `public/js/render.js`: `cardBodyForList`'s `watching` branch gains a
+  new `.countdown-badge` alongside (not replacing) the existing
+  `unseen-badge` — the two communicate different things (already aired
+  but unwatched, vs. not yet aired) and a real card can show both at
+  once, confirmed against real data in the manual smoke test below. Text
+  goes through a new `copy('airing.nextEpisodeCountdown', ...)` entry —
+  new content, not extending an old pre-v2 string.
+- `styles.css`: `.countdown-badge`, modeled directly on `.unseen-badge`'s
+  existing rule but using `--accent`/`--accent-lit` instead of
+  `--warning` — forward-looking anticipation reads as a visually
+  distinct concept from "you're behind."
+
+## Verification
+
+**1. Automated checks.**
+```
+node tests/run-all.js
+...
+scripts/check-copy-registry.js
+  ok — the real registry passes every build-time copy check
+
+260 passed, 0 failed
+```
+```
+npx playwright test
+...
+ok 94 tests\e2e\typography-sliders.spec.js:307:1 › prefers-reduced-motion clamps the animation slider's effective duration to 0ms without touching the stored step (1.4s)
+
+1 skipped
+94 passed (1.5m)
+```
+```
+node scripts/check-copy-registry.js
+check-copy-registry: OK — 99 entries, 297 variants, 8 v2 files scanned for raw sink literals.
+```
+No typecheck/lint/build commands exist beyond these plus the SEA
+packaging script (rebuilt below).
+
+**2. Data safety.** Airing-cache.json is Class B (regenerable), already
+registered before this substep — nothing new to extend here; the spec's
+own rule 3a ("every substep that adds a Class A store...") does not
+apply, since nothing Class A changed. The new `.countdown-badge` reads
+purely from the existing cache; no new persisted field anywhere.
+
+**3. Manual smoke test**, production build, **against a disposable copy
+of the real 222-entry library** (`ANIME_TRACKER_DATA_DIR` from the start,
+`Get-NetTCPConnection` checked first this time to confirm port 4321 was
+still held by your own separately-running packaged `.exe` before picking
+4322 instead):
+1. Booted: 222 real entries, migrated schemaVersion 8→9 (P4.1's
+   migration, unrelated to this substep) live. 12 real Watching titles
+   showed a genuine "Next episode in Xd Yh" countdown (values ranging
+   2-6 days out, matching real weekly airing schedules) — confirmed via
+   the real computed DOM text, not assumed.
+2. Confirmed both badges genuinely coexist on the same real cards, e.g.
+   "Welcome to Demon School! Iruma-kun Season 4" showed "10 new episodes"
+   (unseen) **and** "Next episode in 5d 16h" (countdown) simultaneously —
+   proving the two concepts are correctly independent, not accidentally
+   coupled.
+3. Clicked "Refresh episode data": button showed "Refreshing…", and
+   after the real batched AniList round trip completed (~6s for 222
+   entries' worth of batches, real network latency, not a hang), the
+   status line read "Updated just now" — the pre-existing manual-refresh
+   path still works unchanged.
+4. Re-fingerprinted the **original** `library.json` afterward: still
+   schemaVersion 8, 222 entries, mtime unchanged. Disposable copy, its
+   server process (killed by exact PID) and its temp directory removed
+   after the test.
+
+**4. Performance.** The Tuning table names no budget for the airing
+store's refresh time or the countdown badge's render cost. Stating that
+explicitly rather than inventing one.
+
+**5. Accessibility.** `.countdown-badge` is a plain, non-interactive
+`<div>` — identical structural shape to the existing `.unseen-badge`
+(nothing new for a screen reader to navigate into; both are
+presentational status text within a card already announced as a whole).
+Contrast reuses the `--accent`/`--accent-lit` token pair already used
+elsewhere in the active theme, not a new color combination invented for
+this. No screen-reader-specific claim is made beyond that structural
+equivalence — say so if a dedicated pass is wanted before merge, same
+standing offer every prior substep's close-out has made.
+
+**6. Rollback.** Revert the `v2/P4.2` commit range (`9ac8053`..`892fd8c`,
+2 commits). This substep touches no schema and adds no migration — pure
+code (a new pure function, a new accessor, new UI, one constant change).
+A reverted build simply stops showing the countdown badge and refreshes
+airing data daily again; nothing it wrote (the airing cache's own JSON
+shape is unchanged, only `generatedAt`'s cadence differs) requires the
+reverted code to understand anything new.
+
+**Status: P4.2 done.** All six acceptance criteria satisfied (criterion
+4 stated as not applicable rather than invented; criterion 5's optional
+dedicated screen-reader pass offered, not required, consistent with every
+prior substep's own close-out judgment for structurally-equivalent new
+UI).
+
+## P4.2 close out
+
+Merged into `main` in this session's close-out (see the merge commit
+immediately following); `v2/P4.2` retained, not deleted, per the spec's
+branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin` until
 a new version is wanted — is still in force.
