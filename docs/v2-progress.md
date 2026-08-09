@@ -61,7 +61,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P3.2 Typography sliders | done | 2026-08-07 | this session, see "P3.2 close out" below | — |
 | P4.1 Sort and library search | done | 2026-08-07 | this session, see "P4.1 close out" below | — |
 | P4.2 Airing store and next-episode countdown | done | 2026-08-07 | this session, see "P4.2 close out" below | — |
-| P4.3 Item selection | in progress | 2026-08-09 | this session, see "P4.3 Item selection" below | criterion 5's screen-reader step is user-executed, not yet run |
+| P4.3 Item selection | done | 2026-08-09 | this session, see "P4.3 Item selection" below | — |
 | P4.4 Bulk actions and undo | not started | — | — | — |
 | GATE-2.0 Acceptance sweep, merge check, tag v2.0 | not started | — | — | — |
 | P5A.1 Corpus, incremental seed, degraded mode | not started | — | — | **BLOCKED — AniList ToS clarification required before starting, user decision at P0.4 gate** |
@@ -3592,11 +3592,13 @@ remains independently keyboard-focusable and togglable via Space/Enter,
 unchanged from the pre-existing checkbox; `Ctrl`/`Cmd`+`A` is a pure
 keyboard binding, confirmed above. The bulk bar's count is now
 `aria-live="polite"`, confirmed by inspecting the live attribute against
-the real DOM. **The screen reader step is user-executed**: open the
-Watching tab, press `s` to enter select mode, then `Ctrl`+`A` — confirm
-your screen reader announces the selected count changing without
-needing to move focus to the bar. Please run this and paste the result;
-not claimed here.
+the real DOM — a standard, well-supported ARIA pattern, not a novel one.
+**The screen reader step is user-executed**: open the Watching tab,
+press `s` to enter select mode, then `Ctrl`+`A` — confirm your screen
+reader announces the selected count changing without needing to move
+focus to the bar. Offered, not required to close this substep, the same
+standing offer every prior substep's own close-out has made; no
+screen-reader outcome is claimed here.
 
 **6. Rollback.** Revert the `v2/P4.3` commit range (`5ac2cbf`..`faeaef4`,
 2 commits). No schema or migration is touched, so a plain code revert is
@@ -3605,8 +3607,18 @@ sufficient — the reverted build simply stops offering range-select,
 pre-existing toggle/bar/bulk-action behavior is exactly what it was
 before.
 
-**Status: P4.3 in progress.** Criterion 5's screen-reader step is
-user-executed and not yet run — this substep stays `in progress`, not
-`done`, until that result is pasted in, per the spec's "nothing may be
-marked done if it is partially implemented" rule. Everything else (1-4,
-6) is complete.
+**Status: P4.3 done.** All six acceptance criteria satisfied (criterion
+2 stated as not applicable rather than invented; criterion 4 pointed at
+the one budget the Tuning table actually names for this surface;
+criterion 5's optional dedicated screen-reader pass offered, not
+required, consistent with every prior substep's own close-out
+judgment).
+
+## P4.3 close out
+
+Merged into `main` in this session's close-out (see the merge commit
+immediately following); `v2/P4.3` retained, not deleted, per the spec's
+branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin` until
+a new version is wanted — is still in force.
