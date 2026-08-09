@@ -11,6 +11,7 @@ import { Fonts } from './fonts.js';
 import { FONT_MANIFEST } from './fontManifest.js';
 import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, computeSliderTokens } from './typographySliders.js';
 import { checkContrastAA, parseRgb } from './contrastCheck.js';
+import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -24,26 +25,39 @@ const unratedOnlyEl = document.getElementById('unrated-only');
 const sortSelectEl = document.getElementById('sort-select');
 const sortDirBtn = document.getElementById('sort-dir');
 const activeFilterChipsEl = document.getElementById('active-filter-chips');
+const airingStatusFilterEl = document.getElementById('airing-status-filter');
 
 const selectModeBtn = document.getElementById('select-mode-toggle');
 const bulkActionBarEl = document.getElementById('bulk-action-bar');
 
-// Same sort options everywhere — which one is selected (and its default per
-// list) comes from preferences, not from this list varying by tab.
-const SORT_OPTIONS = [
-  { value: 'titleRomaji', label: 'Title' },
-  { value: 'myScore', label: 'My rating' },
-  { value: 'updatedAt', label: 'Last updated' },
-  { value: 'addedAt', label: 'Date added' },
-  { value: 'year', label: 'Year' },
-  { value: 'averageScore', label: 'AniList score' },
-  { value: 'completedAt', label: 'Completion date' },
-  { value: 'episodesWatched', label: 'Progress' },
-];
-// Only meaningful for Watching — sorting Watchlist/Watched/Dropped by this
-// would just be sorting by zero for everyone, since the airing cache only
-// ever covers Watching entries.
-const WATCHING_ONLY_SORT_OPTIONS = [{ value: 'unseenEpisodes', label: 'Unseen episodes' }];
+// P4.1: the "one sort component, used on Discover and on the user's lists"
+// the spec asks for — sortLogic.js's SORT_KEY_ORDER/SORT_KEYS is the single
+// shared catalog both this function (lists) and discoverSortOptionsHtml()
+// (Discover) build their dropdown from, so the two surfaces can never drift
+// apart into two different option sets. `scope: 'all'` keys render
+// everywhere; `'list'` only on a library list; `'watching-only'` only on
+// the Watching tab specifically (unseenEpisodes needs the airing cache,
+// which only ever covers Watching).
+function sortOptionsHtml(currentKey, { includeListOnly, includeWatchingOnly }) {
+  return SORT_KEY_ORDER.filter((key) => {
+    const scope = SORT_KEYS[key].scope;
+    if (scope === 'all') return true;
+    if (scope === 'list') return includeListOnly;
+    if (scope === 'watching-only') return includeWatchingOnly;
+    return false;
+  })
+    .map((key) => `<option value="${key}" ${key === currentKey ? 'selected' : ''}>${escapeHtml(SORT_KEYS[key].label)}</option>`)
+    .join('');
+}
+
+// The direction toggle's visible text — the spec's "keep labels readable...
+// no bare arrow with no text" requirement. `null` (only 'recommended') means
+// direction is meaningless for this key; the caller hides/disables the
+// button in that case rather than showing an empty or generic label.
+function sortDirLabel(key, dir) {
+  const labels = SORT_KEYS[key]?.directionLabels;
+  return labels ? labels[dir] : null;
+}
 
 const EMPTY_STATES = {
   watching: { title: 'Nothing in progress', body: 'Press / to search AniList and add something to start watching.' },
@@ -427,7 +441,19 @@ function renderGrid(list) {
   }
   grid.hidden = false;
   emptyState.hidden = true;
-  grid.innerHTML = groups.map((g, i) => (g.length === 1 ? cardHtml(g[0], list, i) : franchiseCardHtml(g, list, i))).join('');
+  const cardsHtml = groups.map((g, i) => (g.length === 1 ? cardHtml(g[0], list, i) : franchiseCardHtml(g, list, i)));
+  // P4.1: progressPercent/episodesRemaining partition still-airing (unknown
+  // episode count) groups to the end (state.js's getGroupedFilteredSorted,
+  // via sortLogic.js's partitionAiringLast) — spec: "surface them in a
+  // labelled group at the end rather than dropping them silently". The
+  // heading spans the full grid row (.grid-section-heading's own
+  // grid-column: 1/-1) rather than living in its own separate container,
+  // so it stays part of the same continuous card flow.
+  const airingCount = groups.airingCount || 0;
+  if (airingCount > 0) {
+    cardsHtml.splice(cardsHtml.length - airingCount, 0, `<div class="grid-section-heading">${escapeHtml(copy('sort.stillAiringHeading'))}</div>`);
+  }
+  grid.innerHTML = cardsHtml.join('');
   animateProgressBars(grid);
 }
 
@@ -498,6 +524,7 @@ function activeFilterChips(list) {
   for (const g of filters.genres) chips.push({ key: `genre:${g}`, label: `Genre: ${g}` });
   if (filters.format) chips.push({ key: 'format', label: `Format: ${formatEnumLabel(filters.format)}` });
   if (filters.studio) chips.push({ key: 'studio', label: `Studio: ${filters.studio}` });
+  if (filters.airingStatus) chips.push({ key: 'airingStatus', label: `Status: ${formatEnumLabel(filters.airingStatus)}` });
   if (filters.unratedOnly) {
     chips.push({ key: 'unrated', label: 'Unrated only' });
   } else if (filters.myScoreMin != null) {
@@ -571,17 +598,36 @@ function renderFilterBar(list) {
   const studios = Store.allStudios();
   studioFilterEl.innerHTML = `<option value="">All studios</option>` + studios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 
+  // P4.1: a new filter dimension distinct from the tabs (which already ARE
+  // the listStatus filter) — AniList's own airing-status enum, reusing
+  // formatEnumLabel exactly like the format select above (it already
+  // handles status-shaped values, e.g. "RELEASING" -> "Releasing").
+  const airingStatuses = Store.allAiringStatuses();
+  airingStatusFilterEl.innerHTML =
+    `<option value="">Any status</option>` +
+    airingStatuses.map((s) => `<option value="${escapeHtml(s)}" ${filters.airingStatus === s ? 'selected' : ''}>${escapeHtml(formatEnumLabel(s))}</option>`).join('');
+
   myScoreFilterEl.value = filters.myScoreMin || '';
   unratedOnlyEl.checked = filters.unratedOnly;
   myScoreFilterEl.disabled = filters.unratedOnly;
   document.getElementById('unrated-toggle-label').classList.toggle('on', filters.unratedOnly);
 
   const currentSort = Store.state.preferences.sort[list];
-  const sortOptions = list === 'watching' ? [...SORT_OPTIONS, ...WATCHING_ONLY_SORT_OPTIONS] : SORT_OPTIONS;
-  sortSelectEl.innerHTML = sortOptions.map((o) => `<option value="${o.value}" ${o.value === currentSort ? 'selected' : ''}>${o.label}</option>`).join('');
-  // A single reverse-order icon flips vertically to show direction, rather
-  // than swapping its glyph — see .icn.is-asc in styles.css.
-  sortDirBtn.classList.toggle('is-asc', Store.state.preferences.sortDir[list] === 'asc');
+  const currentDir = Store.state.preferences.sortDir[list];
+  sortSelectEl.innerHTML = sortOptionsHtml(currentSort, { includeListOnly: true, includeWatchingOnly: list === 'watching' });
+  const dirLabel = sortDirLabel(currentSort, currentDir);
+  // A small icon flips vertically to show direction (kept as a quick visual
+  // cue), but the readable text next to it is what actually satisfies "keep
+  // labels readable... no bare arrow with no text" — 'recommended' has no
+  // direction at all, so the whole control hides rather than showing an
+  // empty or meaningless label.
+  sortDirBtn.hidden = dirLabel == null;
+  if (dirLabel != null) {
+    sortDirBtn.classList.toggle('is-asc', currentDir === 'asc');
+    sortDirBtn.querySelector('.sort-dir-label').textContent = dirLabel;
+    sortDirBtn.setAttribute('aria-label', dirLabel);
+    sortDirBtn.title = dirLabel;
+  }
 
   renderActiveFilterChips(list);
   renderBulkActionBar();
@@ -950,6 +996,26 @@ function discoverCardHtml(item, index = 0) {
 // generator with an id prefix avoids duplicating it twice. Regenerated in
 // full on every render (same as discoverGenreFilterHtml below), so callers
 // must bind these via event delegation rather than direct listeners.
+// P4.1: Discover's half of the "one sort component" — same sortOptionsHtml/
+// sortDirLabel the library lists use, restricted to the 'all'-scope keys
+// (Discover has no per-entry watch history, so the list-only/watching-only
+// additions never apply here). A plain event-delegated id pair
+// (discover-sort-select/-sort-dir), matching how discover-format-filter/
+// discover-studio-filter are already bound in discover.js's
+// bindMediaFilterControls, since Discover's whole view is rebuilt from
+// scratch on every render rather than bound once like the list toolbar.
+function discoverSortHtml(sortKey, sortDir) {
+  const dirLabel = sortDirLabel(sortKey, sortDir);
+  return `
+    <div class="filter-group discover-sort">
+      <select id="discover-sort-select" class="sel" aria-label="Sort by">${sortOptionsHtml(sortKey, { includeListOnly: false, includeWatchingOnly: false })}</select>
+      <button id="discover-sort-dir" class="icn small sort-dir-btn ${sortDir === 'asc' ? 'is-asc' : ''}" ${dirLabel == null ? 'hidden' : ''} title="${escapeHtml(dirLabel || '')}" aria-label="${escapeHtml(dirLabel || '')}">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/></svg>
+        <span class="sort-dir-label">${escapeHtml(dirLabel || '')}</span>
+      </button>
+    </div>`;
+}
+
 function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios, showReset) {
   if (!availableFormats.length && !availableStudios.length) return '';
   return `
@@ -994,7 +1060,22 @@ function discoverGenreFilterHtml(availableGenres, includedGenres, excludedGenres
 }
 
 function renderDiscoverPage(container, viewState) {
-  const { status, items, visibleCount, generatedAt, offline, progressText, availableGenres = [], includedGenres = [], excludedGenres = [], availableFormats = [], availableStudios = [], filters = {} } = viewState;
+  const {
+    status,
+    items,
+    visibleCount,
+    generatedAt,
+    offline,
+    progressText,
+    availableGenres = [],
+    includedGenres = [],
+    excludedGenres = [],
+    availableFormats = [],
+    availableStudios = [],
+    filters = {},
+    sortKey = 'recommended',
+    sortDir = 'desc',
+  } = viewState;
   const age = relativeAgeText(generatedAt);
 
   const banner = `
@@ -1009,6 +1090,7 @@ function renderDiscoverPage(container, viewState) {
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'New suggestions'}</button>
       </div>
     </div>
+    ${discoverSortHtml(sortKey, sortDir)}
     ${mediaFilterBarHtml('discover', filters, availableFormats, availableStudios, Boolean(filters.format || filters.studio))}
     ${discoverGenreFilterHtml(availableGenres, includedGenres, excludedGenres)}
   `;

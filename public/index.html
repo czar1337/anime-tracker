@@ -112,8 +112,9 @@
             <kbd>/</kbd>
           </div>
           <select id="sort-select" class="sel" aria-label="Sort by"></select>
-          <button id="sort-dir" class="icn small" title="Reverse order" aria-label="Reverse order">
+          <button id="sort-dir" class="icn small sort-dir-btn" title="Reverse order" aria-label="Reverse order">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/></svg>
+            <span class="sort-dir-label"></span>
           </button>
           <button id="select-mode-toggle" class="icn small" title="Select several" aria-label="Select several" aria-pressed="false">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg>
@@ -126,6 +127,9 @@
           </select>
           <select id="studio-filter" class="sel" aria-label="Filter by studio">
             <option value="">All studios</option>
+          </select>
+          <select id="airing-status-filter" class="sel" aria-label="Filter by airing status">
+            <option value="">Any status</option>
           </select>
           <select id="myscore-filter" class="sel" aria-label="Filter by my rating">
             <option value="">Any rating</option>

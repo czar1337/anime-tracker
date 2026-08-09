@@ -17,6 +17,7 @@ import { isViewStatePreference } from './eventTypes.js';
 import { copy } from './copy.js';
 import { LISTS_AND_TAGS } from '../../config/tuning.js';
 import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySliders.js';
+import { DEFAULT_SORT_DIR } from './sortLogic.js';
 
 // P1.5's restore route reports `skippedStores` when the snapshot predates a
 // newer Class A store; until P1.6 nothing surfaced it, so a partial restore
@@ -874,6 +875,12 @@ function bindFilterBar() {
     persist();
   });
 
+  document.getElementById('airing-status-filter').addEventListener('change', (e) => {
+    Store.setPreference(['filters', activeList, 'airingStatus'], e.target.value);
+    Render.renderAll(activeList);
+    persist();
+  });
+
   document.getElementById('myscore-filter').addEventListener('change', (e) => {
     Store.setPreference(['filters', activeList, 'myScoreMin'], e.target.value ? Number(e.target.value) : null);
     Render.renderFilterBar(activeList);
@@ -888,7 +895,17 @@ function bindFilterBar() {
   });
 
   document.getElementById('sort-select').addEventListener('change', (e) => {
-    Store.setPreference(['sort', activeList], e.target.value);
+    const key = e.target.value;
+    Store.setPreference(['sort', activeList], key);
+    // Switching keys resets direction to THAT key's own natural default
+    // (sortLogic.js's DEFAULT_SORT_DIR) rather than preserving whatever the
+    // PREVIOUS key's direction happened to be — e.g. leaving "Title A to Z"
+    // for "Rating" should land on "Highest first", not silently reuse the
+    // title sort's 'asc'. 'recommended' has no direction; DEFAULT_SORT_DIR
+    // has no entry for it either, so this falls back to 'desc' as an inert
+    // placeholder that nothing ever reads.
+    Store.setPreference(['sortDir', activeList], DEFAULT_SORT_DIR[key] || 'desc');
+    Render.renderFilterBar(activeList);
     Render.renderGrid(activeList);
     persist();
   });
@@ -914,7 +931,7 @@ function bindFilterBar() {
     let touchesPersistedState = true;
 
     if (key === '__clear_all') {
-      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false });
+      Store.setPreference(['filters', activeList], { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' });
       Store.setTitleFilter(activeList, '');
     } else if (key.startsWith('genre:')) {
       const genre = key.slice('genre:'.length);
@@ -923,6 +940,8 @@ function bindFilterBar() {
       filters.format = '';
     } else if (key === 'studio') {
       filters.studio = '';
+    } else if (key === 'airingStatus') {
+      filters.airingStatus = '';
     } else if (key === 'unrated') {
       filters.unratedOnly = false;
     } else if (key === 'myscore') {
@@ -990,6 +1009,8 @@ async function addFromSearchResult(anilistId, listStatus) {
     duration: media.duration,
     genres: media.genres,
     averageScore: media.averageScore,
+    popularity: media.popularity ?? null,
+    season: media.season || null,
     studio: Api.extractStudio(media),
     airingStatus: media.status || null,
     listStatus,

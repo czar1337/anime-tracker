@@ -498,6 +498,21 @@ export const COPY_REGISTRY = {
     standard: (p) => `Text and background contrast is ${p.ratio}:1, below the ${p.threshold}:1 recommended minimum. Some text may be hard to read.`,
     madara: (p) => `Text and background contrast is ${p.ratio}:1, below the ${p.threshold}:1 recommended minimum. Some text may be hard to read.`,
   },
+
+  // ---------------------------------------------------------------------------
+  // P4.1 — sort and library search. Wholly new content only: the sort
+  // dropdown/filter-bar labels themselves extend an ALREADY pre-v2, never-
+  // copy()-wrapped surface (render.js's filter bar existed before v2, its
+  // sibling option labels like "Title"/"My rating" are plain strings) —
+  // consistent with that surface's own existing convention, not a new one.
+  // This heading has no pre-existing counterpart to be consistent with.
+  // ---------------------------------------------------------------------------
+
+  'sort.stillAiringHeading': {
+    familyFriendly: 'Still airing — episode count unknown',
+    standard: 'Still airing — episode count unknown',
+    madara: 'Still airing — episode count unknown',
+  },
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

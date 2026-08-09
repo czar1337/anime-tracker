@@ -4,6 +4,7 @@ import { Render } from './render.js';
 import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion, applyGenreInclusion, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
 import { EventLog } from './eventLog.js';
 import { copy } from './copy.js';
+import { isNoopSort, dateSortValue, compareValues, DEFAULT_SORT_DIR } from './sortLogic.js';
 
 const SEED_BATCH_SIZE = 5;
 const RECS_PER_SEED = 25;
@@ -173,12 +174,49 @@ function mediaFilters() {
   return Store.state.preferences.discoverFilters;
 }
 
+// P4.1: Discover's half of the "one sort component" — extracts the value
+// for `key` from a flat candidate item (item.media), the Discover-side
+// counterpart to state.js's group-aware groupSortValue(). No group-
+// averaging concept exists here (a candidate is never a franchise group),
+// and the two list-only/watching-only key families never reach this
+// function at all (discoverSortHtml's dropdown never offers them).
+function discoverSortValue(item, key) {
+  const media = item.media;
+  switch (key) {
+    case 'rating':
+      return media.averageScore;
+    case 'popularity':
+      return media.popularity;
+    case 'title':
+      return media.title.romaji;
+    case 'date':
+      return dateSortValue(media.seasonYear, media.season);
+    case 'episodeCount':
+      return media.episodes;
+    default:
+      return null;
+  }
+}
+function discoverSortKey() {
+  return Store.state.preferences.sort.discover || 'recommended';
+}
+function discoverSortDir() {
+  return Store.state.preferences.sortDir.discover || 'desc';
+}
+
 export function getDiscoverState() {
   discoverState.pool = filterLiveItems(discoverState.pool);
   const excluded = excludedGenres();
   const included = includedGenres();
   const genreFiltered = applyGenreInclusion(applyGenreExclusion(discoverState.pool, excluded), included);
-  const items = applyMediaFilters(genreFiltered, mediaFilters());
+  const mediaFiltered = applyMediaFilters(genreFiltered, mediaFilters());
+  const sortKey = discoverSortKey();
+  const sortDir = discoverSortDir();
+  // 'recommended' means "the pool's own scored order" — aggregateCandidates
+  // already produced that order, so there is nothing to re-sort; every
+  // other key compares two already-extracted discoverSortValue()s exactly
+  // like the list side does, just without any group-aggregation step.
+  const items = isNoopSort(sortKey) ? mediaFiltered : [...mediaFiltered].sort((a, b) => compareValues(discoverSortValue(a, sortKey), discoverSortValue(b, sortKey), sortKey, sortDir));
   // Never shrink visibleCount just because it now exceeds a page — that's
   // the normal "Load more" state. Only clamp it down when the visible set
   // got smaller (an add/dismiss/exclude removed something), so the grid
@@ -193,6 +231,8 @@ export function getDiscoverState() {
     availableStudios: poolStudios(discoverState.pool),
     availableFormats: poolFormats(discoverState.pool),
     filters: mediaFilters(),
+    sortKey,
+    sortDir,
   };
 }
 
@@ -216,6 +256,13 @@ function bindMediaFilterControls(container, persist) {
       Store.setPreference(['discoverFilters', 'format'], target.value);
     } else if (target.id === 'discover-studio-filter') {
       Store.setPreference(['discoverFilters', 'studio'], target.value);
+    } else if (target.id === 'discover-sort-select') {
+      const key = target.value;
+      Store.setPreference(['sort', 'discover'], key);
+      // Same "switching keys resets to that key's own natural default
+      // direction" rule as the library lists — see events.js's sort-select
+      // handler for why.
+      Store.setPreference(['sortDir', 'discover'], DEFAULT_SORT_DIR[key] || 'desc');
     } else {
       return;
     }
@@ -234,6 +281,11 @@ function bindMediaFilterControls(container, persist) {
       Store.setPreference(['discoverIncludedGenres'], []);
       Store.setPreference(['discoverExcludedGenres'], []);
       discoverState.visibleCount = PAGE_SIZE;
+      renderNow();
+      persist();
+    } else if (e.target.closest('#discover-sort-dir')) {
+      const current = discoverSortDir();
+      Store.setPreference(['sortDir', 'discover'], current === 'asc' ? 'desc' : 'asc');
       renderNow();
       persist();
     }
@@ -307,6 +359,8 @@ export function initDiscover({ persistFn } = {}) {
         duration: media.duration,
         genres: media.genres,
         averageScore: media.averageScore,
+        popularity: media.popularity ?? null,
+        season: media.season || null,
         studio: Api.extractStudio(media),
         airingStatus: media.status || null,
         listStatus: 'watchlist',

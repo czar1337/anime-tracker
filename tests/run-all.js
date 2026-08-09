@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -283,7 +283,73 @@ async function run() {
     assert.equal(migrated.preferences.colorTheme, v7.preferences.colorTheme);
   });
 
-  await test('migration chain: a v1 fixture reaches CURRENT_SCHEMA_VERSION with every field defaulted, P3.2 included', () => {
+  await test('migration v8->v9 (P4.1): adds the discover sort/sortDir view and airingStatus to every list\'s filters', () => {
+    const v8 = readFixture('schema-v8-library.json');
+    const migrated = migrate_8_to_9(v8);
+    assert.equal(migrated.schemaVersion, 9);
+    // schema-v8-library.json still carries the OLD sort key names —
+    // renamed below, not just backfilled.
+    assert.deepEqual(migrated.preferences.sort, {
+      watching: 'dateAdded',
+      watchlist: 'dateAdded',
+      watched: 'completedAt',
+      dropped: 'lastUpdated',
+      discover: 'recommended',
+    });
+    assert.equal(migrated.preferences.sortDir.discover, 'desc');
+    for (const list of ['watching', 'watchlist', 'watched', 'dropped']) {
+      assert.equal(migrated.preferences.filters[list].airingStatus, '', `${list} should default airingStatus to ''`);
+    }
+    // The fixture's 'watched' list has real, non-default filter values —
+    // proves the airingStatus backfill doesn't clobber them.
+    assert.deepEqual(migrated.preferences.filters.watched.genres, ['Action']);
+    assert.equal(migrated.preferences.filters.watched.studio, 'Wit Studio');
+    assert.equal(migrated.entries.length, v8.entries.length);
+  });
+
+  await test('migration v8->v9: renames every old sort-key string sortLogic.js\'s catalog renamed, leaves unknown/already-new values untouched', () => {
+    const v8 = readFixture('schema-v8-library.json');
+    const cases = { titleRomaji: 'title', averageScore: 'rating', updatedAt: 'lastUpdated', addedAt: 'dateAdded', year: 'date', episodesWatched: 'episodesWatchedCount' };
+    for (const [oldKey, newKey] of Object.entries(cases)) {
+      const withOldKey = { ...v8, preferences: { ...v8.preferences, sort: { ...v8.preferences.sort, watching: oldKey } } };
+      assert.equal(migrate_8_to_9(withOldKey).preferences.sort.watching, newKey, `${oldKey} should rename to ${newKey}`);
+    }
+    // A value already in the new catalog (or a genuinely unknown one) is
+    // never touched — rule 13, never invent a rewrite the map doesn't name.
+    const alreadyNew = { ...v8, preferences: { ...v8.preferences, sort: { ...v8.preferences.sort, watching: 'myScore' } } };
+    assert.equal(migrate_8_to_9(alreadyNew).preferences.sort.watching, 'myScore');
+  });
+
+  await test('migration v8->v9: never overwrites an already-present discover sort/airingStatus value (idempotent)', () => {
+    const v8 = readFixture('schema-v8-library.json');
+    const alreadyMigrated = {
+      ...v8,
+      preferences: {
+        ...v8.preferences,
+        sort: { ...v8.preferences.sort, discover: 'rating' },
+        sortDir: { ...v8.preferences.sortDir, discover: 'asc' },
+        filters: { ...v8.preferences.filters, watching: { ...v8.preferences.filters.watching, airingStatus: 'RELEASING' } },
+      },
+    };
+    const migrated = migrate_8_to_9(alreadyMigrated);
+    assert.equal(migrated.preferences.sort.discover, 'rating');
+    assert.equal(migrated.preferences.sortDir.discover, 'asc');
+    assert.equal(migrated.preferences.filters.watching.airingStatus, 'RELEASING');
+    // Running it again produces the exact same result.
+    const migratedTwice = migrate_8_to_9(migrated);
+    assert.deepEqual(migratedTwice, migrated);
+  });
+
+  await test('migration v8->v9: never touches entries or any other preference field', () => {
+    const v8 = readFixture('schema-v8-library.json');
+    const migrated = migrate_8_to_9(v8);
+    assert.deepEqual(migrated.entries, v8.entries);
+    assert.equal(migrated.preferences.uiFont, v8.preferences.uiFont);
+    assert.equal(migrated.preferences.colorTheme, v8.preferences.colorTheme);
+    assert.equal(migrated.preferences.textSizeStep, v8.preferences.textSizeStep);
+  });
+
+  await test('migration chain: a v1 fixture reaches CURRENT_SCHEMA_VERSION with every field defaulted, P4.1 included', () => {
     const v1 = readFixture('schema-v1-library.json');
     const migrated = migrate(v1);
     assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
@@ -295,6 +361,10 @@ async function run() {
     assert.equal(migrated.preferences.numbersFont, 'schibsted-grotesk');
     for (const key of ['textSizeStep', 'textWeightStep', 'lineHeightStep', 'letterSpacingStep', 'densityStep', 'radiusStep', 'coverWidthStep', 'animationStep']) {
       assert.equal(migrated.preferences[key], 5, `${key} should default to 5`);
+    }
+    assert.equal(migrated.preferences.sort.discover, 'recommended');
+    for (const list of ['watching', 'watchlist', 'watched', 'dropped']) {
+      assert.equal(migrated.preferences.filters[list].airingStatus, '');
     }
     assert.deepEqual(migrated.tags, []);
     assert.deepEqual(migrated.customLists, []);
@@ -802,6 +872,120 @@ async function run() {
     assert.equal(normalResult.passes, false);
     assert.equal(largeResult.passes, true);
     assert.equal(largeResult.threshold, WCAG_AA_LARGE_RATIO);
+  });
+
+  // -------------------------------------------------------------------------
+  // public/js/sortLogic.js (P4.1) — the "one sort component, used on
+  // Discover and on the user's lists" the spec asks for. Pure, DOM-free,
+  // loaded via dynamic import().
+  // -------------------------------------------------------------------------
+  console.log('sortLogic.js');
+  const sortLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'sortLogic.js').replace(/\\/g, '/');
+  const {
+    SORT_KEYS: SL_SORT_KEYS,
+    SORT_KEY_ORDER,
+    DEFAULT_SORT_DIR: SL_DEFAULT_SORT_DIR,
+    isNoopSort,
+    stripLeadingArticle,
+    dateSortValue,
+    computeProgressPercent,
+    computeEpisodesRemaining,
+    partitionAiringLast,
+    compareValues,
+  } = await import(sortLogicUrl);
+
+  await test('SORT_KEY_ORDER lists exactly the keys SORT_KEYS defines, no more, no fewer', () => {
+    assert.deepEqual([...SORT_KEY_ORDER].sort(), Object.keys(SL_SORT_KEYS).sort());
+  });
+
+  await test('every key except recommended has a DEFAULT_SORT_DIR entry, and every entry names a real key', () => {
+    for (const key of SORT_KEY_ORDER) {
+      if (key === 'recommended') {
+        assert.equal(SL_DEFAULT_SORT_DIR[key], undefined, 'recommended must not have a direction default');
+      } else {
+        assert.ok(SL_DEFAULT_SORT_DIR[key] === 'asc' || SL_DEFAULT_SORT_DIR[key] === 'desc', `${key} needs a real DEFAULT_SORT_DIR entry`);
+      }
+    }
+  });
+
+  await test('every key except recommended has real directionLabels for both asc and desc; recommended has none', () => {
+    for (const key of SORT_KEY_ORDER) {
+      const labels = SL_SORT_KEYS[key].directionLabels;
+      if (key === 'recommended') {
+        assert.equal(labels, null);
+      } else {
+        assert.ok(labels.asc && labels.desc, `${key} needs both direction labels`);
+      }
+    }
+  });
+
+  await test('isNoopSort is true only for recommended', () => {
+    assert.equal(isNoopSort('recommended'), true);
+    for (const key of SORT_KEY_ORDER) {
+      if (key !== 'recommended') assert.equal(isNoopSort(key), false);
+    }
+  });
+
+  await test('stripLeadingArticle strips exactly one leading The/A/An, case-insensitively, nothing else', () => {
+    assert.equal(stripLeadingArticle('The Idolmaster'), 'Idolmaster');
+    assert.equal(stripLeadingArticle('the idolmaster'), 'idolmaster');
+    assert.equal(stripLeadingArticle('An Ordinary Day'), 'Ordinary Day');
+    assert.equal(stripLeadingArticle('A Silent Voice'), 'Silent Voice');
+    assert.equal(stripLeadingArticle('Attack on Titan'), 'Attack on Titan');
+    assert.equal(stripLeadingArticle('Anohana'), 'Anohana'); // "An" is not a real leading article here
+    assert.equal(stripLeadingArticle(''), '');
+    assert.equal(stripLeadingArticle(null), '');
+  });
+
+  await test('compareValues title: collates on the stripped string, ignores case', () => {
+    const titles = ['The Zoo', 'aardvark', 'Bee Movie'];
+    const sorted = [...titles].sort((a, b) => compareValues(a, b, 'title', 'asc'));
+    assert.deepEqual(sorted, ['aardvark', 'Bee Movie', 'The Zoo']); // Zoo (article stripped) sorts after Bee, not before aardvark
+  });
+
+  await test('compareValues: missing values sort last, unconditionally, regardless of direction', () => {
+    assert.equal(compareValues(null, 80, 'rating', 'asc'), 1);
+    assert.equal(compareValues(80, null, 'rating', 'asc'), -1);
+    assert.equal(compareValues(null, 80, 'rating', 'desc'), 1);
+    assert.equal(compareValues(80, null, 'rating', 'desc'), -1);
+    assert.equal(compareValues(null, null, 'rating', 'asc'), 0);
+  });
+
+  await test('compareValues: plain numeric/string keys respect direction', () => {
+    assert.ok(compareValues(90, 80, 'rating', 'desc') < 0); // 90 sorts before 80 when "highest first"
+    assert.ok(compareValues(90, 80, 'rating', 'asc') > 0);
+  });
+
+  await test('dateSortValue/compareValues date: same year ties broken by season order, missing year sorts last', () => {
+    const winter2020 = dateSortValue(2020, 'WINTER');
+    const fall2020 = dateSortValue(2020, 'FALL');
+    const y2021 = dateSortValue(2021, null);
+    const noYear = dateSortValue(null, 'FALL');
+    assert.equal(noYear, null);
+    assert.ok(compareValues(fall2020, winter2020, 'date', 'desc') < 0); // "newest first": fall comes before winter within the same year
+    assert.ok(compareValues(y2021, fall2020, 'date', 'desc') < 0); // 2021 is newer than 2020 regardless of season
+    assert.equal(compareValues(null, fall2020, 'date', 'desc'), 1); // missing year still sorts last
+  });
+
+  await test('computeProgressPercent/computeEpisodesRemaining are null-safe against totalEpisodes === null, never NaN', () => {
+    assert.equal(computeProgressPercent(5, 10), 0.5);
+    assert.equal(computeProgressPercent(5, null), null);
+    assert.equal(computeProgressPercent(0, 0), null); // never divide by zero
+    assert.equal(computeEpisodesRemaining(5, 10), 5);
+    assert.equal(computeEpisodesRemaining(5, null), null);
+    assert.equal(computeEpisodesRemaining(20, 10), 0); // never negative
+  });
+
+  await test('partitionAiringLast only partitions for progressPercent/episodesRemaining, every other key is a no-op', () => {
+    const items = [{ id: 1, airing: false }, { id: 2, airing: true }, { id: 3, airing: false }];
+    const isAiring = (i) => i.airing;
+    const forProgress = partitionAiringLast(items, 'progressPercent', isAiring);
+    assert.deepEqual(forProgress.sortable.map((i) => i.id), [1, 3]);
+    assert.deepEqual(forProgress.airing.map((i) => i.id), [2]);
+    const forRemaining = partitionAiringLast(items, 'episodesRemaining', isAiring);
+    assert.deepEqual(forRemaining.airing.map((i) => i.id), [2]);
+    const forRating = partitionAiringLast(items, 'rating', isAiring);
+    assert.deepEqual(forRating, { sortable: items, airing: [] });
   });
 
   // -------------------------------------------------------------------------
@@ -1365,6 +1549,28 @@ async function run() {
     const groups = Store.getGroupedFilteredSorted('watching');
     assert.equal(groups.length, 1);
     assert.equal(groups[0][0].anilistId, 1, 'should match by notes content, not just title');
+    Store.setTitleFilter('watching', '');
+  });
+
+  await test('P4.1: title filter also matches studio and tag names, not just title/notes', () => {
+    Store.setLibrary({
+      schemaVersion: 9,
+      entries: [
+        { anilistId: 1, titleRomaji: 'Show A', titleEnglish: '', listStatus: 'watching', notes: '', studio: 'Wit Studio', tagIds: [] },
+        { anilistId: 2, titleRomaji: 'Show B', titleEnglish: '', listStatus: 'watching', notes: '', studio: 'Bones', tagIds: [] },
+      ],
+      preferences: {},
+      dismissedItems: [],
+    });
+    const tag = Store.createTag('Comfort watch', 'rose');
+    Store.toggleEntryTag(2, tag.id);
+
+    Store.setTitleFilter('watching', 'wit studio');
+    assert.deepEqual(Store.getGroupedFilteredSorted('watching').map((g) => g[0].anilistId), [1], 'should match by studio');
+
+    Store.setTitleFilter('watching', 'comfort');
+    assert.deepEqual(Store.getGroupedFilteredSorted('watching').map((g) => g[0].anilistId), [2], 'should match by the tag\'s resolved name, not its id');
+
     Store.setTitleFilter('watching', '');
   });
 

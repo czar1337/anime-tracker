@@ -198,6 +198,7 @@ query ($search: String) {
       format
       seasonYear
       averageScore
+      popularity
       genres
       status
       season
@@ -220,6 +221,7 @@ query ($idMalIn: [Int]) {
       format
       seasonYear
       averageScore
+      popularity
       genres
       status
       season
@@ -395,7 +397,9 @@ function recommendationsBatchQuery(ids, perPage) {
               coverImage { large extraLarge }
               genres
               averageScore
+              popularity
               seasonYear
+              season
               format
               episodes
               duration
