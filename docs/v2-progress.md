@@ -63,7 +63,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P4.2 Airing store and next-episode countdown | done | 2026-08-07 | this session, see "P4.2 close out" below | — |
 | P4.3 Item selection | done | 2026-08-09 | this session, see "P4.3 Item selection" below | — |
 | P4.4 Bulk actions and undo | done | 2026-08-09 | this session, see "P4.4 Bulk actions and undo" below | criterion 4's budget not numerically measured |
-| GATE-2.0 Acceptance sweep, merge check, tag v2.0 | not started | — | — | — |
+| GATE-2.0 Acceptance sweep, merge check, tag v2.0 | in progress | 2026-08-09 | this session, see "GATE-2.0 Acceptance sweep, merge check, tag v2.0" below | tag not yet created, pending user confirmation |
 | P5A.1 Corpus, incremental seed, degraded mode | not started | — | — | **BLOCKED — AniList ToS clarification required before starting, user decision at P0.4 gate** |
 | P5A.2 Taste profile | not started | — | — | — |
 | P5A.3 Scorer and debug panel | not started | — | — | — |
@@ -3866,3 +3866,84 @@ branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin` until
 a new version is wanted — is still in force.
+
+## GATE-2.0 Acceptance sweep, merge check, tag v2.0
+
+Not an implementation substep — no feature code, no branch of its own,
+per the spec's own header for this gate. Run directly on `main`.
+
+**Step 1 — every v2.0 Core substep done, with a matching commit.**
+`docs/v2-progress.md`'s summary table shows `done` for every one of
+P0.1 through P4.4. Cross-checked against
+`git log --all --oneline --grep "^v2("`: every substep id from P0.1 to
+P4.4 has at least one matching commit subject. No mismatch.
+
+**Step 2 — every substep branch merged into `main`.**
+`git branch --no-merged main | grep v2/` returns nothing — zero
+unmerged v2 branches. `git branch --list "v2/*"` lists all 18
+(`v2/P0.1` through `v2/P4.4`), all present, none deleted, per the
+spec's branching rule. No mismatch.
+
+**Step 3 — the full acceptance set, against a production build
+(`npm start`, this project's own established meaning of that phrase)
+with the real library present.**
+
+- `node tests/run-all.js` — **269 passed, 0 failed.**
+- `npx playwright test` (full suite) — **107 passed, 1 skipped, 0
+  failed.**
+- `node scripts/check-copy-registry.js` — OK, 99 entries, 297 variants.
+- **The Class A round trip covering every store registered so far.**
+  `public/js/exportRegistry.js`'s `CLASS_A_STORES` names exactly 7
+  stores as of P4.4: `entries`/`preferences`/`dismissedItems` (P1.1),
+  `eventLog`/`counters` (P1.5), `tags`/`customLists` (P1.7). No single
+  test round-trips all 7 with non-empty data through a real disk in one
+  pass — coverage is split by the substep that added each store:
+  `tests/e2e/backup-restore.spec.js` (`entries`/`preferences`/
+  `dismissedItems`), `tests/e2e/event-log.spec.js`'s "rule 3a" test
+  (`eventLog`/`counters`), `tests/e2e/lists-and-tags.spec.js`'s "rule
+  3a" test (`tags`/`customLists`), plus `tests/run-all.js`'s "buildExport
+  covers every registered store" unit test (proves all 7 ids appear in
+  `buildExport()`'s output, but as a pure in-memory call, never through
+  a real snapshot/restore/wipe cycle). All four ran standalone for this
+  gate and passed. **Flagged, not silently closed**: writing one test
+  that round-trips all 7 stores' non-empty data through a real
+  wipe/restore in a single pass would be better evidence than this
+  four-file composite, but GATE-2.0 is explicitly "no new files"
+  (`docs/v2-plan.md`), so that test is out of scope for this gate and is
+  logged here as a real, named gap for whichever future substep next
+  touches the export/restore path to close.
+- **The two-tab concurrency test.** `tests/e2e/two-tab-race.spec.js` —
+  a real synchronization barrier (not timing luck) forces two real
+  browser tabs' `PUT /api/library` requests to race against the same
+  pre-edit ETag; asserts exactly one `200`/one `409`, the loser's edit
+  never lands on disk, a keyboard-reachable Reload control recovers it,
+  and a follow-up save from the resynced tab succeeds. Ran standalone:
+  **passed.**
+- **The token baseline comparison.**
+  `tests/e2e/token-conversion-baseline.spec.js`, comparison mode (not
+  `TOKEN_BASELINE_UPDATE=1`). Ran standalone: **passed** — the baseline
+  committed at P4.4's close (regenerated for the new "More actions"
+  button) matches the live app exactly.
+- **The library render budget.** `npm run perf` — Tuning table:
+  "Library list render, 2,000 entries: p95 under 200ms." Measured
+  **p95 1135ms over 7 runs — OVER BUDGET.** This is not a regression
+  introduced by this gate or by P4.1/P4.3/P4.4: P1.1 first measured this
+  same budget at p95 ≈1004ms, already over, explicitly because this app
+  has no virtualization yet (Global constraints: "Virtualize any list
+  that can exceed 200 rows"); every substep from P1.2 through P4.4 that
+  touched the render path re-measured and stayed over budget (P4.1's own
+  close-out recorded 1266ms); a full-file search of this document for
+  "virtualiz" (18 matches) shows every one describing it as **not yet
+  implemented** — none describing it landing or this budget passing.
+  Carried forward as a known, open, correctly-flagged gap, not a
+  surprise. The companion budget the same script measures — "Snapshot
+  plus verify on the real library: under 10s" — passed comfortably at
+  p95 103ms.
+
+**Step 4 — this record**, committed as `v2(GATE-2.0): release sweep`.
+
+**Step 5 — tag `v2.0` on `main`.** Not done yet: the spec is explicit
+that this happens "on the user's confirmation," which has not been
+given in this session. GATE-2.0 stays `in progress` until that
+confirmation arrives and the tag is created — everything else this gate
+asks for (steps 1 through 4) is complete.
