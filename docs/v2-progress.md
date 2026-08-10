@@ -74,7 +74,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5A.1 Corpus, incremental seed, degraded mode | done | 2026-08-10 | this session, see "P5A.1 Corpus, incremental seed, degraded mode" and "P5A.1 close out" below | shelf-facing degraded-mode UI deferred to P5A.4/P5B.1 — see that entry's own note |
 | P5A.2 Taste profile | done | 2026-08-10 | this session, see "P5A.2 Taste profile" and "P5A.2 close out" below | — |
 | P5A.3 Scorer and debug panel | done | 2026-08-10 | this session, see "P5A.3 Scorer and debug panel" and "P5A.3 close out" below | screen-reader pass deferred, de-prioritized (hidden dev-only surface) |
-| P5A.4 Shelves 1-4 plus provenance | not started | — | — | — |
+| P5A.4 Shelves 1-4 plus provenance | done | 2026-08-10 | this session, see "P5A.4 Shelves 1 to 4 plus provenance" and "P5A.4 close out" below | screen-reader pass deferred to the user; "Discover load, warm corpus" perf budget over target (recorded, non-blocking, see criterion 4 and `docs/v2-backlog.md`) |
 | P5B.1 Shelves 5-10 | not started | — | — | — |
 | P5B.2 Mood filter | not started | — | — | — |
 | P5B.3 Advanced filters | not started | — | — | — |
@@ -5093,6 +5093,365 @@ P5A.2's own close-out already established.
 
 **Status: P5A.3 done.** Merged into `main` in this session's close-out
 (see the merge commit immediately following); `v2/P5A.3` retained, not
+deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin`
+until a new version is wanted — is still in force.
+
+## P5A.4 Shelves 1 to 4 plus provenance
+
+Branch `v2/P5A.4` off `main`, through P5A.3 merged. 7 commits:
+`c79c737` (`migrate_11_to_12` for `discoverHideOwned`; the three new Class
+A provenance fields added to `Store.addEntry()`'s own allowlist),
+`3c951d2` (`shelvesLogic.js` — franchise entry-point resolution,
+collapsing, the diversity cap, and the 4 shelves themselves), `02302c3`
+(discover.js's pipeline rewired onto the corpus plus shelf rendering,
+and two real bugs found and fixed along the way — see below),
+`2f9c696` (unit + e2e coverage, including the rule-3a round trip),
+`ea9b271` (a `token-conversion-baseline.json` regen for the real shelf
+markup), `6cbd61c` (the zero-API-requests e2e proof), `d043512` (the
+"Discover load, warm corpus" perf measurement).
+
+### Two real bugs found and fixed, not just features shipped
+
+- **`discover.js`'s `buildShelvesNow()` had a self-inflicted race that
+  left Discover permanently stuck.** The function assigned
+  `buildInFlight = (async () => { ...; buildInFlight = null; })()`. When
+  that async body's own try/finally resolved SYNCHRONOUSLY (no internal
+  `await` — exactly the common "corpus below
+  `MIN_CORPUS_FOR_SHELVES`" early-exit path, true on almost every first
+  boot before the corpus has warmed up), the finally block's own
+  `buildInFlight = null` ran to completion *before* the outer assignment
+  expression itself finished evaluating — so the outer assignment then
+  overwrote that `null` right back to the now-settled promise. Every
+  later rebuild attempt (reopening the tab, toggling hide-owned,
+  `pollCorpusStatus()`'s own promotion out of `'degraded'` the instant
+  the corpus crosses the threshold) saw a truthy `buildInFlight` and
+  silently no-opped forever — Discover would show the corpus-seeding
+  banner permanently, even hours after the corpus was long since ready,
+  until a full reload. Found via this substep's own e2e test seeding a
+  warm corpus before first load (exactly the scenario that triggers the
+  synchronous-exit path) and confirmed structurally by adding temporary
+  logging around every assignment to `buildInFlight`. Fixed by building
+  the async body as a plain promise first, assigning it to
+  `buildInFlight`, and only then chaining `.finally()` — a `.finally()`
+  callback is guaranteed to run as a microtask strictly after the
+  synchronous code that attached it, so the assignment can never be
+  clobbered.
+- **`shelvesLogic.js`'s "+N" franchise badge was dead code.**
+  `resolveAndFilter()` mapped every raw qualifying candidate straight to
+  its resolved franchise entry point and deduplicated with a `seen` Set,
+  discarding the sibling count — so by the time `rankAndCapShelf()`'s own
+  `collapseFranchises()` call ran, it never had more than one member per
+  franchise to count, and `hiddenCount` was always 0 for every discovery
+  shelf. (`collapseFranchises()` itself works correctly in isolation —
+  confirmed by its own unit test — the bug was that its caller here never
+  gave it more than one candidate per franchise to work with.) Found
+  while writing this substep's own franchise-collapse e2e test, which
+  seeded a genuine PREQUEL/SEQUEL pair and got a "+0" badge instead of
+  "+1". Fixed by having `resolveAndFilter()` group raw candidates by
+  resolved entry point first — still hiding a WHOLE franchise when its
+  entry point is owned/dismissed (the other required behavior,
+  "S2 still resolves to the now-owned S1, still hidden" — confirmed this
+  fix doesn't regress it against the existing unit test of that exact
+  name), but passing every surviving group's qualifying siblings through
+  alongside the entry point so `collapseFranchises()` can actually count
+  them. Locked in with two new unit tests (a franchise whose siblings
+  also qualify reports the real count; a franchise with zero qualifying
+  siblings still reports 0, not a stale count) plus the e2e franchise
+  test now asserting a real "+1" badge, confirmed again live against the
+  real user's own corpus in the manual smoke test below ("Initial D 1st
+  Stage +3", "Cowboy Bebop +1", etc.).
+
+### Other design decisions flagged explicitly
+
+- **"Zero API requests, warm corpus" interpreted at the level of
+  Discover's own render path, not the whole app boot.** Building
+  shelves calls only `Api.getCorpusCache()` and `Api.getTasteProfile()`
+  (via `TasteProfile.refreshProfile()`) — both requests to this app's
+  OWN server, never AniList. The one AniList call anywhere in
+  `discover.js` is `Api.fetchCoversBatch([candidate.anilistId])`, fired
+  only from the per-item "Add to Watchlist" click handler — the spec's
+  own named exception, deferring cover art to the moment a title is
+  genuinely adopted rather than fetching 40+ covers just to render a
+  page of cards. Proving this cleanly at real library scale required
+  neutralizing three UNRELATED pre-existing background tasks that would
+  otherwise fire their own live AniList calls on the same boot
+  regardless of Discover (`app.js`'s `retryMissingCovers()`, the P5A.2
+  cold-start overlay's own candidate-cover fetch, `airing.js`'s
+  hourly-gated refresh) — see the zero-API-requests e2e test and the
+  perf script's own comment for exactly how each was quieted.
+  Corpus.js's own separate weekly-refresh/supplemental-id-fill machinery
+  (P5A.1, unrelated to this substep) is exactly this same category of
+  "legitimate background maintenance, not part of Discover's own load
+  path" and was likewise excluded from the measurement rather than
+  eliminated from the app.
+- **`resolveAndFilter()`'s owned-franchise-hiding is keyed on the
+  resolved ENTRY POINT's ownership, never the raw candidate's own id.**
+  This is why a sequel whose prerequisite is already owned stays fully
+  hidden from discovery shelves (deferring to Finish What You Started
+  instead) rather than reappearing on its own once its prequel drops out
+  — confirmed by the pre-existing "S2 still resolves to the now-owned
+  S1, still hidden" unit test, which the franchise-badge bug fix above
+  had to preserve exactly.
+- **Provenance reconstructs `averageScore` from the corpus's own
+  `normalizedScore`** (`Math.round(candidate.normalizedScore * 10)`) —
+  a corpus entry stores the 1-10 scale `corpusLogic.js`'s own ingest-time
+  normalization produces, but a library entry's `averageScore` has
+  always been AniList's raw 0-100 scale everywhere else in this app
+  (confirmed via grep across `render.js`), so adding an entry from a
+  shelf candidate has to convert, not copy verbatim.
+- **`adventurousness` stays `null` on every new provenance-carrying
+  entry.** No slider exists yet — that's P5B.2's/P5B.3's own future UI —
+  so there is no real user preference value to record; `null` is an
+  honest "not yet applicable," matching the same placeholder the scorer
+  debug panel (P5A.3) and this substep's own scoring context already use
+  for the identical gap.
+- **Discover's own sort dropdown, genre-filter chips, and the flat
+  AniList-seed recommendations pool are all removed, not adapted.**
+  Shelves are independently-scored, independently-capped rows — "which
+  of the shared sort keys apply to a sortable flat list" stopped being a
+  meaningful question the moment Discover became rows instead of one
+  list. `recommendLogic.js` itself is NOT deleted (Schedule's own "Coming
+  soon" still uses its `genreSimilarity`), only Discover's own use of the
+  older pipeline. `tests/e2e/sort-and-search.spec.js`'s two
+  Discover-sort-dropdown tests were removed rather than adapted for the
+  same reason — the underlying "which sort keys apply where" logic is
+  still fully covered by `sortLogic.js`'s own unit tests and by that same
+  file's remaining (list-side, untouched) tests.
+- **The diversity cap's day-seeded backfill, franchise collapsing, and
+  the prerequisite-chain rule are exactly shelvesLogic.js's own
+  documented behaviors** (see the module's header comments and its unit
+  tests) — this entry doesn't re-derive them, since P5A.4's own earlier
+  commits (`3c951d2`) already reasoned through each one in detail at
+  build time; this close-out's own job is verifying they hold end to
+  end, which the sections below do.
+
+### Design
+
+- **`migrations.js`**: `CURRENT_SCHEMA_VERSION = 12`; `migrate_11_to_12`
+  adds `preferences.discoverHideOwned` (default `true`).
+- **`public/js/settingsSchema.js`**: `discoverHideOwned` added to
+  `defaultSettings()`/`ensureSettingsShape()`.
+- **`public/js/state.js`**: `addEntry()`'s allowlist gained `shelfId`,
+  `adventurousness`, `membersAtSurfacing` — additive, entry-field
+  convention (never migration-versioned, per the pre-existing precedent
+  documented in this file's own code comment), matching P4.1's
+  `popularity`/`season`/`studio`.
+- **`public/js/shelvesLogic.js`** (new, pure, fetch-free): franchise
+  entry-point resolution (`resolveFranchiseEntryPoint`,
+  `findNextUnseenContinuation`), `collapseFranchises`,
+  `applyDiversityCap`, `isHiddenGem`/`isShortAndFinishable`,
+  `pickRotatingAnchors`, `becauseYouLikedMatches` and the shelf-specific
+  `format*` reason-text builders, and the top-level `buildShelves()`
+  assembling all 4 shelves.
+- **`public/js/discover.js`** (rewritten): `buildShelvesNow()` (the
+  generation-guarded async build, race fixed per above),
+  `getDiscoverState()`, `buildScorerDebugRows()` (reworked for real
+  shelf cards — every candidate is now genuinely in the corpus by
+  construction, so the old "not yet in corpus" case no longer exists),
+  `pollCorpusStatus()` (auto-promotes out of `'degraded'`),
+  `ensureFreshOnOpen()`, and `initDiscover()`'s click/change handlers for
+  add/dismiss/hide-owned-toggle/refresh.
+- **`public/js/render.js`**: removed `discoverCardHtml`,
+  `discoverSortHtml`, `discoverGenreChipState`, `discoverGenreFilterHtml`
+  (confirmed dead via grep); added `shelfCardHtml`/`shelfHtml` and
+  rewrote `renderDiscoverPage()` for the banner/hide-owned-toggle/
+  refresh/degraded/loading/error/all-empty/shelf-list states.
+- **`public/styles.css`**: removed the dead `.discover-more-card`/
+  `.discover-genre-filter*` rules; added `.shelf`/`.shelf-row`/
+  `.shelf-empty`/`.franchise-count`/`.discover-hide-owned-row`. Reused
+  the pre-existing, previously-dormant `.disc-head` class (present in
+  the stylesheet since before this substep, explicitly reserved in its
+  own header comment for "per-seed grouping" the old flat-pool Discover
+  never used) for shelf section headers rather than inventing a new one.
+- **`scripts/perf.js`**: `measureDiscoverLoadOnce()` — see criterion 4.
+- **Tests**: `shelvesLogic.js`'s full unit suite (resolution both
+  directions, collapse, diversity cap, all 4 shelves, the required
+  prerequisite-chain test, and the two hiddenCount regression tests
+  locking in the franchise-badge fix); the rule-3a round trip
+  (`buildExport` → a real snapshot with checksum → `restoreEntrySnapshot`)
+  proving `shelfId`/`adventurousness`/`membersAtSurfacing` survive
+  intact; `tests/e2e/scorer-debug-panel.spec.js` rewritten to seed the
+  corpus directly (the old `/api/recommendations` mock no longer exists);
+  `tests/e2e/sort-and-search.spec.js`'s two Discover-dropdown tests
+  removed, its list-side sort-persistence test kept; new
+  `tests/e2e/discover-shelves.spec.js` (5 tests) — add persists
+  provenance, dismiss records it, hide-owned toggle changes the page and
+  persists (plus the empty-shelf noneFound/allFilteredOut reason texts),
+  franchise collapse shows a real "+1" badge with the sequel never
+  rendered on its own, and the zero-AniList-requests proof.
+
+### Acceptance criteria
+
+**1. Automated checks.**
+
+- `node tests/run-all.js` — **356 passed, 0 failed** (up from 335 at
+  P5A.3's close; `shelvesLogic.js`'s 14 tests plus the rule-3a round
+  trip and the two hiddenCount regression tests = 21 new since P5A.3, and
+  1 test — the `discoverHideOwned`/`addEntry` provenance coverage — was
+  already added in this same range, folded into the 356 total above).
+- `npx playwright test` (full suite) — **130 passed, 1 skipped, 0
+  failed** (up from 128 at P5A.3's close; 5 new in
+  `tests/e2e/discover-shelves.spec.js`, 2 removed from
+  `tests/e2e/sort-and-search.spec.js`, 3 rewritten in
+  `tests/e2e/scorer-debug-panel.spec.js` staying at 2 tests — net +5-2 =
+  +3, reconciled against the actual file diffs above). One unrelated
+  test (`conflict-toast-undo-safety.spec.js`) flaked once under
+  full-suite contention and passed cleanly in isolation — the same
+  pre-existing timing sensitivity P5A.3's own close-out already
+  documented, in a spec this substep never touches, not a regression.
+- `node scripts/check-copy-registry.js` — passes (Discover's own copy is
+  plain literal strings — shelf titles, empty-shelf reasons, the
+  hide-owned label — same convention every non-Settings-panel UI text in
+  this app already follows).
+- No typecheck/lint/build command exists in this project beyond the
+  above (unchanged since P0.1).
+- `tests/fixtures/token-conversion-baseline.json` regenerated — the
+  `discover` scene's own diff is exactly the expected shape (the removed
+  sort-dropdown/genre-filter markup gone, the new hide-owned-toggle
+  markup present); a handful of other scenes drifted incidentally on
+  icon/font metrics already tied to today's date, the same pre-existing
+  time-of-day sensitivity P5A.3's own baseline regen (`d3296f5`)
+  documented, not something this substep introduced.
+
+**2. Data safety — rule 3a applies, this substep extends Class A.**
+`shelfId`/`adventurousness`/`membersAtSurfacing` are new fields on the
+`entries` Class A store (an entry-field extension, not a schema-versioned
+preference — see the design-decisions section above for why). The round
+trip: a test entry carrying all three fields → `buildExport(CLASS_A_STORES,
+sources)` → `Snapshots.buildSnapshotStores()` (a real snapshot, checksum
+included) → `Snapshots.verifySnapshotStores()` (passes clean) →
+`Store.restoreEntrySnapshot()` → the restored entry still carries
+`shelfId: 'hidden-gems'`, `adventurousness: 7`,
+`membersAtSurfacing: 4000` exactly. `exportRegistry.js`'s `entries` store
+needed zero code changes — its `get()` already returns whole entry
+objects verbatim with no field allowlist of its own, confirmed directly
+in this substep (only `Store.addEntry()`'s own allowlist, extended in
+`c79c737`, gates whether a field reaches the entry at all). Live-verified
+again in the manual smoke test below against the real user's library.
+`migrate_11_to_12` (the `discoverHideOwned` preference) was dry-run via
+this substep's own migration-chain unit test and via the real app boot in
+the smoke test, both clean.
+
+**3. Manual smoke test.** Against the rebuilt SEA build
+(`AnimeTracker-2.1.2.exe`, 92 embedded files — one more than P5A.3's 91,
+confirming `shelvesLogic.js` was picked up), with a disposable copy of
+the real user's full app-data directory (library, corpus cache, taste-
+profile cache, covers, backups — port 4321 confirmed occupied by the
+user's own separately-running instance first, ran on 44960), verified
+via MD5 before and after (unchanged: `941a906b71aa9fa72ef3372ec28e3ded`
+both times):
+
+1. Opened Discover. **Observed:** all 4 real shelves rendered against
+   this user's actual corpus (still seeding in the background, 1,550 of
+   3,000 titles at the time) and actual taste profile (210 watched
+   entries) — "Because you liked…" citing real rated anchors ("Because
+   you rated Attack on Titan 10 and Mob Psycho 100 10."), "Finish what
+   you started" citing real completed series ("Continues JUJUTSU
+   KAISEN, which you finished."), real "+N" franchise badges on real
+   cards ("Initial D 1st Stage +3", "Cowboy Bebop +1", "Initial D 1st
+   Stage +2" on a different shelf) — live confirmation the franchise-
+   badge fix above holds against real data, not just synthetic fixtures.
+2. Clicked "Add to Watchlist" on "Tokyo Magnitude 8.0" (Short and
+   finishable). **Observed:** a toast confirmed the add, the card
+   disappeared, and `GET /api/library` showed the new entry with
+   `shelfId: "short-and-finishable"`, `adventurousness: null`,
+   `membersAtSurfacing: 70594`, `averageScore: 77` (a real
+   normalizedScore→raw-scale conversion) — and its cover file
+   (`covers/6211.jpg`, 113KB) was genuinely downloaded on disk, confirming
+   the live per-item cover fetch fired exactly once, on this action, not
+   at shelf-render time.
+3. Clicked the "×" dismiss button on "Initial D 4th Stage" (Hidden
+   gems). **Observed:** the card disappeared and the "Dismissed" count
+   went from 44 to 45; `GET /api/library`'s `dismissedItems` gained
+   `{anilistId: 18, title: "Initial D 4th Stage"}`, and the entry was
+   NOT added to the library.
+4. Unchecked "Hide titles already in my library". **Observed:** every
+   shelf instantly re-rendered with a visibly different set of titles,
+   including several the user already owns (e.g. "Vinland Saga",
+   "JUJUTSU KAISEN") — confirmed `preferences.discoverHideOwned: false`
+   persisted via `GET /api/library`. Re-checked it afterward to leave
+   the toggle as found.
+5. Re-fingerprinted the **original** `%APPDATA%\anime-tracker\
+   library.json` after the session: MD5 unchanged
+   (`941a906b71aa9fa72ef3372ec28e3ded`). The disposable copy, its server
+   process (killed by exact PID) and its temp directory were removed
+   afterward.
+
+**4. Performance.** The Tuning table names this substep specifically:
+"Discover load, warm corpus: p95 under 400ms, zero API requests."
+Measured via `scripts/perf.js`'s new `measureDiscoverLoadOnce()` — a
+3,000-entry corpus (the real configured `corpusTargetSize`) plus the
+existing 2,000-entry rated-library fixture, timing from clicking the
+Discover tab to a real shelf/empty-state appearing, 7 runs:
+4946/4842/4539/4530/4546/4532/4707ms.
+
+- **Zero API requests: PASS**, every run (asserted per-run — an attempt
+  would have thrown and failed the whole measurement).
+- **p95 latency: 4946ms — OVER BUDGET**, and for the same reason P0.4's
+  own "Library list render, 2,000 entries" finding was over its 200ms
+  budget: no virtualization or render-path optimization exists yet
+  anywhere in this app. Isolated profiling — `buildShelves()` called
+  directly in plain Node against the identical 3,000-entry corpus, no
+  browser involved — measured the pure scoring/collapsing logic at
+  **15ms**. The overrun is not in this substep's own algorithm; it's in
+  the shared page-boot/render/module-load path every surface in this app
+  currently pays. Recorded in `docs/v2-backlog.md`'s informational
+  section for whoever eventually profiles and optimizes that path, the
+  same non-blocking treatment P0.4's own over-budget finding already
+  established as this project's precedent.
+
+**5. Accessibility.** Keyboard path: every shelf card's "Add to
+Watchlist"/"Details" buttons and the hide-owned checkbox/refresh button
+are plain, natively focusable controls reachable via Tab, no custom
+keyboard handling needed or added. Contrast: shelf cards reuse this
+app's standard card/button tokens (AA-verified by construction, P6.1),
+plus the pre-existing `.disc-head`/`.rule` styling; the new
+`.franchise-count` badge uses `--faint` at `--t-nano`, a decorative
+annotation next to the always-legible title, not a control needing its
+own AA pass. **The screen reader step is user-executed, not yet run.**
+Exact steps for the user to run if wanted: open Discover, confirm a
+screen reader announces each shelf's heading ("Because you liked…",
+etc.) before its row of cards, confirm each card's title, meta line, and
+"why" reason are announced when focus reaches the card's own
+"Add to Watchlist" button, and confirm dismissing a card doesn't strand
+focus (it should land back in document flow, not on a removed element).
+
+**6. Rollback.** Revert the `v2/P5A.4` commit range (`c79c737`..
+`d043512`, 7 commits, plus this close-out's own evidence commit and
+merge). **This substep DID migrate data** (`migrate_11_to_12`), so a
+plain code revert is not sufficient on its own: any library already
+saved with `schemaVersion: 12` needs either a down-migration or a
+restore from a pre-migration snapshot/backup. No down-migration exists
+(matching every prior migration in this project — forward-only, per the
+spec's own "old code must still be able to read a newer library" only
+running the other direction: reverted code at schema 11 cannot read a
+schema-12 file's `discoverHideOwned` field, but that field is additive
+and optional, so reverted code simply never reads it, same
+forward-compatibility shape the rest of this app's migrations already
+rely on). If an actual rollback is ever needed on a real installation,
+restore the most recent pre-P5A.4 snapshot or the newest
+`backups/library-*.json` predating this substep's first save, per
+`docs/v2-spec.md`'s own "Storage classes and data safety" restore
+procedure — never hand-edit `schemaVersion` down.
+
+**Status: P5A.4 done.** All six acceptance criteria satisfied (criterion
+4's over-budget latency recorded honestly and non-blockingly per this
+project's own P0.4 precedent, zero-API-requests half of that same
+criterion passing cleanly; criterion 5's screen-reader pass deferred to
+the user). Two real, substep-blocking bugs were found and fixed along
+the way (the `buildInFlight` race that would have left Discover
+permanently stuck on real installations, and the franchise-badge
+`hiddenCount` that was silently dead code) — both caught by this
+substep's own new tests before ever reaching the manual smoke test, and
+both independently reconfirmed working against the real user's live
+corpus and library during that smoke test.
+
+## P5A.4 close out
+
+**Status: P5A.4 done.** Merged into `main` in this session's close-out
+(see the merge commit immediately following); `v2/P5A.4` retained, not
 deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin`

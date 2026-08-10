@@ -168,6 +168,16 @@ function addEntry(entry) {
     relatedIds: entry.relatedIds || [],
     tagIds: entry.tagIds || [],
     customListIds: entry.customListIds || [],
+    // P5A.4: "when a title is added from Discover, persist {shelfId,
+    // adventurousness, membersAtSurfacing} on the library entry... these
+    // are new Class A fields... existing entries get nulls; nothing is
+    // rewritten" (spec) — additive and lazily defaulted exactly like
+    // popularity/season/studio above, and for the same reason: an entry
+    // added any other way (search, import) simply has no shelf provenance
+    // to record, so all three stay null rather than needing a value.
+    shelfId: entry.shelfId ?? null,
+    adventurousness: entry.adventurousness ?? null,
+    membersAtSurfacing: entry.membersAtSurfacing ?? null,
     addedAt: nowIso(),
     updatedAt: nowIso(),
     completedAt: entry.listStatus === 'watched' ? nowIso() : null,

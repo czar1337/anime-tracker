@@ -180,6 +180,9 @@ export function defaultSettings() {
     coldStartPicks: [],
     coldStartCompletedAt: null,
     coldStartSkipped: false,
+    // P5A.4: "hide everything already in the library by default, with a
+    // toggle" — applies to every shelf.
+    discoverHideOwned: true,
   };
 }
 
@@ -232,6 +235,10 @@ export function ensureSettingsShape(preferences) {
   prefs.coldStartPicks = Array.isArray(prefs.coldStartPicks) ? prefs.coldStartPicks : defaults.coldStartPicks;
   prefs.coldStartCompletedAt = typeof prefs.coldStartCompletedAt === 'string' ? prefs.coldStartCompletedAt : defaults.coldStartCompletedAt;
   prefs.coldStartSkipped = Boolean(prefs.coldStartSkipped);
+  // Unlike coldStartSkipped's plain Boolean() cast, this one's default is
+  // true, so a missing value can't just coerce through Boolean(undefined)
+  // (=== false) — it needs its own explicit "still unset" branch.
+  prefs.discoverHideOwned = prefs.discoverHideOwned === undefined ? defaults.discoverHideOwned : Boolean(prefs.discoverHideOwned);
 
   return prefs;
 }

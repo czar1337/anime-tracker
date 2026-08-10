@@ -1,89 +1,119 @@
 'use strict';
-// P5A.3's scorer debug panel, end to end. Discover's own ranking is still
-// the P1-era seed-based pool (P5A.4's/P5B.1's own job to replace) — so this
-// pre-seeds the recommendations CACHE directly (the same warm-start path
-// loadCacheFromServer() already reads on boot) rather than mocking the
-// live AniList recommendations pipeline, which this substep never touches.
-// The corpus is pre-seeded separately with the matching entry so the panel
-// has something real to score.
+// P5A.3's scorer debug panel, end to end — updated for P5A.4's real shelves.
+// Discover's own ranking is no longer the old flat AniList-seed pool; every
+// card on screen now comes directly from the corpus via shelvesLogic.js, so
+// this pre-seeds the corpus itself (never the old /api/recommendations
+// cache, which discover.js no longer reads at all) with a fixture designed
+// to produce exactly one real shelf card, so the panel has something
+// deterministic to score.
 
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'schema-v4-library.json');
-const CANDIDATE_ID = 9001;
+const GEM_ID = 9001;
+// At least MIN_CORPUS_FOR_SHELVES (discover.js) entries are needed before
+// Discover leaves its 'degraded' (still-building-the-corpus) state at all.
+const FILLER_COUNT = 30;
 
-async function seedRecommendationsCache(server) {
-  const media = {
-    id: CANDIDATE_ID,
-    title: { romaji: 'Scorable Title', english: 'Scorable Title EN' },
-    coverImage: { large: 'https://example.test/cover-9001.jpg' },
-    format: 'TV',
-    season: 'SPRING',
-    seasonYear: 2020,
-    episodes: 24,
-    averageScore: 80,
-    genres: ['Action'],
-  };
-  await fetch(`${server.url}/api/recommendations`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ generatedAt: new Date().toISOString(), items: [{ media, because: ['Some Seed'], score: 1 }] }),
-  });
+// Filler genre ('Comedy') deliberately shares nothing with the fixture
+// library's own rated entry (Action/Drama, schema-v4-library.json's
+// 101922), so none of them qualify for the "Because you liked" shelf; a
+// normal totalEpisodes/popularity keeps them out of every other shelf too
+// — the ONLY candidate that qualifies for anything is the one gem below,
+// which is the whole point: a deterministic, single-card scenario.
+function fillerEntries() {
+  const entries = {};
+  for (let i = 0; i < FILLER_COUNT; i++) {
+    const id = 8000 + i;
+    entries[String(id)] = {
+      anilistId: id,
+      titleRomaji: `Filler Title ${id}`,
+      titleEnglish: `Filler Title ${id} EN`,
+      genres: ['Comedy'],
+      popularity: 900000,
+      totalEpisodes: 24,
+      seasonYear: 2015,
+      normalizedScore: 5,
+      tags: [],
+      staff: [],
+      relations: [],
+    };
+  }
+  return entries;
 }
 
 async function seedWarmCorpus(server) {
+  const entries = {
+    ...fillerEntries(),
+    [String(GEM_ID)]: {
+      anilistId: GEM_ID,
+      titleRomaji: 'Scorable Gem',
+      titleEnglish: 'Scorable Gem EN',
+      format: 'TV',
+      season: 'SPRING',
+      seasonYear: 2020,
+      totalEpisodes: 24,
+      genres: ['Mystery'], // no overlap with the library's Action/Drama anchor
+      studio: 'Studio X',
+      normalizedScore: 8.5, // >= hiddenGem.minNormalizedScore
+      popularity: 4000, // < hiddenGem.maxPopularity
+      tags: [],
+      staff: [],
+      relations: [],
+    },
+  };
   await fetch(`${server.url}/api/corpus`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      cursor: { page: 1, complete: true },
-      newEntries: {
-        [String(CANDIDATE_ID)]: {
-          anilistId: CANDIDATE_ID,
-          genres: ['Action'],
-          studio: 'Studio X',
-          totalEpisodes: 24,
-          season: 'SPRING',
-          seasonYear: 2020,
-          normalizedScore: 8,
-          tags: [],
-          staff: [],
-          relations: [],
-        },
-      },
-      targetSize: 1,
-    }),
+    body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: entries, targetSize: FILLER_COUNT + 1 }),
   });
 }
 
-// Isolates this suite from any live AniList traffic — neither the
-// recommendations cache nor the corpus need a real request once
+// Isolates this suite from any live AniList traffic — the corpus is fully
 // pre-seeded, and the fixture's one library entry legitimately triggers a
 // background cover-retry lookup that should just fail harmlessly here.
 async function abortAllAniList(page) {
   await page.route('**/graphql.anilist.co/**', (route) => route.abort());
 }
 
-test('pressing "d" on Discover opens a real score breakdown for the currently-shown candidate', async ({ page }) => {
+// seedWarmCorpus puts the corpus at 31 entries before the very first page
+// load, which incidentally also clears taste-profile.js's own cold-start
+// auto-trigger gate (corpus already >= its 30-entry threshold) — so the
+// onboarding overlay pops up and eats the click on the Discover tab unless
+// dismissed first. Unrelated to what this spec is actually testing.
+async function dismissColdStartIfShown(page) {
+  const overlay = page.locator('#cold-start-overlay');
+  const shown = await overlay
+    .waitFor({ state: 'visible', timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+  if (shown) {
+    await page.click('#cold-start-skip-btn');
+    await expect(overlay).toBeHidden();
+  }
+}
+
+test('pressing "d" on Discover opens a real score breakdown for the one shelf card on screen', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await seedWarmCorpus(server);
-    await seedRecommendationsCache(server);
     await abortAllAniList(page);
 
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
+    await dismissColdStartIfShown(page);
     await page.click('[data-tab="discover"]');
     await page.waitForSelector('.discover-card');
+    await expect(page.locator('.discover-card')).toHaveCount(1);
 
     await page.keyboard.press('d');
     await expect(page.locator('#scorer-debug-overlay')).toBeVisible();
     await expect(page.locator('.scorer-debug-card')).toHaveCount(1);
-    await expect(page.locator('.scorer-debug-title')).toHaveText('Scorable Title EN');
-    // A real number, not "not yet in the corpus" — proves the corpus lookup
-    // by anilistId actually found the pre-seeded entry.
+    await expect(page.locator('.scorer-debug-title')).toHaveText('Scorable Gem EN');
+    // A real number — proves the corpus lookup by anilistId actually found
+    // the pre-seeded entry and scored it, not a placeholder.
     const totalText = await page.locator('.scorer-debug-total').textContent();
     expect(Number.isNaN(Number(totalText))).toBe(false);
     await expect(page.locator('.scorer-debug-term')).toHaveCount(10); // the 9 named terms plus serendipity's own row
@@ -96,11 +126,11 @@ test('pressing "d" again closes the panel, and "d" is a no-op outside Discover',
   const server = await startFixtureServer(FIXTURE);
   try {
     await seedWarmCorpus(server);
-    await seedRecommendationsCache(server);
     await abortAllAniList(page);
 
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
+    await dismissColdStartIfShown(page);
     await page.click('[data-tab="discover"]');
     await page.waitForSelector('.discover-card');
 
@@ -112,29 +142,6 @@ test('pressing "d" again closes the panel, and "d" is a no-op outside Discover',
     await page.click('[data-tab="watching"]');
     await page.keyboard.press('d');
     await expect(page.locator('#scorer-debug-overlay')).toBeHidden();
-  } finally {
-    await server.stop();
-  }
-});
-
-test('a candidate not yet in the corpus shows "not yet in the corpus" instead of a fabricated score', async ({ page }) => {
-  const server = await startFixtureServer(FIXTURE);
-  try {
-    // Recommendations cache seeded, but the corpus is left completely
-    // empty — the candidate the panel will try to score is genuinely
-    // unknown to it.
-    await seedRecommendationsCache(server);
-    await abortAllAniList(page);
-
-    await page.goto(server.url);
-    await page.waitForSelector('.card, .empty');
-    await page.click('[data-tab="discover"]');
-    await page.waitForSelector('.discover-card');
-
-    await page.keyboard.press('d');
-    await expect(page.locator('#scorer-debug-overlay')).toBeVisible();
-    await expect(page.locator('.scorer-debug-card')).toHaveCount(1);
-    await expect(page.locator('.scorer-debug-total')).toHaveText('not yet in the corpus');
   } finally {
     await server.stop();
   }

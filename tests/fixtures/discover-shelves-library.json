@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 12,
+  "entries": [
+    {
+      "anilistId": 301,
+      "titleRomaji": "Anchor Show",
+      "titleEnglish": "Anchor Show EN",
+      "coverFile": "covers/301.jpg",
+      "format": "TV",
+      "year": 2018,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": ["Isekai"],
+      "averageScore": 80,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 9,
+      "notes": "",
+      "relatedIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 9500,
+      "titleRomaji": "Already Owned Gem",
+      "titleEnglish": "Already Owned Gem EN",
+      "coverFile": "",
+      "format": "TV",
+      "year": 2019,
+      "totalEpisodes": 24,
+      "duration": 24,
+      "genres": ["Mystery"],
+      "averageScore": null,
+      "listStatus": "watchlist",
+      "episodesWatched": 0,
+      "myScore": null,
+      "notes": "",
+      "relatedIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "completedAt": null
+    }
+  ],
+  "preferences": {
+    "sort": { "watching": "addedAt", "watchlist": "addedAt", "watched": "completedAt", "dropped": "updatedAt" },
+    "sortDir": { "watching": "desc", "watchlist": "desc", "watched": "desc", "dropped": "desc" },
+    "filters": {
+      "watching": { "genres": [], "format": "", "studio": "", "myScoreMin": null, "myScoreMax": null, "unratedOnly": false },
+      "watchlist": { "genres": [], "format": "", "studio": "", "myScoreMin": null, "myScoreMax": null, "unratedOnly": false },
+      "watched": { "genres": [], "format": "", "studio": "", "myScoreMin": null, "myScoreMax": null, "unratedOnly": false },
+      "dropped": { "genres": [], "format": "", "studio": "", "myScoreMin": null, "myScoreMax": null, "unratedOnly": false }
+    },
+    "activeTab": "watched"
+  },
+  "dismissedItems": []
+}

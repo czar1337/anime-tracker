@@ -971,9 +971,16 @@ kbd {
 }
 .discover-card:hover .x, .discover-card:focus-within .x { opacity: 1; }
 .discover-card .x:hover { border-color: var(--accent); color: var(--accent-lit); }
-.discover-more-card { display: grid; place-items: center; text-align: center; grid-template-columns: 1fr; }
-.discover-more-card b { font: var(--t-card); color: var(--dim); display: block; margin-bottom: 6px; }
-.discover-more-card p { font: var(--t-meta); color: var(--faint); margin: 0 0 14px; max-width: 220px; }
+
+/* P5A.4: one section per shelf, each its own wrapping grid of the same
+   .discover-card markup/animation the P1-era flat pool already used —
+   reused as-is rather than duplicated, see shelfCardHtml's own comment. */
+.shelf { margin-bottom: var(--sp-8); }
+.shelf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--sp-4); }
+.shelf-empty { margin: 0; }
+.franchise-count { font: var(--t-nano); color: var(--faint); font-weight: 400; vertical-align: middle; }
+.discover-hide-owned-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-card); color: var(--dim); white-space: nowrap; cursor: pointer; }
+.discover-hide-owned-row input { width: 16px; height: 16px; }
 
 .discover-hero {
   display: flex;
@@ -987,15 +994,6 @@ kbd {
 .discover-age { font-size: var(--fs-card); color: var(--faint); white-space: nowrap; }
 .corpus-status { display: flex; align-items: center; gap: var(--sp-2); font: var(--t-meta); color: var(--dim); margin: -8px 0 var(--sp-4); }
 .discover-media-filter { margin: -12px 0 var(--sp-3); align-items: center; }
-.discover-genre-filter { margin: -12px 0 var(--sp-6); align-items: center; }
-.discover-genre-filter-label { font-size: var(--fs-card); color: var(--faint); margin-right: 2px; }
-/* include = "only this genre" (accent-fill, same as any other selected
-   chip); exclude = "never this genre" (warning tint + strikethrough) — two
-   visually distinct states so a three-way cycle reads clearly at a glance. */
-.discover-genre-chip.include { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
-.discover-genre-chip.include:hover { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
-.discover-genre-chip.exclude { background: color-mix(in srgb, var(--warning) 14%, transparent); border-color: color-mix(in srgb, var(--warning) 55%, transparent); color: var(--warning); text-decoration: line-through; }
-.discover-genre-chip.exclude:hover { background: color-mix(in srgb, var(--warning) 20%, transparent); border-color: var(--warning); }
 .discover-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .discover-load-more-row { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin: 28px 0 var(--sp-2); }
 .discover-count { font-size: var(--fs-card); color: var(--faint); }
