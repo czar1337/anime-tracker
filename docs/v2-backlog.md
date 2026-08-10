@@ -139,3 +139,14 @@ real, recorded, and not any single substep's job to resolve on its own.
   **not** apply here — P0.1 counted roughly 400-450 scattered string
   literals across `public/js/*.js` and `index.html`, none centralized. P1.6
   should plan for its default scope only.
+- P5A.4's own perf script measured "Discover load, warm corpus" (a
+  3,000-entry corpus, 2,000-entry rated library) at p95 ~4.5-4.9s against
+  the Tuning table's 400ms budget — over budget, same as P0.4's own
+  "Library list render, 2,000 entries" finding (~1.0-1.4s against a 200ms
+  budget) and for a related reason: neither surface is virtualized or
+  memoized yet. Isolated profiling (`buildShelves()` called directly in
+  plain Node against the same 3,000-entry corpus) measured the pure
+  scoring/collapsing logic itself at **15ms** — the budget overrun is not
+  in `shelvesLogic.js`'s own algorithm, it's elsewhere in the page-boot/
+  render/module-load path shared with every other surface, and worth a
+  real profiling pass (not a guess) whenever virtualization work happens.
