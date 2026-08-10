@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 11;
+const CURRENT_SCHEMA_VERSION = 12;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -338,7 +338,27 @@ function migrate_10_to_11(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11 };
+// P5A.4: "hide everything already in the library by default, with a
+// toggle" (spec, the rule applying to every shelf). A real, persistent user
+// preference like every other Discover filter (discoverIncludedGenres etc.,
+// already Class A) — not the session-only shape P5A.3's debug toggle used,
+// since a user genuinely wants this choice to stick across visits the way
+// every other Discover filter preference already does.
+function migrate_11_to_12(data) {
+  const out = { ...data };
+  out.schemaVersion = 12;
+  const before = out.preferences || {};
+  out.preferences = {
+    ...before,
+    discoverHideOwned: before.discoverHideOwned ?? true,
+  };
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_11_to_12 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -365,4 +385,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12 };

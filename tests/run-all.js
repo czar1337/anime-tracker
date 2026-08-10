@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -384,6 +384,8 @@ async function run() {
     assert.deepEqual(migrated.preferences.coldStartPicks, []);
     assert.equal(migrated.preferences.coldStartCompletedAt, null);
     assert.equal(migrated.preferences.coldStartSkipped, false);
+    // P5A.4: "hide owned" defaults on, matching every shelf's own default rule.
+    assert.equal(migrated.preferences.discoverHideOwned, true);
   });
 
   await test('migration v9->v10 (P6.1): a LIGHT preset lands in the light slot, mode "light", dark slot defaults to moonlit-shrine', () => {
@@ -466,6 +468,30 @@ async function run() {
     assert.deepEqual(migratedTwice.preferences.coldStartPicks, [123, 456]);
   });
 
+  await test('migration v11->v12 (P5A.4): defaults discoverHideOwned to true', () => {
+    const v11 = readFixture('schema-v11-library.json');
+    const migrated = migrate_11_to_12(v11);
+    assert.equal(migrated.schemaVersion, 12);
+    assert.equal(migrated.preferences.discoverHideOwned, true);
+  });
+
+  await test('migration v11->v12: never touches entries or any other preference field', () => {
+    const v11 = readFixture('schema-v11-library.json');
+    const migrated = migrate_11_to_12(v11);
+    assert.deepEqual(migrated.entries, v11.entries);
+    assert.deepEqual(migrated.preferences.coldStartPicks, v11.preferences.coldStartPicks);
+    assert.deepEqual(migrated.preferences.appearance, v11.preferences.appearance);
+  });
+
+  await test('migration v11->v12 is idempotent: running it twice never overwrites an already-present value', () => {
+    const v11 = readFixture('schema-v11-library.json');
+    const withToggleOff = { ...v11, preferences: { ...v11.preferences, discoverHideOwned: false } };
+    const migrated = migrate_11_to_12(withToggleOff);
+    const migratedTwice = migrate_11_to_12(migrated);
+    assert.deepEqual(migratedTwice, migrated);
+    assert.equal(migratedTwice.preferences.discoverHideOwned, false);
+  });
+
   // -------------------------------------------------------------------------
   // settingsSchema.js (public/js/settingsSchema.js) — the single typed
   // settings object (P1.3), pure/no-DOM, loaded via dynamic import().
@@ -506,6 +532,12 @@ async function run() {
     assert.deepEqual(shaped.coldStartPicks, []);
     assert.equal(shaped.coldStartCompletedAt, null);
     assert.equal(shaped.coldStartSkipped, false);
+    assert.equal(shaped.discoverHideOwned, true);
+  });
+
+  await test('ensureSettingsShape preserves an explicit discoverHideOwned: false rather than re-defaulting it to true', () => {
+    const shaped = ensureSettingsShape({ discoverHideOwned: false });
+    assert.equal(shaped.discoverHideOwned, false);
   });
 
   await test('ensureSettingsShape repairs an invalid enum value back to default rather than crashing', () => {
@@ -1884,6 +1916,19 @@ async function run() {
     const entry = Store.addEntry({ anilistId: 2, listStatus: 'watchlist' });
     assert.deepEqual(entry.tagIds, []);
     assert.deepEqual(entry.customListIds, []);
+  });
+
+  await test('addEntry: P5A.4 shelf-provenance fields default to null, and a real value from Discover survives verbatim', () => {
+    Store.setLibrary(libraryWithOneEntry());
+    const fromSearch = Store.addEntry({ anilistId: 2, listStatus: 'watchlist' });
+    assert.equal(fromSearch.shelfId, null);
+    assert.equal(fromSearch.adventurousness, null);
+    assert.equal(fromSearch.membersAtSurfacing, null);
+
+    const fromShelf = Store.addEntry({ anilistId: 3, listStatus: 'watchlist', shelfId: 'hidden-gems', adventurousness: 6, membersAtSurfacing: 4200 });
+    assert.equal(fromShelf.shelfId, 'hidden-gems');
+    assert.equal(fromShelf.adventurousness, 6);
+    assert.equal(fromShelf.membersAtSurfacing, 4200);
   });
 
   await test('tags/customLists round-trip through setLibrary/toJSON', () => {
