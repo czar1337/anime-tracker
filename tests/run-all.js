@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -380,6 +380,10 @@ async function run() {
       assert.deepEqual(entry.tagIds, []);
       assert.deepEqual(entry.customListIds, []);
     }
+    // P5A.2: cold-start onboarding state defaults to "not yet run".
+    assert.deepEqual(migrated.preferences.coldStartPicks, []);
+    assert.equal(migrated.preferences.coldStartCompletedAt, null);
+    assert.equal(migrated.preferences.coldStartSkipped, false);
   });
 
   await test('migration v9->v10 (P6.1): a LIGHT preset lands in the light slot, mode "light", dark slot defaults to moonlit-shrine', () => {
@@ -435,6 +439,33 @@ async function run() {
     // dead defensive code, not a correctness fix.
   });
 
+  await test('migration v10->v11 (P5A.2): defaults coldStartPicks/coldStartCompletedAt/coldStartSkipped', () => {
+    const v10 = readFixture('schema-v10-library.json');
+    const migrated = migrate_10_to_11(v10);
+    assert.equal(migrated.schemaVersion, 11);
+    assert.deepEqual(migrated.preferences.coldStartPicks, []);
+    assert.equal(migrated.preferences.coldStartCompletedAt, null);
+    assert.equal(migrated.preferences.coldStartSkipped, false);
+  });
+
+  await test('migration v10->v11: never touches entries, appearance, or any other preference field', () => {
+    const v10 = readFixture('schema-v10-library.json');
+    const migrated = migrate_10_to_11(v10);
+    assert.deepEqual(migrated.entries, v10.entries);
+    assert.deepEqual(migrated.preferences.appearance, v10.preferences.appearance);
+    assert.equal(migrated.preferences.uiFont, v10.preferences.uiFont);
+    assert.equal(migrated.preferences.textSizeStep, v10.preferences.textSizeStep);
+  });
+
+  await test('migration v10->v11 is idempotent: running it twice never overwrites an already-present value', () => {
+    const v10 = readFixture('schema-v10-library.json');
+    const withPicks = { ...v10, preferences: { ...v10.preferences, coldStartPicks: [123, 456], coldStartCompletedAt: '2026-01-01T00:00:00.000Z', coldStartSkipped: false } };
+    const migrated = migrate_10_to_11(withPicks);
+    const migratedTwice = migrate_10_to_11(migrated);
+    assert.deepEqual(migratedTwice, migrated);
+    assert.deepEqual(migratedTwice.preferences.coldStartPicks, [123, 456]);
+  });
+
   // -------------------------------------------------------------------------
   // settingsSchema.js (public/js/settingsSchema.js) — the single typed
   // settings object (P1.3), pure/no-DOM, loaded via dynamic import().
@@ -472,6 +503,9 @@ async function run() {
     assert.equal(shaped.headingFont, 'zen-old-mincho');
     assert.equal(shaped.numbersFont, 'schibsted-grotesk');
     assert.deepEqual(shaped.filters.watching, defaultSettings().filters.watching);
+    assert.deepEqual(shaped.coldStartPicks, []);
+    assert.equal(shaped.coldStartCompletedAt, null);
+    assert.equal(shaped.coldStartSkipped, false);
   });
 
   await test('ensureSettingsShape repairs an invalid enum value back to default rather than crashing', () => {
