@@ -2,7 +2,18 @@
 // P5A.4's pure shelf-building logic: franchise-entry-point resolution,
 // franchise collapsing, the diversity cap, and the 4 shelves themselves
 // ("Because you liked X", "Finish what you started", "Hidden gems",
-// "Short and finishable"). Operates entirely over corpus-shaped candidates
+// "Short and finishable"). P5B.1 adds 6 more ("Blind spot", "From the
+// studio behind...", "From the director of...", "Community classics
+// you've missed", "This season, for you", "Ironically essential") —
+// the spec's own "rules for all shelves" already made these generic in
+// this module (hide-owned, prerequisite-chain, franchise collapse,
+// diversity cap, empty-reason text all live in `resolveAndFilter`/
+// `rankAndCapShelf`), so P5B.1's own additions are almost entirely new
+// filter predicates and reason-text formatters, not new plumbing.
+// Shelf 10 ("Your friends loved, you have not seen") has no
+// social/list-comparison layer to depend on in this app and is omitted
+// per the spec's own instruction — see docs/v2-backlog.md.
+// Operates entirely over corpus-shaped candidates
 // (never AniList's raw Media shape recommendLogic.js's older functions
 // use) and the taste profile/scorer already built at P5A.2/P5A.3 — no
 // fetch, no DOM. discover.js (orchestration: fetching the corpus, the
@@ -95,18 +106,85 @@ function findNextUnseenContinuation(completedEntry, corpusById, ownedIds) {
 // list — same symmetric-adjacency shape as state.js's own buildGroups
 // (AniList relation edges aren't always mirrored both directions),
 // adapted to a flat candidate list instead of a library-list's grouped
-// entries. Returns one row per group: the entry point (lowest seasonYear,
-// tie-broken by anilistId — unknown year sorts last, never first) plus how
-// many siblings it stands in for. The spec's own "one card per franchise,
+// entries. Returns one row per group: the entry point plus how many
+// siblings it stands in for. The spec's own "one card per franchise,
 // entry point shown, the rest behind it."
+//
+// The entry point is decided by the PREQUEL/SEQUEL subgraph alone, never
+// by SIDE_STORY/PARENT and never by seasonYear as the PRIMARY signal —
+// confirmed against this app's own real, seeded corpus, where a title's
+// full "relatives" cluster routinely includes compilation movies, recap
+// OVAs and alternate-cut releases connected only via SIDE_STORY/PARENT,
+// with no PREQUEL/SEQUEL edge of their own (AniList's "Shingeki no
+// Kyojin: Chronicle" recap movie is exactly this). Those satellites are
+// real hiddenCount members (still counted, still collapsed away) but are
+// never eligible to be the entry point, since they aren't part of any
+// actual viewing-order chain — including them as root candidates was
+// this function's first bug fix attempt's own mistake, which still
+// degraded to seasonYear far too often on real data. Within the
+// PREQUEL/SEQUEL-only subgraph, a "chain root" is a member with no
+// PREQUEL edge that still has at least one PREQUEL/SEQUEL edge to
+// something (excludes both mid/end-of-chain members AND those isolated
+// satellites). Exactly one chain root: use it directly. More than one
+// (the cluster contains two genuinely separate PREQUEL/SEQUEL chains,
+// only linked via a looser SIDE_STORY/PARENT tie — AniList's "Shingeki
+// no Kyojin Kouhen/Zenpen" recap-movie duology sits in exactly this
+// relationship to the main TV chain): the LONGER chain wins, since it's
+// far more likely to be the main series than a side compilation, tie-
+// broken by seasonYear then anilistId. Zero chain roots (a relation
+// cycle, or every member is an isolated satellite): falls back to
+// earliest seasonYear across every member, the last resort when the
+// graph gives no usable signal at all. seasonYear as a PRIMARY signal is
+// provably wrong on real data: a prequel OVA/movie/gaiden can air AFTER
+// the work it's narratively a prequel to (AniList's "Attack on Titan: No
+// Regrets" OVA, seasonYear 2015, is a genuine PREQUEL to "Attack on
+// Titan" TV, seasonYear 2013) — picking by seasonYear alone previously
+// chose the SEQUEL as the displayed entry point in exactly that case,
+// disagreeing with resolveFranchiseEntryPoint's own graph walk (which
+// resolveAndFilter's owned/dismissed hiding check runs against) and
+// silently defeating hideOwned once the wrongly-chosen "entry point"
+// happened to already be owned.
 function collapseFranchises(candidates) {
   const byId = new Map(candidates.map((c) => [c.anilistId, c]));
-  const adjacency = new Map(candidates.map((c) => [c.anilistId, new Set()]));
+  const adjacency = new Map(candidates.map((c) => [c.anilistId, new Set()])); // full graph: every FRANCHISE_RELATION_TYPES edge, for clustering/hiddenCount
+  const hasPrequel = new Set(); // has a PREQUEL edge of its own -> not a chain root
+  const hasChainEdge = new Set(); // participates in >=1 PREQUEL/SEQUEL edge, from either side -> eligible to be a chain root at all
+  const chainNext = new Map(); // anilistId -> Set of ids that come AFTER it in viewing order, PREQUEL/SEQUEL only
+  const addNext = (fromId, toId) => {
+    if (!chainNext.has(fromId)) chainNext.set(fromId, new Set());
+    chainNext.get(fromId).add(toId);
+  };
   for (const c of candidates) {
     for (const rel of franchiseRelations(c)) {
       if (!byId.has(rel.relatedId)) continue;
       adjacency.get(c.anilistId).add(rel.relatedId);
       adjacency.get(rel.relatedId).add(c.anilistId);
+      if (rel.relationType === 'SEQUEL') {
+        hasChainEdge.add(c.anilistId);
+        hasChainEdge.add(rel.relatedId);
+        addNext(c.anilistId, rel.relatedId); // c comes before rel.relatedId
+      } else if (rel.relationType === 'PREQUEL') {
+        hasPrequel.add(c.anilistId);
+        hasChainEdge.add(c.anilistId);
+        hasChainEdge.add(rel.relatedId);
+        addNext(rel.relatedId, c.anilistId); // rel.relatedId (the prequel) comes before c
+      }
+    }
+  }
+  // Counts members reachable by walking chainNext forward from startId,
+  // guarding a cycle the same way resolveFranchiseEntryPoint's own walk
+  // does — a length, not a truth claim, purely to compare two candidate
+  // chains against each other.
+  function chainLength(startId) {
+    const seen = new Set([startId]);
+    let count = 1;
+    let current = startId;
+    for (;;) {
+      const next = [...(chainNext.get(current) || [])].find((id) => !seen.has(id));
+      if (next === undefined) return count;
+      seen.add(next);
+      count += 1;
+      current = next;
     }
   }
   const visited = new Set();
@@ -126,8 +204,16 @@ function collapseFranchises(candidates) {
         }
       }
     }
-    members.sort((a, b) => (a.seasonYear || 9999) - (b.seasonYear || 9999) || a.anilistId - b.anilistId);
-    groups.push({ entryPoint: members[0], hiddenCount: members.length - 1 });
+    const chainRoots = members.filter((m) => !hasPrequel.has(m.anilistId) && hasChainEdge.has(m.anilistId));
+    let entryPoint;
+    if (chainRoots.length === 1) {
+      entryPoint = chainRoots[0];
+    } else if (chainRoots.length > 1) {
+      entryPoint = chainRoots.slice().sort((a, b) => chainLength(b.anilistId) - chainLength(a.anilistId) || (a.seasonYear || 9999) - (b.seasonYear || 9999) || a.anilistId - b.anilistId)[0];
+    } else {
+      entryPoint = members.slice().sort((a, b) => (a.seasonYear || 9999) - (b.seasonYear || 9999) || a.anilistId - b.anilistId)[0];
+    }
+    groups.push({ entryPoint, hiddenCount: members.length - 1 });
   }
   return groups;
 }
@@ -256,6 +342,146 @@ function formatShortAndFinishable(candidate) {
 
 function formatFinishWhatYouStarted(fromTitle) {
   return fromTitle ? `Continues ${fromTitle}, which you finished.` : 'Continues a series you finished.';
+}
+
+// P5B.1's own shelves (5-9 of the spec's "Shelves 5 to 10" — 10 has no
+// social/list-comparison layer to depend on and is deferred to the
+// backlog per the spec's own instruction).
+
+// Shelf 7: community classics. The exact popularity-axis inverse of
+// hiddenGem — same score floor as "excellent" (7.5), but a HIGH
+// popularity floor instead of a low ceiling.
+function isCommunityClassic(candidate, { minNormalizedScore, minPopularity }) {
+  return (candidate.normalizedScore ?? 0) >= minNormalizedScore && (candidate.popularity ?? 0) >= minPopularity;
+}
+
+// Shelf 9: ironically essential. Low score, high notoriety — deliberately
+// the one shelf where a LOW score is the qualifying signal, not a filter
+// against it.
+function isIronicallyEssential(candidate, { maxNormalizedScore, minPopularity }) {
+  return (candidate.normalizedScore ?? Infinity) <= maxNormalizedScore && (candidate.popularity ?? 0) >= minPopularity;
+}
+
+// Shelf 8: this season. AniList's season boundary is calendar-quarterly
+// (WINTER Jan-Mar, SPRING Apr-Jun, SUMMER Jul-Sep, FALL Oct-Dec) — the
+// same quarterly grouping scorer.js's own SEASON_MONTH already encodes in
+// the other direction (season -> representative month); this is the
+// month -> season direction, needed here to know what "this season"
+// currently means.
+const MONTH_TO_SEASON = ['WINTER', 'WINTER', 'WINTER', 'SPRING', 'SPRING', 'SPRING', 'SUMMER', 'SUMMER', 'SUMMER', 'FALL', 'FALL', 'FALL'];
+function currentSeason(nowMs) {
+  const d = new Date(nowMs);
+  return { season: MONTH_TO_SEASON[d.getMonth()], seasonYear: d.getFullYear() };
+}
+function isAiringThisSeason(candidate, current) {
+  return candidate.season === current.season && candidate.seasonYear === current.seasonYear;
+}
+
+// Shelf 5: blind spot. "Never touched" reads broadly — any library entry
+// of any status/rating counts as having touched a genre, not just a
+// rated one; a genre the user dropped or merely added to Plan to Watch is
+// not a blind spot.
+function touchedGenres(libraryEntries) {
+  const set = new Set();
+  for (const e of libraryEntries) {
+    for (const g of e.genres || []) set.add(g);
+  }
+  return set;
+}
+
+// "Strong critical standing" is a GENRE-level judgment (the corpus's own
+// average score for candidates carrying that genre), not a single
+// candidate's own score — one lucky 9/10 outlier in a genre with only one
+// corpus entry can't call the whole genre well-regarded, hence the
+// minimum-sample-size floor.
+function genreAverageScores(candidates, minCandidates) {
+  const sums = {};
+  const counts = {};
+  for (const c of candidates) {
+    if (typeof c.normalizedScore !== 'number') continue;
+    for (const g of c.genres || []) {
+      sums[g] = (sums[g] || 0) + c.normalizedScore;
+      counts[g] = (counts[g] || 0) + 1;
+    }
+  }
+  const averages = {};
+  for (const g of Object.keys(sums)) {
+    if (counts[g] >= minCandidates) averages[g] = sums[g] / counts[g];
+  }
+  return averages;
+}
+
+// Shelves 6: from the studio you love / from the director you love.
+// AniList's own `staff.edges[].role` strings are free text and frequently
+// qualify a dub/episode/sound credit ("ADR Director (English)", "Episode
+// Director (ep 8)") that isn't the show's actual director — `directorRoles`
+// (config/tuning.js) is a deliberately narrow allowlist of the roles that
+// mean "the person who directed this anime" in the ordinary sense.
+function directorNamesOf(candidate, directorRoles) {
+  return (candidate.staff || []).filter((s) => directorRoles.includes(s.role) && s.name).map((s) => s.name);
+}
+
+// Picks the single favorite studio and the single favorite director from
+// the user's OWN rated library, scoped to entries scored at least
+// `minScore` (config/tuning.js's `favoriteMinScore` — without this floor a
+// user's only rated-and-corpus-known entry could crown its studio/director
+// "favorite" even at a score of 2, which isn't what "the studio/director
+// you love" means) and whose corpus record is known (an older rating for a
+// title the corpus hasn't reached yet has no studio/staff data to offer,
+// and degrades to simply not counting toward this pick — the same
+// graceful "unknown corpus data" degradation every other shelf already
+// tolerates). Tracking the single highest-scoring qualifying entry that
+// carries a studio/director is equivalent to tracking each studio's/
+// director's own best score and picking the best of those: no other
+// studio's best entry can outscore the GLOBAL best entry, by definition.
+function findFavoriteStudioAndDirector(libraryEntries, corpusById, { directorRoles, minScore }) {
+  let bestStudio = null;
+  let bestDirector = null;
+  for (const entry of libraryEntries) {
+    if (typeof entry.myScore !== 'number' || entry.myScore < minScore) continue;
+    const corpus = corpusById[String(entry.anilistId)];
+    if (!corpus) continue;
+    const anchorTitle = entry.titleEnglish || entry.titleRomaji || null;
+    if (corpus.studio && (!bestStudio || entry.myScore > bestStudio.score)) {
+      bestStudio = { name: corpus.studio, score: entry.myScore, anchorTitle };
+    }
+    for (const name of directorNamesOf(corpus, directorRoles)) {
+      if (!bestDirector || entry.myScore > bestDirector.score) {
+        bestDirector = { name, score: entry.myScore, anchorTitle };
+      }
+    }
+  }
+  return { bestStudio, bestDirector };
+}
+
+function formatCommunityClassic(candidate) {
+  return `A community classic: rated ${candidate.normalizedScore}/10 by a huge audience.`;
+}
+
+function formatIronicallyEssential() {
+  return "Ironically essential: not critically loved, but everyone's seen it.";
+}
+
+function formatThisSeason() {
+  return 'New this season.';
+}
+
+function formatFromStudio(favoriteStudio) {
+  return `From ${favoriteStudio.name}, the studio behind ${favoriteStudio.anchorTitle}.`;
+}
+
+function formatFromDirector(favoriteDirector) {
+  return `From ${favoriteDirector.name}, the director of ${favoriteDirector.anchorTitle}.`;
+}
+
+// Cites whichever of the candidate's own qualifying blind-spot genres has
+// the highest genre-wide average score — the most compelling of possibly
+// several genres a single candidate happens to carry.
+function formatBlindSpot(candidate, blindSpotGenres, genreAverages) {
+  const matching = (candidate.genres || []).filter((g) => blindSpotGenres.has(g));
+  const best = matching.sort((a, b) => genreAverages[b] - genreAverages[a])[0];
+  const avg = genreAverages[best];
+  return `You've never watched ${best} — but it's critically well-regarded (avg ${avg.toFixed(1)}/10). A stretch, but worth trying.`;
 }
 
 // The shared back half of every shelf's own pipeline: collapse franchises,
@@ -460,7 +686,161 @@ function buildShelves({
     }),
   };
 
-  return { shelves: [becauseYouLiked, finishWhatYouStarted, hiddenGems, shortAndFinishable] };
+  // Shelf 5: Blind spot. Pools candidates from EVERY genre that qualifies
+  // (never touched by the library, corpus-wide average score clears the
+  // bar) and lets the normal score()-based ranking pick the single best
+  // entry point across that whole pool — "best genre first, then its own
+  // best entry point" would be an unnecessary extra step when the
+  // ranking already finds the single best candidate directly.
+  const touched = touchedGenres(libraryEntries);
+  const genreAverages = genreAverageScores(allCorpusCandidates, tuning.blindSpot.minCandidatesForGenre);
+  const blindSpotGenres = new Set(Object.keys(genreAverages).filter((g) => !touched.has(g) && genreAverages[g] >= tuning.blindSpot.minGenreAverageScore));
+  const blindSpotRaw = allCorpusCandidates.filter((c) => (c.genres || []).some((g) => blindSpotGenres.has(g)));
+  const blindSpotFiltered = resolveAndFilter(blindSpotRaw);
+  const blindSpot = {
+    id: 'blind-spot',
+    title: 'Blind spot',
+    ...rankAndCapShelf(blindSpotFiltered, {
+      tasteProfile,
+      context: scoreContext,
+      pageSize: 1,
+      tuning,
+      localDay,
+      rawCandidateCount: blindSpotRaw.length,
+      reasonFn: (c) => formatBlindSpot(c, blindSpotGenres, genreAverages),
+      emptyReason: {
+        noneFound: 'Nothing stands out as a blind spot yet — check back as the corpus grows.',
+        allFilteredOut: "You've already tried this corpus's best blind-spot pick.",
+      },
+    }),
+  };
+
+  // Shelves 6: From the studio you love / From the director you love —
+  // two shelves, not one, since a user can have clear data for one and
+  // none for the other, and each deserves its own honest empty state.
+  const { bestStudio, bestDirector } = findFavoriteStudioAndDirector(libraryEntries, corpusById, {
+    directorRoles: tuning.directorRoles,
+    minScore: tuning.favoriteMinScore,
+  });
+
+  const studioRaw = bestStudio ? allCorpusCandidates.filter((c) => c.studio === bestStudio.name) : [];
+  const studioFiltered = resolveAndFilter(studioRaw);
+  const fromStudio = {
+    id: 'from-studio',
+    title: 'From the studio behind...',
+    ...rankAndCapShelf(studioFiltered, {
+      tasteProfile,
+      context: scoreContext,
+      pageSize,
+      tuning,
+      localDay,
+      rawCandidateCount: studioRaw.length,
+      reasonFn: () => formatFromStudio(bestStudio),
+      emptyReason: {
+        noneFound: 'Rate a few more shows with known studio data so a favorite can emerge.',
+        allFilteredOut: "You've already seen everything from your favorite studio in this corpus.",
+      },
+    }),
+  };
+
+  const directorRaw = bestDirector ? allCorpusCandidates.filter((c) => directorNamesOf(c, tuning.directorRoles).includes(bestDirector.name)) : [];
+  const directorFiltered = resolveAndFilter(directorRaw);
+  const fromDirector = {
+    id: 'from-director',
+    title: 'From the director of...',
+    ...rankAndCapShelf(directorFiltered, {
+      tasteProfile,
+      context: scoreContext,
+      pageSize,
+      tuning,
+      localDay,
+      rawCandidateCount: directorRaw.length,
+      reasonFn: () => formatFromDirector(bestDirector),
+      emptyReason: {
+        noneFound: 'Rate a few more shows with known staff data so a favorite director can emerge.',
+        allFilteredOut: "You've already seen everything from your favorite director in this corpus.",
+      },
+    }),
+  };
+
+  // Shelf 7: Community classics.
+  const classicsRaw = allCorpusCandidates.filter((c) => isCommunityClassic(c, { minNormalizedScore: tuning.communityClassic.minNormalizedScore, minPopularity: tuning.highNotoriety.minPopularity }));
+  const classicsFiltered = resolveAndFilter(classicsRaw);
+  const communityClassics = {
+    id: 'community-classics',
+    title: "Community classics you've missed",
+    ...rankAndCapShelf(classicsFiltered, {
+      tasteProfile,
+      context: scoreContext,
+      pageSize,
+      tuning,
+      localDay,
+      rawCandidateCount: classicsRaw.length,
+      reasonFn: formatCommunityClassic,
+      emptyReason: {
+        noneFound: 'The corpus hasn’t reached enough community classics yet — check back as it grows.',
+        allFilteredOut: 'You’ve already seen this corpus’s community classics.',
+      },
+    }),
+  };
+
+  // Shelf 8: This season, for you.
+  const current = currentSeason(nowMs);
+  const seasonRaw = allCorpusCandidates.filter((c) => isAiringThisSeason(c, current));
+  const seasonFiltered = resolveAndFilter(seasonRaw);
+  const thisSeason = {
+    id: 'this-season',
+    title: 'This season, for you',
+    ...rankAndCapShelf(seasonFiltered, {
+      tasteProfile,
+      context: scoreContext,
+      pageSize,
+      tuning,
+      localDay,
+      rawCandidateCount: seasonRaw.length,
+      reasonFn: formatThisSeason,
+      emptyReason: {
+        noneFound: 'Nothing from this season is in the corpus yet — check back as it grows.',
+        allFilteredOut: "You're already caught up on this season.",
+      },
+    }),
+  };
+
+  // Shelf 9: Ironically essential.
+  const ironicRaw = allCorpusCandidates.filter((c) => isIronicallyEssential(c, { maxNormalizedScore: tuning.ironicallyEssential.maxNormalizedScore, minPopularity: tuning.highNotoriety.minPopularity }));
+  const ironicFiltered = resolveAndFilter(ironicRaw);
+  const ironicallyEssential = {
+    id: 'ironically-essential',
+    title: 'Ironically essential',
+    ...rankAndCapShelf(ironicFiltered, {
+      tasteProfile,
+      context: scoreContext,
+      pageSize,
+      tuning,
+      localDay,
+      rawCandidateCount: ironicRaw.length,
+      reasonFn: formatIronicallyEssential,
+      emptyReason: {
+        noneFound: 'The corpus hasn’t reached enough of these yet — check back as it grows.',
+        allFilteredOut: 'You’ve already seen this corpus’s ironically essential picks.',
+      },
+    }),
+  };
+
+  return {
+    shelves: [
+      becauseYouLiked,
+      finishWhatYouStarted,
+      hiddenGems,
+      shortAndFinishable,
+      blindSpot,
+      fromStudio,
+      fromDirector,
+      communityClassics,
+      thisSeason,
+      ironicallyEssential,
+    ],
+  };
 }
 
 export {
@@ -477,5 +857,19 @@ export {
   formatHiddenGem,
   formatShortAndFinishable,
   formatFinishWhatYouStarted,
+  isCommunityClassic,
+  isIronicallyEssential,
+  currentSeason,
+  isAiringThisSeason,
+  touchedGenres,
+  genreAverageScores,
+  directorNamesOf,
+  findFavoriteStudioAndDirector,
+  formatCommunityClassic,
+  formatIronicallyEssential,
+  formatThisSeason,
+  formatFromStudio,
+  formatFromDirector,
+  formatBlindSpot,
   buildShelves,
 };

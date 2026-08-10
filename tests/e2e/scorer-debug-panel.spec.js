@@ -20,9 +20,13 @@ const FILLER_COUNT = 30;
 // Filler genre ('Comedy') deliberately shares nothing with the fixture
 // library's own rated entry (Action/Drama, schema-v4-library.json's
 // 101922), so none of them qualify for the "Because you liked" shelf; a
-// normal totalEpisodes/popularity keeps them out of every other shelf too
-// — the ONLY candidate that qualifies for anything is the one gem below,
-// which is the whole point: a deterministic, single-card scenario.
+// normal totalEpisodes keeps them out of Short and finishable too, and
+// normalizedScore 6 sits deliberately between ironicallyEssential's <=5.5
+// ceiling and hiddenGem's/communityClassic's own >=7.5 floor (P5B.1's own
+// two new shelves that a plain popularity of 900000 would otherwise
+// combine with a low score to qualify for) — the ONLY candidate that
+// qualifies for anything is the one gem below, which is the whole point:
+// a deterministic, single-card scenario.
 function fillerEntries() {
   const entries = {};
   for (let i = 0; i < FILLER_COUNT; i++) {
@@ -35,7 +39,7 @@ function fillerEntries() {
       popularity: 900000,
       totalEpisodes: 24,
       seasonYear: 2015,
-      normalizedScore: 5,
+      normalizedScore: 6,
       tags: [],
       staff: [],
       relations: [],

@@ -134,6 +134,17 @@ real, recorded, and not any single substep's job to resolve on its own.
 
 ## Not urgent, informational
 
+- **P5B.1's shelf 10 ("Your friends loved, you have not seen") omitted —
+  no social/list-comparison layer exists in this app to depend on.**
+  Confirmed by direct search: no friend/social/list-comparison code
+  anywhere in `public/js/*.js` or `server.js`. Per the spec's own
+  instruction for this exact shelf ("only if a social or list-comparison
+  layer exists. If not, omit the shelf and write it to
+  `docs/v2-backlog.md`"), this is the recorded omission — shelves 5-9
+  shipped, shelf 10 did not. Same category as the achievement engine's
+  own social-layer-gated indices 72-74 (P7B.B7's Tuning table note):
+  unscheduled, not a defect, and only actionable if a social layer is
+  ever scoped.
 - P1.6's scope-expansion exception ("if the app's total user-facing string
   count is small and already centralized... a full move is permitted") does
   **not** apply here — P0.1 counted roughly 400-450 scattered string
