@@ -72,8 +72,8 @@ if it is partially implemented — see Remaining for what's left instead.
 | P4.4 Bulk actions and undo | done | 2026-08-09 | this session, see "P4.4 Bulk actions and undo" below | criterion 4's budget not numerically measured |
 | GATE-2.0 Acceptance sweep, merge check, tag v2.0 | done | 2026-08-09 | this session, see "GATE-2.0 Acceptance sweep, merge check, tag v2.0" below | — |
 | P5A.1 Corpus, incremental seed, degraded mode | done | 2026-08-10 | this session, see "P5A.1 Corpus, incremental seed, degraded mode" and "P5A.1 close out" below | shelf-facing degraded-mode UI deferred to P5A.4/P5B.1 — see that entry's own note |
-| P5A.2 Taste profile | not started | — | — | — |
-| P5A.3 Scorer and debug panel | not started | — | — | — |
+| P5A.2 Taste profile | done | 2026-08-10 | this session, see "P5A.2 Taste profile" and "P5A.2 close out" below | — |
+| P5A.3 Scorer and debug panel | done | 2026-08-10 | this session, see "P5A.3 Scorer and debug panel" and "P5A.3 close out" below | screen-reader pass deferred, de-prioritized (hidden dev-only surface) |
 | P5A.4 Shelves 1-4 plus provenance | not started | — | — | — |
 | P5B.1 Shelves 5-10 | not started | — | — | — |
 | P5B.2 Mood filter | not started | — | — | — |
@@ -4834,6 +4834,265 @@ for a real browser against real-shaped data, not just green CI.
 
 **Status: P5A.2 done.** Merged into `main` in this session's close-out
 (see the merge commit immediately following); `v2/P5A.2` retained, not
+deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin`
+until a new version is wanted — is still in force.
+
+## P5A.3 Scorer and debug panel
+
+Branch `v2/P5A.3` off `main`, through P5A.2 merged. 3 commits: `7825e2c`
+(the pure scoring function), `970ab7c` (the debug panel behind a hidden
+toggle), `d3296f5` (a token-conversion-baseline regen, plus a
+time-of-day flake in that baseline's own fixture the regen attempt
+surfaced and fixed).
+
+### Design decisions flagged explicitly
+
+The spec's formula names nine terms by variable name (`w_genre *
+genreAffinity`, etc.) without defining most of them precisely — every
+one of the following is a genuine interpretive call, not an assumption
+slipped in silently:
+
+- **`genreAffinity`/`tagAffinity`/`staffAffinity` average, they don't
+  sum**, over whichever of the candidate's own genres/tags/staff the
+  profile has a value for (a missing key counts as neutral 0, never
+  skipped — see `averageAffinity`'s own comment). Summing would
+  unfairly favor a candidate with more genres/tags/staff members purely
+  for having more of them, not for being a better match.
+- **`studioAffinity` is a single lookup**, not an average — a corpus
+  entry carries exactly one studio, so there is nothing to average
+  over.
+- **`normalisedGlobalScore` centers on the 1-10 scale's own 5.5
+  midpoint** (`config/tuning.js`'s `SCORE_SCALE`), turning a flat
+  "how good is this globally" number into a deviation from a baseline —
+  the same shape every other additive term here already has. A raw
+  1-10 value would always push the total upward regardless of whether
+  the candidate is actually good or merely average.
+- **`recencyBoost` is a freshness signal on the CANDIDATE's own air
+  date**, deliberately distinct from P5A.2's own recency weighting
+  (which is about how recently the *user* rated something). Reuses
+  `tasteProfileLogic.js`'s own `recencyMultiplier` — its bonus portion
+  only, via `- 1` — rather than inventing a second decay curve; a
+  representative month per AniList season (no exact air date exists on
+  a corpus entry) is precise enough for a signal measured in a 90-day
+  window.
+- **`lengthMismatchPenalty` only fires on a demonstrated NEGATIVE
+  episode-bracket affinity.** An unknown or positively-regarded bracket
+  contributes zero penalty, never a bonus — this term is a penalty by
+  definition, and "the profile doesn't dislike this length" is not the
+  same claim as "the profile likes it."
+- **`similarityToDroppedPenalty` takes the single worst match, not a
+  sum** across every dropped title — summing would unfairly stack
+  against a user who has dropped many shows regardless of how similar
+  any one of them actually is to this candidate. Similarity is
+  genre-only Jaccard overlap (tag overlap would double-count signal
+  `genreAffinity`/`tagAffinity` already carry); severity reuses
+  `dropPenalty`'s own "fraction of the show left unwatched" shape,
+  normalised back to 0-1.
+- **`franchiseAlreadySeenPenalty` is binary**, not a gradient — any
+  AniList relation overlap with something already in the library is a
+  full penalty, none is zero. "Already seen" is a fact about the
+  franchise, not a matter of degree.
+- **`serendipity` scales a random draw's MAGNITUDE**, not a fixed
+  additive value, per the spec's own "slider 1 to 10 scaling the
+  serendipity term from 0.0 to 1.5" — a fixed value would just be a
+  constant, not serendipity. `rng` is injectable, the same convention
+  `recommendLogic.js`'s own `shuffle()` already established for
+  deterministic tests.
+- **The debug panel is a session-only, non-persisted toggle** (a plain
+  in-memory flag, closed again on every reload — the same shape
+  `render.js`'s own select-mode toggle already uses), not a Class A
+  preference. This substep therefore introduces **no schema migration
+  at all** — confirmed against the runnability matrix's own "–" for
+  P5A.1-P5A.3's Class A addendum column. "Behind a hidden setting" (the
+  spec's own wording) does not require persistence, and avoiding an
+  unnecessary migration for a pure dev affordance is the more
+  conservative reading.
+- **Keyboard shortcut `d`**, chosen because it was unused (confirmed
+  against every existing single-key binding in `bindKeyboardShortcuts`)
+  and deliberately left out of the Help panel/shortcuts list, matching
+  "hidden" literally. A no-op anywhere but the Discover tab, since only
+  there is "what's currently shown" a meaningful thing to score.
+- **No real ranking integration** — Discover's own sort/order is still
+  the P1-era seed-based pool; the corpus-scored shelves that will
+  actually *use* this function are P5A.4's/P5B.1's own job and don't
+  exist yet. Same "documented interface, empty implementation"
+  forward-dependency pattern P5A.1's own corpus-readiness signal
+  already established for the same future substeps. The debug panel
+  scores whatever Discover happens to be showing today (still ranked
+  by the old pipeline) purely for visibility into the new function
+  ahead of that integration — exactly the spec's own stated purpose
+  ("so this is tunable rather than mystical").
+- **Tests pre-seed the recommendations cache directly** (`PUT
+  /api/recommendations`, the same warm-start path
+  `loadCacheFromServer()` already reads on boot) rather than mocking
+  the live AniList seed→recommendations pipeline, which this substep
+  never touches and which would have added a large amount of
+  incidental GraphQL-shape complexity unrelated to what's actually
+  under test here.
+- **An unrelated, pre-existing flake found and fixed along the way:**
+  regenerating the token-conversion baseline for this substep's own new
+  markup surfaced that `token-conversion-baseline.spec.js`'s own airing
+  fixture pinned `nextAiringEpisode.airingAt` to today's local *noon* —
+  `formatEpisodeCountdown` (P4.2) returns `null` once `airingAt` is in
+  the past, so `.countdown-badge` silently vanished from every captured
+  scene the moment the suite happened to run in the afternoon. Fixed to
+  "3 hours from now" instead, which actually delivers what the original
+  comment already claimed it did (still "today" for the Home page's
+  Tonight bucket, always in the future for the countdown) regardless of
+  what time the suite runs. Confirmed via the manual smoke test's own
+  large real-value breakdowns (see criterion 3) that nothing about the
+  scorer's own math is affected by this — a pure test-infrastructure
+  fix.
+
+### Design
+
+- **`config/tuning.js`**: no changes — `RECOMMENDATIONS.scorerWeights`
+  and `RECOMMENDATIONS.adventurousness` were already transcribed at
+  P1.4 and needed no new entries, confirmed by direct comparison
+  against the spec's own Tuning table numbers (unit-tested, see below).
+- **`public/js/scorer.js`** (new, pure): `genreAffinity`,
+  `tagAffinity`, `studioAffinity`, `staffAffinity`,
+  `normalisedGlobalScore`, `recencyBoost`, `lengthMismatchPenalty`,
+  `similarityToDroppedPenalty`, `franchiseAlreadySeenPenalty`,
+  `serendipity`, and the core `score(candidate, tasteProfile, context)`
+  returning `{ total, breakdown, weights }` — the debug panel renders
+  `breakdown` directly against the exact `weights` that produced
+  `total`.
+- **`public/js/discover.js`**: `buildScorerDebugRows()` — for each
+  currently-visible Discover candidate, looks it up in a freshly-fetched
+  corpus cache by `anilistId`, builds a `context` from the library's own
+  dropped entries (`genres`/`episodesWatched`/`totalEpisodes`, no event-
+  log round trip needed — a dropped entry already carries everything
+  `similarityToDroppedPenalty` needs) and flattened `relatedIds`, and
+  scores it against `TasteProfile.getProfile()`. A candidate not yet in
+  the corpus reports `{ inCorpus: false }` rather than a fabricated
+  score.
+- **`public/js/render.js`**: `renderScorerDebugPanel` — one card per
+  candidate, every named term next to its own tuning weight and signed
+  contribution, plus serendipity's own row (no weight — it's already
+  the raw contribution).
+- **`public/js/events.js`**: `toggleScorerDebugPanel` bound to the `d`
+  key (Discover-only, see above); reuses the existing generic
+  `[data-action="close-overlay"]`/Escape handling for free.
+- **`public/index.html`/`public/styles.css`**: `#scorer-debug-overlay`,
+  `.scorer-debug-body`/`.scorer-debug-card`/`.scorer-debug-term`.
+- **Tests**: 12 new `scorer.js` unit tests including the spec's own
+  explicit requirement — fixture profiles built from harsh-rater and
+  generous-rater entry sets (via P5A.2's own `buildAffinities`) push the
+  same Mecha candidate's total score in opposite directions.
+  `tests/e2e/scorer-debug-panel.spec.js` (3 tests): a real breakdown for
+  a corpus-known candidate, open/close/no-op-elsewhere, and the
+  not-yet-in-corpus degradation.
+
+### Acceptance criteria
+
+**1. Automated checks.**
+
+- `node tests/run-all.js` — **335 passed, 0 failed** (up from 323 at
+  P5A.2's close; 12 new `scorer.js` tests).
+- `npx playwright test` (full suite) — **128 passed, 1 skipped, 0
+  failed** (up from 125; 3 new in `tests/e2e/scorer-debug-panel.spec.js`).
+  One unrelated test (`conflict-toast-undo-safety.spec.js`) flaked once
+  under full-suite contention and passed cleanly in isolation — a
+  pre-existing timing sensitivity in a spec this substep never touches,
+  not a regression.
+- `node scripts/check-copy-registry.js` — `OK — 99 entries, 297
+  variants, 8 v2 files scanned for raw sink literals.` (unchanged — the
+  debug panel's copy is plain literal strings, "Scorer debug"/"not yet
+  in the corpus"/term labels, same convention every prior substep's
+  non-Settings-panel UI text already established).
+- No typecheck/lint/build command exists in this project beyond the
+  above (unchanged since P0.1).
+- `tests/fixtures/token-conversion-baseline.json` regenerated for the
+  new overlay's markup — confirmed **purely additive** via the
+  scratchpad's index-agnostic `compare-baseline.js` (only new
+  `.scorer-debug-body` groups appeared, one per scene). Regenerating it
+  surfaced and required fixing the unrelated time-of-day flake described
+  above before the regen itself could be clean; the real
+  `token-conversion-baseline.spec.js` now passes reliably against the
+  fix.
+
+**2. Data safety.** **Not applicable — nothing is persisted.** The
+debug panel's own toggle is a runtime-only in-memory flag (see the
+design-decision above), never written to `library.json` or any Class B
+cache; `scorer.js` itself performs no writes at all, of any class.
+
+**3. Manual smoke test.** Against the rebuilt SEA build
+(`AnimeTracker-2.1.2.exe`, 91 embedded files — confirms `scorer.js` was
+picked up), with a disposable copy of the real library (port 4321
+confirmed occupied by the user's own separately-running packaged app
+first; ran on 44955), verified via MD5 before and after (unchanged:
+`941a906b71aa9fa72ef3372ec28e3ded` both times):
+
+1. Opened Discover — 50 real cards loaded from the existing seed-based
+   pipeline.
+2. Pressed `d`. **Observed:** the panel opens with a real breakdown per
+   card — e.g. "The Promised Neverland" total `-8.48` (genre affinity
+   `+9.65`, length mismatch `-20.61`, serendipity `+0.24`), "Kemono
+   Jihen" total `5.32` (genre affinity `+24.08`). Large magnitudes are
+   expected and correct: several affinity dimensions accumulate as a
+   **sum** across every one of this real library's 100+ rated entries
+   (`buildAffinities`' own documented behavior, P5A.2), not a bounded
+   0-1 value — worth flagging for whoever tunes these weights once real
+   ranking integration lands, but not a defect in this substep's own
+   formula, which transcribes the spec's terms as named.
+3. Pressed `d` again. **Observed:** the panel closes.
+4. Switched to the Watching tab and pressed `d`. **Observed:** no
+   effect — confirmed via `document.getElementById('scorer-debug-
+   overlay').hidden === true`.
+5. Re-fingerprinted the **original** `%APPDATA%\anime-tracker\
+   library.json` after the session: MD5 unchanged
+   (`941a906b71aa9fa72ef3372ec28e3ded`). The disposable copy, its
+   server process (killed by exact PID, confirmed via `netstat`) and
+   its temp directory removed afterward.
+
+**4. Performance.** The Tuning table names **no budget covering this
+surface** — stating that explicitly, per the spec's own instruction,
+rather than inventing one or measuring an unrelated one. (The named
+Discover-load budgets apply to P5A.4/P5B.1/P5B.2/P5B.3/P5B.5
+specifically — substeps that don't exist yet.)
+
+**5. Accessibility.** Keyboard path: the panel is reachable only via
+keyboard (`d`) by design, and its close button/Escape both work via the
+existing generic overlay machinery every other overlay in this app
+already relies on. Contrast: the panel reuses this app's standard
+`.overlay-panel` text/background tokens (already AA-verified by
+construction, P6.1) with no new color introduced beyond the existing
+`--accent-lit` total-score highlight. **The screen reader step is
+user-executed, not yet run** — but flagged here as **lower priority
+than usual**: this is an explicitly hidden developer/tuning affordance,
+never encountered by a user who doesn't know the shortcut exists, not a
+feature this app's accessibility promise is meant to cover the way a
+real user-facing surface is. Exact steps for the user to run if wanted
+anyway: open Discover, press "d", confirm a screen reader announces the
+"Scorer debug" heading and its description; confirm each card's title
+and total are announced when focus reaches them (or read via a
+landmark/heading jump, since the cards themselves are not interactive
+controls).
+
+**6. Rollback.** Revert the `v2/P5A.3` commit range (`7825e2c`..
+`d3296f5`, 3 commits, plus this close-out's own evidence commit and
+merge). **No data migration** — a plain code revert is fully
+sufficient. The reverted code simply stops offering the `d` shortcut
+and the two new files disappear; nothing on disk (`library.json`, any
+Class B cache) ever held anything this substep wrote, so there is
+nothing to restore or verify forward-compatibility against.
+
+**Status: P5A.3 done.** All six acceptance criteria satisfied
+(criteria 2 and 4 not applicable, stated explicitly rather than
+skipped; criterion 5's screen-reader pass deferred and explicitly
+de-prioritized for the reason given above). A real, unrelated flake
+(the token-conversion-baseline's own time-of-day-sensitive airing
+fixture) was found and fixed along the way, the same "manual smoke
+test and real regeneration catch things unit tests can't" pattern
+P5A.2's own close-out already established.
+
+## P5A.3 close out
+
+**Status: P5A.3 done.** Merged into `main` in this session's close-out
+(see the merge commit immediately following); `v2/P5A.3` retained, not
 deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin`

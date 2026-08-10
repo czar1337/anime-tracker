@@ -111,23 +111,28 @@ test('token conversion baseline: every scene\'s computed styles match the checke
   const server = await startFixtureServer(FIXTURE);
   try {
     // Seeds one entry airing "today" so the Home page's Tonight list
-    // (.tonight-row, a real converted class) actually renders a row. Airing
-    // data lives in a separate Class B cache file (airing-cache.json), never
-    // in library.json, so the fixture library alone can never produce
-    // Tonight content — without this, .tonight-row's converted padding/gap
-    // would sit permanently uncaptured by every scene despite the home scene
-    // existing. airingAt is pinned to today's local noon so it always falls
-    // in "today"'s bucket regardless of what wall-clock time the suite runs
-    // at; only computed styles are asserted, so the exact displayed time
-    // text being real-clock-dependent doesn't affect determinism.
-    const todayNoon = new Date();
-    todayNoon.setHours(12, 0, 0, 0);
+    // (.tonight-row, a real converted class) actually renders a row, AND so
+    // .countdown-badge (P4.2) actually renders. Airing data lives in a
+    // separate Class B cache file (airing-cache.json), never in
+    // library.json, so the fixture library alone can never produce either.
+    //
+    // airingAt must be a few hours from NOW, not pinned to a fixed clock
+    // time like "today's noon" — formatEpisodeCountdown (airingLogic.js)
+    // returns null once airingAt is in the past, so a fixed noon only
+    // renders the countdown badge for however much of the day is still
+    // before noon; the suite silently loses `.countdown-badge` from the
+    // baseline every afternoon. A few hours forward keeps both true
+    // regardless of what time the suite runs: still "today" for the
+    // Tonight bucket (barring a run started within a few hours of
+    // midnight, the same boundary-case tolerance the original fixed-noon
+    // value already carried), and always in the future for the countdown.
+    const soonToday = new Date(Date.now() + 3 * 60 * 60 * 1000);
     fs.writeFileSync(
       path.join(server.dataDir, 'airing-cache.json'),
       JSON.stringify({
         generatedAt: new Date().toISOString(),
         entries: {
-          101922: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 6, airingAt: Math.floor(todayNoon.getTime() / 1000) } },
+          101922: { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 6, airingAt: Math.floor(soonToday.getTime() / 1000) } },
         },
       })
     );

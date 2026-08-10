@@ -1781,6 +1781,23 @@ function bindOverlayCloseButtons() {
   });
 }
 
+// P5A.3's scorer debug panel. Async (a fresh corpus-cache fetch per open,
+// see discover.js's buildScorerDebugRows for why that's deliberately not
+// cached) — closes first if already open, so a stale "loading" state can
+// never linger from a previous open's own slower fetch.
+async function toggleScorerDebugPanel() {
+  const overlay = document.getElementById('scorer-debug-overlay');
+  if (!overlay.hidden) {
+    closeAllOverlays();
+    return;
+  }
+  const body = document.getElementById('scorer-debug-body');
+  body.innerHTML = '<p class="card-meta">Scoring…</p>';
+  openOverlay('scorer-debug-overlay');
+  const rows = await Discover.buildScorerDebugRows();
+  Render.renderScorerDebugPanel(body, rows);
+}
+
 function openHelp() {
   openOverlay('shortcuts-overlay');
   Render.renderHelpPanel(document.getElementById('help-body'));
@@ -1896,6 +1913,16 @@ function bindKeyboardShortcuts() {
     if (e.key === 's') {
       Render.toggleSelectMode();
       refreshGridOnly();
+      return;
+    }
+
+    // P5A.3's scorer debug panel — deliberately undocumented in the Help
+    // panel/shortcuts list per the spec's own "behind a hidden setting"
+    // wording, and a no-op anywhere but Discover, where alone "what
+    // Discover is currently showing" is a meaningful thing to score.
+    // Session-only: never persisted, always closed again on reload.
+    if (e.key === 'd' && currentView === 'discover') {
+      toggleScorerDebugPanel();
       return;
     }
 
