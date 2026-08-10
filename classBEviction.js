@@ -22,11 +22,14 @@ const CLASS_B_STORES = [
   { id: 'recommendationsCache', file: 'recommendations-cache.json', label: 'Recommendations cache' },
   { id: 'airingCache', file: 'airing-cache.json', label: 'Airing cache' },
   { id: 'upcomingCache', file: 'upcoming-cache.json', label: 'Upcoming cache' },
-  // The corpus cache (P5A.1, currently blocked per docs/v2-progress.md) is
-  // deliberately not registered yet — there is no such file on disk today.
-  // When P5A.1 lands, its entry goes here, last in eviction order, with its
-  // own "lowest member count first" internal trim rule; nothing else in this
-  // module needs to change for that.
+  // P5A.1: last in eviction order, and the one store this registry's own
+  // `size` accounting treats specially — server.js reports only the
+  // EVICTABLE portion (entries not in the user's library) as this store's
+  // size, never its full on-disk size, so `planEviction`'s ordinary
+  // all-or-nothing "clear this store's reported size" behavior below
+  // already produces "trim to a library-only floor" for free, with no
+  // change to this file's own algorithm.
+  { id: 'corpusCache', file: 'corpus-cache.json', label: 'Corpus cache' },
 ];
 
 // Walks `registry` in order, accumulating each store's current size from
@@ -51,4 +54,30 @@ function planEviction(registry, deficitBytes, currentSizes) {
   return { plan, freedBytes: freed, satisfied: freed >= deficitBytes };
 }
 
-module.exports = { CLASS_B_STORES, planEviction };
+// P5A.1's own trim rule ("corpus trimmed by lowest member count down to a
+// library-only floor" — docs/v2-spec.md rule 4): sorts every corpus entry
+// NOT in `libraryIds` by ascending `popularity` (AniList's closest analogue
+// to "member count" — there is no field literally called "members", per
+// P0.2's discovery finding) and selects just enough of them, lowest first,
+// to cover `targetBytesToFree` at `avgBytesPerEntry` each. A `libraryId` is
+// never selected — filtered out before sorting, not merely sorted last —
+// so a title the user is actively tracking can never be evicted no matter
+// how low its popularity, even if covering the full deficit would require
+// every other entry. Pure — `entries` is a plain `{ [anilistId]: { popularity } }`
+// map, `libraryIds` a `Set` of the same string keys; server.js supplies
+// both from its own on-disk reads.
+function selectCorpusEvictionCandidates(entries, libraryIds, targetBytesToFree, avgBytesPerEntry) {
+  const candidates = Object.entries(entries)
+    .filter(([id]) => !libraryIds.has(id))
+    .sort((a, b) => (a[1]?.popularity || 0) - (b[1]?.popularity || 0));
+  const selected = [];
+  let freedEstimate = 0;
+  for (const [id] of candidates) {
+    if (freedEstimate >= targetBytesToFree) break;
+    selected.push(id);
+    freedEstimate += avgBytesPerEntry;
+  }
+  return selected;
+}
+
+module.exports = { CLASS_B_STORES, planEviction, selectCorpusEvictionCandidates };

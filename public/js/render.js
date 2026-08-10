@@ -1214,6 +1214,29 @@ function discoverGenreFilterHtml(availableGenres, includedGenres, excludedGenres
     </div>`;
 }
 
+// P5A.1's minimal progress signal for the background corpus seed — NOT the
+// real shelf system (P5A.4/P5B.1's own job, doesn't exist yet). Renders
+// nothing once the corpus is 'ready', so an existing user who never
+// notices this ever ran sees nothing different from today.
+function corpusStatusHtml(corpusStatus) {
+  if (!corpusStatus || corpusStatus.status === 'ready') return '';
+  const { entryCount, targetSize, seeding, paused } = corpusStatus;
+  const pct = targetSize ? Math.min(100, Math.round((entryCount / targetSize) * 100)) : 0;
+  const label = paused
+    ? `Building your recommendation corpus — paused (${entryCount.toLocaleString()}/${targetSize.toLocaleString()} titles)`
+    : `Building your recommendation corpus… ${entryCount.toLocaleString()}/${targetSize.toLocaleString()} titles (${pct}%)`;
+  const actionBtn = paused
+    ? `<button class="text-btn" data-action="corpus-resume">Resume</button>`
+    : seeding
+      ? `<button class="text-btn" data-action="corpus-pause">Pause</button>`
+      : '';
+  return `
+    <div class="corpus-status" role="status">
+      <span class="corpus-status-text">${escapeHtml(label)}</span>
+      ${actionBtn}
+    </div>`;
+}
+
 function renderDiscoverPage(container, viewState) {
   const {
     status,
@@ -1230,6 +1253,7 @@ function renderDiscoverPage(container, viewState) {
     filters = {},
     sortKey = 'recommended',
     sortDir = 'desc',
+    corpusStatus = null,
   } = viewState;
   const age = relativeAgeText(generatedAt);
 
@@ -1245,6 +1269,7 @@ function renderDiscoverPage(container, viewState) {
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'New suggestions'}</button>
       </div>
     </div>
+    ${corpusStatusHtml(corpusStatus)}
     ${discoverSortHtml(sortKey, sortDir)}
     ${mediaFilterBarHtml('discover', filters, availableFormats, availableStudios, Boolean(filters.format || filters.studio))}
     ${discoverGenreFilterHtml(availableGenres, includedGenres, excludedGenres)}

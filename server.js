@@ -25,7 +25,7 @@ const { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility } = require('
 const Snapshots = require('./snapshots.js');
 const { computeLibraryEtag } = require('./libraryEtag.js');
 const { createWriteLock, LockTimeoutError } = require('./writeLock.js');
-const { CLASS_B_STORES, planEviction } = require('./classBEviction.js');
+const { CLASS_B_STORES, planEviction, selectCorpusEvictionCandidates } = require('./classBEviction.js');
 const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuota.js');
 
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
@@ -61,6 +61,8 @@ const AIRING_CACHE_FILE = path.join(DATA_DIR, 'airing-cache.json');
 const AIRING_CACHE_TMP_FILE = path.join(DATA_DIR, 'airing-cache.json.tmp');
 const UPCOMING_CACHE_FILE = path.join(DATA_DIR, 'upcoming-cache.json');
 const UPCOMING_CACHE_TMP_FILE = path.join(DATA_DIR, 'upcoming-cache.json.tmp');
+const CORPUS_CACHE_FILE = path.join(DATA_DIR, 'corpus-cache.json');
+const CORPUS_CACHE_TMP_FILE = path.join(DATA_DIR, 'corpus-cache.json.tmp');
 const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
 // P1.5's two new Class A stores. Both live in their own files rather than
 // inside library.json:
@@ -819,6 +821,41 @@ function readAiringCache() {
   }
 }
 
+// P5A.1's corpus cache — same fully-regenerable/no-backup/no-corrupt-refusal
+// reasoning as the three caches above, but deliberately COMPACT
+// (`JSON.stringify(data)`, no `null, 2` pretty-printing) rather than copying
+// their exact formatting: those caches hold at most a personal watching
+// list or a ~50-title pool, but this one reaches several thousand entries
+// (≈5.4 MB pruned at the default 3,000-title target, measured live at
+// P0.3) and gets written after EVERY seeded page — pretty-printing would
+// meaningfully inflate both the per-write serialization cost (this is a
+// synchronous, event-loop-blocking write, same as the other three) and the
+// on-disk size, for a file no human is meant to read directly.
+// `cursor.complete` is what `corpusLogic.js`'s `deriveStatus()` treats as
+// "the seed reached its own stopping point" — true once AniList runs out of
+// pages OR the target size is reached, whichever comes first.
+function writeCorpusCacheAtomic(data) {
+  const json = JSON.stringify(data);
+  const fd = fs.openSync(CORPUS_CACHE_TMP_FILE, 'w');
+  try {
+    fs.writeSync(fd, json);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(CORPUS_CACHE_TMP_FILE, CORPUS_CACHE_FILE);
+}
+
+function readCorpusCache() {
+  const empty = { generatedAt: null, cursor: { page: 0, complete: false }, targetSize: 0, entries: {} };
+  if (!fs.existsSync(CORPUS_CACHE_FILE)) return empty;
+  try {
+    return JSON.parse(fs.readFileSync(CORPUS_CACHE_FILE, 'utf8'));
+  } catch {
+    return empty;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Class B eviction + disk quota (P1.2) — see classBEviction.js/diskQuota.js
 // for the pure planning logic. This section is the only place that actually
@@ -829,25 +866,75 @@ const CLASS_B_STORE_FILES = {
   recommendationsCache: RECS_CACHE_FILE,
   airingCache: AIRING_CACHE_FILE,
   upcomingCache: UPCOMING_CACHE_FILE,
+  corpusCache: CORPUS_CACHE_FILE,
 };
+
+// Estimates how many of the corpus cache's on-disk bytes belong to entries
+// NOT in the user's library — the only portion `selectCorpusEvictionCandidates`
+// is ever allowed to remove. A proportional estimate (entry count ratio ×
+// whole-file size) rather than actually re-serializing just the evictable
+// subset to measure it exactly: this is a planning-time estimate feeding a
+// quota GATE (rule 5), same "close enough to decide, not byte-perfect"
+// standard `ensureClassBWriteQuota`'s whole deficit calculation already
+// runs on.
+function corpusEvictableBytes() {
+  const cache = readCorpusCache();
+  const entryIds = Object.keys(cache.entries);
+  if (entryIds.length === 0) return 0;
+  const libraryIds = new Set((readLibrary().entries || []).map((e) => String(e.anilistId)));
+  const evictableCount = entryIds.filter((id) => !libraryIds.has(id)).length;
+  return Math.round(fileSizeBytes(CORPUS_CACHE_FILE) * (evictableCount / entryIds.length));
+}
+
+// The corpus's own resetter, unlike the other three: never wipes the whole
+// store, only trims entries down to whatever `deficitBytes` actually still
+// needs freed at this point in the eviction plan (see the call site in
+// ensureClassBWriteQuota below) — the corpus is the last-resort store
+// precisely because most of it is worth keeping if the deficit doesn't
+// require clearing all of it. A trim invalidates any in-progress seed's own
+// cursor: the corpus is now smaller than what the cursor's page number
+// implied, so it resets to page 0 rather than leaving corpus.js to resume
+// into a gap.
+function trimCorpusCache(deficitBytes) {
+  const cache = readCorpusCache();
+  const entryIds = Object.keys(cache.entries);
+  if (entryIds.length === 0) return;
+  const libraryIds = new Set((readLibrary().entries || []).map((e) => String(e.anilistId)));
+  const avgBytesPerEntry = fileSizeBytes(CORPUS_CACHE_FILE) / entryIds.length;
+  const toRemove = selectCorpusEvictionCandidates(cache.entries, libraryIds, deficitBytes, avgBytesPerEntry);
+  for (const id of toRemove) delete cache.entries[id];
+  cache.cursor = { page: 0, complete: false };
+  writeCorpusCacheAtomic(cache);
+}
 
 // Resets a Class B store to the exact empty shape its own read function
 // already falls back to for a corrupt file — eviction reuses that existing
 // "corrupt = empty, just recompute" path rather than inventing a new one.
+// `corpusCache`'s resetter is the one exception (see trimCorpusCache above):
+// it takes the remaining deficit and trims rather than wiping. Every other
+// resetter ignores that same argument, being plain zero-arg functions.
 const CLASS_B_STORE_RESETTERS = {
   recommendationsCache: () => writeRecsCacheAtomic({ generatedAt: null, items: [] }),
   airingCache: () => writeAiringCacheAtomic({ generatedAt: null, entries: {} }),
   upcomingCache: () => writeUpcomingCacheAtomic({ generatedAt: null, items: [] }),
+  corpusCache: (deficitBytes) => trimCorpusCache(deficitBytes),
 };
 
 // `excludeStoreId`'s size is reported as 0 so planEviction never selects the
 // very store currently being written — evicting it wouldn't free anything
 // useful (it's about to be overwritten anyway) and would just needlessly
-// destroy the data the caller is in the middle of saving.
+// destroy the data the caller is in the middle of saving. `corpusCache`
+// reports only its EVICTABLE portion (see corpusEvictableBytes above), not
+// its full file size — the library-floor portion is never a candidate, so
+// it must never count toward "how much this store could free."
 function currentClassBSizes(excludeStoreId) {
   const sizes = {};
   for (const store of CLASS_B_STORES) {
-    sizes[store.id] = store.id === excludeStoreId ? 0 : fileSizeBytes(CLASS_B_STORE_FILES[store.id]);
+    if (store.id === excludeStoreId) {
+      sizes[store.id] = 0;
+    } else {
+      sizes[store.id] = store.id === 'corpusCache' ? corpusEvictableBytes() : fileSizeBytes(CLASS_B_STORE_FILES[store.id]);
+    }
   }
   return sizes;
 }
@@ -884,8 +971,17 @@ function ensureClassBWriteQuota(writeBytes, storeId) {
       error: `Not enough disk space to save this cache (need ${deficit} more bytes free, even after clearing every regenerable cache). Free up disk space and try again.`,
     };
   }
-  for (const { id } of plan) {
-    CLASS_B_STORE_RESETTERS[id]();
+  // `remaining` tracks the deficit still outstanding as the plan executes —
+  // every resetter but corpusCache's ignores the argument entirely (plain
+  // zero-arg functions), but corpusCache's own resetter uses it to trim only
+  // as much as this write still needs, not its entire evictable portion
+  // (which `plan`'s own `bytes` already conservatively assumed as an upper
+  // bound when deciding `satisfied` above — trimming less than that assumed
+  // amount is a strict improvement, never a shortfall).
+  let remaining = deficit;
+  for (const { id, bytes } of plan) {
+    CLASS_B_STORE_RESETTERS[id](remaining);
+    remaining -= bytes;
   }
   return { ok: true, evicted: plan.map((p) => p.id) };
 }
@@ -2060,6 +2156,58 @@ const server = http.createServer(async (req, res) => {
       }
       writeUpcomingCacheAtomic(data);
       sendJson(res, 200, { ok: true, evicted: quota.evicted || [] });
+      return;
+    }
+
+    // Lightweight — never the full `entries` blob. corpus.js polls this on
+    // every boot to decide whether to resume a seed; at corpus scale that
+    // must not cost a multi-MB fetch just to read the cursor.
+    if (pathname === '/api/corpus/status' && req.method === 'GET') {
+      const cache = readCorpusCache();
+      sendJson(res, 200, {
+        generatedAt: cache.generatedAt,
+        cursor: cache.cursor,
+        targetSize: cache.targetSize,
+        entryCount: Object.keys(cache.entries).length,
+      });
+      return;
+    }
+
+    if (pathname === '/api/corpus' && req.method === 'GET') {
+      sendJson(res, 200, readCorpusCache());
+      return;
+    }
+
+    // Incremental merge, NOT a whole-blob replace like /api/airing and
+    // /api/upcoming above — see api.js's saveCorpusPage for why: resending
+    // the entire accumulated corpus on every one of 60+ seeded pages would
+    // mean the last page's request body is as large as the whole corpus for
+    // the sake of ~90KB of genuinely new data. The client sends only this
+    // page's own new entries; the server merges them into its existing copy.
+    if (pathname === '/api/corpus' && req.method === 'PUT') {
+      const body = await readJsonBody(req);
+      if (!body || typeof body.newEntries !== 'object' || body.newEntries === null || Array.isArray(body.newEntries)) {
+        sendJson(res, 400, { error: 'Body must include a newEntries object.' });
+        return;
+      }
+      if (!body.cursor || typeof body.cursor.page !== 'number' || typeof body.cursor.complete !== 'boolean') {
+        sendJson(res, 400, { error: 'Body must include a cursor {page, complete}.' });
+        return;
+      }
+      const existing = readCorpusCache();
+      const data = {
+        generatedAt: body.generatedAt || new Date().toISOString(),
+        cursor: body.cursor,
+        targetSize: typeof body.targetSize === 'number' ? body.targetSize : existing.targetSize,
+        entries: { ...existing.entries, ...body.newEntries },
+      };
+      const quota = ensureClassBWriteQuota(Buffer.byteLength(JSON.stringify(data)), 'corpusCache');
+      if (!quota.ok) {
+        sendJson(res, 507, { error: quota.error });
+        return;
+      }
+      writeCorpusCacheAtomic(data);
+      sendJson(res, 200, { ok: true, entryCount: Object.keys(data.entries).length, evicted: quota.evicted || [] });
       return;
     }
 
