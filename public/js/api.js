@@ -157,6 +157,48 @@ async function saveUpcomingCache(data) {
   return body;
 }
 
+// Lightweight — `{cursor, entryCount, targetSize, generatedAt}`, never the
+// full entries blob. corpus.js polls this on every boot to decide whether a
+// seed needs to resume; at a few thousand entries the full cache is
+// multi-MB, so a boot-time resume check must not pull that whole blob just
+// to read one small object's worth of state.
+async function getCorpusStatus() {
+  const res = await fetch('/api/corpus/status');
+  return res.json();
+}
+
+// The full corpus — every pruned entry. Not used by this substep's own seed
+// loop (which only ever needs the lightweight status above); this is the
+// read path for whichever future substep (P5A.2 onward) scores against it.
+async function getCorpusCache() {
+  const res = await fetch('/api/corpus');
+  return res.json();
+}
+
+// Deliberately NOT the same "PUT replaces the whole blob" shape
+// saveAiringCache/saveUpcomingCache use — those caches are small enough
+// that resending everything on every write is free; the corpus reaches
+// several MB by the end of a seed, and resending the whole accumulated
+// blob on every single page (60+ times for the default 3,000-title target)
+// would mean the LAST page's write body is as large as the entire corpus
+// for the sake of ~90KB of genuinely new data. The server merges
+// `newEntries` into its own on-disk copy instead — see server.js's
+// `PUT /api/corpus` handler.
+async function saveCorpusPage({ cursor, newEntries, targetSize }) {
+  const res = await fetch('/api/corpus', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cursor, newEntries, targetSize, generatedAt: new Date().toISOString() }),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    const err = new Error(body.error || 'Failed to save corpus page');
+    err.quotaExceeded = res.status === 507;
+    throw err;
+  }
+  return body;
+}
+
 async function downloadCover(anilistId, url) {
   const res = await fetch('/api/covers', {
     method: 'POST',
@@ -358,6 +400,81 @@ async function fetchUpcomingMedia(page = 1) {
   return data.Page.media;
 }
 
+// P5A.1's corpus seed. Field shape is the exact one P0.3 already proved
+// live against AniList (docs/v2-discovery-fixtures/anilist/
+// CORPUS_QUERY_page1.json — `perPage: 50` confirmed as AniList's real
+// ceiling for this shape, not silently capped lower). Sorted by popularity
+// descending so the seed's own early pages are exactly the most useful
+// (most-recognizable, most affinity-relevant) titles first — if a seed is
+// ever interrupted for good, what it already has is the best possible
+// partial corpus, not an arbitrary slice. Deliberately omits `coverImage`
+// (covers are cached separately) and `idMal` (this app's sole persisted
+// external key is `anilistId`) — corpusLogic.js's `pruneMediaFields` drops
+// them again defensively even though they're never requested here.
+const CORPUS_QUERY = `
+query ($page: Int) {
+  Page(page: $page, perPage: 50) {
+    pageInfo { hasNextPage }
+    media(type: ANIME, sort: POPULARITY_DESC) {
+      id
+      title { romaji english }
+      format
+      status
+      season
+      seasonYear
+      episodes
+      duration
+      genres
+      averageScore
+      popularity
+      studios(isMain: true) { nodes { name } }
+      tags { name category rank }
+      staff(perPage: 5) { edges { role node { name { full } } } }
+      ${RELATIONS_FIELD}
+    }
+  }
+}`;
+
+async function fetchCorpusPage(page) {
+  const data = await anilistRequest(CORPUS_QUERY, { page });
+  return { media: data.Page.media, hasNextPage: data.Page.pageInfo.hasNextPage };
+}
+
+// Same field shape as CORPUS_QUERY, keyed by id rather than paged by
+// popularity — corpus.js's supplemental pass for the spec's "plus all
+// currently airing, plus everything in the library" requirement: a title
+// the user tracks (however obscure) or that just started airing (too new
+// to have accumulated popularity) can legitimately fall outside the
+// popularity-sorted pass's cutoff, so it's fetched directly by id instead.
+const CORPUS_BY_IDS_QUERY = `
+query ($idIn: [Int]) {
+  Page(page: 1, perPage: 50) {
+    media(id_in: $idIn, type: ANIME) {
+      id
+      title { romaji english }
+      format
+      status
+      season
+      seasonYear
+      episodes
+      duration
+      genres
+      averageScore
+      popularity
+      studios(isMain: true) { nodes { name } }
+      tags { name category rank }
+      staff(perPage: 5) { edges { role node { name { full } } } }
+      ${RELATIONS_FIELD}
+    }
+  }
+}`;
+
+async function fetchCorpusByIds(idIn) {
+  if (idIn.length === 0) return [];
+  const data = await anilistRequest(CORPUS_BY_IDS_QUERY, { idIn });
+  return data.Page.media;
+}
+
 const COVERS_BATCH_QUERY = `
 query ($idIn: [Int]) {
   Page(page: 1, perPage: 50) {
@@ -476,6 +593,11 @@ export const Api = {
   fetchUpcomingMedia,
   getUpcomingCache,
   saveUpcomingCache,
+  fetchCorpusPage,
+  fetchCorpusByIds,
+  getCorpusStatus,
+  getCorpusCache,
+  saveCorpusPage,
   extractRelatedIds,
   extractStudio,
   bestCoverUrl,

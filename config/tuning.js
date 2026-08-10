@@ -16,8 +16,9 @@
 //
 // Nothing in this app calls into most of these yet — P1.4's job is to
 // create the single source of truth, not to wire it up. Consumers arrive
-// substep by substep: P3.1/P3.2 (typography), P5A.1-P5B.5 (recommendations,
-// once P5A.1's AniList ToS block lifts), P6.1 (colour), P7A/P7B
+// substep by substep: P3.1/P3.2 (typography), P5A.1 (RECOMMENDATIONS'
+// corpus/rate-limit fields, first wired up in that substep), P5A.2-P5B.5
+// (the rest of RECOMMENDATIONS), P6.1 (colour), P7A/P7B
 // (achievements).
 
 // Canonical internal score scale (spec: "1 to 10, one decimal allowed").
@@ -97,6 +98,12 @@ export const RECOMMENDATIONS = {
   // "Standing decisions"), after P0.3's feasibility measurement.
   corpusTargetSize: 3000,
   rateLimitSafetyMargin: 0.7,
+  // P0.3 confirmed this BY EXHAUSTION (30 back-to-back requests succeeded,
+  // the 31st hit a real 429) — supersedes AniList's documented 90/min, which
+  // does not match live behavior. rateLimitSafetyMargin above multiplies
+  // against this, not the documented number: P5A.1's corpus.js paces at
+  // 0.7 * 30 = 21 requests/minute.
+  observedRateLimitPerMinute: 30,
   // Spec's own w_/p_ naming preserved: w_ = positive weight, p_ = penalty.
   scorerWeights: {
     wGenre: 1.0,

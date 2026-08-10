@@ -689,6 +689,11 @@ async function run() {
     assert.equal(RECOMMENDATIONS.corpusTargetSize, 3000);
   });
 
+  await test('observedRateLimitPerMinute is P0.3\'s exhaustion-confirmed 30, not AniList\'s documented 90', () => {
+    assert.equal(RECOMMENDATIONS.observedRateLimitPerMinute, 30);
+    assert.equal(RECOMMENDATIONS.rateLimitSafetyMargin, 0.7);
+  });
+
   await test('scorerWeights preserves the spec\'s exact w_/p_ naming and values', () => {
     assert.deepEqual(RECOMMENDATIONS.scorerWeights, {
       wGenre: 1.0,
@@ -3001,7 +3006,7 @@ async function run() {
   // classBEviction.js — Class B eviction planner (P1.2, rule 4)
   // ---------------------------------------------------------------------------
   console.log('classBEviction.js');
-  const { CLASS_B_STORES, planEviction } = require('../classBEviction.js');
+  const { CLASS_B_STORES, planEviction, selectCorpusEvictionCandidates } = require('../classBEviction.js');
 
   await test('planEviction walks the registry in order', () => {
     const sizes = { recommendationsCache: 100, airingCache: 100, upcomingCache: 100 };
@@ -3032,6 +3037,41 @@ async function run() {
     const { plan, satisfied } = planEviction(syntheticRegistry, 1015, sizes);
     assert.equal(satisfied, true);
     assert.ok(plan.some((p) => p.id === 'futureCorpusCache'), 'a registry entry this module never hardcodes must still be selectable');
+  });
+
+  await test('CLASS_B_STORES registers corpusCache last, per rule 4\'s eviction order', () => {
+    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['recommendationsCache', 'airingCache', 'upcomingCache', 'corpusCache']);
+  });
+
+  await test('selectCorpusEvictionCandidates: never selects a library id, even when it has the lowest popularity', () => {
+    const entries = {
+      '1': { popularity: 10 }, // library, lowest popularity of all
+      '2': { popularity: 500 },
+      '3': { popularity: 1000 },
+    };
+    const libraryIds = new Set(['1']);
+    const selected = selectCorpusEvictionCandidates(entries, libraryIds, Infinity, 100);
+    assert.deepEqual(selected, ['2', '3'], 'library id "1" must never be selected regardless of deficit or its own popularity');
+  });
+
+  await test('selectCorpusEvictionCandidates: sorts ascending by popularity, lowest first', () => {
+    const entries = { a: { popularity: 900 }, b: { popularity: 50 }, c: { popularity: 400 } };
+    const selected = selectCorpusEvictionCandidates(entries, new Set(), Infinity, 100);
+    assert.deepEqual(selected, ['b', 'c', 'a']);
+  });
+
+  await test('selectCorpusEvictionCandidates: stops once the estimated freed bytes cover the target, not before and not by evicting everything', () => {
+    const entries = { a: { popularity: 10 }, b: { popularity: 20 }, c: { popularity: 30 }, d: { popularity: 40 } };
+    // avgBytesPerEntry=100, target=250 -> needs 3 entries (300 >= 250), never all 4.
+    const selected = selectCorpusEvictionCandidates(entries, new Set(), 250, 100);
+    assert.deepEqual(selected, ['a', 'b', 'c']);
+  });
+
+  await test('selectCorpusEvictionCandidates: an entirely library-only corpus has nothing evictable', () => {
+    const entries = { '1': { popularity: 1 }, '2': { popularity: 2 } };
+    const libraryIds = new Set(['1', '2']);
+    const selected = selectCorpusEvictionCandidates(entries, libraryIds, Infinity, 100);
+    assert.deepEqual(selected, []);
   });
 
   // ---------------------------------------------------------------------------
@@ -3229,6 +3269,95 @@ async function run() {
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 500 } }), false);
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: -1 } }), false);
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 'a lot' } }), false);
+  });
+
+  // -------------------------------------------------------------------------
+  // corpusLogic.js (public/js/corpusLogic.js) — P5A.1's pure corpus logic:
+  // field pruning, status derivation, and the pacing math the seed loop
+  // actually runs on. corpus.js's own network/timer orchestration is not
+  // unit-tested here (no server, no fake AniList) — that's
+  // tests/e2e/corpus-seed.spec.js's job.
+  // -------------------------------------------------------------------------
+  console.log('corpusLogic.js');
+  const corpusLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'corpusLogic.js').replace(/\\/g, '/');
+  const { pruneMediaFields, deriveStatus, paceDelayMs } = await import(corpusLogicUrl);
+
+  const RAW_MEDIA_FIXTURE = {
+    id: 16498,
+    idMal: 16498,
+    title: { romaji: 'Shingeki no Kyojin', english: 'Attack on Titan' },
+    coverImage: { large: 'https://example.test/should-be-dropped.jpg' },
+    format: 'TV',
+    status: 'FINISHED',
+    season: 'SPRING',
+    seasonYear: 2013,
+    episodes: 25,
+    duration: 24,
+    genres: ['Action', 'Drama'],
+    averageScore: 85,
+    popularity: 1036850,
+    studios: { nodes: [{ name: 'WIT STUDIO' }] },
+    tags: [{ name: 'Kaiju', category: 'Theme-Fantasy', rank: 93, isMediaSpoiler: false }],
+    staff: { edges: [{ role: 'Director', node: { name: { full: 'Some Person' } } }] },
+    relations: { edges: [{ relationType: 'SEQUEL', node: { id: 20958, type: 'ANIME' } }] },
+  };
+
+  await test('pruneMediaFields keeps exactly the spec\'s named fields plus id/title/season, and drops coverImage/idMal', () => {
+    const pruned = pruneMediaFields(RAW_MEDIA_FIXTURE);
+    assert.equal(pruned.anilistId, 16498);
+    assert.equal(pruned.titleRomaji, 'Shingeki no Kyojin');
+    assert.equal(pruned.titleEnglish, 'Attack on Titan');
+    assert.equal(pruned.format, 'TV');
+    assert.equal(pruned.season, 'SPRING');
+    assert.equal(pruned.seasonYear, 2013);
+    assert.equal(pruned.totalEpisodes, 25);
+    assert.equal(pruned.duration, 24);
+    assert.deepEqual(pruned.genres, ['Action', 'Drama']);
+    assert.equal(pruned.popularity, 1036850);
+    assert.equal(pruned.studio, 'WIT STUDIO');
+    assert.deepEqual(pruned.tags, [{ name: 'Kaiju', category: 'Theme-Fantasy', rank: 93 }]);
+    assert.deepEqual(pruned.staff, [{ role: 'Director', name: 'Some Person' }]);
+    assert.deepEqual(pruned.relations, [{ relationType: 'SEQUEL', relatedId: 20958, relatedType: 'ANIME' }]);
+    assert.equal('coverImage' in pruned, false, 'coverImage must be dropped — covers are cached separately (P0.3)');
+    assert.equal('idMal' in pruned, false, 'idMal must be dropped — this app\'s sole persisted external key is anilistId');
+  });
+
+  await test('pruneMediaFields normalises averageScore from AniList\'s 0-100 scale to this app\'s canonical 1-10', () => {
+    assert.equal(pruneMediaFields({ ...RAW_MEDIA_FIXTURE, averageScore: 85 }).normalizedScore, 8.5);
+    assert.equal(pruneMediaFields({ ...RAW_MEDIA_FIXTURE, averageScore: 100 }).normalizedScore, 10);
+    assert.equal(pruneMediaFields({ ...RAW_MEDIA_FIXTURE, averageScore: null }).normalizedScore, null);
+  });
+
+  await test('pruneMediaFields defaults popularity to 0 and empty arrays when AniList omits them entirely', () => {
+    const pruned = pruneMediaFields({ id: 1, title: {} });
+    assert.equal(pruned.popularity, 0);
+    assert.deepEqual(pruned.genres, []);
+    assert.deepEqual(pruned.tags, []);
+    assert.deepEqual(pruned.staff, []);
+    assert.deepEqual(pruned.relations, []);
+  });
+
+  await test('deriveStatus: empty only when there are zero entries and the cursor is not complete', () => {
+    assert.equal(deriveStatus({ entryCount: 0, cursorComplete: false }), 'empty');
+  });
+
+  await test('deriveStatus: partial once any entry exists but the cursor has not reached its own stopping point', () => {
+    assert.equal(deriveStatus({ entryCount: 1, cursorComplete: false }), 'partial');
+    assert.equal(deriveStatus({ entryCount: 2999, cursorComplete: false }), 'partial');
+  });
+
+  await test('deriveStatus: ready once the cursor is complete, even if AniList ran dry short of the target size', () => {
+    assert.equal(deriveStatus({ entryCount: 3000, cursorComplete: true }), 'ready');
+    assert.equal(deriveStatus({ entryCount: 40, cursorComplete: true }), 'ready', 'AniList running out of pages before the target is still a legitimate "done"');
+  });
+
+  await test('paceDelayMs: 70% of the observed 30/min ceiling matches P0.3\'s own measured ≈2.857s pacing', () => {
+    assert.equal(paceDelayMs(0.7, 30), 2858); // ceil(60000 / 21)
+  });
+
+  await test('paceDelayMs: a looser margin or higher ceiling paces faster, a stricter one paces slower', () => {
+    assert.equal(paceDelayMs(1, 60), 1000);
+    assert.ok(paceDelayMs(0.5, 30) > paceDelayMs(0.7, 30), 'a smaller safety margin must wait longer between requests');
   });
 
   // -------------------------------------------------------------------------

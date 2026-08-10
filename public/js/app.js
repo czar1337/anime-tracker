@@ -8,6 +8,7 @@ import { Discover } from './discover.js';
 import { Schedule } from './schedule.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
+import { Corpus } from './corpus.js';
 import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
@@ -381,6 +382,7 @@ async function boot() {
   showVersionBanner();
   Airing.ensureFreshOnOpen(); // background only — never blocks startup, never fetches more than once/day
   retryMissingCovers().catch(() => {}); // background only — see the function's own comment
+  Corpus.initCorpus().catch(() => {}); // background only — P5A.1's paced, resumable corpus seed
 
   document.addEventListener('library-imported', (e) => {
     refreshCurrentView(); // whatever's on screen — Home/Statistics included, not just the list view
