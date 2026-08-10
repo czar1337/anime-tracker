@@ -5626,10 +5626,17 @@ doesn't change any previously-correct answer.
   already follows).
 - No typecheck/lint/build command exists in this project beyond the
   above (unchanged since P0.1).
-- `tests/fixtures/token-conversion-baseline.json` regenerated for
-  Discover's own 10-shelf markup (up from 4) — the `discover` scene's
-  diff is exactly the expected shape (6 new `.shelf` sections' worth of
-  markup), confirmed by direct comparison rather than assumed.
+- `tests/fixtures/token-conversion-baseline.json` re-verified — attempted
+  a regen, and it came back **byte-identical** to P5A.4's own committed
+  file. Checked why rather than assuming the regen script silently
+  failed: this spec's own `discover` scene never seeds a corpus at all,
+  so Discover stays in its `degraded` state throughout that capture
+  (the same static "still building your recommendation corpus" banner
+  regardless of how many shelves `buildShelves()` could theoretically
+  return) — confirmed via `git diff` against the P5A.4 commit showing
+  zero lines changed. No new shelf markup was ever reachable in this
+  specific fixture, so byte-identical is the CORRECT outcome, not a
+  missed regen.
 
 **2. Data safety — not applicable.** This substep introduces no new
 Class A store and no schema migration: no new preference field, no new
