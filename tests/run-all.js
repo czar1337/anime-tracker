@@ -3840,6 +3840,230 @@ async function run() {
   });
 
   // -------------------------------------------------------------------------
+  // shelvesLogic.js (public/js/shelvesLogic.js) — P5A.4's pure shelf
+  // pipeline: franchise-entry-point resolution, franchise collapsing, the
+  // diversity cap, and the 4 shelves. Includes the spec's own explicitly
+  // required prerequisite-chain test.
+  // -------------------------------------------------------------------------
+  console.log('shelvesLogic.js');
+  const shelvesLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'shelvesLogic.js').replace(/\\/g, '/');
+  const {
+    resolveFranchiseEntryPoint,
+    findNextUnseenContinuation,
+    collapseFranchises,
+    applyDiversityCap,
+    isHiddenGem,
+    isShortAndFinishable,
+    pickRotatingAnchors,
+    becauseYouLikedMatches,
+    formatBecauseYouLiked,
+    buildShelves,
+  } = await import(shelvesLogicUrl);
+
+  const SHELVES_TUNING = {
+    ...SCORER_TUNING,
+    hiddenGem: RECOMMENDATIONS.hiddenGem,
+    genreDiversityCapRatio: RECOMMENDATIONS.genreDiversityCapRatio,
+    primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority,
+  };
+
+  // Fixture corpus: a 3-entry franchise chain (S1 <- S2 <- S3, PREQUEL
+  // relations pointing backward, SEQUEL pointing forward — both directions
+  // recorded, matching real AniList data) plus one unrelated title.
+  function franchiseCorpus() {
+    return {
+      1: { anilistId: 1, titleRomaji: 'Saga S1', seasonYear: 2018, genres: ['Action'], totalEpisodes: 24, normalizedScore: 7, popularity: 40000, tags: [], staff: [], relations: [{ relationType: 'SEQUEL', relatedId: 2, relatedType: 'ANIME' }] },
+      2: { anilistId: 2, titleRomaji: 'Saga S2', seasonYear: 2019, genres: ['Action'], totalEpisodes: 24, normalizedScore: 8, popularity: 20000, tags: [], staff: [], relations: [{ relationType: 'PREQUEL', relatedId: 1, relatedType: 'ANIME' }, { relationType: 'SEQUEL', relatedId: 3, relatedType: 'ANIME' }] },
+      3: { anilistId: 3, titleRomaji: 'Saga S3', seasonYear: 2020, genres: ['Action'], totalEpisodes: 24, normalizedScore: 9, popularity: 10000, tags: [], staff: [], relations: [{ relationType: 'PREQUEL', relatedId: 2, relatedType: 'ANIME' }] },
+      99: { anilistId: 99, titleRomaji: 'Unrelated Movie', seasonYear: 2021, genres: ['Drama'], totalEpisodes: null, format: 'MOVIE', normalizedScore: 7.5, popularity: 100, tags: [], staff: [], relations: [] },
+    };
+  }
+
+  await test('resolveFranchiseEntryPoint: walks PREQUEL edges back to the earliest known entry in the chain', () => {
+    const corpus = franchiseCorpus();
+    assert.equal(resolveFranchiseEntryPoint(3, corpus), 1);
+    assert.equal(resolveFranchiseEntryPoint(2, corpus), 1);
+    assert.equal(resolveFranchiseEntryPoint(1, corpus), 1, 'already the entry point');
+  });
+
+  await test('resolveFranchiseEntryPoint: stops at whatever the corpus actually knows, rather than guessing further', () => {
+    const corpus = { 2: { anilistId: 2, relations: [{ relationType: 'PREQUEL', relatedId: 1, relatedType: 'ANIME' }] } }; // id 1 not in the corpus
+    assert.equal(resolveFranchiseEntryPoint(2, corpus), 2);
+  });
+
+  await test('resolveFranchiseEntryPoint: a relation cycle never loops forever', () => {
+    const corpus = {
+      1: { anilistId: 1, relations: [{ relationType: 'PREQUEL', relatedId: 2, relatedType: 'ANIME' }] },
+      2: { anilistId: 2, relations: [{ relationType: 'PREQUEL', relatedId: 1, relatedType: 'ANIME' }] },
+    };
+    const result = resolveFranchiseEntryPoint(1, corpus);
+    assert.ok(result === 1 || result === 2);
+  });
+
+  await test('findNextUnseenContinuation: finds the nearest not-owned sequel, never skipping ahead while a nearer one is unseen', () => {
+    const corpus = franchiseCorpus();
+    const completed = { anilistId: 1 };
+    assert.equal(findNextUnseenContinuation(completed, corpus, new Set()).anilistId, 2);
+    assert.equal(findNextUnseenContinuation(completed, corpus, new Set([2])).anilistId, 3, 'S2 already owned, walks forward to S3');
+    assert.equal(findNextUnseenContinuation(completed, corpus, new Set([2, 3])), null, 'every continuation already owned');
+  });
+
+  await test('collapseFranchises: one card per franchise, entry point is the earliest seasonYear, hiddenCount counts the rest', () => {
+    const corpus = franchiseCorpus();
+    const groups = collapseFranchises(Object.values(corpus));
+    const saga = groups.find((g) => [1, 2, 3].includes(g.entryPoint.anilistId));
+    assert.equal(saga.entryPoint.anilistId, 1);
+    assert.equal(saga.hiddenCount, 2);
+    const movie = groups.find((g) => g.entryPoint.anilistId === 99);
+    assert.equal(movie.hiddenCount, 0);
+  });
+
+  await test('applyDiversityCap: caps one primary genre at the configured ratio when enough alternatives exist', () => {
+    const actionHeavy = Array.from({ length: 8 }, (_, i) => ({ anilistId: i, genres: ['Action'] }));
+    // 7 non-Action alternatives, so pageSize (10) is reachable via cap(3) +
+    // others(7) = 10 with zero backfill needed — a real test of the cap
+    // actually holding, not just "ran out of alternatives".
+    const others = ['Drama', 'Comedy', 'Romance', 'Horror', 'Mystery', 'Sci-Fi', 'Adventure'].map((g, i) => ({ anilistId: 100 + i, genres: [g] }));
+    const capped = applyDiversityCap({
+      candidates: [...actionHeavy, ...others],
+      primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority,
+      capRatio: 0.35,
+      pageSize: 10,
+      localDay: '2026-08-10',
+    });
+    const actionCount = capped.filter((c) => c.genres.includes('Action')).length;
+    assert.equal(actionCount, 3, 'floor(10*0.35)=3 — the cap must hold exactly when enough alternatives exist');
+    assert.equal(capped.length, 10);
+  });
+
+  await test('applyDiversityCap: relaxes the cap during backfill rather than shipping a sparser-than-necessary shelf', () => {
+    const allAction = Array.from({ length: 10 }, (_, i) => ({ anilistId: i, genres: ['Action'] }));
+    const capped = applyDiversityCap({
+      candidates: allAction,
+      primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority,
+      capRatio: 0.35,
+      pageSize: 10,
+      localDay: '2026-08-10',
+    });
+    assert.equal(capped.length, 10, 'with nothing else available, the cap must not shrink the shelf');
+  });
+
+  await test('isHiddenGem / isShortAndFinishable: threshold checks match the Tuning table exactly', () => {
+    assert.equal(isHiddenGem({ normalizedScore: 7.5, popularity: 49999 }, RECOMMENDATIONS.hiddenGem), true);
+    assert.equal(isHiddenGem({ normalizedScore: 7.4, popularity: 100 }, RECOMMENDATIONS.hiddenGem), false);
+    assert.equal(isHiddenGem({ normalizedScore: 9, popularity: 50000 }, RECOMMENDATIONS.hiddenGem), false);
+    assert.equal(isShortAndFinishable({ totalEpisodes: 13 }), true);
+    assert.equal(isShortAndFinishable({ totalEpisodes: 14 }), false);
+    assert.equal(isShortAndFinishable({ format: 'MOVIE', totalEpisodes: null }), true);
+  });
+
+  await test('pickRotatingAnchors: deterministic for the same localDay, stays within the genuinely highest-rated pool', () => {
+    // 20 entries so the count*2=10 pool is a genuine subset (scores 6-10),
+    // not the whole array — otherwise the "pool" and "everything rated"
+    // would coincide and the test couldn't distinguish top-rated from
+    // mediocre at all.
+    const rated = Array.from({ length: 20 }, (_, i) => ({ anilistId: i, myScore: 10 - Math.floor(i / 2), genres: [] }));
+    const a1 = pickRotatingAnchors(rated, '2026-08-10', 5);
+    const a2 = pickRotatingAnchors(rated, '2026-08-10', 5);
+    assert.deepEqual(a1.map((e) => e.anilistId), a2.map((e) => e.anilistId));
+    for (const anchor of a1) assert.ok(anchor.myScore >= 6, 'anchors must come from the top-rated pool, never a mediocre score');
+  });
+
+  await test('becauseYouLikedMatches/formatBecauseYouLiked: cites up to 2 genre-overlapping anchors by title and score', () => {
+    const anchors = [
+      { titleEnglish: 'Monster', myScore: 10, genres: ['Psychological'] },
+      { titleEnglish: 'Steins;Gate', myScore: 9, genres: ['Sci-Fi'] },
+      { titleEnglish: 'Unrelated', myScore: 8, genres: ['Romance'] },
+    ];
+    const candidate = { genres: ['Psychological', 'Sci-Fi'] };
+    const matches = becauseYouLikedMatches(candidate, anchors);
+    assert.equal(matches.length, 2);
+    assert.equal(formatBecauseYouLiked(matches), 'Because you rated Monster 10 and Steins;Gate 9.');
+    assert.equal(formatBecauseYouLiked([]), 'Matches what you tend to rate highly.');
+  });
+
+  await test("buildShelves: the spec's own required prerequisite-chain rule — never surfaces a sequel while its prerequisite is unseen, surfaces the entry point instead", () => {
+    const corpus = franchiseCorpus();
+    corpus[2].normalizedScore = 8; // S2 alone qualifies as a hidden gem by score/popularity
+    const { shelves } = buildShelves({
+      corpusEntries: corpus,
+      libraryEntries: [],
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs: Date.now(),
+      localDay: '2026-08-10',
+      rng: () => 0,
+    });
+    const gems = shelves.find((s) => s.id === 'hidden-gems');
+    const gemIds = gems.cards.map((c) => c.anilistId);
+    assert.ok(!gemIds.includes(2), 'S2 must never surface directly while S1 is unseen');
+    assert.ok(!gemIds.includes(3), 'S3 must never surface directly while S1/S2 are unseen');
+    assert.ok(gemIds.includes(1), 'the resolved entry point (S1) should surface instead');
+  });
+
+  await test('buildShelves: once the entry point is owned and completed, the franchise moves from discovery shelves to Finish What You Started', () => {
+    const corpus = franchiseCorpus();
+    corpus[2].normalizedScore = 8;
+    const libraryEntries = [{ anilistId: 1, listStatus: 'watched', genres: ['Action'], relatedIds: [], myScore: 8 }];
+    const { shelves } = buildShelves({
+      corpusEntries: corpus,
+      libraryEntries,
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs: Date.now(),
+      localDay: '2026-08-10',
+      rng: () => 0,
+    });
+    const gems = shelves.find((s) => s.id === 'hidden-gems');
+    const gemIds = gems.cards.map((c) => c.anilistId);
+    assert.ok(!gemIds.includes(1), 'S1 is owned, hidden from discovery shelves');
+    assert.ok(!gemIds.includes(2), 'S2 still resolves to the now-owned S1, still hidden');
+    const finish = shelves.find((s) => s.id === 'finish-what-you-started');
+    assert.deepEqual(finish.cards.map((c) => c.anilistId), [2], 'the nearest unseen continuation of a completed entry surfaces here instead');
+  });
+
+  await test('buildShelves: an empty shelf reports why, distinguishing "nothing qualified" from "everything was already yours"', () => {
+    const noneQualify = buildShelves({
+      corpusEntries: { 1: { anilistId: 1, genres: ['Action'], totalEpisodes: 100, normalizedScore: 5, popularity: 999999, tags: [], staff: [], relations: [] } },
+      libraryEntries: [],
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs: Date.now(),
+      localDay: '2026-08-10',
+      rng: () => 0,
+    });
+    const gemsNone = noneQualify.shelves.find((s) => s.id === 'hidden-gems');
+    assert.equal(gemsNone.empty, true);
+    assert.ok(gemsNone.emptyReason, 'must say why');
+
+    const allOwned = buildShelves({
+      corpusEntries: { 1: { anilistId: 1, genres: ['Action'], totalEpisodes: 5, normalizedScore: 8, popularity: 100, tags: [], staff: [], relations: [] } },
+      libraryEntries: [{ anilistId: 1, listStatus: 'watched', genres: ['Action'], relatedIds: [] }],
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs: Date.now(),
+      localDay: '2026-08-10',
+      rng: () => 0,
+    });
+    const shortNone = allOwned.shelves.find((s) => s.id === 'short-and-finishable');
+    assert.equal(shortNone.empty, true);
+    assert.ok(shortNone.emptyReason, 'must say why');
+  });
+
+  await test('buildShelves: hideOwned: false surfaces already-owned titles again', () => {
+    const corpus = { 1: { anilistId: 1, genres: ['Action'], totalEpisodes: 100, normalizedScore: 8, popularity: 100, tags: [], staff: [], relations: [] } };
+    const libraryEntries = [{ anilistId: 1, listStatus: 'watched', genres: ['Action'], relatedIds: [] }];
+    const hidden = buildShelves({ corpusEntries: corpus, libraryEntries, dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', hideOwned: true, rng: () => 0 });
+    const shown = buildShelves({ corpusEntries: corpus, libraryEntries, dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', hideOwned: false, rng: () => 0 });
+    assert.equal(hidden.shelves.find((s) => s.id === 'hidden-gems').cards.length, 0);
+    assert.equal(shown.shelves.find((s) => s.id === 'hidden-gems').cards.length, 1);
+  });
+
+  // -------------------------------------------------------------------------
   // P1.6's build-time copy checks, run for real (not just their exported
   // helpers) so `npm test` actually gates on them. There is no pretest hook in
   // this project and `npm test` runs only this file, so a standalone script
