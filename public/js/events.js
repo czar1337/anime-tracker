@@ -23,6 +23,8 @@ import { buildSelectionJSON, buildSelectionCSV } from './selectionExport.js';
 import { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } from './appearanceExport.js';
 import { triggerDownload } from './download.js';
 import { TasteProfile } from './tasteProfile.js';
+import { defaultSettings } from './settingsSchema.js';
+import { buildFilterQueryParams } from './discoverFiltersExport.js';
 
 // Every destructive/lossy toast passes this as its onExpire — a no-op today
 // (see achievementHook.js), wired for real once P7A implements the engine.
@@ -1841,6 +1843,91 @@ function bindColdStartOverlay() {
   });
 }
 
+// P5B.3's Advanced Filters panel. Fields carry no live change handler —
+// values are read straight off the DOM at Apply time, plain-form style
+// (the panel's own #discover-filters-body is rebuilt from scratch every
+// time it opens anyway, so there's no separate "pending state" object to
+// keep in sync — the DOM already IS the pending state). Tag chips are the
+// one exception: toggled directly via classList so re-rendering the panel
+// for an unrelated reason (the tag overflow expand/collapse) never has to
+// invent a way to carry "which chips are currently on" through a full
+// re-render — readDiscoverFiltersFromPanelDom() below captures it fresh
+// each time, from whatever is on screen right now.
+function readDiscoverFiltersFromPanelDom() {
+  const num = (id) => {
+    const v = document.getElementById(id).value;
+    return v === '' ? null : Number(v);
+  };
+  const str = (id) => document.getElementById(id).value;
+  const selectedTags = (idPrefix) => Array.from(document.querySelectorAll(`[data-tag-picker="${idPrefix}"].on`)).map((el) => el.dataset.tag);
+  const maxLengthHours = num('df-max-length-hours');
+  return {
+    yearMin: num('df-year-min'),
+    yearMax: num('df-year-max'),
+    episodeMin: num('df-episode-min'),
+    episodeMax: num('df-episode-max'),
+    scoreMin: num('df-score-min'),
+    scoreMax: num('df-score-max'),
+    memberMin: num('df-member-min'),
+    memberMax: num('df-member-max'),
+    studio: str('df-studio'),
+    source: str('df-source'),
+    staffQuery: str('df-staff-query'),
+    format: str('df-format'),
+    airingStatus: str('df-airing-status'),
+    includeTags: selectedTags('df-include'),
+    excludeTags: selectedTags('df-exclude'),
+    maxLengthMinutes: maxLengthHours == null ? null : Math.round(maxLengthHours * 60),
+    enforcePrerequisiteChain: document.getElementById('df-enforce-prerequisite-chain').checked,
+    hideDismissed: document.getElementById('df-hide-dismissed').checked,
+  };
+}
+
+function bindDiscoverFiltersOverlay() {
+  document.getElementById('discover-filters-body').addEventListener('click', (e) => {
+    const tagBtn = e.target.closest('[data-tag-picker]');
+    if (tagBtn) {
+      tagBtn.classList.toggle('on');
+      return;
+    }
+    if (e.target.closest('#df-include-tags-overflow')) {
+      const current = readDiscoverFiltersFromPanelDom();
+      Render.toggleIncludeTagsOverflow();
+      Render.renderDiscoverFiltersPanel(Discover.getDiscoverState().corpusEntries, current);
+      return;
+    }
+    if (e.target.closest('#df-exclude-tags-overflow')) {
+      const current = readDiscoverFiltersFromPanelDom();
+      Render.toggleExcludeTagsOverflow();
+      Render.renderDiscoverFiltersPanel(Discover.getDiscoverState().corpusEntries, current);
+      return;
+    }
+    if (e.target.closest('#discover-filters-apply')) {
+      Store.setPreference(['discoverFilters'], readDiscoverFiltersFromPanelDom());
+      persist();
+      closeAllOverlays();
+      Discover.rebuildShelvesNow().catch(() => {});
+      return;
+    }
+    if (e.target.closest('#discover-filters-clear-all')) {
+      Store.setPreference(['discoverFilters'], defaultSettings().discoverFilters);
+      persist();
+      closeAllOverlays();
+      Discover.rebuildShelvesNow().catch(() => {});
+      return;
+    }
+    if (e.target.closest('#discover-filters-copy-link')) {
+      const params = buildFilterQueryParams(readDiscoverFiltersFromPanelDom());
+      const query = params.toString();
+      const url = query ? `${location.origin}${location.pathname}?${query}` : `${location.origin}${location.pathname}`;
+      navigator.clipboard.writeText(url).then(
+        () => Render.showToast('Filter link copied.'),
+        () => Render.showToast('Could not copy the link.')
+      );
+    }
+  });
+}
+
 // j/k move a roving focus between whatever `.card` elements are actually on
 // screen right now (list view, or Home's "pick up where you left off"
 // strip — whatever #grid/the page currently has). No wraparound: k at the
@@ -2915,6 +3002,7 @@ export function initEvents({ initialList, persistFn }) {
   bindOverlayCloseButtons();
   bindSettingsPanel();
   bindColdStartOverlay();
+  bindDiscoverFiltersOverlay();
   bindHelpPanel();
   bindRipple();
   document.addEventListener('keydown', trapOverlayFocus);

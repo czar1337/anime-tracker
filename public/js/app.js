@@ -14,6 +14,7 @@ import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
 import { copy, setCopyTier } from './copy.js';
+import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -355,6 +356,25 @@ async function boot() {
   setCopyTier(Store.state.preferences.contentTier);
   Render.clearError();
   if (Object.keys(promotedCosmetics).length) persist();
+
+  // P5B.3: a "Copy link" filter share lands here once, as a query param —
+  // never live-synced (this app has no other URL routing at all) —
+  // applied to preferences.discoverFilters exactly once at boot, then the
+  // URL is cleaned via replaceState so it never goes stale the moment the
+  // user changes a filter afterward. Malformed input (a present param
+  // that fails its own field's type check) is rejected with a toast and
+  // the preference is left untouched, never partially applied.
+  const incomingFilterParams = new URLSearchParams(location.search);
+  if (hasDiscoverFilterParams(incomingFilterParams)) {
+    const parsedFilters = parseFilterQueryParams(incomingFilterParams);
+    if (parsedFilters) {
+      Store.setPreference(['discoverFilters'], parsedFilters);
+      persist();
+    } else {
+      Render.showToast('That filter link looks corrupted — nothing was changed.');
+    }
+    history.replaceState(null, '', location.pathname);
+  }
 
   // P1.5: the event log comes up before initEvents(), so no handler can fire
   // before there is somewhere to record it. The outbox rehydrates from

@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 12;
+const CURRENT_SCHEMA_VERSION = 13;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -358,7 +358,51 @@ function migrate_11_to_12(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12 };
+// P5B.3: the Advanced Filters panel's own persisted state. `preferences.
+// discoverFilters` already existed (P1-era, `{format: '', studio: ''}`,
+// orphaned once P5A.4 removed Discover's old media filter bar) — this
+// EXTENDS that existing object with the new fields rather than replacing
+// it, so a real user's already-set `format`/`studio` (if any) survives.
+// Defaults otherwise match today's exact behavior (no visual change
+// until a user opts in): enforcePrerequisiteChain/hideDismissed default
+// true, matching the unconditional rules shelvesLogic.js already
+// enforced before this substep gave them a real off-switch.
+function migrate_12_to_13(data) {
+  const out = { ...data };
+  out.schemaVersion = 13;
+  const before = out.preferences || {};
+  const beforeDiscoverFilters = before.discoverFilters || {};
+  out.preferences = {
+    ...before,
+    discoverFilters: {
+      format: '',
+      studio: '',
+      yearMin: null,
+      yearMax: null,
+      episodeMin: null,
+      episodeMax: null,
+      scoreMin: null,
+      scoreMax: null,
+      memberMin: null,
+      memberMax: null,
+      source: '',
+      staffQuery: '',
+      airingStatus: '',
+      includeTags: [],
+      excludeTags: [],
+      maxLengthMinutes: null,
+      enforcePrerequisiteChain: true,
+      hideDismissed: true,
+      ...beforeDiscoverFilters,
+    },
+  };
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_12_to_13 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12, 12: migrate_12_to_13 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -385,4 +429,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13 };

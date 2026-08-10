@@ -19,6 +19,17 @@
 // declarative definitions via moodLogic.js's own matchesMood, reusing
 // this module's existing resolveAndFilter/rankAndCapShelf plumbing the
 // same way P5B.1's shelves did.
+// P5B.3 adds the Advanced Filters panel: `matchesAdvancedFilters` narrows
+// `allCorpusCandidates` itself, once, before either shelf mechanism reads
+// from it — so a filter composes with the 10 named shelves AND an active
+// mood alike, rather than being a third exclusive "view" the way a mood
+// is. Two of the panel's own toggles (hide sequels not started, hide
+// dismissed) are real off-switches on rules that were previously
+// unconditional in `resolveAndFilter` — see `enforcePrerequisiteChain`/
+// `hideDismissed` there. `collapseFranchises`'s own display-time
+// clustering stays permanent and non-toggleable either way; only the
+// upstream HIDING decision (whether an unseen sequel or a dismissed
+// title ever reaches the pool at all) is what these two toggle.
 // Operates entirely over corpus-shaped candidates
 // (never AniList's raw Media shape recommendLogic.js's older functions
 // use) and the taste profile/scorer already built at P5A.2/P5A.3 — no
@@ -36,7 +47,7 @@
 
 import { resolvePrimaryGenre } from './tasteProfileLogic.js';
 import { score } from './scorer.js';
-import { matchesMood, isThemeTag } from './moodLogic.js';
+import { matchesMood, isThemeTag, totalRuntimeMinutes } from './moodLogic.js';
 import { MOOD_REGISTRY } from './moodRegistry.js';
 
 // Mirrors api.js's own GROUPING_RELATIONS exactly (duplicated rather than
@@ -500,6 +511,50 @@ function formatBlindSpot(candidate, blindSpotGenres, genreAverages) {
 // back to a plain acknowledgement for the two moods with no genre/theme
 // rule at all ("Peak fiction", "One sitting" — both defined purely by a
 // score or runtime threshold).
+// P5B.3's own candidate-pool predicate. Every field is optional — an
+// unset/empty value never disqualifies, the same "unset threshold never
+// disqualifies" convention every other predicate in this module already
+// follows (isHiddenGem, matchesMood, etc.). `studio`/`source`/`format`/
+// `airingStatus` are exact-match against dropdown-sourced values (never
+// free text); `staffQuery` is a case-insensitive substring match, since
+// unlike studio the corpus-wide staff list is too large for a dropdown.
+function matchesAdvancedFilters(candidate, filters, timeSemantics) {
+  if (!filters) return true;
+  const year = candidate.seasonYear;
+  if (typeof filters.yearMin === 'number' && (typeof year !== 'number' || year < filters.yearMin)) return false;
+  if (typeof filters.yearMax === 'number' && (typeof year !== 'number' || year > filters.yearMax)) return false;
+  const episodes = candidate.totalEpisodes;
+  if (typeof filters.episodeMin === 'number' && (typeof episodes !== 'number' || episodes < filters.episodeMin)) return false;
+  if (typeof filters.episodeMax === 'number' && (typeof episodes !== 'number' || episodes > filters.episodeMax)) return false;
+  const score = candidate.normalizedScore;
+  if (typeof filters.scoreMin === 'number' && (typeof score !== 'number' || score < filters.scoreMin)) return false;
+  if (typeof filters.scoreMax === 'number' && (typeof score !== 'number' || score > filters.scoreMax)) return false;
+  const members = candidate.popularity ?? 0;
+  if (typeof filters.memberMin === 'number' && members < filters.memberMin) return false;
+  if (typeof filters.memberMax === 'number' && members > filters.memberMax) return false;
+  if (filters.studio && candidate.studio !== filters.studio) return false;
+  if (filters.source && candidate.source !== filters.source) return false;
+  if (filters.format && candidate.format !== filters.format) return false;
+  if (filters.airingStatus && candidate.status !== filters.airingStatus) return false;
+  if (filters.staffQuery) {
+    const q = filters.staffQuery.toLowerCase();
+    const hit = (candidate.staff || []).some((s) => (s.name || '').toLowerCase().includes(q));
+    if (!hit) return false;
+  }
+  const candidateTagNames = new Set((candidate.tags || []).map((t) => t.name));
+  if (Array.isArray(filters.includeTags) && filters.includeTags.length > 0) {
+    if (!filters.includeTags.some((t) => candidateTagNames.has(t))) return false;
+  }
+  if (Array.isArray(filters.excludeTags) && filters.excludeTags.length > 0) {
+    if (filters.excludeTags.some((t) => candidateTagNames.has(t))) return false;
+  }
+  if (typeof filters.maxLengthMinutes === 'number') {
+    const runtime = totalRuntimeMinutes(candidate, timeSemantics.episodeDurationFallbackMinutes);
+    if (runtime > filters.maxLengthMinutes) return false;
+  }
+  return true;
+}
+
 function formatMoodMatch(candidate, moodDef) {
   const candidateGenres = new Set(candidate.genres || []);
   const matchedGenre = (moodDef.genres || []).find((g) => candidateGenres.has(g));
@@ -575,10 +630,20 @@ function buildShelves({
   // convention `tuning`/`localDay`/`rng` already establish), so a caller
   // that doesn't care about "One sitting" can omit this entirely.
   timeSemantics = { episodeDurationFallbackMinutes: { tv: 24, film: 100 } },
+  // P5B.3's Advanced Filters panel state (preferences.discoverFilters).
+  // An empty object is a true no-op — every field inside
+  // matchesAdvancedFilters is individually optional.
+  discoverFilters = {},
+  // The two toggles the panel adds a real off-switch for. Both default
+  // true, matching the exact unconditional behavior every prior substep
+  // already shipped — a caller that omits these sees zero change.
+  enforcePrerequisiteChain = true,
+  hideDismissed = true,
 }) {
   const corpusById = corpusEntries || {};
   const ownedIds = new Set(libraryEntries.map((e) => e.anilistId));
   const dismissedSet = dismissedIds instanceof Set ? dismissedIds : new Set(dismissedIds || []);
+  const effectiveDismissedSet = hideDismissed ? dismissedSet : new Set();
   const effectiveAdventurousness = adventurousness ?? (tuning.adventurousness.min + tuning.adventurousness.max) / 2;
   const droppedTitles = libraryEntries
     .filter((e) => e.listStatus === 'dropped')
@@ -586,7 +651,7 @@ function buildShelves({
   const libraryRelatedIds = new Set(libraryEntries.flatMap((e) => e.relatedIds || []));
   const scoreContext = { nowMs, adventurousness: effectiveAdventurousness, tuning, droppedTitles, libraryRelatedIds, rng };
   const ratedEntries = libraryEntries.filter((e) => typeof e.myScore === 'number');
-  const allCorpusCandidates = Object.values(corpusById);
+  const allCorpusCandidates = Object.values(corpusById).filter((c) => matchesAdvancedFilters(c, discoverFilters, timeSemantics));
   const hideSet = hideOwned ? ownedIds : new Set();
 
   // Groups a batch of raw candidates by resolved franchise entry point,
@@ -601,7 +666,18 @@ function buildShelves({
   // per franchise to look at, so its own hiddenCount — the "+N" badge —
   // was always 0 by construction; the raw candidate siblings have to
   // survive into that call for the count to mean anything.
+  //
+  // P5B.3's `enforcePrerequisiteChain: false` skips the group-by-entry-
+  // point step for this HIDING decision entirely — each raw candidate is
+  // checked against its OWN id instead of whatever it resolves to, so an
+  // unseen sequel is no longer hidden just because its prerequisite is
+  // unseen too. `collapseFranchises` (called later, in rankAndCapShelf)
+  // still clusters whatever survives into one displayed card — that rule
+  // is permanent per the spec, only the upstream hiding decision toggles.
   function resolveAndFilter(rawCandidates) {
+    if (!enforcePrerequisiteChain) {
+      return rawCandidates.filter((c) => !hideSet.has(c.anilistId) && !effectiveDismissedSet.has(c.anilistId));
+    }
     const byEntryId = new Map();
     for (const c of rawCandidates) {
       const entryId = resolveFranchiseEntryPoint(c.anilistId, corpusById);
@@ -610,7 +686,7 @@ function buildShelves({
     }
     const result = [];
     for (const [entryId, members] of byEntryId) {
-      if (hideSet.has(entryId) || dismissedSet.has(entryId)) continue;
+      if (hideSet.has(entryId) || effectiveDismissedSet.has(entryId)) continue;
       const entryPoint = corpusById[String(entryId)] || members[0];
       result.push(entryPoint);
       for (const member of members) {
@@ -659,7 +735,7 @@ function buildShelves({
     finishRaw.push(next);
     continuesFromById.set(next.anilistId, entry.titleEnglish || entry.titleRomaji || null);
   }
-  const finishFiltered = finishRaw.filter((c) => !dismissedSet.has(c.anilistId));
+  const finishFiltered = finishRaw.filter((c) => !effectiveDismissedSet.has(c.anilistId));
   const finishWhatYouStarted = {
     id: 'finish-what-you-started',
     title: 'Finish what you started',
@@ -942,5 +1018,6 @@ export {
   formatFromDirector,
   formatBlindSpot,
   formatMoodMatch,
+  matchesAdvancedFilters,
   buildShelves,
 };

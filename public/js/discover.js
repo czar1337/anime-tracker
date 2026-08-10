@@ -7,6 +7,8 @@ import { score } from './scorer.js';
 import { TasteProfile } from './tasteProfile.js';
 import { buildShelves, franchiseRelatedIds } from './shelvesLogic.js';
 import { RECOMMENDATIONS, TIME_SEMANTICS } from '../../config/tuning.js';
+import { openOverlay } from './events.js';
+import { defaultSettings } from './settingsSchema.js';
 
 // P5A.4: Discover's own main pipeline moved here entirely, off the P1-era
 // seed-based live-AniList-recommendations flow (recommendLogic.js's
@@ -42,6 +44,11 @@ const discoverState = {
   // normal 10-shelf view.
   activeMoodId: null,
   moodShelf: null, // {id, copyKey, cards, empty, emptyReason, totalCandidates} | null
+  // P5B.3: cached so render.js's Advanced Filters panel can list the
+  // studio/source/tag values actually present in the corpus without a
+  // second fetch — the same object buildShelvesNow() already has in hand
+  // right before calling buildShelves() below.
+  corpusEntries: {},
 };
 
 let buildInFlight = null; // shared promise so an auto-build and a manual refresh can't both run at once
@@ -96,8 +103,10 @@ async function buildShelvesNow() {
       }
       const [corpusCache, tasteProfile] = await Promise.all([Api.getCorpusCache(), TasteProfile.refreshProfile().catch(() => TasteProfile.getProfile())]);
       if (myGeneration !== buildGeneration) return;
+      const corpusEntries = corpusCache.entries || {};
+      const discoverFilters = Store.state.preferences.discoverFilters;
       const { shelves, moodShelf } = buildShelves({
-        corpusEntries: corpusCache.entries || {},
+        corpusEntries,
         libraryEntries: Store.getEntries(),
         dismissedIds: Store.getDismissedIds(),
         tasteProfile,
@@ -107,7 +116,11 @@ async function buildShelvesNow() {
         hideOwned: Store.state.preferences.discoverHideOwned,
         activeMoodId: discoverState.activeMoodId,
         timeSemantics: TIME_SEMANTICS,
+        discoverFilters,
+        enforcePrerequisiteChain: discoverFilters.enforcePrerequisiteChain,
+        hideDismissed: discoverFilters.hideDismissed,
       });
+      discoverState.corpusEntries = corpusEntries;
       discoverState.shelves = shelves;
       discoverState.moodShelf = moodShelf;
       discoverState.status = 'ready';
@@ -132,6 +145,7 @@ export function getDiscoverState() {
   return {
     ...discoverState,
     hideOwned: Store.state.preferences.discoverHideOwned,
+    discoverFilters: Store.state.preferences.discoverFilters,
     // P5A.1's own progress signal, shown as Discover's primary content
     // while the corpus is still below MIN_CORPUS_FOR_SHELVES ('degraded'
     // status) — the "usable degraded Discover, first ever run" budget this
@@ -215,6 +229,19 @@ export function ensureFreshOnOpen() {
   if (isStale) buildShelvesNow().catch(() => {});
 }
 
+// P5B.3: the Advanced Filters overlay lives outside #discover-view (a
+// top-level overlay, same as the theme picker), so events.js's own
+// handlers for it (Apply, Clear all, a chip's own ×) can't reach
+// discover.js's container-scoped click listener below — this is the one
+// forced-rebuild entry point they call after changing
+// preferences.discoverFilters, mirroring exactly what every in-container
+// handler already does (bump the generation, rebuild, unconditionally —
+// never gated on staleness the way ensureFreshOnOpen is).
+export function rebuildShelvesNow() {
+  buildGeneration += 1;
+  return buildShelvesNow();
+}
+
 export function initDiscover({ persistFn } = {}) {
   const persist = persistFn || (() => {});
   const container = document.getElementById('discover-view');
@@ -246,6 +273,12 @@ export function initDiscover({ persistFn } = {}) {
       return;
     }
 
+    if (e.target.closest('[data-action="discover-filters-open"]')) {
+      Render.renderDiscoverFiltersPanel(discoverState.corpusEntries, Store.state.preferences.discoverFilters);
+      openOverlay('discover-filters-overlay');
+      return;
+    }
+
     // P5B.2: clicking an already-active mood again clears it — one tap
     // toggles the page back to the normal 10-shelf view, not a second,
     // separate "clear" affordance the user has to hunt for.
@@ -259,6 +292,57 @@ export function initDiscover({ persistFn } = {}) {
     }
     if (e.target.closest('[data-action="discover-mood-clear"]')) {
       discoverState.activeMoodId = null;
+      buildGeneration += 1;
+      buildShelvesNow().catch(() => {});
+      return;
+    }
+
+    // P5B.3: a chip's own × clears just that one filter dimension —
+    // range pairs (year/episode/score/members) clear both bounds at once,
+    // since they're one chip. Mirrors events.js's own filters[list] chip
+    // handler exactly, just against preferences.discoverFilters instead.
+    const chipBtn = e.target.closest('[data-chip]');
+    if (chipBtn) {
+      const key = chipBtn.dataset.chip;
+      const filters = Store.state.preferences.discoverFilters;
+      if (key === '__clear_all') {
+        Store.setPreference(['discoverFilters'], defaultSettings().discoverFilters);
+      } else if (key === 'year') {
+        filters.yearMin = null;
+        filters.yearMax = null;
+      } else if (key === 'episodes') {
+        filters.episodeMin = null;
+        filters.episodeMax = null;
+      } else if (key === 'score') {
+        filters.scoreMin = null;
+        filters.scoreMax = null;
+      } else if (key === 'members') {
+        filters.memberMin = null;
+        filters.memberMax = null;
+      } else if (key === 'studio') {
+        filters.studio = '';
+      } else if (key === 'source') {
+        filters.source = '';
+      } else if (key === 'staffQuery') {
+        filters.staffQuery = '';
+      } else if (key === 'format') {
+        filters.format = '';
+      } else if (key === 'airingStatus') {
+        filters.airingStatus = '';
+      } else if (key === 'maxLength') {
+        filters.maxLengthMinutes = null;
+      } else if (key === 'enforcePrerequisiteChain') {
+        filters.enforcePrerequisiteChain = true;
+      } else if (key === 'hideDismissed') {
+        filters.hideDismissed = true;
+      } else if (key.startsWith('includeTag:')) {
+        filters.includeTags = filters.includeTags.filter((t) => t !== key.slice('includeTag:'.length));
+      } else if (key.startsWith('excludeTag:')) {
+        filters.excludeTags = filters.excludeTags.filter((t) => t !== key.slice('excludeTag:'.length));
+      } else {
+        return;
+      }
+      persist();
       buildGeneration += 1;
       buildShelvesNow().catch(() => {});
       return;
@@ -380,4 +464,5 @@ export const Discover = {
   getDiscoverState,
   ensureFreshOnOpen,
   buildScorerDebugRows,
+  rebuildShelvesNow,
 };

@@ -143,7 +143,30 @@ export function defaultSettings() {
     activeTab: 'watching',
     discoverExcludedGenres: [],
     discoverIncludedGenres: [],
-    discoverFilters: { format: '', studio: '' },
+    // P5B.3: the Advanced Filters panel. `format`/`studio` are this
+    // object's own original fields (P1-era, orphaned once P5A.4 removed
+    // Discover's old media filter bar) — reused here rather than
+    // renamed, since they already mean exactly what this substep needs.
+    discoverFilters: {
+      format: '',
+      studio: '',
+      yearMin: null,
+      yearMax: null,
+      episodeMin: null,
+      episodeMax: null,
+      scoreMin: null,
+      scoreMax: null,
+      memberMin: null,
+      memberMax: null,
+      source: '',
+      staffQuery: '',
+      airingStatus: '',
+      includeTags: [],
+      excludeTags: [],
+      maxLengthMinutes: null,
+      enforcePrerequisiteChain: true,
+      hideDismissed: true,
+    },
     scheduleFilters: { format: '', studio: '' },
     notifyNewEpisodes: false,
     // New, inert settings (P1.3) — no consumer yet; later substeps (P1.6,
