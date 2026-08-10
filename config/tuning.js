@@ -200,6 +200,13 @@ export const RECOMMENDATIONS = {
   // entry could crown its studio/director "favorite" even if they scored
   // it a 2, which isn't what "the studio/director you love" means.
   favoriteMinScore: 7,
+  // P5B.2's own addition. "One-tap intents that reshape the page": once a
+  // mood is active it becomes the page's ONLY content (unlike a normal
+  // shelf, one of ten sharing the page), so it gets a larger page than
+  // the shared `pageSize` default (12) — double, matching how "Because
+  // you liked" et al. already assume a multi-shelf context they no
+  // longer have once a mood is active.
+  moodPageSize: 24,
 };
 
 // Named surfaces only, transcribed for completeness (rule: "if a substep

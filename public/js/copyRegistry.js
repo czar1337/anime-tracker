@@ -524,6 +524,70 @@ export const COPY_REGISTRY = {
     standard: (p) => `Next episode in ${p.days}d ${p.hours}h`,
     madara: (p) => `Next episode in ${p.days}d ${p.hours}h`,
   },
+
+  // ---------------------------------------------------------------------------
+  // P5B.2 — mood filters. The spec calls this out explicitly, unlike every
+  // other Discover string above it (shelf titles, empty-shelf reasons,
+  // sort/filter labels): "Names are copy and need all three tier variants."
+  // Every other new v2 string on Discover stays a plain literal, matching
+  // that surface's own pre-existing "non-Settings-panel UI text is plain
+  // literal" convention (confirmed clean by P5A.4's/P5B.1's own copy-check
+  // passes) — moods are the one deliberate exception the spec itself draws,
+  // because a mood's own NAME is meant to carry personality/tone the way a
+  // structural heading like "Hidden gems" never needs to. Standard is each
+  // mood's exact spec wording, verbatim. Family-friendly softens the two
+  // names with a self-deprecating or slang edge ("Certified brainrot")
+  // that reads oddly outside an internet-culture context; the rest have no
+  // real reason to diverge and stay identical, matching every other entry
+  // in this file that only varies where there's an actual reason to.
+  // Madara leans into the light personality this surface already permits
+  // (see dataSafety.snapshotCreated above for the established precedent —
+  // "the one light surface... a little personality is allowed here").
+  'discoverMood.makeMeCry': {
+    familyFriendly: 'Make me cry',
+    standard: 'Make me cry',
+    madara: 'Make me cry (bring tissues)',
+  },
+  'discoverMood.noThinkingRequired': {
+    familyFriendly: 'No thinking required',
+    standard: 'No thinking required',
+    madara: 'No thinking required (brain: off)',
+  },
+  'discoverMood.peakFiction': {
+    familyFriendly: 'Peak fiction',
+    standard: 'Peak fiction',
+    madara: 'Peak fiction, allegedly',
+  },
+  'discoverMood.backgroundNoise': {
+    familyFriendly: 'Background noise',
+    standard: 'Background noise',
+    madara: 'Background noise (folding-laundry tier)',
+  },
+  'discoverMood.gutPunch': {
+    familyFriendly: 'Emotionally intense',
+    standard: 'Gut punch',
+    madara: 'Gut punch (you were warned)',
+  },
+  'discoverMood.somethingBeautiful': {
+    familyFriendly: 'Something beautiful',
+    standard: 'Something beautiful',
+    madara: 'Something beautiful, probably devastating',
+  },
+  'discoverMood.oneSitting': {
+    familyFriendly: 'One sitting',
+    standard: 'One sitting',
+    madara: 'One sitting (no excuses)',
+  },
+  'discoverMood.certifiedBrainrot': {
+    familyFriendly: 'Just for fun',
+    standard: 'Certified brainrot',
+    madara: 'Certified brainrot (no regrets)',
+  },
+  'discoverMood.clear': {
+    familyFriendly: 'Back to shelves',
+    standard: 'Back to shelves',
+    madara: 'Back to shelves',
+  },
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

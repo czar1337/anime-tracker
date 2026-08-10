@@ -6,7 +6,7 @@ import { EventLog, computeLocalDay } from './eventLog.js';
 import { score } from './scorer.js';
 import { TasteProfile } from './tasteProfile.js';
 import { buildShelves, franchiseRelatedIds } from './shelvesLogic.js';
-import { RECOMMENDATIONS } from '../../config/tuning.js';
+import { RECOMMENDATIONS, TIME_SEMANTICS } from '../../config/tuning.js';
 
 // P5A.4: Discover's own main pipeline moved here entirely, off the P1-era
 // seed-based live-AniList-recommendations flow (recommendLogic.js's
@@ -34,6 +34,14 @@ const discoverState = {
   status: 'idle', // idle | loading | ready | degraded | error
   shelves: [], // [{id, title, cards, empty, emptyReason, totalCandidates}]
   generatedAt: null,
+  // P5B.2: which mood, if any, currently "reshapes the page" — session-only,
+  // never persisted (the spec's own "one-tap" framing reads as a lightweight,
+  // frequently-changed exploration toggle, not a durable setting a user
+  // expects to still be active next time they open the app; matches the
+  // scorer debug panel's own session-only precedent, P5A.3). null means the
+  // normal 10-shelf view.
+  activeMoodId: null,
+  moodShelf: null, // {id, copyKey, cards, empty, emptyReason, totalCandidates} | null
 };
 
 let buildInFlight = null; // shared promise so an auto-build and a manual refresh can't both run at once
@@ -53,6 +61,10 @@ function removeCardEverywhere(anilistId) {
   for (const shelf of discoverState.shelves) {
     shelf.cards = shelf.cards.filter((c) => c.anilistId !== anilistId);
     shelf.empty = shelf.cards.length === 0;
+  }
+  if (discoverState.moodShelf) {
+    discoverState.moodShelf.cards = discoverState.moodShelf.cards.filter((c) => c.anilistId !== anilistId);
+    discoverState.moodShelf.empty = discoverState.moodShelf.cards.length === 0;
   }
 }
 
@@ -84,7 +96,7 @@ async function buildShelvesNow() {
       }
       const [corpusCache, tasteProfile] = await Promise.all([Api.getCorpusCache(), TasteProfile.refreshProfile().catch(() => TasteProfile.getProfile())]);
       if (myGeneration !== buildGeneration) return;
-      const { shelves } = buildShelves({
+      const { shelves, moodShelf } = buildShelves({
         corpusEntries: corpusCache.entries || {},
         libraryEntries: Store.getEntries(),
         dismissedIds: Store.getDismissedIds(),
@@ -93,8 +105,11 @@ async function buildShelvesNow() {
         nowMs: Date.now(),
         localDay: computeLocalDay(new Date()),
         hideOwned: Store.state.preferences.discoverHideOwned,
+        activeMoodId: discoverState.activeMoodId,
+        timeSemantics: TIME_SEMANTICS,
       });
       discoverState.shelves = shelves;
+      discoverState.moodShelf = moodShelf;
       discoverState.status = 'ready';
       discoverState.generatedAt = new Date().toISOString();
     } catch {
@@ -231,6 +246,24 @@ export function initDiscover({ persistFn } = {}) {
       return;
     }
 
+    // P5B.2: clicking an already-active mood again clears it — one tap
+    // toggles the page back to the normal 10-shelf view, not a second,
+    // separate "clear" affordance the user has to hunt for.
+    const moodBtn = e.target.closest('[data-action="discover-mood"]');
+    if (moodBtn) {
+      const moodId = moodBtn.dataset.moodId;
+      discoverState.activeMoodId = discoverState.activeMoodId === moodId ? null : moodId;
+      buildGeneration += 1;
+      buildShelvesNow().catch(() => {});
+      return;
+    }
+    if (e.target.closest('[data-action="discover-mood-clear"]')) {
+      discoverState.activeMoodId = null;
+      buildGeneration += 1;
+      buildShelvesNow().catch(() => {});
+      return;
+    }
+
     if (e.target.closest('#dismissed-trigger')) {
       Render.renderDismissedOverlay(document.getElementById('dismissed-content'));
       document.querySelectorAll('.overlay').forEach((o) => (o.hidden = true));
@@ -242,7 +275,11 @@ export function initDiscover({ persistFn } = {}) {
     if (!card) return;
     const anilistId = Number(card.dataset.anilistId);
     const shelfId = card.dataset.shelfId;
-    const shelf = discoverState.shelves.find((s) => s.id === shelfId);
+    // The mood shelf isn't in discoverState.shelves (it's a separate,
+    // page-reshaping view, never one of the 10 named shelves) — checked
+    // second since a card can only ever be on screen from one or the
+    // other, never both, given the page shows one or the other.
+    const shelf = discoverState.shelves.find((s) => s.id === shelfId) || (discoverState.moodShelf?.id === shelfId ? discoverState.moodShelf : null);
     const cardData = shelf?.cards.find((c) => c.anilistId === anilistId);
     if (!cardData) return;
     const candidate = cardData.candidate;

@@ -3901,8 +3901,15 @@ async function run() {
     directorNamesOf,
     findFavoriteStudioAndDirector,
     formatBlindSpot,
+    formatMoodMatch,
     buildShelves,
   } = await import(shelvesLogicUrl);
+
+  const moodLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'moodLogic.js').replace(/\\/g, '/');
+  const { matchesMood, totalRuntimeMinutes, isThemeTag: moodIsThemeTag } = await import(moodLogicUrl);
+  const moodRegistryUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'moodRegistry.js').replace(/\\/g, '/');
+  const { MOOD_REGISTRY } = await import(moodRegistryUrl);
+  const MOOD_TIME_SEMANTICS = { episodeDurationFallbackMinutes: { tv: 24, film: 100 } };
 
   const SHELVES_TUNING = {
     ...SCORER_TUNING,
@@ -4400,6 +4407,135 @@ async function run() {
     const { shelves } = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0 });
     assert.equal(shelves.find((s) => s.id === 'from-studio').empty, true);
     assert.equal(shelves.find((s) => s.id === 'from-director').empty, true);
+  });
+
+  // -------------------------------------------------------------------------
+  // P5B.2's mood filters: moodLogic.js's pure predicate, moodRegistry.js's
+  // declarative data, and buildShelves()'s own optional 11th moodShelf.
+  // -------------------------------------------------------------------------
+
+  await test('moodIsThemeTag: only a "Theme-" category prefix counts, mirroring tasteProfileLogic.js\'s own copy', () => {
+    assert.equal(moodIsThemeTag({ category: 'Theme-Drama' }), true);
+    assert.equal(moodIsThemeTag({ category: 'Cast-Female Protagonist' }), false);
+    assert.equal(moodIsThemeTag(null), false);
+  });
+
+  await test('totalRuntimeMinutes: per-episode duration when known, TV/film fallback when not, defaults to 1 episode', () => {
+    assert.equal(totalRuntimeMinutes({ duration: 24, totalEpisodes: 12 }, MOOD_TIME_SEMANTICS.episodeDurationFallbackMinutes), 288);
+    assert.equal(totalRuntimeMinutes({ duration: null, totalEpisodes: 12 }, MOOD_TIME_SEMANTICS.episodeDurationFallbackMinutes), 288, 'falls back to the tv default (24) when duration is unknown');
+    assert.equal(totalRuntimeMinutes({ duration: null, format: 'MOVIE', totalEpisodes: null }, MOOD_TIME_SEMANTICS.episodeDurationFallbackMinutes), 100, 'a film with no episode count is treated as exactly 1 episode of the film fallback');
+  });
+
+  await test('matchesMood: genre OR theme is enough — either signal alone passes a mood naming both', () => {
+    const moodDef = { genres: ['Drama'], themeTags: ['Tragedy'] };
+    assert.equal(matchesMood({ genres: ['Drama'], tags: [] }, moodDef, MOOD_TIME_SEMANTICS), true, 'genre alone matches');
+    assert.equal(matchesMood({ genres: ['Comedy'], tags: [{ category: 'Theme-Drama', name: 'Tragedy' }] }, moodDef, MOOD_TIME_SEMANTICS), true, 'theme alone matches');
+    assert.equal(matchesMood({ genres: ['Comedy'], tags: [] }, moodDef, MOOD_TIME_SEMANTICS), false, 'neither signal present');
+  });
+
+  await test('matchesMood: a genre-agnostic mood (no genres/themeTags at all) matches purely on its numeric thresholds', () => {
+    const peakFiction = { minNormalizedScore: 8.5 };
+    assert.equal(matchesMood({ genres: [], tags: [], normalizedScore: 9 }, peakFiction, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesMood({ genres: [], tags: [], normalizedScore: 8 }, peakFiction, MOOD_TIME_SEMANTICS), false, 'below the floor, however genre-agnostic');
+  });
+
+  await test('matchesMood: excludeGenres disqualifies even when the genre/theme signal itself matches', () => {
+    const noThinking = { genres: ['Comedy'], excludeGenres: ['Mystery'] };
+    assert.equal(matchesMood({ genres: ['Comedy'], tags: [] }, noThinking, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesMood({ genres: ['Comedy', 'Mystery'], tags: [] }, noThinking, MOOD_TIME_SEMANTICS), false, 'carries the excluded genre alongside the matching one');
+  });
+
+  await test('matchesMood: maxTotalRuntimeMinutes ("One sitting") enforces a real total-runtime ceiling', () => {
+    const oneSitting = { maxTotalRuntimeMinutes: 180 };
+    assert.equal(matchesMood({ genres: [], tags: [], duration: 24, totalEpisodes: 6 }, oneSitting, MOOD_TIME_SEMANTICS), true, '144 minutes total, under the ceiling');
+    assert.equal(matchesMood({ genres: [], tags: [], duration: 24, totalEpisodes: 13 }, oneSitting, MOOD_TIME_SEMANTICS), false, '312 minutes total, over the ceiling despite being "Short and finishable"-sized');
+  });
+
+  await test('matchesMood: minPopularity/maxPopularity range checks', () => {
+    const mood = { minPopularity: 1000, maxPopularity: 5000 };
+    assert.equal(matchesMood({ genres: [], tags: [], popularity: 2500 }, mood, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesMood({ genres: [], tags: [], popularity: 500 }, mood, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesMood({ genres: [], tags: [], popularity: 9000 }, mood, MOOD_TIME_SEMANTICS), false);
+  });
+
+  await test('MOOD_REGISTRY: 8 well-formed, uniquely-identified moods, each with at least one real matching rule', () => {
+    assert.equal(MOOD_REGISTRY.length, 8);
+    const ids = MOOD_REGISTRY.map((m) => m.id);
+    assert.equal(new Set(ids).size, 8, 'ids must be unique');
+    const copyKeys = MOOD_REGISTRY.map((m) => m.copyKey);
+    assert.equal(new Set(copyKeys).size, 8, 'copyKeys must be unique');
+    const ruleFields = ['genres', 'themeTags', 'minNormalizedScore', 'maxNormalizedScore', 'minPopularity', 'maxPopularity', 'maxTotalRuntimeMinutes'];
+    for (const mood of MOOD_REGISTRY) {
+      assert.equal(typeof mood.id, 'string');
+      assert.ok(mood.copyKey.startsWith('discoverMood.'), `${mood.id}'s copyKey must live under the discoverMood.* namespace`);
+      assert.ok(ruleFields.some((f) => f in mood), `${mood.id} must define at least one real matching rule, not an empty predicate`);
+    }
+  });
+
+  await test('formatMoodMatch: cites the specific matched genre or theme, falls back to a plain acknowledgement for neither', () => {
+    const moodDef = { genres: ['Drama'], themeTags: ['Tragedy'] };
+    assert.equal(formatMoodMatch({ genres: ['Drama'], tags: [] }, moodDef), 'Genre: Drama.');
+    assert.equal(formatMoodMatch({ genres: ['Comedy'], tags: [{ category: 'Theme-Drama', name: 'Tragedy' }] }, moodDef), 'Tagged Tragedy.');
+    assert.equal(formatMoodMatch({ genres: [], tags: [] }, { minNormalizedScore: 8.5 }), 'A match for this mood.', 'a genre-agnostic mood (Peak fiction) has nothing concrete to cite');
+  });
+
+  await test('buildShelves: omitting activeMoodId leaves moodShelf null and the 10 named shelves untouched', () => {
+    const corpus = franchiseCorpus();
+    const result = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0 });
+    assert.equal(result.moodShelf, null);
+    assert.equal(result.shelves.length, 10);
+  });
+
+  await test('buildShelves: an unknown activeMoodId (not in the registry) also leaves moodShelf null rather than erroring', () => {
+    const corpus = franchiseCorpus();
+    const result = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0, activeMoodId: 'not-a-real-mood' });
+    assert.equal(result.moodShelf, null);
+  });
+
+  await test('buildShelves: a real activeMoodId produces a populated moodShelf sized by moodPageSize, not the 10 named shelves\' own pageSize', () => {
+    // 15 "Peak fiction" candidates (score >= 8.5) — deliberately no `genres`
+    // at all (resolvePrimaryGenre returns null for an empty/missing genre
+    // list, so applyDiversityCap's per-genre cap never engages here) so the
+    // only thing that could truncate below 15 is a pageSize too small to
+    // hold them — proving moodPageSize (24), not the default 12, is what's
+    // actually wired through.
+    const corpus = {};
+    for (let i = 1; i <= 15; i++) {
+      corpus[i] = { anilistId: i, titleRomaji: `Peak ${i}`, genres: [], totalEpisodes: 12, normalizedScore: 9, popularity: 1000 + i, tags: [], staff: [], relations: [] };
+    }
+    const result = buildShelves({
+      corpusEntries: corpus,
+      libraryEntries: [],
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs: Date.now(),
+      localDay: '2026-08-10',
+      rng: () => 0,
+      activeMoodId: 'peak-fiction',
+      timeSemantics: MOOD_TIME_SEMANTICS,
+    });
+    assert.ok(result.moodShelf, 'moodShelf must be populated for a real, registered mood id');
+    assert.equal(result.moodShelf.id, 'peak-fiction');
+    assert.equal(result.moodShelf.copyKey, 'discoverMood.peakFiction');
+    assert.equal(result.moodShelf.cards.length, 15, 'all 15 must fit — moodPageSize(24) must be in effect, not the default pageSize(12)');
+    assert.equal(result.shelves.length, 10, 'the 10 named shelves are still computed alongside the mood shelf, never replaced');
+  });
+
+  await test('buildShelves: moodShelf respects hideOwned the same way the 10 named shelves do', () => {
+    const corpus = { 1: { anilistId: 1, genres: [], totalEpisodes: 12, normalizedScore: 9, popularity: 100, tags: [], staff: [], relations: [] } };
+    const libraryEntries = [{ anilistId: 1, listStatus: 'watched', genres: [], relatedIds: [] }];
+    const hidden = buildShelves({ corpusEntries: corpus, libraryEntries, dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0, hideOwned: true, activeMoodId: 'peak-fiction', timeSemantics: MOOD_TIME_SEMANTICS });
+    const shown = buildShelves({ corpusEntries: corpus, libraryEntries, dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0, hideOwned: false, activeMoodId: 'peak-fiction', timeSemantics: MOOD_TIME_SEMANTICS });
+    assert.equal(hidden.moodShelf.cards.length, 0);
+    assert.equal(shown.moodShelf.cards.length, 1);
+  });
+
+  await test('buildShelves: an empty moodShelf reports why, same "nothing qualified" vs "already yours" distinction as the 10 named shelves', () => {
+    const corpus = { 1: { anilistId: 1, genres: [], totalEpisodes: 12, normalizedScore: 5, popularity: 100, tags: [], staff: [], relations: [] } };
+    const result = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0, activeMoodId: 'peak-fiction', timeSemantics: MOOD_TIME_SEMANTICS });
+    assert.equal(result.moodShelf.empty, true);
+    assert.ok(result.moodShelf.emptyReason);
   });
 
   // -------------------------------------------------------------------------

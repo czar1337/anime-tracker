@@ -15,6 +15,7 @@ import { buildPalette, hslToRgb, themeInputFromAccent } from './themeBuilder.js'
 import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 import { TasteProfile } from './tasteProfile.js';
 import { RECOMMENDATIONS } from '../../config/tuning.js';
+import { MOOD_REGISTRY } from './moodRegistry.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -1226,8 +1227,23 @@ function corpusStatusHtml(corpusStatus) {
     </div>`;
 }
 
+// P5B.2: "one-tap intents that reshape the page" — one button per
+// MOOD_REGISTRY entry (adding a mood is purely a data change there, so
+// this row never needs its own edit for a 9th mood), each labelled via
+// copy() per the spec's own explicit "Names are copy" instruction for
+// this surface specifically (every other Discover string above/below
+// this stays a plain literal, per that surface's own pre-existing
+// convention — moods are the one deliberate exception).
+function moodButtonRowHtml(activeMoodId) {
+  const buttons = MOOD_REGISTRY.map((mood) => {
+    const active = mood.id === activeMoodId;
+    return `<button class="mood-chip${active ? ' active' : ''}" data-action="discover-mood" data-mood-id="${escapeHtml(mood.id)}" aria-pressed="${active}">${escapeHtml(copy(mood.copyKey))}</button>`;
+  }).join('');
+  return `<div class="discover-mood-row" role="group" aria-label="Discover moods">${buttons}</div>`;
+}
+
 function renderDiscoverPage(container, viewState) {
-  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null } = viewState;
+  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null, activeMoodId = null, moodShelf = null } = viewState;
   const age = relativeAgeText(generatedAt);
 
   const banner = `
@@ -1245,6 +1261,7 @@ function renderDiscoverPage(container, viewState) {
         ${Store.getDismissedItems().length ? `<button class="text-btn" id="dismissed-trigger">Dismissed (${Store.getDismissedItems().length})</button>` : ''}
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh shelves'}</button>
       </div>
+      ${moodButtonRowHtml(activeMoodId)}
     </div>
   `;
 
@@ -1260,6 +1277,21 @@ function renderDiscoverPage(container, viewState) {
     container.innerHTML = `${banner}<div class="empty-state"><h2>Could not build shelves</h2><p>Check that the app is running normally, then try refreshing.</p></div>`;
     return;
   }
+
+  // A mood "reshapes the page": while one is active, its own single shelf
+  // REPLACES the normal 10-shelf view entirely, never sits alongside it —
+  // matching the spec's own wording literally, not just filtering within
+  // the existing shelf rows. Reuses shelfHtml() unchanged via a plain
+  // shim object — moodShelf carries `copyKey` instead of a static
+  // `title` (its own name needs copy() tiers, unlike every other shelf's
+  // plain-literal title), everything else about its shape is identical.
+  if (activeMoodId && moodShelf) {
+    const clearBtn = `<button class="text-btn" data-action="discover-mood-clear">${escapeHtml(copy('discoverMood.clear'))}</button>`;
+    const shelfMarkup = shelfHtml({ ...moodShelf, title: copy(moodShelf.copyKey) });
+    container.innerHTML = `${banner}<div class="discover-mood-clear-row">${clearBtn}</div>${shelfMarkup}`;
+    return;
+  }
+
   if (shelves.length === 0 || shelves.every((s) => s.empty)) {
     container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state"><h2>Nothing to show right now</h2><p>Rate a few more shows, or turn off "Hide titles already in my library" to see more.</p></div>`;
     return;
