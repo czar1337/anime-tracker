@@ -33,6 +33,19 @@ function franchiseRelations(candidate) {
   return (candidate.relations || []).filter((r) => FRANCHISE_RELATION_TYPES.includes(r.relationType));
 }
 
+// Exported so discover.js can populate a new library entry's own
+// relatedIds from a CORPUS candidate the exact same way api.js's
+// extractRelatedIds already does from a raw AniList Media object — same
+// relation-type set, just a different input shape (the corpus's own
+// already-flattened `{relationType, relatedId, relatedType}`, not AniList's
+// raw `relations.edges`). Restricted to `type === 'ANIME'`, matching
+// extractRelatedIds' own guard against linking to a manga/novel source.
+function franchiseRelatedIds(candidate) {
+  return franchiseRelations(candidate)
+    .filter((r) => r.relatedType === 'ANIME')
+    .map((r) => r.relatedId);
+}
+
 // Walks PREQUEL edges backward through the corpus as far as it's known,
 // returning the id of the earliest entry in the chain — the spec's own
 // "resolve chains from the relation graph and surface the entry point
@@ -316,20 +329,35 @@ function buildShelves({
   const allCorpusCandidates = Object.values(corpusById);
   const hideSet = hideOwned ? ownedIds : new Set();
 
-  // Resolves a batch of raw candidates to deduplicated franchise entry
-  // points, then hides owned/dismissed — the shared front half for every
-  // "new discovery" shelf (never Finish What You Started, which generates
-  // already-guaranteed-unseen candidates directly).
+  // Groups a batch of raw candidates by resolved franchise entry point,
+  // hides a whole franchise when its ENTRY POINT is owned/dismissed (never
+  // just the individual raw candidate — the required "S2 still resolves to
+  // the now-owned S1, still hidden" behavior: once you own the entry point,
+  // the whole franchise defers to Finish What You Started instead of also
+  // showing up here), then hands rankAndCapShelf's own collapseFranchises
+  // call BOTH the entry point and its qualifying siblings, not just the
+  // entry point alone. Passing only the entry point (this function's
+  // earlier shape) left collapseFranchises with never more than one member
+  // per franchise to look at, so its own hiddenCount — the "+N" badge —
+  // was always 0 by construction; the raw candidate siblings have to
+  // survive into that call for the count to mean anything.
   function resolveAndFilter(rawCandidates) {
-    const seen = new Set();
-    const resolved = [];
+    const byEntryId = new Map();
     for (const c of rawCandidates) {
       const entryId = resolveFranchiseEntryPoint(c.anilistId, corpusById);
-      if (seen.has(entryId)) continue;
-      seen.add(entryId);
-      resolved.push(corpusById[String(entryId)] || c);
+      if (!byEntryId.has(entryId)) byEntryId.set(entryId, []);
+      byEntryId.get(entryId).push(c);
     }
-    return resolved.filter((c) => !hideSet.has(c.anilistId) && !dismissedSet.has(c.anilistId));
+    const result = [];
+    for (const [entryId, members] of byEntryId) {
+      if (hideSet.has(entryId) || dismissedSet.has(entryId)) continue;
+      const entryPoint = corpusById[String(entryId)] || members[0];
+      result.push(entryPoint);
+      for (const member of members) {
+        if (member.anilistId !== entryId) result.push(member);
+      }
+    }
+    return result;
   }
 
   // Shelf 1: Because you liked X — pre-filtered to candidates sharing a
@@ -436,6 +464,7 @@ function buildShelves({
 }
 
 export {
+  franchiseRelatedIds,
   resolveFranchiseEntryPoint,
   findNextUnseenContinuation,
   collapseFranchises,

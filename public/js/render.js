@@ -1119,60 +1119,73 @@ function relativeAgeText(generatedAt) {
   return `Updated ${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-function discoverCardHtml(item, index = 0) {
-  const m = item.media;
-  const primary = m.title.english || m.title.romaji;
-  const metaBits = [m.seasonYear, formatEnumLabel(m.format), m.episodes ? `${m.episodes} ep` : null].filter(Boolean);
-  const seeds = item.because || [];
-  // design system: "every suggestion says why it is there, in one
-  // sentence, with the series it is based on in accent colour." Only the
-  // first seed is highlighted — listing all of them in accent would just
-  // read as a wall of red text for anything with several matches.
-  const why = seeds.length
-    ? `Shares taste with <b>${escapeHtml(seeds[0])}</b>${seeds.length > 1 ? ` and ${seeds.length - 1} more you rated highly` : ', which you rated highly'}.`
-    : 'Matches what you tend to rate highly.';
+// P5A.4: one card per shelf row. `cardData` is whatever
+// shelvesLogic.js's buildShelves() produced: {anilistId, candidate, because,
+// hiddenCount}, `candidate` being a corpus entry — never AniList's raw
+// Media shape the old discoverCardHtml (P1-era) used. Deliberately no
+// cover image: corpus entries never carry one (corpusLogic.js's own
+// pruning, P0.3's halved-payload finding), and fetching one live per shelf
+// card would violate the spec's own "no per-card API request, ever" rule
+// for a warm corpus — the same placeholder-cover fallback a freshly-added
+// library entry already shows before its own cover finishes downloading
+// (coverSrc's own empty-string case). A real cover appears once the title
+// is actually added (discover.js's own add handler fetches it then, a
+// genuine per-item user action, not "rendering a shelf").
+function shelfCardHtml(shelf, cardData, index = 0) {
+  const c = cardData.candidate;
+  const primary = c.titleEnglish || c.titleRomaji;
+  const metaBits = [c.seasonYear, formatEnumLabel(c.format), c.totalEpisodes ? `${c.totalEpisodes} ep` : null].filter(Boolean);
+  const franchiseBadge = cardData.hiddenCount
+    ? ` <span class="franchise-count" title="${cardData.hiddenCount} more season${cardData.hiddenCount === 1 ? '' : 's'} in this franchise">+${cardData.hiddenCount}</span>`
+    : '';
   return `
-    <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelayMs(index)}ms">
-      <div class="cov" style="background-image:url('${escapeHtml(m.coverImage.large)}')"></div>
+    <article class="discover-card" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" style="animation-delay:${staggerDelayMs(index)}ms">
+      <div class="cov"></div>
       <div>
-        <h4 data-action="show-detail" data-detail-id="${m.id}" style="cursor:pointer">${escapeHtml(primary)}</h4>
-        <div class="m">${metaBits.map(escapeHtml).join(' · ')}${m.averageScore ? ` · ★ ${m.averageScore}` : ''}</div>
-        <div class="why">${why}</div>
+        <h4 data-action="show-detail" data-detail-id="${c.anilistId}" style="cursor:pointer">${escapeHtml(primary)}${franchiseBadge}</h4>
+        <div class="m">${metaBits.map(escapeHtml).join(' · ')}${c.normalizedScore != null ? ` · ★ ${c.normalizedScore}` : ''}</div>
+        <div class="why">${escapeHtml(cardData.because)}</div>
         <div class="acts">
           <button class="btn btn-primary sm rip-host" data-action="discover-add">Add to Watchlist</button>
-          <button class="btn btn-quiet sm" data-action="show-detail" data-detail-id="${m.id}">Details</button>
+          <button class="btn btn-quiet sm" data-action="show-detail" data-detail-id="${c.anilistId}">Details</button>
         </div>
       </div>
       <button class="x" data-action="discover-dismiss" title="Not interested" aria-label="Not interested">×</button>
-    </article>
-  `;
+    </article>`;
+}
+
+// "A shelf with nothing says why" (spec) — emptyReason is already the
+// shelf-specific copy shelvesLogic.js chose (distinguishing "nothing
+// qualified" from "everything qualified was already yours/dismissed").
+function shelfHtml(shelf) {
+  // .disc-head (h3 + a trailing rule line) is the original design system's
+  // own "per-seed grouping" header — never actually used by the P1-era
+  // flat-pool Discover (see render.js's own header comment above the old
+  // discover-card styles), sitting ready for exactly this since before
+  // this substep existed.
+  const head = `<div class="disc-head"><h3>${escapeHtml(shelf.title)}</h3><span class="rule"></span></div>`;
+  if (shelf.empty) {
+    return `
+      <section class="shelf">
+        ${head}
+        <p class="shelf-empty card-meta">${escapeHtml(shelf.emptyReason || 'Nothing here right now.')}</p>
+      </section>`;
+  }
+  return `
+    <section class="shelf">
+      ${head}
+      <div class="shelf-row">${shelf.cards.map((c, i) => shelfCardHtml(shelf, c, i)).join('')}</div>
+    </section>`;
 }
 
 // Shared by Discover and Schedule — both filter over the same { media }
 // item shape (see recommendLogic.js's applyMediaFilters), so one markup
 // generator with an id prefix avoids duplicating it twice. Regenerated in
-// full on every render (same as discoverGenreFilterHtml below), so callers
-// must bind these via event delegation rather than direct listeners.
-// P4.1: Discover's half of the "one sort component" — same sortOptionsHtml/
-// sortDirLabel the library lists use, restricted to the 'all'-scope keys
-// (Discover has no per-entry watch history, so the list-only/watching-only
-// additions never apply here). A plain event-delegated id pair
-// (discover-sort-select/-sort-dir), matching how discover-format-filter/
-// discover-studio-filter are already bound in discover.js's
-// bindMediaFilterControls, since Discover's whole view is rebuilt from
-// scratch on every render rather than bound once like the list toolbar.
-function discoverSortHtml(sortKey, sortDir) {
-  const dirLabel = sortDirLabel(sortKey, sortDir);
-  return `
-    <div class="filter-group discover-sort">
-      <select id="discover-sort-select" class="sel" aria-label="Sort by">${sortOptionsHtml(sortKey, { includeListOnly: false, includeWatchingOnly: false })}</select>
-      <button id="discover-sort-dir" class="icn small sort-dir-btn ${sortDir === 'asc' ? 'is-asc' : ''}" ${dirLabel == null ? 'hidden' : ''} title="${escapeHtml(dirLabel || '')}" aria-label="${escapeHtml(dirLabel || '')}">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/></svg>
-        <span class="sort-dir-label">${escapeHtml(dirLabel || '')}</span>
-      </button>
-    </div>`;
-}
-
+// full on every render, so callers must bind these via event delegation
+// rather than direct listeners. Discover itself stopped calling this at
+// P5A.4 (shelves have no format/studio filter bar of their own — P5B.3's
+// own future "Advanced filters" job) — Schedule's own renderSchedulePage
+// is still a real caller.
 function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios, showReset) {
   if (!availableFormats.length && !availableStudios.length) return '';
   return `
@@ -1189,37 +1202,11 @@ function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios,
     </div>`;
 }
 
-// Each genre chip cycles neutral → include → exclude → neutral (data-action
-// on the row tells the click handler which state to move to next), so one
-// row covers both "only these" and "never these" without two separate
-// lists. Mirrors the main lists' genre filter (AND semantics — see
-// applyGenreInclusion) rather than introducing a second, different rule.
-function discoverGenreChipState(g, includedGenres, excludedGenres) {
-  if (includedGenres.includes(g)) return 'include';
-  if (excludedGenres.includes(g)) return 'exclude';
-  return 'neutral';
-}
-
-function discoverGenreFilterHtml(availableGenres, includedGenres, excludedGenres) {
-  if (!availableGenres.length) return '';
-  const hasActive = includedGenres.length || excludedGenres.length;
-  return `
-    <div class="filter-group discover-genre-filter">
-      <span class="discover-genre-filter-label">Genres:</span>
-      ${availableGenres
-        .map((g) => {
-          const st = discoverGenreChipState(g, includedGenres, excludedGenres);
-          return `<button class="genre-chip discover-genre-chip ${st}" data-genre="${escapeHtml(g)}" title="${st === 'neutral' ? 'Click to include only this genre' : st === 'include' ? 'Click to exclude this genre instead' : 'Click to clear'}">${escapeHtml(g)}</button>`;
-        })
-        .join('')}
-      ${hasActive ? `<button class="text-btn" id="discover-reset-genres">Reset genres</button>` : ''}
-    </div>`;
-}
-
-// P5A.1's minimal progress signal for the background corpus seed — NOT the
-// real shelf system (P5A.4/P5B.1's own job, doesn't exist yet). Renders
-// nothing once the corpus is 'ready', so an existing user who never
-// notices this ever ran sees nothing different from today.
+// P5A.1's minimal progress signal for the background corpus seed. Also
+// doubles as P5A.4's own "usable degraded Discover, first ever run" content
+// while the corpus is below shelvesLogic.js's own diversity floor (see
+// discover.js's MIN_CORPUS_FOR_SHELVES) — renders nothing once the corpus
+// is 'ready', so an existing user with a mature corpus never sees it.
 function corpusStatusHtml(corpusStatus) {
   if (!corpusStatus || corpusStatus.status === 'ready') return '';
   const { entryCount, targetSize, seeding, paused } = corpusStatus;
@@ -1240,81 +1227,44 @@ function corpusStatusHtml(corpusStatus) {
 }
 
 function renderDiscoverPage(container, viewState) {
-  const {
-    status,
-    items,
-    visibleCount,
-    generatedAt,
-    offline,
-    progressText,
-    availableGenres = [],
-    includedGenres = [],
-    excludedGenres = [],
-    availableFormats = [],
-    availableStudios = [],
-    filters = {},
-    sortKey = 'recommended',
-    sortDir = 'desc',
-    corpusStatus = null,
-  } = viewState;
+  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null } = viewState;
   const age = relativeAgeText(generatedAt);
 
   const banner = `
     <div class="discover-hero">
       <div class="home-hero">
         <h2>Discover</h2>
-        <p>Suggestions based on what you've rated highly, powered by AniList.</p>
+        <p>Shelves built from your ratings and a local corpus of titles — never a live AniList lookup per card.</p>
       </div>
       <div class="discover-controls">
-        ${age ? `<span class="discover-age">${escapeHtml(age)}${offline ? ' · offline, showing cached results' : ''}</span>` : ''}
+        ${age ? `<span class="discover-age">${escapeHtml(age)}</span>` : ''}
+        <label class="discover-hide-owned-row">
+          <input type="checkbox" id="discover-hide-owned-toggle" ${hideOwned ? 'checked' : ''}>
+          Hide titles already in my library
+        </label>
         ${Store.getDismissedItems().length ? `<button class="text-btn" id="dismissed-trigger">Dismissed (${Store.getDismissedItems().length})</button>` : ''}
-        <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'New suggestions'}</button>
+        <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh shelves'}</button>
       </div>
     </div>
-    ${corpusStatusHtml(corpusStatus)}
-    ${discoverSortHtml(sortKey, sortDir)}
-    ${mediaFilterBarHtml('discover', filters, availableFormats, availableStudios, Boolean(filters.format || filters.studio))}
-    ${discoverGenreFilterHtml(availableGenres, includedGenres, excludedGenres)}
   `;
 
-  if (status === 'loading' && items.length === 0) {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>Finding suggestions…</h2><p>${escapeHtml(progressText || 'Talking to AniList…')}</p></div>`;
+  if (status === 'degraded') {
+    container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state"><h2>Still building your recommendation corpus</h2><p>Shelves appear automatically once there's enough to work with — usually within a few minutes.</p></div>`;
     return;
   }
-  if (status === 'no-seeds') {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>Not enough data yet</h2><p>Rate a few anime 8 or higher (or complete some in Watched) to get personalized suggestions.</p></div>`;
+  if (status === 'loading' && shelves.length === 0) {
+    container.innerHTML = `${banner}<div class="empty-state"><h2>Building your shelves…</h2></div>`;
     return;
   }
-  if (status === 'error' && items.length === 0) {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>Could not load suggestions</h2><p>${escapeHtml(progressText || 'Check your internet connection and try refreshing.')}</p></div>`;
+  if (status === 'error' && shelves.length === 0) {
+    container.innerHTML = `${banner}<div class="empty-state"><h2>Could not build shelves</h2><p>Check that the app is running normally, then try refreshing.</p></div>`;
     return;
   }
-  const hasActiveMediaFilter = filters.format || filters.studio || includedGenres.length || excludedGenres.length;
-  if (items.length === 0 && hasActiveMediaFilter) {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>Nothing matches your filters</h2><p>Every suggestion we found is excluded by a genre or filter above. Loosen one to see results again.</p></div>`;
+  if (shelves.length === 0 || shelves.every((s) => s.empty)) {
+    container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state"><h2>Nothing to show right now</h2><p>Rate a few more shows, or turn off "Hide titles already in my library" to see more.</p></div>`;
     return;
   }
-  if (items.length === 0) {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>No new suggestions right now</h2><p>You've already added or dismissed everything we found. Try refreshing later.</p></div>`;
-    return;
-  }
-  const visibleItems = items.slice(0, visibleCount);
-  const hasMore = visibleCount < items.length;
-  const endCard = hasMore ? '' : `
-    <div class="discover-card discover-more-card">
-      <div>
-        <b>That is all for now</b>
-        <p>Suggestions update once a day. Rate more series to make them better.</p>
-        <button class="btn btn-quiet sm" id="discover-refresh-btn-end">Refresh now</button>
-      </div>
-    </div>`;
-  const loadMore = hasMore
-    ? `<div class="discover-load-more-row">
-        <span class="discover-count">Showing ${visibleCount} of ${items.length}</span>
-        <button class="text-btn" id="discover-load-more-btn">Load more</button>
-      </div>`
-    : '';
-  container.innerHTML = `${banner}<div class="card-grid discover-grid">${visibleItems.map((item, i) => discoverCardHtml(item, i)).join('')}${endCard}</div>${loadMore}`;
+  container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}${shelves.map(shelfHtml).join('')}`;
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
