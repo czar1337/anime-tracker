@@ -14,6 +14,7 @@
 
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
+const fs = require('node:fs');
 const { startFixtureServer } = require('./harness.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
@@ -278,6 +279,77 @@ test('a franchise pair collapses to one card with a "+1" badge, and the sequel i
     await expect(entryPointCard).toBeVisible();
     await expect(entryPointCard.locator('.franchise-count')).toHaveText('+1');
     await expect(page.locator('.discover-card[data-anilist-id="9602"]')).toHaveCount(0);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('opening Discover with a warm corpus makes zero requests to AniList — shelves are pure local computation', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await seedCorpus(server, {
+      9700: {
+        anilistId: 9700,
+        titleRomaji: 'Warm Corpus Candidate',
+        titleEnglish: 'Warm Corpus Candidate EN',
+        format: 'TV',
+        seasonYear: 2018,
+        totalEpisodes: 24,
+        genres: ['Mystery'],
+        normalizedScore: 8,
+        popularity: 3000,
+        tags: [],
+        staff: [],
+        relations: [],
+      },
+      // corpus.js's OWN unrelated background maintenance (P5A.1, not this
+      // substep) fills in any library entry missing from the corpus via a
+      // real AniList fetchCorpusByIds call on every boot — nothing to do
+      // with Discover's own render path, but it would otherwise register
+      // as a false positive here. Pre-seeding the fixture library's own
+      // ids (301, 9500) keeps that unrelated maintenance task a no-op so
+      // this test isolates Discover's own zero-API-request behavior.
+      301: { anilistId: 301, titleRomaji: 'Anchor Show', genres: ['Isekai'], totalEpisodes: 12, seasonYear: 2018, normalizedScore: 8, popularity: 5000, tags: [], staff: [], relations: [] },
+      9500: { anilistId: 9500, titleRomaji: 'Already Owned Gem', genres: ['Mystery'], totalEpisodes: 24, seasonYear: 2019, normalizedScore: 6, popularity: 60000, tags: [], staff: [], relations: [] },
+    });
+    // app.js's own retryMissingCovers() is a second, unrelated background
+    // task (pre-existing since before this substep) that fetches a cover
+    // for any library entry with no cover FILE on disk, regardless of
+    // Discover — placing placeholder files removes that source of noise
+    // the same way pre-seeding the corpus ids above removed the other one.
+    fs.writeFileSync(path.join(server.dataDir, 'covers', '301.jpg'), '');
+    fs.writeFileSync(path.join(server.dataDir, 'covers', '9500.jpg'), '');
+    // A third, unrelated source: tasteProfile.js's own cold-start overlay
+    // (P5A.2) fetches real cover art for its own candidate tiles the
+    // moment it auto-shows, before this test ever gets a chance to click
+    // Skip. Marking cold start already-skipped on the library up front
+    // (rather than relying on dismissColdStartIfShown, which only clicks
+    // Skip AFTER the overlay — and its cover fetch — has already fired)
+    // keeps it from auto-triggering at all.
+    const getRes = await fetch(`${server.url}/api/library`);
+    const lib = await getRes.json();
+    const putRes = await fetch(`${server.url}/api/library`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': getRes.headers.get('etag') },
+      body: JSON.stringify({ ...lib, preferences: { ...lib.preferences, coldStartSkipped: true } }),
+    });
+    if (!putRes.ok) throw new Error(`PUT /api/library failed: ${putRes.status} ${await putRes.text()}`);
+    // No route interception here, deliberately — a real request would be
+    // allowed through (and fail against the real network, which is fine),
+    // so this actually observes an attempt rather than masking one behind
+    // an abort the way the other tests in this file do.
+    const aniListRequests = [];
+    page.on('request', (req) => {
+      if (req.url().includes('graphql.anilist.co')) aniListRequests.push(req.url());
+    });
+    // Not openDiscover()'s shared helper: coldStartSkipped above means the
+    // overlay genuinely never shows, so dismissColdStartIfShown's own 5s
+    // "wait to see if it appears" would just be dead time in this test.
+    await page.goto(server.url);
+    await page.waitForSelector('.card, .empty');
+    await page.click('[data-tab="discover"]');
+    await expect(page.locator('.discover-card[data-anilist-id="9700"]')).toBeVisible();
+    expect(aniListRequests).toEqual([]);
   } finally {
     await server.stop();
   }
