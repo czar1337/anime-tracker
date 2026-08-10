@@ -2626,12 +2626,47 @@ async function run() {
     assert.deepEqual(result.stores.counters, {});
   });
 
+  const Snapshots = require('../snapshots.js');
+
+  await test('P5A.4 rule-3a: shelfId/adventurousness/membersAtSurfacing survive export -> snapshot -> restore', () => {
+    // The three new Class A provenance fields state.js's addEntry() just
+    // started allowlisting for shelf-sourced entries. entries' own get()
+    // returns records verbatim (no field allowlist of its own — confirmed
+    // above), so this exists to prove the FULL path, not just that get()
+    // is generic: build a real export, round-trip it through a real
+    // snapshot (checksum included), then feed the recovered record back
+    // through state.js's own restoreEntrySnapshot and confirm every field
+    // is still exactly there.
+    const entryWithProvenance = {
+      anilistId: 42,
+      titleRomaji: 'Shelf Sourced Show',
+      shelfId: 'hidden-gems',
+      adventurousness: 7,
+      membersAtSurfacing: 4000,
+    };
+    const sources = fullSources({ library: { schemaVersion: 12, entries: [entryWithProvenance], preferences: {}, dismissedItems: [] } });
+    const exported = buildExport(CLASS_A_STORES, sources);
+    assert.deepEqual(exported.stores.entries[0], entryWithProvenance);
+
+    const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, sources, { pinned: false });
+    const { valid, errors } = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
+    assert.equal(valid, true, errors.join('; '));
+    const recovered = snapshot.stores.entries.records[0];
+    assert.deepEqual(recovered, entryWithProvenance);
+
+    Store.setLibrary({ schemaVersion: 12, entries: [], preferences: {}, dismissedItems: [] });
+    Store.restoreEntrySnapshot(recovered);
+    const restored = Store.getEntry(42);
+    assert.equal(restored.shelfId, 'hidden-gems');
+    assert.equal(restored.adventurousness, 7);
+    assert.equal(restored.membersAtSurfacing, 4000);
+  });
+
   // -------------------------------------------------------------------------
   // snapshots.js — pure Class C build/verify/prune/filename-validation logic,
   // no filesystem access, so these never touch a temp directory.
   // -------------------------------------------------------------------------
   console.log('snapshots.js');
-  const Snapshots = require('../snapshots.js');
 
   const sampleRegistry = [
     { id: 'entries', kind: 'records', recordId: 'anilistId', get: (s) => s.library.entries },
@@ -4000,6 +4035,31 @@ async function run() {
     assert.ok(!gemIds.includes(2), 'S2 must never surface directly while S1 is unseen');
     assert.ok(!gemIds.includes(3), 'S3 must never surface directly while S1/S2 are unseen');
     assert.ok(gemIds.includes(1), 'the resolved entry point (S1) should surface instead');
+    const s1Card = gems.cards.find((c) => c.anilistId === 1);
+    assert.equal(s1Card.hiddenCount, 2, 'S2 and S3 both independently qualified too — the surfaced card must say so, not silently show 0');
+  });
+
+  await test('buildShelves regression: a surfaced entry point with zero qualifying siblings still reports hiddenCount 0, not a stale count from a previous shelf', () => {
+    // Guards the fix above from the opposite mistake: a franchise where
+    // only the entry point itself qualifies must NOT report phantom
+    // siblings just because resolveAndFilter now passes siblings through.
+    const corpus = franchiseCorpus();
+    corpus[1].normalizedScore = 8; // only S1 itself qualifies...
+    corpus[2].normalizedScore = 5; // ...S2 and S3 (which qualify in the base fixture) pushed below the floor
+    corpus[3].normalizedScore = 5;
+    const { shelves } = buildShelves({
+      corpusEntries: corpus,
+      libraryEntries: [],
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs: Date.now(),
+      localDay: '2026-08-10',
+      rng: () => 0,
+    });
+    const gems = shelves.find((s) => s.id === 'hidden-gems');
+    const s1Card = gems.cards.find((c) => c.anilistId === 1);
+    assert.equal(s1Card.hiddenCount, 0);
   });
 
   await test('buildShelves: once the entry point is owned and completed, the franchise moves from discovery shelves to Finish What You Started', () => {

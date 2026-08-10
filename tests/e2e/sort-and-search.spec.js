@@ -146,27 +146,16 @@ test('episodesRemaining also trails the still-airing entry behind the same headi
   }
 });
 
-test('Discover\'s own sort dropdown offers only the "all"-scope keys, never the list-only/Watching-only ones', async ({ page }) => {
-  const server = await startFixtureServer(FIXTURE);
-  try {
-    await page.goto(server.url);
-    await page.waitForSelector('.card, .empty');
-    await page.click('[data-tab="discover"]');
-    await page.waitForSelector('#discover-sort-select');
+// Discover's own sort dropdown was removed at P5A.4: Discover is now rows
+// of independently-scored shelves (shelvesLogic.js), not one sortable flat
+// list, so "which of the shared sort keys Discover's own dropdown offers"
+// is no longer a meaningful question — the dropdown itself doesn't exist
+// (P5B.3's own future "Advanced filters" is where a Discover-side control
+// concept might return, in a different shape). The list-side sort
+// persistence this test file otherwise covers is untouched by that change,
+// tested below without the now-removed Discover-slot assertion.
 
-    const optionLabels = await page.locator('#discover-sort-select option').allTextContents();
-    for (const expected of ['Recommended', 'Rating', 'Popularity', 'Title', 'Release date', 'Episode count']) {
-      expect(optionLabels).toContain(expected);
-    }
-    for (const listOnly of ['My score', 'Date added', 'Last updated', 'Progress percent', 'Episodes remaining', 'Completion date', 'Progress (episodes watched)', 'Unseen episodes']) {
-      expect(optionLabels).not.toContain(listOnly);
-    }
-  } finally {
-    await server.stop();
-  }
-});
-
-test('sort selection persists per view, including the new Discover slot, across a reload', async ({ page }) => {
+test('sort selection persists per view across a reload', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await page.goto(server.url);
@@ -175,16 +164,12 @@ test('sort selection persists per view, including the new Discover slot, across 
     await setSort(page, 'popularity');
     await page.click('#sort-dir'); // flip to 'asc' (least popular first)
 
-    await page.click('[data-tab="discover"]');
-    await page.waitForSelector('#discover-sort-select');
-    await page.selectOption('#discover-sort-select', 'title');
-
     await expect
       .poll(async () => {
         const lib = await (await fetch(`${server.url}/api/library`)).json();
-        return [lib.preferences.sort.watching, lib.preferences.sortDir.watching, lib.preferences.sort.discover];
+        return [lib.preferences.sort.watching, lib.preferences.sortDir.watching];
       })
-      .toEqual(['popularity', 'asc', 'title']);
+      .toEqual(['popularity', 'asc']);
 
     await page.reload();
     await page.waitForSelector('.card, .empty');
