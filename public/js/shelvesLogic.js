@@ -13,6 +13,12 @@
 // Shelf 10 ("Your friends loved, you have not seen") has no
 // social/list-comparison layer to depend on in this app and is omitted
 // per the spec's own instruction — see docs/v2-backlog.md.
+// P5B.2 adds mood filters: an optional 11th, session-only `moodShelf`
+// computed alongside (never instead of) the 10 named shelves when the
+// caller passes `activeMoodId` — matching against moodRegistry.js's
+// declarative definitions via moodLogic.js's own matchesMood, reusing
+// this module's existing resolveAndFilter/rankAndCapShelf plumbing the
+// same way P5B.1's shelves did.
 // Operates entirely over corpus-shaped candidates
 // (never AniList's raw Media shape recommendLogic.js's older functions
 // use) and the taste profile/scorer already built at P5A.2/P5A.3 — no
@@ -30,6 +36,8 @@
 
 import { resolvePrimaryGenre } from './tasteProfileLogic.js';
 import { score } from './scorer.js';
+import { matchesMood, isThemeTag } from './moodLogic.js';
+import { MOOD_REGISTRY } from './moodRegistry.js';
 
 // Mirrors api.js's own GROUPING_RELATIONS exactly (duplicated rather than
 // imported so this module stays fetch-free and independent of api.js) —
@@ -484,6 +492,24 @@ function formatBlindSpot(candidate, blindSpotGenres, genreAverages) {
   return `You've never watched ${best} — but it's critically well-regarded (avg ${avg.toFixed(1)}/10). A stretch, but worth trying.`;
 }
 
+// P5B.2's own reason text: cites the specific genre or theme tag that
+// actually matched, rather than repeating the mood's own name on every
+// single card (already the shelf's own heading, so that would be pure
+// noise) — real information about WHY this particular title fits,
+// matching every other shelf's own "short concrete reason" bar. Falls
+// back to a plain acknowledgement for the two moods with no genre/theme
+// rule at all ("Peak fiction", "One sitting" — both defined purely by a
+// score or runtime threshold).
+function formatMoodMatch(candidate, moodDef) {
+  const candidateGenres = new Set(candidate.genres || []);
+  const matchedGenre = (moodDef.genres || []).find((g) => candidateGenres.has(g));
+  if (matchedGenre) return `Genre: ${matchedGenre}.`;
+  const candidateThemeNames = new Set((candidate.tags || []).filter(isThemeTag).map((t) => t.name));
+  const matchedTheme = (moodDef.themeTags || []).find((t) => candidateThemeNames.has(t));
+  if (matchedTheme) return `Tagged ${matchedTheme}.`;
+  return 'A match for this mood.';
+}
+
 // The shared back half of every shelf's own pipeline: collapse franchises,
 // score + rank, apply the diversity cap, and attach each card's own "why"
 // text plus how many franchise siblings it's standing in for. Everything
@@ -541,6 +567,14 @@ function buildShelves({
   hideOwned = true,
   pageSize = 12,
   rng = Math.random,
+  activeMoodId = null,
+  // Defaults mirror config/tuning.js's own TIME_SEMANTICS.
+  // episodeDurationFallbackMinutes exactly — not imported directly (this
+  // module takes every tunable value as a plain argument, never reaches
+  // into config/tuning.js itself, the same dependency-injection
+  // convention `tuning`/`localDay`/`rng` already establish), so a caller
+  // that doesn't care about "One sitting" can omit this entirely.
+  timeSemantics = { episodeDurationFallbackMinutes: { tv: 24, film: 100 } },
 }) {
   const corpusById = corpusEntries || {};
   const ownedIds = new Set(libraryEntries.map((e) => e.anilistId));
@@ -827,6 +861,41 @@ function buildShelves({
     }),
   };
 
+  // P5B.2's own mood filter: "one-tap intents that RESHAPE THE PAGE" —
+  // structurally a single, larger shelf (moodPageSize, not pageSize),
+  // computed independently of the 10 named shelves above (which keep
+  // being computed regardless, at negligible cost per the measured pure-
+  // compute budget — see docs/v2-progress.md's P5A.4/P5B.1 entries) so
+  // that switching moods on and off never needs a second code path.
+  // discover.js/render.js decide whether to DISPLAY this or the 10
+  // shelves; buildShelves() itself always returns both when a mood is
+  // active, never chooses for the caller.
+  let moodShelf = null;
+  if (activeMoodId) {
+    const moodDef = MOOD_REGISTRY.find((m) => m.id === activeMoodId);
+    if (moodDef) {
+      const moodRaw = allCorpusCandidates.filter((c) => matchesMood(c, moodDef, timeSemantics));
+      const moodFiltered = resolveAndFilter(moodRaw);
+      moodShelf = {
+        id: moodDef.id,
+        copyKey: moodDef.copyKey,
+        ...rankAndCapShelf(moodFiltered, {
+          tasteProfile,
+          context: scoreContext,
+          pageSize: tuning.moodPageSize ?? pageSize * 2,
+          tuning,
+          localDay,
+          rawCandidateCount: moodRaw.length,
+          reasonFn: (c) => formatMoodMatch(c, moodDef),
+          emptyReason: {
+            noneFound: 'Nothing matches this mood yet — check back as the corpus grows.',
+            allFilteredOut: "You've already seen everything that matches this mood.",
+          },
+        }),
+      };
+    }
+  }
+
   return {
     shelves: [
       becauseYouLiked,
@@ -840,6 +909,7 @@ function buildShelves({
       thisSeason,
       ironicallyEssential,
     ],
+    moodShelf,
   };
 }
 
@@ -871,5 +941,6 @@ export {
   formatFromStudio,
   formatFromDirector,
   formatBlindSpot,
+  formatMoodMatch,
   buildShelves,
 };

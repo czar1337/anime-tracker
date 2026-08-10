@@ -982,6 +982,30 @@ kbd {
 .discover-hide-owned-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-card); color: var(--dim); white-space: nowrap; cursor: pointer; }
 .discover-hide-owned-row input { width: 16px; height: 16px; }
 
+/* P5B.2: mood filters are one-tap page-reshaping toggles, so they reuse
+   the existing .chip pill affordance (same border/radius/on-state as
+   every other Discover filter chip) rather than inventing new visual
+   language — .mood-chip only carries the layout .chip itself doesn't
+   need to own (basis/shrink for the wrapping row below). */
+.discover-mood-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); width: 100%; margin-top: var(--sp-2); }
+.mood-chip {
+  position: relative;
+  overflow: hidden;
+  font: var(--t-meta);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 13px;
+  color: var(--dim);
+  background: none;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+}
+.mood-chip:hover { border-color: var(--line-lit); color: var(--text); }
+.mood-chip:active { transform: scale(0.95); }
+.mood-chip.active { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
+.discover-mood-clear-row { margin-bottom: var(--sp-4); }
+
 .discover-hero {
   display: flex;
   align-items: flex-end;
