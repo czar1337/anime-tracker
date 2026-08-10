@@ -9,6 +9,7 @@
 // preferences and the taste-profile cache, does skip actually suppress it.
 
 const { test, expect } = require('@playwright/test');
+const fs = require('node:fs');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
 
@@ -180,6 +181,52 @@ test('skip suppresses the automatic trigger on the next boot, but Settings can s
     await page.click('[data-action="redo-cold-start"]');
     await expect(page.locator('#cold-start-overlay')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.coldstart-tile')).toHaveCount(COLD_START_COUNT);
+  } finally {
+    await server.stop();
+  }
+});
+
+// Regression coverage for a real gap the manual smoke test against a copy
+// of the maintainer's own library surfaced: an existing library that
+// already has plenty of rated entries but has never fired a
+// score_set/anime_dropped/recommendation_dismissed event or a
+// coldStartPicks-changing save since this substep shipped has a
+// taste-profile cache that was never computed at all.
+// readTasteProfileCache()'s own empty default reports confidence: 0, which
+// — without the GET route's lazy-bootstrap compute — would wrongly read as
+// "below the cold-start threshold" and auto-show onboarding to a user who
+// plainly doesn't need it.
+const WARM_LIBRARY_FIXTURE = path.join(__dirname, '..', 'fixtures', 'taste-profile-warm-library.json');
+
+test('a library already well past the cold-start threshold never shows the overlay, even on its very first taste-profile read', async ({ page }) => {
+  const server = await startFixtureServer(WARM_LIBRARY_FIXTURE);
+  try {
+    await seedWarmCorpus(server);
+    await mockAniListCovers(page);
+
+    // Confirms the cache genuinely starts uncomputed — this test is only
+    // meaningful if the gap it's guarding against is real. Reads the cache
+    // file directly rather than through GET /api/taste-profile, since that
+    // route is itself the thing under test here and would trigger its own
+    // lazy compute the moment it's called.
+    expect(fs.existsSync(path.join(server.dataDir, 'taste-profile-cache.json'))).toBe(false);
+
+    // Not '.card, .empty-state': `.empty-state` is a generic reused class
+    // (stats/discover/schedule/home each have their own), and
+    // waitForSelector binds to whichever element the selector resolves to
+    // FIRST in DOM order — if that happens to be an unrelated hidden one,
+    // it waits forever even once real `.card` elements exist elsewhere.
+    // This fixture always has 10 watched entries with no active filters,
+    // so `.card` alone is the correct, unambiguous wait target.
+    await page.goto(server.url);
+    await page.waitForSelector('.card');
+    await page.waitForTimeout(4000); // covers the auto-trigger's own bounded poll window
+    await expect(page.locator('#cold-start-overlay')).toBeHidden();
+
+    const after = await getTasteProfile(server);
+    expect(after.generatedAt).not.toBeNull();
+    expect(after.ratedCount).toBe(10);
+    expect(after.confidence).toBe(1);
   } finally {
     await server.stop();
   }

@@ -2311,7 +2311,25 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/taste-profile' && req.method === 'GET') {
-      sendJson(res, 200, readTasteProfileCache());
+      // Lazy bootstrap: a library that predates this substep (or one that
+      // simply hasn't fired a score_set/anime_dropped/recommendation_dismissed
+      // event or a coldStartPicks-changing save yet) has a cache that was
+      // never computed at all — readTasteProfileCache()'s own empty default
+      // reports confidence: 0, which the client reads as "cold-start
+      // threshold not met" even for a user with hundreds of real ratings
+      // already on disk. Computing once, here, the first time anything
+      // actually reads this route closes that gap without needing a
+      // dedicated migration or boot-time job for every existing library.
+      let cache = readTasteProfileCache();
+      if (!cache.generatedAt) {
+        try {
+          await computeAndSaveTasteProfile();
+          cache = readTasteProfileCache();
+        } catch (err) {
+          console.error(`[taste-profile] Lazy bootstrap compute failed: ${err.message}`);
+        }
+      }
+      sendJson(res, 200, cache);
       return;
     }
 

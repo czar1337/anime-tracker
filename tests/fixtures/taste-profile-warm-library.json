@@ -1,0 +1,337 @@
+{
+  "schemaVersion": 10,
+  "entries": [
+    {
+      "anilistId": 90000,
+      "titleRomaji": "Warm Fixture Title 0",
+      "titleEnglish": "Warm Fixture Title 0 EN",
+      "coverFile": "covers/90000.jpg",
+      "format": "TV",
+      "year": 2015,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 6,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90001,
+      "titleRomaji": "Warm Fixture Title 1",
+      "titleEnglish": "Warm Fixture Title 1 EN",
+      "coverFile": "covers/90001.jpg",
+      "format": "TV",
+      "year": 2016,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 7,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90002,
+      "titleRomaji": "Warm Fixture Title 2",
+      "titleEnglish": "Warm Fixture Title 2 EN",
+      "coverFile": "covers/90002.jpg",
+      "format": "TV",
+      "year": 2017,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 8,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90003,
+      "titleRomaji": "Warm Fixture Title 3",
+      "titleEnglish": "Warm Fixture Title 3 EN",
+      "coverFile": "covers/90003.jpg",
+      "format": "TV",
+      "year": 2018,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 9,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90004,
+      "titleRomaji": "Warm Fixture Title 4",
+      "titleEnglish": "Warm Fixture Title 4 EN",
+      "coverFile": "covers/90004.jpg",
+      "format": "TV",
+      "year": 2019,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 6,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90005,
+      "titleRomaji": "Warm Fixture Title 5",
+      "titleEnglish": "Warm Fixture Title 5 EN",
+      "coverFile": "covers/90005.jpg",
+      "format": "TV",
+      "year": 2015,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 7,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90006,
+      "titleRomaji": "Warm Fixture Title 6",
+      "titleEnglish": "Warm Fixture Title 6 EN",
+      "coverFile": "covers/90006.jpg",
+      "format": "TV",
+      "year": 2016,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 8,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90007,
+      "titleRomaji": "Warm Fixture Title 7",
+      "titleEnglish": "Warm Fixture Title 7 EN",
+      "coverFile": "covers/90007.jpg",
+      "format": "TV",
+      "year": 2017,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 9,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90008,
+      "titleRomaji": "Warm Fixture Title 8",
+      "titleEnglish": "Warm Fixture Title 8 EN",
+      "coverFile": "covers/90008.jpg",
+      "format": "TV",
+      "year": 2018,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 6,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "anilistId": 90009,
+      "titleRomaji": "Warm Fixture Title 9",
+      "titleEnglish": "Warm Fixture Title 9 EN",
+      "coverFile": "covers/90009.jpg",
+      "format": "TV",
+      "year": 2019,
+      "totalEpisodes": 12,
+      "duration": 24,
+      "genres": [
+        "Drama"
+      ],
+      "averageScore": 70,
+      "listStatus": "watched",
+      "episodesWatched": 12,
+      "myScore": 7,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    }
+  ],
+  "preferences": {
+    "sort": {
+      "watching": "dateAdded",
+      "watchlist": "dateAdded",
+      "watched": "completedAt",
+      "dropped": "lastUpdated",
+      "discover": "recommended"
+    },
+    "sortDir": {
+      "watching": "desc",
+      "watchlist": "desc",
+      "watched": "desc",
+      "dropped": "desc",
+      "discover": "desc"
+    },
+    "filters": {
+      "watching": {
+        "genres": [],
+        "format": "",
+        "studio": "",
+        "myScoreMin": null,
+        "unratedOnly": false,
+        "airingStatus": ""
+      },
+      "watchlist": {
+        "genres": [],
+        "format": "",
+        "studio": "",
+        "myScoreMin": null,
+        "unratedOnly": false,
+        "airingStatus": ""
+      },
+      "watched": {
+        "genres": [],
+        "format": "",
+        "studio": "",
+        "myScoreMin": null,
+        "unratedOnly": false,
+        "airingStatus": ""
+      },
+      "dropped": {
+        "genres": [],
+        "format": "",
+        "studio": "",
+        "myScoreMin": null,
+        "unratedOnly": false,
+        "airingStatus": ""
+      }
+    },
+    "activeTab": "watched",
+    "titleLanguage": "english",
+    "contentTier": "standard",
+    "streamerMode": false,
+    "decor": "on",
+    "decorDensity": "normal",
+    "originalTitles": "details",
+    "appearance": {
+      "mode": "light",
+      "light": {
+        "type": "preset",
+        "id": "daybreak"
+      },
+      "dark": {
+        "type": "preset",
+        "id": "moonlit-shrine"
+      },
+      "background": {
+        "type": "none",
+        "opacity": 0
+      }
+    },
+    "uiFont": "inter",
+    "headingFont": "bebas-neue",
+    "numbersFont": "jetbrains-mono",
+    "textSizeStep": 8,
+    "textWeightStep": 6,
+    "lineHeightStep": 5,
+    "letterSpacingStep": 5,
+    "densityStep": 5,
+    "radiusStep": 5,
+    "coverWidthStep": 5,
+    "animationStep": 5
+  },
+  "dismissedItems": [
+    {
+      "anilistId": 555,
+      "title": "Some Dismissed Show",
+      "coverImage": null
+    }
+  ],
+  "tags": [],
+  "customLists": []
+}
