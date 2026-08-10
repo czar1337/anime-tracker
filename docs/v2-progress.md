@@ -47,6 +47,16 @@ if it is partially implemented — see Remaining for what's left instead.
   eviction and persistence APIs do not apply" section. **The file export
   path remains P1.1's real backup-of-record deliverable regardless** — it
   protects against disk failure and machine loss here, not origin eviction.
+- **P8I ("Offline-first... only if a backend exists") confirmed not
+  applicable, 2026-08-10.** The user asked what P8I actually is, was told
+  it's gated on a REMOTE backend (optimistic updates + a visible sync
+  state only make sense when a network round trip can lag or fail), and
+  confirmed treating it as not applicable rather than reinterpreting
+  "backend" to mean the local `server.js` process — this architecture has
+  no remote backend, every request is an instant local call, so there is
+  nothing for "offline-first" to protect against. When the substep
+  sequence reaches P8I, close it out as not applicable citing this
+  decision rather than re-asking.
 
 ## Table
 
@@ -102,7 +112,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P8F Accessibility pass | not started | — | — | — |
 | P8G Remaining 15 fonts | not started | — | — | — |
 | P8H Episode-level progress | not started | — | — | — |
-| P8I Offline-first, only if backend exists | not started | — | — | likely not applicable as written — this app's "backend" is a local process, not a remote service; confirm scope with the user before starting |
+| P8I Offline-first, only if backend exists | not started | — | — | confirmed not applicable by the user, 2026-08-10 — see "Standing decisions" above; close out as not applicable when the sequence reaches it, no need to re-ask |
 
 ## P0.4 close out
 
