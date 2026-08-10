@@ -86,7 +86,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5A.3 Scorer and debug panel | done | 2026-08-10 | this session, see "P5A.3 Scorer and debug panel" and "P5A.3 close out" below | screen-reader pass deferred, de-prioritized (hidden dev-only surface) |
 | P5A.4 Shelves 1-4 plus provenance | done | 2026-08-10 | this session, see "P5A.4 Shelves 1 to 4 plus provenance" and "P5A.4 close out" below | screen-reader pass deferred to the user; "Discover load, warm corpus" perf budget over target (recorded, non-blocking, see criterion 4 and `docs/v2-backlog.md`) |
 | P5B.1 Shelves 5-10 | done | 2026-08-10 | this session, see "P5B.1 Shelves 5 to 10" and "P5B.1 close out" below | shelf 10 omitted (no social/list-comparison layer), see docs/v2-backlog.md; screen-reader pass deferred to the user |
-| P5B.2 Mood filter | not started | — | — | — |
+| P5B.2 Mood filter | done | 2026-08-10 | this session, see "P5B.2 Mood filters" and "P5B.2 close out" below | screen-reader pass deferred to the user |
 | P5B.3 Advanced filters | not started | — | — | — |
 | P5B.4 Feedback loop | not started | — | — | — |
 | P5B.5 Cards and detail view | not started | — | — | — |
@@ -5764,6 +5764,312 @@ fix.
 **Status: P5B.1 done.** Merged into `main` in this session's close-out
 (see the merge commit immediately following); `v2/P5B.1` retained, not
 deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin`
+until a new version is wanted — is still in force.
+
+## P5B.2 Mood filters
+
+Branch `v2/P5B.2` off `main`, through P5A.4/P5B.1/P8I merged. 2
+commits: `b1fce02` (mood logic, registry, tuning, copy, orchestration,
+render wiring, CSS, unit tests), `9310854` (e2e tests plus a
+`tests/fixtures/token-conversion-baseline.json` regen the new mood-chip
+markup required).
+
+The spec's own text for this substep is two sentences: "One-tap
+intents that reshape the page. Declarative queries in one registry
+file so a new mood is a data change. Names are copy and need all
+three tier variants." Everything about which moods exist, how many,
+and what a mood's own definition is left to this substep's own
+judgment — recorded below with the reasoning, per the spec's own
+framing of substeps like this as genuine interpretive calls, not
+answers to look up.
+
+### A process gap caught and corrected mid-substep
+
+All of this substep's code (`moodLogic.js`, `moodRegistry.js`, the
+`config/tuning.js`/`shelvesLogic.js`/`copyRegistry.js`/`discover.js`/
+`render.js` edits) was originally written directly on `main`, not on
+its own branch — a one-time slip in this session's otherwise-consistent
+per-substep branching discipline (P5A.4 and P5B.1 both branched
+correctly). Caught before anything was committed: `git switch -c
+v2/P5B.2` was run with the uncommitted edits already in the working
+tree, which carries them onto the new branch cleanly with no rework
+needed. Flagged here rather than silently fixed, since the spec's own
+branching rule exists so any substep can be reviewed and reverted in
+isolation, and this one very nearly couldn't have been.
+
+A second, unrelated slip was caught the same way while reading back
+`render.js`'s own mood-button markup for the first time: what looked
+like a broken `<\button>` closing tag in a tool-output transcript
+turned out to be a display artifact of that transcript, not the actual
+file — confirmed via `grep` directly against the file on disk showing
+the correct `</button>`. No edit was needed; recorded here only because
+it was investigated as a possible real bug before being ruled out.
+
+### 8 moods, each grounded in the real seeded corpus, not invented tag names
+
+Before writing `moodRegistry.js`, a direct Node script was run against
+the real seeded corpus (`corpus-cache.json`) to confirm which AniList
+theme tags actually exist as real data rather than assumed strings:
+`Iyashikei`, `Isekai`, `Reincarnation`, `Female Harem`, `Male Harem`,
+`Mixed Gender Harem`, `Tragedy`, `Suicide`, `Gore` all exist; `Death`
+does not and was excluded. The 8 moods shipped — **Make me cry**,
+**No thinking required**, **Peak fiction**, **Background noise**,
+**Gut punch**, **Something beautiful**, **One sitting**, **Certified
+brainrot** — are declarative objects in `MOOD_REGISTRY`
+(`public/js/moodRegistry.js`), each naming some subset of `genres`/
+`themeTags`/`excludeGenres`/`minNormalizedScore`/`maxNormalizedScore`/
+`minPopularity`/`maxPopularity`/`maxTotalRuntimeMinutes`. Two moods are
+deliberately NOT genre/theme-based: **Peak fiction** (quality alone,
+`minNormalizedScore: 8.5`, higher than Hidden Gems'/Community Classics'
+own 7.5 floor since this mood claims the literal top of the corpus) and
+**One sitting** (a real total-RUNTIME ceiling of 180 minutes via a new
+`totalRuntimeMinutes` helper, deliberately distinct from the existing
+"Short and finishable" shelf's episode-COUNT rule — a 3-episode OVA at
+70 minutes each is "Short and finishable" but not "One sitting"). Every
+interpretive call (which tags map to which mood, why a mood carries no
+score/popularity constraint at all) is commented in place in
+`moodRegistry.js` rather than asserted as an obviously-correct reading
+of a two-sentence spec entry.
+
+### Design
+
+- **`public/js/moodLogic.js`** (new, pure): `matchesMood(candidate,
+  moodDef, timeSemantics)` — genre OR theme is enough when a mood names
+  both (an AND would produce a near-empty intersection on a real
+  corpus), `excludeGenres` disqualifies regardless, every numeric range
+  field follows the same "unset never disqualifies" convention every
+  other shelf predicate in `shelvesLogic.js` already uses. Also exports
+  `totalRuntimeMinutes` and a duplicated (not imported) `isThemeTag`,
+  matching `tasteProfileLogic.js`'s own copy of the same one-line
+  predicate — this module stays a standalone, independently testable
+  unit the same way `shelvesLogic.js`'s small pure helpers already are.
+- **`public/js/moodRegistry.js`** (new): `MOOD_REGISTRY`, the 8 moods
+  above. Adding a 9th mood touches only this file plus one
+  `copyRegistry.js` entry — `moodLogic.js`, `shelvesLogic.js`,
+  `discover.js` and `render.js` all iterate the registry generically,
+  never by mood id.
+- **`config/tuning.js`**: `RECOMMENDATIONS.moodPageSize: 24` — the
+  mood shelf is deliberately larger than a normal shelf's `pageSize`
+  (12), since it's the ONLY thing on screen while active, not one of
+  ten competing for attention.
+- **`public/js/shelvesLogic.js`**: `formatMoodMatch(candidate,
+  moodDef)` (cites the specific matched genre or theme by name, falling
+  back to a plain acknowledgement for the two score/runtime-only
+  moods); `buildShelves()` gained `activeMoodId`/`timeSemantics`
+  parameters and now returns `{ shelves, moodShelf }` instead of a bare
+  array — `moodShelf` is computed independently of, and alongside, the
+  10 named shelves whenever `activeMoodId` names a real registry entry,
+  reusing the exact same `resolveAndFilter`/`rankAndCapShelf` pipeline
+  every other shelf already goes through (hide-owned, franchise
+  collapse, diversity cap, empty-reason text all apply to it
+  identically, for free). An unknown `activeMoodId` (not in the
+  registry) leaves `moodShelf: null` rather than throwing.
+- **`public/js/discover.js`**: `discoverState` gained `activeMoodId`/
+  `moodShelf`, both explicitly session-only — never read or written by
+  `settingsSchema.js`, matching P5A.3's own debug-panel-toggle
+  precedent, since a "one-tap, frequently changed" filter is not a
+  durable setting the way `discoverHideOwned` is. `removeCardEverywhere`
+  extended to also filter `moodShelf.cards` so add/dismiss keeps
+  working correctly while a mood is active. New click handlers:
+  clicking an already-active mood's own chip clears it (one tap toggles
+  back to the normal view, not a second affordance to hunt for),
+  clicking a different mood while one is already active switches
+  directly with no intermediate state, and a dedicated `discover-mood-
+  clear` button does the same as re-clicking the active chip.
+- **`public/js/render.js`**: `moodButtonRowHtml(activeMoodId)` — one
+  `<button class="mood-chip">` per registry entry inside a `role="group"
+  aria-label="Discover moods"` wrapper, rendered inside Discover's
+  banner (so it's present in every Discover render state — normal,
+  degraded, loading — the same as the existing hide-owned toggle and
+  refresh button). `renderDiscoverPage()` gained a new branch, checked
+  after the degraded/loading/error early-returns: when `activeMoodId &&
+  moodShelf`, the page renders ONLY that one shelf plus a "Back to
+  shelves" button, reusing the existing `shelfHtml()` unchanged via a
+  shim object (`{ ...moodShelf, title: copy(moodShelf.copyKey) }`) —
+  the one place a mood's own name needs `copy()`'s tier system, per the
+  spec's own explicit callout, a deliberate exception to every other
+  Discover string's established plain-literal convention.
+- **`public/styles.css`**: `.mood-chip`/`.mood-chip.active` modeled
+  directly on the existing `.chip`/`.chip.on` filter-pill convention
+  (same border/radius/padding/transition, same accent-on-active
+  treatment) rather than inventing new visual language for a one-tap
+  toggle that is, structurally, exactly what `.chip` already is;
+  `.discover-mood-row`/`.discover-mood-clear-row` are pure layout.
+- **`public/js/copyRegistry.js`**: 9 new entries (`discoverMood.*` — 8
+  mood names plus `discoverMood.clear`), each with `familyFriendly`/
+  `standard`/`madara` variants per the spec's own explicit instruction
+  that mood names need all three tiers, unlike every other Discover
+  string.
+
+### Tests
+
+- Unit: `moodLogic.js`'s `isThemeTag`, `totalRuntimeMinutes` (known
+  duration, TV/film fallback, defaults to 1 episode), `matchesMood`
+  (genre-OR-theme, genre-agnostic quality-only, `excludeGenres`,
+  runtime ceiling, popularity range); `MOOD_REGISTRY` shape validity (8
+  entries, unique ids/copyKeys, every entry defines at least one real
+  matching rule); `formatMoodMatch`'s three branches;
+  `buildShelves()` integration tests — omitting `activeMoodId` leaves
+  `moodShelf: null` and the 10 named shelves untouched, an unknown mood
+  id also degrades to `null` rather than throwing, a real mood id
+  produces a `moodShelf` sized by `moodPageSize` (24) rather than the
+  default `pageSize` (12) (proved with 15 genre-less "Peak fiction"
+  candidates, so `applyDiversityCap`'s per-genre cap can never be the
+  thing limiting the count), `hideOwned` and the empty-shelf
+  "nothing qualified" vs. "already yours" distinction both apply to
+  `moodShelf` exactly as they do to the 10 named shelves.
+- e2e (`tests/e2e/discover-moods.spec.js`, new, 4 tests): clicking a
+  mood chip reshapes the real page to that mood's own single `.shelf`
+  section, with both a genre-matched and a theme-matched card each
+  showing the correct, distinct why-text; clicking the same chip again
+  restores the normal 10-shelf view; the "Back to shelves" button does
+  the same as re-clicking the chip; switching directly from one active
+  mood to another shows only the new mood's cards, with the previous
+  mood's card gone and `aria-pressed` correctly flipped on both chips.
+
+### Acceptance criteria
+
+**1. Automated checks.**
+
+- `node tests/run-all.js` — **385 passed, 0 failed** (14 new tests: 7
+  for `moodLogic.js`'s predicates — `isThemeTag`, `totalRuntimeMinutes`,
+  and 5 `matchesMood` variants (genre-OR-theme, genre-agnostic,
+  `excludeGenres`, runtime ceiling, popularity range) — 1 for
+  `MOOD_REGISTRY`'s shape, 1 for `formatMoodMatch`, 5
+  `buildShelves()`/`moodShelf` integration tests).
+- `npx playwright test` (full suite) — **138 passed, 1 skipped, 0
+  failed** (4 new `discover-moods.spec.js` tests).
+- `node scripts/check-copy-registry.js` — passes ("108 entries, 324
+  variants, 8 v2 files scanned"; the 9 new `discoverMood.*` entries
+  each carry all three required tiers).
+- No typecheck/lint/build command exists in this project beyond the
+  above (unchanged since P0.1).
+- `tests/fixtures/token-conversion-baseline.json` — regenerated, NOT
+  byte-identical this time (unlike P5B.1's own regen). The mood-chip
+  row renders inside Discover's banner in every capture state
+  (`discover`, and the home/tab-* scenes that render a Discover-teaser
+  banner too), so 8 new `button.mood-chip`/1 new `div.discover-mood-row`
+  keys are added per affected scene — a real, expected consequence of
+  this substep's own markup, confirmed by diffing the regenerated file
+  against the previous commit. A SEPARATE, unrelated set of key churn
+  in the same diff (`.tonight`/`.tonight-row`/`span.num`/`span.meta-line`
+  disappearing, replaced by a `p.card-meta` "Nothing airing tonight.")
+  is caused by the Home page's "Tonight" widget depending on the real
+  current date against the mocked schedule fixture's fixed dates —
+  a pre-existing time-sensitivity in this specific test's own design,
+  unrelated to mood filters, and not fixed here since it's out of this
+  substep's scope.
+
+**2. Data safety — not applicable.** `activeMoodId`/`moodShelf` are
+explicitly session-only, confirmed by grep: neither name appears in
+`settingsSchema.js`, `preferences.js`, or any `Store.*`/`fetch(.../api/
+library...)` call anywhere in `public/js/*.js`. No new preference
+field, no new entry field, no schema migration, nothing persisted.
+
+**3. Manual smoke test.** No real `%APPDATA%\anime-tracker` directory
+exists on this machine (confirmed: `Test-Path` on the real app-data
+path returns false, so there is no real user library to protect or
+fingerprint). Verified instead against a disposable, from-scratch data
+directory on a non-conflicting port (both the dev server via `node
+server.js` on 4322, and the rebuilt SEA `AnimeTracker-2.1.2.exe` on
+4323, each with `ANIME_TRACKER_DATA_DIR` pointed at a scratch
+directory), with a synthetic corpus seeded via `PUT /api/corpus`
+(30 filler entries plus 4 hand-placed candidates: one matching "Make me
+cry" by genre, one by theme tag, one matching "Peak fiction" by score
+alone, one plain Hidden Gems filler to keep the normal view's 10
+shelves from collapsing to the generic empty state):
+
+1. Opened Discover in the browser. **Observed:** all 8 mood chips
+   render in the banner, none active, alongside the real 10 named
+   shelves (Hidden Gems showing both seeded candidates with correct
+   scores).
+2. Clicked "Make me cry". **Observed:** the page reshaped to a single
+   "Make me cry" section showing exactly the two matching candidates —
+   the theme-tagged one with why-text "Tagged Tragedy.", the
+   genre-matched one with "Genre: Drama." — a "Back to shelves" button
+   appeared, and the chip's own `aria-pressed`/`active` class both
+   flipped to true (confirmed via direct JS inspection of the live DOM,
+   not just a visual read).
+3. Read the active chip's own computed style directly
+   (`getComputedStyle`): `border-color`/`color`/`background` all
+   resolved to the theme's real accent tokens, `border-radius: 999px`
+   — confirming the CSS actually applies at runtime, not just that the
+   class name is present.
+4. Clicked "Back to shelves". **Observed:** the page returned to
+   exactly 10 `.shelf` sections, the clear row disappeared, and the
+   chip's active state cleared — matching `discover-moods.spec.js`'s
+   own assertions exactly.
+5. Rebuilt the SEA executable (`node scripts/build-exe.js`) and booted
+   it against a second disposable data directory on port 4323.
+   **Observed:** clean boot log ("Seeded lifetime baseline...",
+   "Created the initial pinned snapshot.", "Anime Tracker running at
+   http://localhost:4323"), server responded 200. Both disposable
+   servers and their scratch data directories were torn down
+   afterward (each process killed by its exact PID); re-confirmed no
+   real app-data directory was ever created as a side effect.
+
+**4. Performance.** The Tuning table names "Discover load, warm
+corpus" for this substep too (p95 under 400ms, zero API requests).
+Re-measured via `scripts/perf.js`'s existing `measureDiscoverLoadOnce()`
+— this measurement calls `buildShelves()` without an `activeMoodId`,
+so it reflects the same no-mood-active cost path P5A.4/P5B.1 already
+measured; 7 runs: 4144/4019/3986/3937/4068/4020/3963ms.
+
+- **Zero API requests: PASS**, every run.
+- **p95 latency: 4144ms — OVER BUDGET**, consistent with P5A.4's and
+  P5B.1's own finding and for the identical, already-documented reason
+  (no virtualization/render-path optimization anywhere in this app
+  yet — not specific to this substep). This substep's own mood
+  computation only runs when a mood is actually active, and
+  `shelvesLogic.js`'s own header comment already notes it reuses the
+  same `resolveAndFilter`/`rankAndCapShelf` pipeline at negligible
+  added cost, matching the "10 shelves added negligible real cost over
+  4" finding P5B.1 already measured directly. No new backlog entry
+  needed — P5A.4's own note in `docs/v2-backlog.md` already covers
+  this shared finding.
+
+**5. Accessibility.** Keyboard path: mood chips are plain, natively
+focusable `<button>` elements inside a `role="group" aria-label=
+"Discover moods"` wrapper — Tab/Enter/Space all work with zero custom
+key handling, and `aria-pressed` reflects active state for assistive
+tech exactly the same way the pre-existing `.chip.on` filter pills
+already do. Contrast: `.mood-chip`/`.mood-chip.active` reuse the exact
+same `--line`/`--accent`/`--accent-lit`/`--accent-soft` tokens as the
+already-AA-verified `.chip`/`.chip.on` (confirmed live via
+`getComputedStyle` against the running app in step 3 of the manual
+smoke test above) — no new color was introduced. **The screen reader
+step is user-executed, not yet run.** Exact steps for the user to run
+if wanted: open Discover, Tab to the mood button row, confirm a screen
+reader announces the group label "Discover moods" before the buttons,
+confirm each button's pressed/not-pressed state is announced, activate
+one and confirm the reshaped single-shelf view and its "Back to
+shelves" button are both announced sensibly in the new reading order.
+
+**6. Rollback.** Revert the `v2/P5B.2` commit range (`b1fce02`..
+`9310854`, 2 commits, plus this close-out's own evidence commit and
+merge). **No data migration** — a plain code revert is fully
+sufficient; nothing in this substep was ever persisted to disk (see
+criterion 2), so there is nothing to restore or verify
+forward-compatibility against. `tests/fixtures/token-conversion-
+baseline.json` would need regenerating again after a revert, back to
+its pre-P5B.2 content, the same mechanical step this substep's own
+regen already demonstrates.
+
+**Status: P5B.2 done.** Five of the six criteria are fully satisfied;
+criterion 4's latency is recorded honestly and non-blockingly per this
+project's established P0.4/P5A.4/P5B.1 precedent (its own
+zero-API-requests half passes cleanly), and criterion 5's
+screen-reader pass is deferred to the user, also per established
+precedent. A branching-discipline slip was caught and corrected before
+any commit landed, recorded above rather than silently fixed.
+
+## P5B.2 close out
+
+**Status: P5B.2 done.** Merged into `main` in this session's
+close-out (see the merge commit immediately following); `v2/P5B.2`
+retained, not deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin`
 until a new version is wanted — is still in force.
