@@ -20,12 +20,19 @@ if it is partially implemented — see Remaining for what's left instead.
   feasibility numbers (≈2m51s seed time, ≈5.4 MB pruned on disk at the
   70%-of-30/min safety margin — well inside every measured budget). P1.4
   transcribes this into `config/tuning.js`.
-- **P5A.1 is blocked.** The user has decided to pause corpus-building work
-  until AniList's ToS language ("not a backup or data storage service," "no
-  mass collection of data," quoted in `docs/v2-discovery.md`'s P0.2 section)
-  is clarified. This is not resolved by P0.4 — it is recorded here as an
-  active block on the P5A.1 row and, transitively, on GATE-2.1. Do not start
-  P5A.1 until the user lifts this block.
+- **P5A.1's AniList ToS block: lifted 2026-08-10.** The user reviewed the
+  same ToS language ("not a backup or data storage service," "no mass
+  collection of data," quoted in `docs/v2-discovery.md`'s P0.2 and P0.3
+  sections) and decided to **proceed with the corpus as originally
+  planned** — treating the default 3,000-title local cache, refreshed on
+  whatever cadence P5A.1 lands on, as ordinary client-side caching for a
+  single-user personal tracker, and accepting the remaining ambiguity in
+  AniList's wording rather than emailing for an explicit ruling or
+  scoping the corpus down further. This is the user's own risk call, not
+  a verdict rendered by this process (per the spec's own instruction not
+  to render one). **P5A.1 and GATE-2.1 are no longer blocked** by this
+  item — see `docs/v2-backlog.md`'s "Blocking" section for the
+  corresponding resolution note.
 - **`addedAt` date-range anomaly: cause unknown**, per the user's answer at
   this gate. See `docs/v2-backlog.md`. Non-blocking, but no substep should
   treat `addedAt` as a reliable long-horizon signal without asking again.
@@ -64,7 +71,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P4.3 Item selection | done | 2026-08-09 | this session, see "P4.3 Item selection" below | — |
 | P4.4 Bulk actions and undo | done | 2026-08-09 | this session, see "P4.4 Bulk actions and undo" below | criterion 4's budget not numerically measured |
 | GATE-2.0 Acceptance sweep, merge check, tag v2.0 | done | 2026-08-09 | this session, see "GATE-2.0 Acceptance sweep, merge check, tag v2.0" below | — |
-| P5A.1 Corpus, incremental seed, degraded mode | not started | — | — | **BLOCKED — AniList ToS clarification required before starting, user decision at P0.4 gate** |
+| P5A.1 Corpus, incremental seed, degraded mode | not started | — | — | unblocked 2026-08-10 — see "Standing decisions" above |
 | P5A.2 Taste profile | not started | — | — | — |
 | P5A.3 Scorer and debug panel | not started | — | — | — |
 | P5A.4 Shelves 1-4 plus provenance | not started | — | — | — |
@@ -73,7 +80,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5B.3 Advanced filters | not started | — | — | — |
 | P5B.4 Feedback loop | not started | — | — | — |
 | P5B.5 Cards and detail view | not started | — | — | — |
-| GATE-2.1 Acceptance sweep, merge check, tag v2.1 | not started | — | — | blocked transitively by P5A.1 |
+| GATE-2.1 Acceptance sweep, merge check, tag v2.1 | not started | — | — | — |
 | P6.1 Theme and colour | done | 2026-08-10 | this session, see "P6.1 Theme and colour" and "P6.1 close out" below | — |
 | P6.2 Identity plus review and audio fields | not started | — | — | — |
 | P6.3 Profile card renderer | not started | — | — | — |

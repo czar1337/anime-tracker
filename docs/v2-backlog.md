@@ -9,17 +9,19 @@ real, recorded, and not any single substep's job to resolve on its own.
 
 ## Blocking
 
-- **AniList ToS — P5A.1 is paused.** P0.2 and P0.3 both quoted AniList's ToS
-  language that the API may not be used as "a backup or data storage
-  service" and may not be used for "mass collection of data" (source:
-  `https://docs.anilist.co/guide/terms-of-use`, mirror
-  `https://anilist.gitbook.io/anilist-apiv2-docs/docs/guide/terms-of-use`).
-  At the P0.4 approval gate, the user decided to **pause P5A.1 until this is
-  clarified**, rather than proceed treating it as ordinary client-side
-  caching. This is recorded on the P5A.1 and GATE-2.1 rows in
-  `docs/v2-progress.md`. Whoever picks up P5A.1 should confirm with the user
-  that the block has been lifted (e.g. after contacting AniList, or after
-  further review) before writing any corpus-seeding code.
+- ~~AniList ToS — P5A.1 is paused.~~ **Resolved 2026-08-10, not blocking.**
+  P0.2 and P0.3 both quoted AniList's ToS language that the API may not be
+  used as "a backup or data storage service" and may not be used for "mass
+  collection of data" (source: `https://docs.anilist.co/guide/terms-of-use`,
+  mirror `https://anilist.gitbook.io/anilist-apiv2-docs/docs/guide/terms-of-use`).
+  Paused at the P0.4 approval gate pending clarification; the user has now
+  reviewed the same language directly and decided to **proceed with P5A.1
+  as originally planned**, treating the default 3,000-title local cache as
+  ordinary client-side caching for a single-user personal tracker and
+  accepting the remaining ambiguity rather than seeking an explicit ruling
+  from AniList or scoping the corpus down. Recorded in full on the "Standing
+  decisions" section of `docs/v2-progress.md`. P5A.1 and GATE-2.1 may
+  proceed.
 
 - **Persistence architecture mismatch.** `docs/v2-spec.md`'s storage model is
   written against IndexedDB; the real app has none (P0.1's headline finding,
