@@ -166,6 +166,34 @@ body {
    dialog is never dimmed by it. */
 #atmosphere { position: fixed; inset: 0; z-index: 90; overflow: hidden; pointer-events: none; }
 
+/* ---------- Background effect (P6.1) ----------
+   Optional gradient/grain layer behind the library (spec: "an optional
+   gradient/grain background with opacity"). Sits one z-index below
+   #atmosphere (89 vs 90, both under every overlay's 100) for the exact
+   reason documented above this block: a negative-z-index sibling of
+   #app never actually painted through here, so this is a low-opacity
+   layer sitting ABOVE content instead, same as #atmosphere. Opacity is
+   set inline by themes.js's applyBackground() from the user's 0-100
+   slider — [data-effect="none"] is the same "not rendered" state that
+   opacity:0 already produces, plus display:none as a defensive no-op
+   belt-and-braces. Gradient reads the ACTIVE theme's own --glow token
+   (not a fixed colour), so it always matches whichever theme — curated
+   or custom — is applied. Grain is a small tiling feTurbulence SVG,
+   generated once and inlined as a data URI (no asset pipeline needed
+   for one static pattern); mix-blend-mode:overlay lets the same white
+   noise read as a subtle texture against both light and dark themes
+   rather than needing two different noise colours. */
+#bg-effect { position: fixed; inset: 0; z-index: 89; overflow: hidden; pointer-events: none; }
+#bg-effect[data-effect="none"] { display: none; }
+#bg-effect[data-effect="gradient"] {
+  background: radial-gradient(closest-side at 50% 0%, var(--glow), transparent 70%);
+}
+#bg-effect[data-effect="grain"] {
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.2126 0.7152 0.0722 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+
 .atmo-moon {
   position: absolute;
   top: -140px; left: 50%;
@@ -2036,6 +2064,25 @@ kbd {
 .themegrid .sw2 { height: 34px; display: flex; align-items: flex-end; gap: 3px; padding: 5px; }
 .themegrid .sw2 i { width: 8px; height: 8px; border-radius: 2px; }
 .themegrid .nm { display: block; font: var(--t-nano); letter-spacing: .04em; color: var(--dim); padding: 6px 5px 7px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* P6.1: the "Custom" tile lives inside the same .themegrid as the curated
+   presets (same button/.on states apply for free) — .custom-swatch is a
+   single solid preview instead of .sw2's two-accent-dot pair, since a
+   custom theme is built from just one accent. */
+.custom-swatch { height: 34px; display: block; }
+.appearance-slot { margin-bottom: var(--sp-4); }
+.appearance-slot:last-child { margin-bottom: 0; }
+.appearance-background { display: flex; flex-direction: column; }
+.appearance-shortcode-row { flex-wrap: nowrap; }
+.appearance-shortcode-input {
+  flex: 1; min-width: 0; box-sizing: border-box;
+  font: var(--t-meta); padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card); color: var(--text);
+}
+.custom-accent-row { align-items: center; }
+.custom-accent-input { width: 40px; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+.contrast-confirm { font: var(--t-meta); color: var(--dim); }
 
 /* P3.1's font picker — one of these per slot (ui/heading/numbers). Same
    scrollable-grid shape as .themegrid, plain text buttons instead of

@@ -8,14 +8,20 @@
 // bug in (see docs/v2-progress.md's P1.3 entry, "one-time marker" decision)
 // and is why reconcileFirstBoot() exists instead of a data-shape heuristic.
 //
+// P6.1 restructures the stored field from a flat `colorTheme` string into
+// `appearance` (mode + per-mode slot + background) — preferences.js's
+// reconcileFirstBoot() still promotes a legacy raw localStorage theme id,
+// just into the new shape (Themes.buildAppearanceFromLegacyThemeId()),
+// which is what these two tests now assert against.
+//
 // "No visible flash" is structural, not something a single screenshot can
 // prove: public/index.html's inline <head> script applies
-// document.documentElement.dataset.colorTheme from localStorage
-// synchronously, before any app JS (including boot()'s reconciliation) ever
-// runs — so the DOM attribute is never observably wrong at any point this
-// test can check. What IS worth proving here is that the reconciliation
-// afterward doesn't clobber it back to the default, and that it actually
-// gets written through to the server.
+// document.documentElement.dataset.colorTheme from the resolved-appearance
+// localStorage mirror synchronously, before any app JS (including boot()'s
+// reconciliation) ever runs — so the DOM attribute is never observably
+// wrong at any point this test can check. What IS worth proving here is
+// that the reconciliation afterward doesn't clobber it back to the
+// default, and that it actually gets written through to the server.
 
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
@@ -23,7 +29,7 @@ const { startFixtureServer } = require('./harness.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'schema-v4-library.json');
 const ANILIST_ID = 101922;
-const NON_DEFAULT_THEME = 'wisteria'; // schema-v4-library.json's fixture never sets this — schema default is 'moonlit-shrine'
+const NON_DEFAULT_THEME = 'wisteria'; // schema-v4-library.json's fixture never sets this — schema default is 'moonlit-shrine'. Not light-flagged, so it resolves into the 'dark' slot.
 
 test('an existing user\'s customized color theme survives the P1.3 upgrade with no flash to default, and is promoted into the library', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
@@ -50,9 +56,9 @@ test('an existing user\'s customized color theme survives the P1.3 upgrade with 
     await expect
       .poll(async () => {
         const data = await (await fetch(`${server.url}/api/library`)).json();
-        return data.preferences.colorTheme;
+        return data.preferences.appearance?.dark;
       }, { timeout: 5000 })
-      .toBe(NON_DEFAULT_THEME);
+      .toEqual({ type: 'preset', id: NON_DEFAULT_THEME });
 
     // A second boot (simulating the user reopening the app) must NOT
     // re-promote anything or otherwise regress — the marker gates it.
@@ -72,10 +78,16 @@ test('a fresh browser profile (no localStorage) pulls the library\'s real cosmet
     // a different device), with no localStorage involved at all.
     const etag = (await fetch(`${server.url}/api/library`)).headers.get('ETag');
     const before = await (await fetch(`${server.url}/api/library`)).json();
+    const appearance = {
+      mode: 'dark',
+      light: { type: 'preset', id: 'daybreak' },
+      dark: { type: 'preset', id: NON_DEFAULT_THEME },
+      background: { type: 'none', opacity: 0 },
+    };
     await fetch(`${server.url}/api/library`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': etag },
-      body: JSON.stringify({ ...before, preferences: { ...before.preferences, colorTheme: NON_DEFAULT_THEME } }),
+      body: JSON.stringify({ ...before, preferences: { ...before.preferences, appearance } }),
     });
 
     // A brand new page in this context has empty localStorage — no

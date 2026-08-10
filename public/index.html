@@ -27,10 +27,23 @@
 <link rel="stylesheet" href="/styles.css">
 <script>
   // Applied synchronously, before the stylesheet paints anything, so the
-  // page never flashes the fallback theme before switching to a saved one —
-  // same reasoning as the old light/dark toggle, just a bigger visual delta
-  // now that themes are full color identities instead of light vs dark.
-  document.documentElement.dataset.colorTheme = localStorage.getItem('anime-tracker-color-theme') || 'moonlit-shrine';
+  // page never flashes the fallback theme before switching to a saved one.
+  // P6.1: reads the resolved-appearance mirror (public/js/themes.js's
+  // mirrorPrepaintKeys) rather than one flat theme id, so light/dark/system
+  // mode resolves correctly pre-paint too — 'system' checks the OS
+  // preference synchronously, matchMedia needs no module code. Only covers
+  // the PRESET case: a custom-accent slot can't be pre-painted without
+  // running the real palette derivation, so that one case accepts a brief
+  // flash of the previous/default theme before this app's modules boot and
+  // call Themes.applyAppearance() for real — the same already-accepted
+  // tradeoff P3.1/P3.2's fonts and sliders below have.
+  (function () {
+    var mode = localStorage.getItem('anime-tracker-appearance-mode') || 'dark';
+    var isDark = mode === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : mode !== 'light';
+    var slotType = localStorage.getItem(isDark ? 'anime-tracker-appearance-dark-type' : 'anime-tracker-appearance-light-type');
+    var slotId = localStorage.getItem(isDark ? 'anime-tracker-appearance-dark-id' : 'anime-tracker-appearance-light-id');
+    document.documentElement.dataset.colorTheme = slotType === 'preset' && slotId ? slotId : 'moonlit-shrine';
+  })();
   // P3.2: text size/weight used to get the same synchronous pre-paint
   // treatment as the theme above, via [data-text-size]/[data-text-weight].
   // Both are gone — replaced by 8 independent sliders whose CSS custom
@@ -46,6 +59,8 @@
 </script>
 </head>
 <body>
+
+<div id="bg-effect" data-effect="none" aria-hidden="true"></div>
 
 <div id="app">
 

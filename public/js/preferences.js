@@ -185,11 +185,15 @@ const numbersFontPref = fontPref('--numbers', KEYS.numbersFont, Fonts.DEFAULT_NU
 // ("textSize") — bridged here via the same SLIDER_KEYS list both modules
 // already share, so the two naming schemes can't silently drift apart.
 const FONT_IDS = Fonts.FONT_CATALOG.map((f) => f.id);
+// P6.1: `colorTheme` (a single string) is gone, replaced by `appearance` (a
+// structured mode/light/dark/background object) — migrate_9_to_10 is the
+// one true conversion path for an existing library, so it's deliberately
+// NOT in these three generic single-value maps. syncFromLibrary calls
+// Themes.applyAppearance() directly, below, instead.
 const COSMETIC_SETTERS = {
   decor: decorPref.set,
   decorDensity: setDecorDensity,
   originalTitles: setOriginalTitlesMode,
-  colorTheme: Themes.setColorTheme,
   uiFont: uiFontPref.set,
   headingFont: headingFontPref.set,
   numbersFont: numbersFontPref.set,
@@ -199,7 +203,6 @@ const COSMETIC_RAW_KEYS = {
   decor: KEYS.decor,
   decorDensity: KEYS.decorDensity,
   originalTitles: KEYS.originalTitles,
-  colorTheme: Themes.STORAGE_KEY,
   uiFont: KEYS.uiFont,
   headingFont: KEYS.headingFont,
   numbersFont: KEYS.numbersFont,
@@ -216,7 +219,6 @@ const COSMETIC_VALID = {
   decor: DECOR_LEVELS,
   decorDensity: DECOR_DENSITIES,
   originalTitles: ORIGINAL_TITLES_MODES,
-  colorTheme: Themes.COLOR_THEMES.map((t) => t.id),
   uiFont: FONT_IDS,
   headingFont: FONT_IDS,
   numbersFont: FONT_IDS,
@@ -239,6 +241,10 @@ function syncFromLibrary(libraryPreferences) {
     const value = libraryPreferences[key];
     if (value !== undefined) COSMETIC_SETTERS[key](value);
   }
+  // `appearance` is a structured object (mode + per-mode slot + background),
+  // not a single value the generic loop above can walk — same "library
+  // wins" unconditional-apply reasoning, just its own call.
+  if (libraryPreferences.appearance) Themes.applyAppearance(libraryPreferences.appearance);
 }
 
 // One-time, per-browser-profile promotion of whatever's already in
@@ -276,6 +282,21 @@ function reconcileFirstBoot(libraryPreferences) {
       // Only worth promoting when it actually changes something — if the
       // library already agrees with localStorage there's nothing to do.
       if (value !== libraryPreferences[key]) promoted[key] = value;
+    }
+    // P6.1: colorTheme's own promotion can't go through the generic loop
+    // above any more (appearance is a structured object, not a single
+    // string one raw value could just overwrite) — handled here as its own
+    // step, same "only promote if it actually differs" reasoning, compared
+    // against whichever slot the raw legacy id's own light/dark-ness maps
+    // to (never the whole appearance object, since a device with a real
+    // system/custom choice already made has nothing to do with a leftover
+    // raw preset id from before this substep shipped).
+    const rawThemeId = localStorage.getItem(Themes.STORAGE_KEY);
+    if (rawThemeId && Themes.COLOR_THEMES.some((t) => t.id === rawThemeId)) {
+      const legacyAppearance = Themes.buildAppearanceFromLegacyThemeId(rawThemeId);
+      const currentSlot = libraryPreferences.appearance?.[legacyAppearance.mode];
+      const alreadyMatches = currentSlot?.type === 'preset' && currentSlot.id === rawThemeId;
+      if (!alreadyMatches) promoted.appearance = legacyAppearance;
     }
   }
   localStorage.setItem(COSMETIC_SYNCED_KEY, '1');

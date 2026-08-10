@@ -11,6 +11,7 @@ import { Fonts } from './fonts.js';
 import { FONT_MANIFEST } from './fontManifest.js';
 import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, computeSliderTokens } from './typographySliders.js';
 import { checkContrastAA, parseRgb } from './contrastCheck.js';
+import { buildPalette, hslToRgb, themeInputFromAccent } from './themeBuilder.js';
 import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 
 const grid = document.getElementById('grid');
@@ -1982,35 +1983,144 @@ function contrastWarningHtml() {
   return `<p class="slider-contrast-warning">${escapeHtml(copy('sliders.contrastWarning', undefined, { ratio: ratio.toFixed(1), threshold }))}</p>`;
 }
 
-const THEME_PREVIEW_COUNT = 12;
-// Persists for the session, same reasoning as render.js's own genre-chip
-// overflow toggle — reopening Settings shouldn't collapse it back down
-// right after a user expanded it. Also auto-expands if the active theme
-// happens to be one of the ones collapsed away, so "which theme is this"
-// is never hidden from its own owner.
-let themesExpanded = false;
-
-function toggleThemesExpanded() {
-  themesExpanded = !themesExpanded;
-}
-
-function themeGridHtml(currentId) {
-  const currentIndex = COLOR_THEMES.findIndex((t) => t.id === currentId);
-  const expanded = themesExpanded || currentIndex >= THEME_PREVIEW_COUNT;
-  const visible = expanded ? COLOR_THEMES : COLOR_THEMES.slice(0, THEME_PREVIEW_COUNT);
-  const swatches = visible
+// P6.1: one grid per mode slot (light/dark), each pre-filtered to that
+// slot's own light/dark-ness, replaces the old single ungrouped 53-theme
+// grid — which is also why the old view-more/show-fewer pagination is
+// gone: .themegrid already has its own max-height/overflow-y scroll box
+// (styles.css), and a slot-filtered list (7 light, 46 dark) fits that
+// comfortably without needing to hide most of it behind a click first.
+function appearanceSlotThemeGridHtml(slotKey, slot) {
+  const light = slotKey === 'light';
+  const currentPresetId = slot.type === 'preset' ? slot.id : null;
+  const swatches = COLOR_THEMES.filter((t) => Boolean(t.light) === light)
     .map(
       (t) => `
-    <button class="${t.id === currentId ? 'on' : ''}" data-theme-id="${t.id}" title="${escapeHtml(t.name)}">
+    <button class="${t.id === currentPresetId ? 'on' : ''}" data-action="pick-theme" data-slot="${slotKey}" data-theme-id="${t.id}" title="${escapeHtml(t.name)}">
       <span class="sw2" style="background:${t.accent1}"><i style="background:${t.accent2}"></i></span>
       <span class="nm">${escapeHtml(t.name)}</span>
     </button>`
     )
     .join('');
-  const toggle = expanded
-    ? (COLOR_THEMES.length > THEME_PREVIEW_COUNT ? `<button class="btn btn-quiet sm" id="theme-view-fewer-btn" style="margin-top:var(--sp-2)">Show fewer</button>` : '')
-    : `<p style="margin:10px 0 0;font:var(--t-meta);color:var(--faint)">Showing ${THEME_PREVIEW_COUNT} of ${COLOR_THEMES.length}. <button class="btn btn-quiet sm" id="theme-view-more-btn">View more</button></p>`;
-  return `<div class="themegrid">${swatches}</div>${toggle}`;
+  const isCustom = slot.type === 'custom';
+  const customTile = `
+    <button class="custom-tile ${isCustom ? 'on' : ''}" data-action="pick-custom" data-slot="${slotKey}" title="Custom colour">
+      <span class="sw2 custom-swatch" style="background:${isCustom ? slot.accent : 'var(--line-lit)'}"></span>
+      <span class="nm">Custom</span>
+    </button>`;
+  return `<div class="themegrid">${swatches}${customTile}</div>`;
+}
+
+// Verifies, rather than just asserts, that a custom accent's derived
+// palette clears real WCAG AA — reusing contrastCheck.js's own
+// checkContrastAA() (the exact standard 4.5:1/3:1 thresholds) against
+// buildPalette()'s OWN output, independent of that module's internal
+// audit numbers (which enforce stricter 12:1/7:1/4.6:1 targets and would
+// just be trusting the same code twice). Always passes by construction
+// (ensure() nudges text/dim/faint until they clear their own stricter
+// targets, which are all tighter than real AA) — this renders the
+// receipt, not a "fix" action, since there is no reachable failing state
+// (see docs/v2-progress.md's P6.1 entry). Font metrics are read off the
+// live document (--fs-body/--w-body apply globally regardless of which
+// appearance slot is being edited), same source contrastWarningHtml
+// above already reads from.
+function customAccentContrastHtml(slotKey, slot) {
+  const light = slotKey === 'light';
+  const palette = buildPalette(themeInputFromAccent(slot.accent, light));
+  const toRgb255 = ([h, s, l]) => hslToRgb(h, s, l).map((v) => Math.round(v * 255));
+  const cs = getComputedStyle(document.body);
+  const fontSizePx = parseFloat(cs.getPropertyValue('--fs-body')) || 13;
+  const weight = parseFloat(cs.getPropertyValue('--w-body')) || 400;
+  const { ratio, passes } = checkContrastAA(toRgb255(palette.colours.text), toRgb255(palette.surf.bg), fontSizePx, weight);
+  return passes
+    ? `✓ Meets WCAG AA automatically (${ratio.toFixed(1)}:1)`
+    : `⚠ ${ratio.toFixed(1)}:1 — below WCAG AA`;
+}
+
+// The custom-accent controls (hex input, eyedropper where the browser
+// supports it, and the contrast confirmation line P6.1's design keeps in
+// place of a "fix contrast" button — see docs/v2-progress.md's P6.1 entry
+// for why buildPalette() already guarantees this can never fail) — only
+// shown once a slot is actually set to Custom.
+function customAccentControlsHtml(slotKey, slot) {
+  if (slot.type !== 'custom') return '';
+  const eyedropperBtn = typeof window !== 'undefined' && typeof window.EyeDropper === 'function'
+    ? `<button class="btn btn-ghost sm" data-action="eyedrop-accent" data-slot="${slotKey}" title="Pick a colour from your screen">💧 Eyedropper</button>`
+    : '';
+  return `
+    <div class="row custom-accent-row" style="margin-top:var(--sp-2)">
+      <input type="color" class="custom-accent-input" data-action="set-custom-accent" data-slot="${slotKey}" value="${slot.accent}" aria-label="Custom accent colour">
+      ${eyedropperBtn}
+      <span class="contrast-confirm" data-contrast-confirm="${slotKey}">${customAccentContrastHtml(slotKey, slot)}</span>
+    </div>`;
+}
+
+// Import/export (spec bullet 7). A short code is base64url-encoded JSON
+// (appearanceExport.js's encodeShortCode) — cheap to paste into a chat
+// message, which the full JSON export below is deliberately not trying
+// to be. The output/import fields are plain text inputs, not a
+// <textarea>: a short code is one line by construction (no line breaks
+// in base64url).
+function appearanceExportImportHtml() {
+  return `
+    <div class="appearance-export">
+      <div class="row">
+        <button class="btn btn-ghost sm" data-action="export-appearance-json">Download JSON</button>
+        <button class="btn btn-ghost sm" data-action="export-appearance-code">Get short code</button>
+        <button class="btn btn-ghost sm" data-action="import-appearance-file">Upload JSON…</button>
+        <input type="file" id="import-appearance-file-input" accept="application/json" hidden>
+      </div>
+      <div class="row appearance-shortcode-row" style="margin-top:var(--sp-2)">
+        <input type="text" id="appearance-shortcode-output" class="appearance-shortcode-input" readonly placeholder="Click &quot;Get short code&quot; to generate one" aria-label="Appearance short code">
+        <button class="btn btn-ghost sm" data-action="copy-appearance-code">Copy</button>
+      </div>
+      <div class="row appearance-shortcode-row" style="margin-top:var(--sp-2)">
+        <input type="text" id="appearance-import-code-input" class="appearance-shortcode-input" placeholder="Paste a short code…" aria-label="Paste appearance short code">
+        <button class="btn btn-ghost sm" data-action="import-appearance-code">Import code</button>
+      </div>
+    </div>`;
+}
+
+function appearanceSlotHtml(appearance, slotKey, label) {
+  const slot = appearance[slotKey];
+  return `
+    <div class="appearance-slot" data-slot="${slotKey}">
+      <p class="detail-lbl">${escapeHtml(label)}</p>
+      ${appearanceSlotThemeGridHtml(slotKey, slot)}
+      ${customAccentControlsHtml(slotKey, slot)}
+      <div class="row" style="margin-top:var(--sp-2)">
+        <button class="btn btn-ghost sm" data-action="random-theme" data-slot="${slotKey}">🎲 Random</button>
+      </div>
+    </div>`;
+}
+
+// Mode (light/dark/system) plus one or two per-mode slots — both slots
+// show together under 'system' (each is independently reachable, since
+// which one is actually active depends on the OS preference at any given
+// moment), only the relevant one otherwise.
+function appearanceSectionHtml(appearance) {
+  const modeSeg = segHtml('appearance-mode', [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']], appearance.mode);
+  const slots = appearance.mode === 'system'
+    ? appearanceSlotHtml(appearance, 'light', 'Light mode theme') + appearanceSlotHtml(appearance, 'dark', 'Dark mode theme')
+    : appearanceSlotHtml(appearance, appearance.mode, 'Theme');
+  return `<div class="appearance-builder">${modeSeg}${slots}</div>`;
+}
+
+// Optional ambient gradient/grain layer (spec bullet 6). The opacity row
+// only shows once a real effect is picked — at type 'none' there is
+// nothing for it to control, same "hide the irrelevant control" pattern
+// the collapsed weight slider above already uses.
+function appearanceBackgroundHtml(background) {
+  const typeSeg = segHtml('appearance-background-type', [['none', 'None'], ['gradient', 'Gradient'], ['grain', 'Grain']], background.type);
+  if (background.type === 'none') return `<div class="appearance-background">${typeSeg}</div>`;
+  const valuetext = `Background effect opacity ${background.opacity} of 100`;
+  return `
+    <div class="appearance-background">
+      ${typeSeg}
+      <div class="slider-row" style="margin-top:var(--sp-2)">
+        <input type="range" class="slider-input" data-action="set-background-opacity" min="0" max="100" step="1" value="${background.opacity}" aria-label="Background effect opacity" aria-valuetext="${escapeHtml(valuetext)}">
+        <span class="slider-value">${background.opacity}%</span>
+      </div>
+    </div>`;
 }
 
 // P3.1's font picker — one search draft per slot (module-level, same
@@ -2182,27 +2292,34 @@ function listsManagerBodyHtml() {
 // Settings panel (design/HANDOVER.md §4 Phase 3: "theme grid, text size,
 // text weight, decoration, original titles"). Replaces the old
 // theme-picker-only overlay — same trigger/id, see events.js's bindThemePicker.
-function renderSettingsPanel(container, currentThemeId) {
+function renderSettingsPanel(container, appearance) {
   // Every control in here re-renders the whole panel on change (simplest way
   // to keep every row in sync with whatever just changed), but that means
   // TWO scroll positions get lost on every click, not one: the outer
   // .overlay-panel (whose content is replaced wholesale, which can disturb
-  // its scroll when the clicked/now-removed element held focus) AND the
+  // its scroll when the clicked/now-removed element held focus) AND every
   // .themegrid itself (its own `overflow-y: auto` box, max-height 280px) —
-  // the grid element is entirely rebuilt by themeGridHtml() below, so it's
-  // always a brand new node with scrollTop back at 0, guaranteed, on every
-  // single swatch click. That second one is what made picking between two
-  // themes in the grid's bottom rows feel like the panel kept jumping back
-  // to the top — restoring only the outer scroll wouldn't have touched it.
-  // Same scroll-loss problem as .themegrid's own comment describes, now for
-  // three more scrollable grids (#font-grid-ui/-heading/-numbers) that are
-  // equally rebuilt from scratch on every re-render.
-  const SCROLLABLE_GRID_SELECTORS = ['.themegrid', '#font-grid-ui', '#font-grid-heading', '#font-grid-numbers'];
+  // each grid element is entirely rebuilt below, so it's always a brand new
+  // node with scrollTop back at 0, guaranteed, on every single swatch click.
+  // That second one is what made picking between two themes in a grid's
+  // bottom rows feel like the panel kept jumping back to the top —
+  // restoring only the outer scroll wouldn't have touched it. Same
+  // scroll-loss problem for three more scrollable grids
+  // (#font-grid-ui/-heading/-numbers), equally rebuilt from scratch.
+  // `.themegrid` alone can match TWO elements now (P6.1's light+dark slots
+  // under 'system' mode), matched back up by DOM order — light is always
+  // rendered before dark (appearanceSectionHtml) — so captured/restored by
+  // querySelectorAll position, not the single-match querySelector the
+  // id-based font grids still use.
+  const OTHER_GRID_SELECTORS = ['#font-grid-ui', '#font-grid-heading', '#font-grid-numbers'];
   const scroller = container.closest('.overlay-panel') || container;
   const scrollTop = scroller.scrollTop;
-  const gridScrollTops = SCROLLABLE_GRID_SELECTORS.map((sel) => container.querySelector(sel)?.scrollTop || 0);
+  const themeGridScrollTops = Array.from(container.querySelectorAll('.themegrid')).map((g) => g.scrollTop);
+  const otherGridScrollTops = OTHER_GRID_SELECTORS.map((sel) => container.querySelector(sel)?.scrollTop || 0);
   container.innerHTML = `
-    ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, themeGridHtml(currentThemeId))}
+    ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, appearanceSectionHtml(appearance))}
+    ${settingsRowHtml('Background effect', 'An optional gradient or grain layer behind your library, at the accent colour of whichever theme is active.', appearanceBackgroundHtml(appearance.background))}
+    ${settingsRowHtml('Import & export appearance', 'Copy your whole theme setup as a short code, or download/upload it as a JSON file.', appearanceExportImportHtml())}
     ${settingsRowHtml(copy('fonts.ui.heading'), copy('fonts.ui.description'), fontGridHtml('ui', Preferences.getUiFont()))}
     ${settingsRowHtml(copy('fonts.heading.heading'), copy('fonts.heading.description'), fontGridHtml('heading', Preferences.getHeadingFont()))}
     ${settingsRowHtml(copy('fonts.numbers.heading'), copy('fonts.numbers.description'), fontGridHtml('numbers', Preferences.getNumbersFont()))}
@@ -2250,9 +2367,12 @@ function renderSettingsPanel(container, currentThemeId) {
     ${settingsRowHtml(copy('lists.settings.heading'), copy('lists.settings.description'), listsManagerBodyHtml())}
   `;
   function restoreGridScrollTops() {
-    SCROLLABLE_GRID_SELECTORS.forEach((sel, i) => {
+    Array.from(container.querySelectorAll('.themegrid')).forEach((g, i) => {
+      g.scrollTop = themeGridScrollTops[i] || 0;
+    });
+    OTHER_GRID_SELECTORS.forEach((sel, i) => {
       const grid = container.querySelector(sel);
-      if (grid) grid.scrollTop = gridScrollTops[i];
+      if (grid) grid.scrollTop = otherGridScrollTops[i];
     });
   }
   scroller.scrollTop = scrollTop;
@@ -2372,7 +2492,6 @@ export const Render = {
   renderBulkMoreMenu,
   renderNavMenu,
   stepsHtml,
-  toggleThemesExpanded,
   renderSettingsPanel,
   renderHelpPanel,
   setHelpTab,

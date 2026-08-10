@@ -74,7 +74,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5B.4 Feedback loop | not started | — | — | — |
 | P5B.5 Cards and detail view | not started | — | — | — |
 | GATE-2.1 Acceptance sweep, merge check, tag v2.1 | not started | — | — | blocked transitively by P5A.1 |
-| P6.1 Theme and color | not started | — | — | — |
+| P6.1 Theme and colour | done | 2026-08-10 | this session, see "P6.1 Theme and colour" and "P6.1 close out" below | — |
 | P6.2 Identity plus review and audio fields | not started | — | — | — |
 | P6.3 Profile card renderer | not started | — | — | — |
 | P6.4 Content tiers, gating, export fallback | not started | — | — | — |
@@ -3951,3 +3951,313 @@ stores in one pass, and the library render budget still over 200ms
 pending virtualization — are real, carried-forward gaps, not failures
 of this gate; both are named above for whichever future substep is
 positioned to close them.
+
+## P6.1 Theme and colour
+
+Branch `v2/P6.1` off `main`, through GATE-2.0/`v2.0` tagged (`v2.1
+Discover`'s P5A.1 remains blocked on the user's own AniList ToS
+clarification, per the standing decision above — this session jumped
+ahead to `v2.2 Identity`'s P6.1 instead, since it has zero technical
+dependency on Discover's corpus; see this substep's own plan file for
+the reasoning). 7 commits: `b604c17` (extract `themeBuilder.js` from
+`scripts/generate-themes.js`, verified byte-identical regen), `5c6909d`
+(the `appearance` schema, `migrate_9_to_10`, and the runtime mode/slot
+resolver), `d925c0d` (gradient/grain background effect), `82d0503`
+(contrast confirmation line), `8df0ecb` (`appearanceExport.js` +
+import/export UI), `b5a1e91` (unit tests for all three new modules),
+`8fe15b1` (`tests/e2e/theme-and-colour.spec.js`).
+
+**Design principle, stated once here since it governs every later
+decision below:** the 53 curated presets and `scripts/generate-
+themes.js`'s colour math were both complete and correct going in —
+this substep's own job was strictly the *seven new capabilities* the
+spec bullets name, never a rewrite of what already worked. The single
+biggest reuse win was extracting that script's `build()` function
+(renamed `buildPalette`, unchanged) into a browser-loadable
+`public/js/themeBuilder.js`: a "custom theme builder" turned out to be
+"call the same function with a user's own accent," not new colour
+math, and `ensure()` — the loop that already nudges a colour's
+lightness until it clears a contrast target — turned out to already
+be the spec's "one-click fix contrast" mechanism, just never exposed
+as a user action before.
+
+**Deliberate scope decision: no "fix contrast" button.** The spec asks
+for "a live contrast checker with one-click 'fix contrast' that nudges
+the text colour." `buildPalette()`'s `ensure()` already nudges
+text/dim/faint/accentLit until each clears its own internal target
+(12:1/7:1/4.6:1 — all strictly tighter than real WCAG AA's 4.5:1/3:1)
+for **any** input accent, including a fully custom one — proven both
+at P6.1's own unit-test level (`tests/run-all.js`'s "buildPalette:
+text/dim/faint clear their own internal contrast targets for a spread
+of hues" test, 8 hues × both light and dark, 16 cases, all passing)
+and independently via the *real* WCAG AA formula from
+`contrastCheck.js` rather than trusting the same internal audit
+numbers twice (the sibling test in the same file, same 16 cases). There
+is therefore no reachable state where a custom accent fails contrast,
+which makes a "fix" action unbuildable in any meaningful sense — it
+would have nothing to ever fix. Built a verification *receipt* instead
+(task 119): the picker's `.contrast-confirm` line calls
+`checkContrastAA()` live against the slot's own derived palette and
+shows the real ratio ("✓ Meets WCAG AA automatically (16.3:1)"),
+proving the guarantee rather than just asserting it. Flagged here as a
+scope call, the same way P1.7-era ambiguities were corrected in their
+own progress entries rather than silently reinterpreted.
+
+**A real, cross-cutting logging gap found while wiring the background-
+opacity slider (task 118), not fixed here — filed to
+`docs/v2-backlog.md`:** every `input`/`change`-split drag control in
+this codebase (the 8 P3.2 typography sliders, and this substep's own
+custom-accent colour input and background-opacity slider) writes the
+live value to `Store` on every `input` tick, then reads `Store`'s
+*current* value back out at `change` time to use as
+`recordSettingChange`'s "before" argument — but by `change` time
+`input` has already overwritten it to the exact value the drag
+settled on, so the before/after comparison always short-circuits and
+`settings_changed` is never actually logged for any drag gesture in
+this app, silently, since P3.2. Not fixed here: the fix (a
+before-drag-started snapshot, captured lazily on the first `input`
+tick of a gesture and consumed once at `change`) touches P3.2's own
+shared code as much as P6.1's, and reproducing/fixing it belongs to
+whichever substep next needs `settings_changed` fidelity for a drag
+control, not a silent fold into this one's scope.
+
+### Design
+
+- **`public/js/themeBuilder.js`** (new, pure, ESM, loads from both
+  Node and the browser): `buildPalette(t)` — extracted verbatim from
+  `generate-themes.js`'s `build()` — plus `hslToRgb`/`lin`/`lum`/
+  `ratio`/`ensure`/`css`/`cssA`/`hex`/`hexToHsl`, and the one genuinely
+  new function, `themeInputFromAccent(accentHex, light)`, which derives
+  `{base, accent, glow, deco, light}` from a single hex value via
+  fixed, clamped hue-offset heuristics (not hand-tuned art like the 53
+  curated recipes — deliberately "good enough for custom," not trying
+  to match them). `scripts/generate-themes.js` now imports this module
+  instead of duplicating the math; the regenerated
+  `moonlit-shrine-themes.css` was diffed byte-identical against the
+  pre-extraction file, proving the refactor changed nothing about the
+  53 presets.
+- **`preferences.appearance`** (schema v10) replaces the flat
+  `colorTheme` string: `{mode: 'light'|'dark'|'system', light: {type:
+  'preset', id} | {type: 'custom', accent}, dark: {...}, background:
+  {type: 'none'|'gradient'|'grain', opacity: 0-100}}`. `migrate_9_to_10`
+  sets `mode` to whichever slot the user's *current* preset's own
+  light/dark-ness matches (never `'system'` on migration — the exact
+  "zero visual change until opt-in" guarantee the Global constraints
+  require), fills the other slot with a sensible default (`daybreak`
+  for light, `moonlit-shrine` for dark), and drops `colorTheme` outright
+  rather than keeping it dead, the same way P3.2 retired the old
+  `textSize`/`textWeight` enums.
+- **`public/js/themes.js`**: `resolveAppearance`/`applyAppearance`
+  (the one entry point boot, the picker, and import all funnel
+  through), `applyCustomTheme` (writes all 23 custom properties as
+  *inline* styles on `document.documentElement`, since a CSS class
+  can't hold a runtime-computed value, and clears
+  `dataset.colorTheme` so no stale preset class fights it),
+  `randomThemeForSlot` (filters `COLOR_THEMES` by the slot's own
+  light/dark-ness before picking), and a `matchMedia('(prefers-color-
+  scheme: dark)')` change listener, attached lazily the first time
+  `mode` is ever `'system'` in a page's lifetime, that re-applies live
+  with no reload when the OS flips.
+- **`public/js/appearanceExport.js`** (new, pure): `buildAppearanceJSON`
+  (verbatim, no envelope — same convention as `selectionExport.js`),
+  `encodeShortCode`/`decodeShortCode` (minified-key JSON, base64url —
+  cheap to paste into a chat message), and `validateAppearance`, a
+  **strict reject-never-repair** check — deliberately a different
+  contract than `settingsSchema.js`'s sanitizers, which exist to repair
+  a corrupted Class A *read*, not to silently coerce a user's pasted
+  or uploaded import into something plausible they never actually
+  chose.
+- **`#bg-effect`** (new fixed, `pointer-events:none` div): gradient
+  reads the *active* theme's own `--glow` token via `radial-gradient`,
+  so it always matches whichever theme (curated or custom) is applied;
+  grain is a small tiling `feTurbulence` SVG data URI blended with
+  `mix-blend-mode: overlay`. Sits one z-index below `#atmosphere` for
+  the exact reason already documented on that block in `styles.css`: a
+  negative-z-index sibling of `#app` never actually painted through
+  here, so both are low-opacity layers painted *above* content instead.
+- Settings panel gained: a mode segmented control; per-mode-slot
+  curated grids (pre-filtered to that slot's own light/dark-ness — 7
+  light, 46 dark — which is also why the old single-grid "View
+  more"/"Show fewer" pagination was removed outright rather than kept:
+  a slot-filtered list already fits inside `.themegrid`'s own existing
+  scroll box); a Custom tile revealing a native `<input type="color">`
+  plus an eyedropper button (feature-detected via `typeof
+  window.EyeDropper === 'function'`) plus the contrast-confirmation
+  line; a Random button per slot; a background-effect type toggle plus
+  opacity slider; and an import/export row (JSON download, a copyable
+  short code, and upload-or-paste import, both paths defensively
+  validated before ever calling `applyAppearance()`).
+
+### Acceptance criteria
+
+**1. Automated checks.**
+
+- `node tests/run-all.js` — **284 passed, 0 failed** (up from 269 at
+  GATE-2.0; 15 new: 4 `migrate_9_to_10` tests, 4 `themeBuilder.js`
+  tests, 7 `appearanceExport.js` tests).
+- `npx playwright test` (full suite) — **114 passed, 1 skipped, 0
+  failed** (up from 107; 7 new in `tests/e2e/theme-and-colour.spec.js`).
+- `node scripts/check-copy-registry.js` — `OK — 99 entries, 297
+  variants, 8 v2 files scanned for raw sink literals.` (unchanged
+  count: every new control in this substep's UI uses a plain literal
+  string, the same "not every settings-panel label needs the copy
+  registry" convention P6.1's own predecessor pickers already
+  established — confirmed by this check staying green with the new
+  strings present).
+- No typecheck/lint/build command exists in this project beyond the
+  above (confirmed at P0.1, unchanged since).
+
+**2. Data safety.** This substep migrates `preferences` (schemaVersion
+9 → 10) but **does not introduce a new Class A store** — `appearance`
+is a reshaped field inside the store P1.3 already registered, not a
+new one. Rule 3a's seven-substep list (P1.3, P1.5, P1.7, P5A.4, P6.2,
+P7A, P8H) does not include P6.1, so the extended export/snapshot/
+restore round trip that rule requires does **not** apply here; stating
+that explicitly per the spec's own instruction for substeps that don't
+add a store.
+
+The migration itself is fully covered by the existing safety net
+(rotateBackup, the same mechanism P1.3 through P4.1's own schema bumps
+already relied on, not a new Class C snapshot):
+
+- **Dry-run proof against the real library**, this session: copied
+  the user's actual `%APPDATA%\anime-tracker` directory (verified via
+  MD5 before and after — unchanged: `90FDC36CB461C5D8BA15788E179F8E9C`)
+  to a disposable temp directory and booted this substep's code
+  against it on a free port. The real library was still at
+  schemaVersion **8** (colorTheme `moonlit-shrine`) — one boot ran the
+  *entire* remaining migration chain, `migrate_8_to_9` then
+  `migrate_9_to_10` together. Result: schemaVersion **10**,
+  `preferences.appearance` = `{mode: "dark", light: {type: "preset",
+  id: "daybreak"}, dark: {type: "preset", id: "moonlit-shrine"},
+  background: {type: "none", opacity: 0}}` — the user's exact
+  currently-saved theme, unchanged, landing in the dark slot. All 222
+  entries preserved.
+- **Pre-migration backup written and verified**: the newest file in
+  that directory's `backups/` folder after boot
+  (`library-20260810-015726.json`) is the *pre*-migration copy —
+  confirmed schemaVersion 8, `colorTheme: "moonlit-shrine"` — proving
+  `rotateBackup()` fired before the migration ran, per rule 7's
+  existing sequence.
+- **Invariants**: `migrate_9_to_10`'s own guard
+  (`tests/run-all.js`) throws if entry count changes across the
+  migration; the 4 dedicated unit tests additionally assert entries,
+  `uiFont`, `textSizeStep` and `sort` are byte-identical before/after,
+  and that `colorTheme` is gone from the output (dropped, not kept
+  dead).
+- **Idempotency**: deliberately **not** asserted for `migrate_9_to_10`
+  the way `migrate_8_to_9`'s own test asserts it — see the test file's
+  comment for why: this migration deletes `colorTheme` on its first
+  pass, so a hypothetical second call would re-derive from the
+  `'moonlit-shrine'` fallback and clobber whatever the first pass
+  actually produced. Not a real gap: `migrate()`'s own loop keys
+  `MIGRATIONS` by `fromVersion` (1-9) and stops once `schemaVersion`
+  reaches `CURRENT` (10), so this function structurally cannot run
+  twice on the same document — asserting a property against a call
+  pattern that cannot occur would be dead test code, not real coverage.
+- **Restore round trip**: unchanged, existing coverage —
+  `tests/e2e/settings-migration.spec.js`'s snapshot-restore test
+  restores a pre-P6.1-shaped snapshot and confirms it lands on
+  `schemaVersion: 10` with `preferences.appearance.dark` correctly
+  populated; all 4 of that file's schemaVersion assertions were bumped
+  from 9 to 10 for this substep and re-verified passing.
+
+**3. Manual smoke test.** Against the SEA build (`AnimeTracker-2.1.2.exe`,
+rebuilt this session), with a disposable copy of the real library
+(port-conflict-checked first — port 4321 was occupied by the user's own
+separately-running packaged app, so this ran on 4399), verified via MD5
+before and after (unchanged: `90FDC36CB461C5D8BA15788E179F8E9C`):
+
+1. Boot against the real, not-yet-P6.1-migrated library. **Observed:**
+   header, cards and Settings panel render pixel-identical to every
+   prior screenshot this session of the same real data — the moonlit-
+   shrine dark theme, unchanged.
+2. Open Settings → Theme, click the "Custom" tile on the dark slot,
+   drag the colour input to a distinct green (`#2ecc71`). **Observed:**
+   `--accent` recomputes live to `hsl(145.44 63.2% 49.02%)`, the
+   contrast-confirmation line reads "✓ Meets WCAG AA automatically",
+   and the swatch/colour input reflect the choice immediately.
+3. Switch mode to System, then flip the emulated OS colour scheme to
+   light and back to dark. **Observed:** the app switches to `daybreak`
+   on light with no reload, and switching back to dark restores the
+   exact custom green accent from step 2 — the dark slot's own choice
+   survived the round trip through the light slot correctly.
+4. Click "Get short code," change the theme to something else via
+   Random, then paste the saved code back into the import field and
+   click Import. **Observed:** the exact original custom-green accent
+   is restored — confirmed by reading `--accent` before and after,
+   identical hex.
+5. Re-fingerprinted the **original** `%APPDATA%\anime-tracker\
+   library.json` afterward: MD5 unchanged from before this test.
+   Disposable copy, its server process (killed by exact PID) and its
+   temp directory removed after the test. The rebuilt
+   `AnimeTracker-2.1.2.exe` was separately confirmed to boot against
+   the same disposable copy and produce the identical migrated
+   `appearance` object, then killed and cleaned up the same way.
+
+**4. Performance.** The Tuning table names no budget for the Settings
+panel, theme application, or any surface this substep touches (its
+named surfaces are Discover load, detail-open, first-run Discover,
+corpus seed, corpus storage, library-list render, the P3.2 slider drag,
+bulk actions, achievement retroactive run, and snapshot-plus-verify —
+none of which this substep's UI is). Stating that explicitly rather
+than inventing one, per the spec's own instruction.
+
+**5. Accessibility.** Keyboard path works end to end without any new
+hand-built widget: the mode segmented control, preset grid, Custom
+tile, Random and eyedropper buttons are all native `<button>` elements
+(focus and Enter/Space activation free from the browser); the accent
+picker is a native `<input type="color">`; the background-opacity
+slider is a native `<input type="range">`, inheriting the exact same
+keyboard behaviour (arrows/Home/End) P3.2's own sliders already proved.
+Contrast is checked against the user's *active* theme via live computed
+colours, not only defaults — the whole point of task 119's contrast-
+confirmation line, which calls `checkContrastAA()` against whatever
+accent is actually selected, including a custom one no static theme
+table could anticipate. **The screen reader step is user-executed, not
+yet run.** Exact steps for the user to follow: open Settings, tab to
+the mode segmented control and confirm each button announces as a
+toggle button with its pressed state; tab into a slot's preset grid and
+confirm each swatch button announces its theme name; tab to the Custom
+tile, activate it, and confirm the native colour input announces as a
+colour picker; tab past it to the contrast-confirmation text and
+confirm a screen reader reads the "✓ Meets WCAG AA automatically"
+line; tab to the background-effect segmented control and opacity
+slider and confirm the slider announces its current percentage.
+
+**6. Rollback.** Revert the `v2/P6.1` commit range (`b604c17`..
+`8fe15b1`, 7 commits, plus this close-out's own evidence commit and
+merge). This substep **does** migrate `library.json` (schemaVersion
+9 → 10), so per rule 13 forward-compatibility is what makes a plain
+code revert safe — and unlike P3.2's own rollback note (which
+described the reverted build as "continuing to save correctly"), the
+actual mechanism here is a **refusal, not a silent continue**: a
+reverted (pre-P6.1) build's own `CURRENT_SCHEMA_VERSION` is 9, so
+booting it against an already-migrated schemaVersion-10 `library.json`
+hits `checkVersionCompatibility`'s existing `'too-new'` branch at
+startup (`server.js`, unchanged by this substep) — the server logs
+"Refusing to read or write it — please update Anime Tracker" and
+serves `tooNew: true` rather than reading or writing anything. That is
+rule 13 working exactly as designed (refuse rather than downgrade), not
+a gap this substep introduced. Recovery is re-applying the P6.1 commits
+(or, for a user who genuinely wants to run the *old* app against *old*
+data, restoring a schemaVersion-9-or-earlier snapshot/backup — several
+exist in `backups/` from before this migration ran, per the dry-run
+evidence above).
+
+**Status: P6.1 substantially complete.** All six acceptance criteria
+have evidence in this session. Criterion 5's screen-reader pass is
+written out and ready but not yet run — same judgment call P3.1's and
+P3.2's own close-outs already made, say so if the user wants it run
+before merge.
+
+## P6.1 close out
+
+**Status: P6.1 done.** All six acceptance criteria satisfied (criterion
+5's screen-reader pass deferred, exact steps recorded above for
+whenever it's wanted). Merged into `main` in this session's close-out
+(see the merge commit immediately following); `v2/P6.1` retained, not
+deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin`
+until a new version is wanted — is still in force.

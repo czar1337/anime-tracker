@@ -20,6 +20,7 @@ import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySlid
 import { DEFAULT_SORT_DIR } from './sortLogic.js';
 import { notifyAchievementEngine } from './achievementHook.js';
 import { buildSelectionJSON, buildSelectionCSV } from './selectionExport.js';
+import { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } from './appearanceExport.js';
 import { triggerDownload } from './download.js';
 
 // Every destructive/lossy toast passes this as its onExpire — a no-op today
@@ -67,7 +68,15 @@ const mediaCache = new Map();
 // rather than an accidental one.
 function recordSettingChange(key, from, to) {
   if (isViewStatePreference(key)) return;
-  if (from === to) return;
+  // Every setting before P6.1 was a primitive, where === already is the
+  // correct no-op check. `appearance` (P6.1) is a structured object, and
+  // every one of its call sites builds a brand-new object literal even
+  // when nothing about it actually changed (e.g. re-picking the currently
+  // active preset) — reference equality would never catch that, logging a
+  // spurious settings_changed event on every click. JSON.stringify is a
+  // safe, value-shaped comparison for both cases: identical to === for
+  // primitives, correct for a plain object with no functions/undefined.
+  if (JSON.stringify(from) === JSON.stringify(to)) return;
   EventLog.record('settings_changed', { key, from: from ?? null, to: to ?? null });
 }
 
@@ -2109,33 +2118,102 @@ function bindSettingsPanel() {
   // scratch (see that function's own comment on scroll restoration) — this
   // repaints the snapshot section from the cache right after, so it doesn't
   // fall back to a bare "Loading…" placeholder on every unrelated click.
-  function repaintSettings(themeId) {
-    Render.renderSettingsPanel(body, themeId);
+  // Reads the live appearance straight off Store rather than taking a
+  // parameter, so every one of this function's ~20 call sites (most
+  // unrelated to theming) doesn't need to know or care about it.
+  function repaintSettings() {
+    Render.renderSettingsPanel(body, Store.state.preferences.appearance);
     paintSnapshotList();
+  }
+
+  // Persists the current appearance, logs it, applies it live, and
+  // repaints — the one path every appearance-changing action below ends
+  // in, mirroring how the plain .seg handler further down does the same
+  // for decor/decorDensity/originalTitles.
+  function commitAppearance(nextAppearance) {
+    const before = Store.state.preferences.appearance;
+    Store.setPreference(['appearance'], nextAppearance);
+    recordSettingChange('appearance', before, nextAppearance);
+    Themes.applyAppearance(nextAppearance);
+    persist();
+    repaintSettings();
   }
 
   document.getElementById('theme-toggle').addEventListener('click', () => {
     openOverlay('theme-picker-overlay');
-    repaintSettings(Themes.getCurrentThemeId());
+    repaintSettings();
     refreshSnapshotList();
   });
 
   body.addEventListener('click', async (e) => {
-    if (e.target.closest('#theme-view-more-btn, #theme-view-fewer-btn')) {
-      Render.toggleThemesExpanded();
-      repaintSettings(Themes.getCurrentThemeId());
+    const themeBtn = e.target.closest('[data-action="pick-theme"]');
+    if (themeBtn) {
+      const slotKey = themeBtn.dataset.slot;
+      const appearance = Store.state.preferences.appearance;
+      commitAppearance({ ...appearance, [slotKey]: { type: 'preset', id: themeBtn.dataset.themeId } });
       return;
     }
-    const swatch = e.target.closest('.themegrid button');
-    if (swatch) {
-      Themes.setColorTheme(swatch.dataset.themeId);
-      // P1.3: colorTheme is Class A too now — same reasoning as the
-      // segmented-control settings below.
-      const beforeTheme = Store.state.preferences.colorTheme;
-      Store.setPreference(['colorTheme'], swatch.dataset.themeId);
-      recordSettingChange('colorTheme', beforeTheme, swatch.dataset.themeId);
-      persist();
-      repaintSettings(swatch.dataset.themeId);
+    const customTile = e.target.closest('[data-action="pick-custom"]');
+    if (customTile) {
+      const slotKey = customTile.dataset.slot;
+      const appearance = Store.state.preferences.appearance;
+      const existingAccent = appearance[slotKey].type === 'custom' ? appearance[slotKey].accent : '#8a6fd8';
+      commitAppearance({ ...appearance, [slotKey]: { type: 'custom', accent: existingAccent } });
+      return;
+    }
+    const randomBtn = e.target.closest('[data-action="random-theme"]');
+    if (randomBtn) {
+      const slotKey = randomBtn.dataset.slot;
+      const appearance = Store.state.preferences.appearance;
+      commitAppearance({ ...appearance, [slotKey]: Themes.randomThemeForSlot(slotKey === 'light') });
+      return;
+    }
+    const eyedropBtn = e.target.closest('[data-action="eyedrop-accent"]');
+    if (eyedropBtn && window.EyeDropper) {
+      const slotKey = eyedropBtn.dataset.slot;
+      try {
+        const result = await new window.EyeDropper().open();
+        const appearance = Store.state.preferences.appearance;
+        commitAppearance({ ...appearance, [slotKey]: { type: 'custom', accent: result.sRGBHex } });
+      } catch {
+        // User cancelled the eyedropper (Esc, or clicked away) — no-op,
+        // same as cancelling any other picker in this app.
+      }
+      return;
+    }
+
+    if (e.target.closest('[data-action="export-appearance-json"]')) {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const blob = new Blob([JSON.stringify(buildAppearanceJSON(Store.state.preferences.appearance), null, 2)], { type: 'application/json' });
+      triggerDownload(blob, `anime-tracker-appearance-${stamp}.json`);
+      return;
+    }
+    if (e.target.closest('[data-action="export-appearance-code"]')) {
+      const output = document.getElementById('appearance-shortcode-output');
+      if (output) output.value = encodeShortCode(Store.state.preferences.appearance);
+      return;
+    }
+    if (e.target.closest('[data-action="import-appearance-file"]')) {
+      document.getElementById('import-appearance-file-input')?.click();
+      return;
+    }
+    if (e.target.closest('[data-action="copy-appearance-code"]')) {
+      const output = document.getElementById('appearance-shortcode-output');
+      if (output?.value && navigator.clipboard) {
+        navigator.clipboard.writeText(output.value).then(() => Render.showToast('Short code copied to clipboard.'));
+      }
+      return;
+    }
+    if (e.target.closest('[data-action="import-appearance-code"]')) {
+      const input = document.getElementById('appearance-import-code-input');
+      const code = input?.value.trim();
+      if (!code) return;
+      const decoded = decodeShortCode(code);
+      if (!decoded || !validateAppearance(decoded)) {
+        Render.showToast('That short code is not valid.');
+        return;
+      }
+      commitAppearance(decoded);
       return;
     }
 
@@ -2154,7 +2232,7 @@ function bindSettingsPanel() {
       // trying a font in this picker IS the preview.
       if (before !== fontId) EventLog.record('font_previewed', { meta: { slot, fontId } });
       persist();
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
 
@@ -2183,7 +2261,7 @@ function bindSettingsPanel() {
       Store.setPreference(['textWeightStep'], bestStep);
       recordSettingChange('textWeightStep', before, bestStep);
       persist();
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
 
@@ -2196,7 +2274,7 @@ function bindSettingsPanel() {
       Store.setPreference([prefKey], DEFAULT_STEP);
       recordSettingChange(prefKey, before, DEFAULT_STEP);
       persist();
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
 
@@ -2210,7 +2288,7 @@ function bindSettingsPanel() {
         recordSettingChange(prefKey, before, DEFAULT_STEP);
       }
       persist();
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
 
@@ -2294,18 +2372,18 @@ function bindSettingsPanel() {
     // rebuild on every change" the rest of this panel already relies on.
     if (e.target.closest('#tags-create-btn')) {
       Render.toggleSettingsNewTagForm(true);
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
     const tagColorSwatch = e.target.closest('[data-action="pick-settings-new-tag-color"]');
     if (tagColorSwatch) {
       Render.setSettingsNewTagColor(tagColorSwatch.dataset.colorId);
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
     if (e.target.closest('[data-action="cancel-settings-new-tag"]')) {
       Render.toggleSettingsNewTagForm(false);
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
     if (e.target.closest('[data-action="confirm-settings-new-tag"]')) {
@@ -2317,7 +2395,7 @@ function bindSettingsPanel() {
       }
       Render.toggleSettingsNewTagForm(false);
       persist();
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
     const renameTagBtn = e.target.closest('[data-action="rename-tag"]');
@@ -2343,14 +2421,14 @@ function bindSettingsPanel() {
         const renamed = Store.renameTag(tagId, input.value);
         if (!renamed && input.value.trim()) Render.showToast(copy('tags.create.duplicateName'));
         if (renamed) persist();
-        repaintSettings(Themes.getCurrentThemeId());
+        repaintSettings();
       };
       input.addEventListener('blur', commit);
       input.addEventListener('keydown', (ke) => {
         if (ke.key === 'Enter') input.blur();
         else if (ke.key === 'Escape') {
           committed = true;
-          repaintSettings(Themes.getCurrentThemeId());
+          repaintSettings();
         }
       });
       return;
@@ -2368,7 +2446,7 @@ function bindSettingsPanel() {
           refreshGridOnly();
           Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
           persist();
-          repaintSettings(Themes.getCurrentThemeId());
+          repaintSettings();
         },
       });
       return;
@@ -2378,12 +2456,12 @@ function bindSettingsPanel() {
     // minus the colour picker.
     if (e.target.closest('#lists-create-btn')) {
       Render.toggleSettingsNewListForm(true);
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
     if (e.target.closest('[data-action="cancel-settings-new-list"]')) {
       Render.toggleSettingsNewListForm(false);
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
     if (e.target.closest('[data-action="confirm-settings-new-list"]')) {
@@ -2392,13 +2470,13 @@ function bindSettingsPanel() {
       if (!list) return;
       Render.toggleSettingsNewListForm(false);
       persist();
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
     const toggleEntriesBtn = e.target.closest('[data-action="toggle-list-entries"]');
     if (toggleEntriesBtn) {
       Render.toggleManagerListExpanded(toggleEntriesBtn.dataset.listId);
-      repaintSettings(Themes.getCurrentThemeId());
+      repaintSettings();
       return;
     }
     const renameListBtn = e.target.closest('[data-action="rename-list"]');
@@ -2420,14 +2498,14 @@ function bindSettingsPanel() {
         committed = true;
         const renamed = Store.renameCustomList(listId, input.value);
         if (renamed) persist();
-        repaintSettings(Themes.getCurrentThemeId());
+        repaintSettings();
       };
       input.addEventListener('blur', commit);
       input.addEventListener('keydown', (ke) => {
         if (ke.key === 'Enter') input.blur();
         else if (ke.key === 'Escape') {
           committed = true;
-          repaintSettings(Themes.getCurrentThemeId());
+          repaintSettings();
         }
       });
       return;
@@ -2445,7 +2523,7 @@ function bindSettingsPanel() {
           refreshGridOnly();
           Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
           persist();
-          repaintSettings(Themes.getCurrentThemeId());
+          repaintSettings();
         },
       });
       return;
@@ -2455,6 +2533,25 @@ function bindSettingsPanel() {
     if (!segBtn) return;
     const seg = segBtn.closest('.seg').dataset.seg;
     const value = segBtn.dataset.value;
+    // appearance-mode doesn't fit the generic Store.setPreference([seg],
+    // value) tail below — `mode` is a nested field inside the structured
+    // `appearance` object, not its own top-level preference — so it commits
+    // through the same path every other appearance change uses instead.
+    if (seg === 'appearance-mode') {
+      commitAppearance({ ...Store.state.preferences.appearance, mode: value });
+      return;
+    }
+    if (seg === 'appearance-background-type') {
+      const appearance = Store.state.preferences.appearance;
+      // Switching away from 'none' with opacity still at its default 0
+      // would apply an effect the user can't see and has no visible
+      // slider feedback for yet — 30 is a middling, clearly-visible
+      // starting point, same reasoning a volume control unmutes to
+      // something audible rather than 0.
+      const opacity = value !== 'none' && appearance.background.opacity === 0 ? 30 : appearance.background.opacity;
+      commitAppearance({ ...appearance, background: { type: value, opacity } });
+      return;
+    }
     if (seg === 'decor') Preferences.setDecor(value);
     else if (seg === 'decorDensity') {
       Preferences.setDecorDensity(value);
@@ -2473,7 +2570,7 @@ function bindSettingsPanel() {
     Store.setPreference([seg], value);
     recordSettingChange(seg, beforeSetting, value);
     persist();
-    repaintSettings(Themes.getCurrentThemeId());
+    repaintSettings();
   });
 
   // P1.7: Enter submits either inline create form, same as the detail view's.
@@ -2518,6 +2615,40 @@ function bindSettingsPanel() {
       const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
       if (readout) readout.textContent = String(step);
     }
+
+    // P6.1: same live-preview-without-repaint reasoning as the slider above
+    // — a native <input type="color"> fires 'input' continuously while its
+    // own picker is open, and replacing the panel mid-drag would close it.
+    // Only the small swatch preview updates here; the contrast confirmation
+    // line (task-scoped separately) catches up on 'change' below.
+    const accentInput = e.target.closest('[data-action="set-custom-accent"]');
+    if (accentInput) {
+      const slotKey = accentInput.dataset.slot;
+      const hex = accentInput.value;
+      const appearance = Store.state.preferences.appearance;
+      const nextAppearance = { ...appearance, [slotKey]: { type: 'custom', accent: hex } };
+      Store.setPreference(['appearance'], nextAppearance);
+      Themes.applyAppearance(nextAppearance);
+      persist();
+      const swatch = accentInput.closest('.appearance-slot')?.querySelector('.custom-swatch');
+      if (swatch) swatch.style.background = hex;
+    }
+
+    // Same live-preview-without-repaint reasoning as the two inputs above
+    // — dragging a native range input fires 'input' continuously, and a
+    // repaintSettings() mid-drag would recreate the element and drop the
+    // browser's pointer capture, cancelling the gesture.
+    const opacityInput = e.target.closest('[data-action="set-background-opacity"]');
+    if (opacityInput) {
+      const opacity = Number(opacityInput.value);
+      const appearance = Store.state.preferences.appearance;
+      const nextAppearance = { ...appearance, background: { ...appearance.background, opacity } };
+      Store.setPreference(['appearance'], nextAppearance);
+      Themes.applyAppearance(nextAppearance);
+      persist();
+      const readout = opacityInput.closest('.slider-row')?.querySelector('.slider-value');
+      if (readout) readout.textContent = `${opacity}%`;
+    }
   });
 
   // 'change' (drag release, or a committed keyboard step) — safe to fully
@@ -2535,13 +2666,54 @@ function bindSettingsPanel() {
   // consecutive key presses, the spec's explicit requirement.
   body.addEventListener('change', (e) => {
     const sliderKey = e.target.dataset.slider;
-    if (!sliderKey) return;
-    const step = Number(e.target.value);
-    const prefKey = `${sliderKey}Step`;
-    const before = Store.state.preferences[prefKey];
-    recordSettingChange(prefKey, before, step);
-    repaintSettings(Themes.getCurrentThemeId());
-    body.querySelector(`[data-slider="${sliderKey}"]`)?.focus();
+    if (sliderKey) {
+      const step = Number(e.target.value);
+      const prefKey = `${sliderKey}Step`;
+      const before = Store.state.preferences[prefKey];
+      recordSettingChange(prefKey, before, step);
+      repaintSettings();
+      body.querySelector(`[data-slider="${sliderKey}"]`)?.focus();
+      return;
+    }
+
+    // Value is already applied+persisted by the 'input' handler above
+    // (same reasoning as the slider's own before/after split) — this just
+    // logs the settled value and repaints to refresh the contrast
+    // confirmation line and swatch state.
+    if (e.target.closest('[data-action="set-custom-accent"]')) {
+      const appearance = Store.state.preferences.appearance;
+      recordSettingChange('appearance', appearance, appearance);
+      repaintSettings();
+      return;
+    }
+
+    // Value is already applied+persisted by the 'input' handler above;
+    // this just logs the settled value once the drag ends.
+    if (e.target.closest('[data-action="set-background-opacity"]')) {
+      const appearance = Store.state.preferences.appearance;
+      recordSettingChange('appearance', appearance, appearance);
+      return;
+    }
+
+    if (e.target.id === 'import-appearance-file-input') {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      file.text().then((text) => {
+        let parsed = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          // parsed stays null — falls through to the same rejection path
+          // as a structurally-invalid-but-parseable file.
+        }
+        if (!parsed || !validateAppearance(parsed)) {
+          Render.showToast('That file is not a valid appearance export.');
+          return;
+        }
+        commitAppearance(parsed);
+      });
+    }
   });
 }
 
