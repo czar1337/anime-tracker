@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -490,6 +490,60 @@ async function run() {
     const migratedTwice = migrate_11_to_12(migrated);
     assert.deepEqual(migratedTwice, migrated);
     assert.equal(migratedTwice.preferences.discoverHideOwned, false);
+  });
+
+  await test('migration v12->v13 (P5B.3): adds the Advanced Filters shape, defaulting every new field to today\'s exact behavior', () => {
+    const v12 = readFixture('schema-v12-library.json');
+    const migrated = migrate_12_to_13(v12);
+    assert.equal(migrated.schemaVersion, 13);
+    assert.deepEqual(migrated.preferences.discoverFilters, {
+      format: '',
+      studio: '',
+      yearMin: null,
+      yearMax: null,
+      episodeMin: null,
+      episodeMax: null,
+      scoreMin: null,
+      scoreMax: null,
+      memberMin: null,
+      memberMax: null,
+      source: '',
+      staffQuery: '',
+      airingStatus: '',
+      includeTags: [],
+      excludeTags: [],
+      maxLengthMinutes: null,
+      enforcePrerequisiteChain: true,
+      hideDismissed: true,
+    });
+  });
+
+  await test('migration v12->v13: EXTENDS a pre-existing discoverFilters (the P1-era orphaned {format, studio} shape) rather than replacing it', () => {
+    const v12 = readFixture('schema-v12-library.json');
+    const withOldShape = { ...v12, preferences: { ...v12.preferences, discoverFilters: { format: 'TV', studio: 'Toei Animation' } } };
+    const migrated = migrate_12_to_13(withOldShape);
+    assert.equal(migrated.preferences.discoverFilters.format, 'TV', 'a real user\'s already-set format value must survive');
+    assert.equal(migrated.preferences.discoverFilters.studio, 'Toei Animation');
+    assert.equal(migrated.preferences.discoverFilters.enforcePrerequisiteChain, true, 'new fields still default correctly alongside a preserved old one');
+  });
+
+  await test('migration v12->v13: never touches entries or any other preference field', () => {
+    const v12 = readFixture('schema-v12-library.json');
+    const migrated = migrate_12_to_13(v12);
+    assert.deepEqual(migrated.entries, v12.entries);
+    assert.deepEqual(migrated.preferences.coldStartPicks, v12.preferences.coldStartPicks);
+    assert.deepEqual(migrated.preferences.appearance, v12.preferences.appearance);
+    assert.equal(migrated.preferences.discoverHideOwned, true);
+  });
+
+  await test('migration v12->v13 is idempotent: running it twice never overwrites an already-present value', () => {
+    const v12 = readFixture('schema-v12-library.json');
+    const withCustomFilters = { ...v12, preferences: { ...v12.preferences, discoverFilters: { format: '', studio: '', yearMin: 2015, yearMax: null, episodeMin: null, episodeMax: null, scoreMin: null, scoreMax: null, memberMin: null, memberMax: null, source: '', staffQuery: '', airingStatus: '', includeTags: [], excludeTags: [], maxLengthMinutes: null, enforcePrerequisiteChain: false, hideDismissed: true } } };
+    const migrated = migrate_12_to_13(withCustomFilters);
+    const migratedTwice = migrate_12_to_13(migrated);
+    assert.deepEqual(migratedTwice, migrated);
+    assert.equal(migratedTwice.preferences.discoverFilters.yearMin, 2015);
+    assert.equal(migratedTwice.preferences.discoverFilters.enforcePrerequisiteChain, false);
   });
 
   // -------------------------------------------------------------------------
@@ -3902,6 +3956,7 @@ async function run() {
     findFavoriteStudioAndDirector,
     formatBlindSpot,
     formatMoodMatch,
+    matchesAdvancedFilters,
     buildShelves,
   } = await import(shelvesLogicUrl);
 
@@ -4536,6 +4591,156 @@ async function run() {
     const result = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0, activeMoodId: 'peak-fiction', timeSemantics: MOOD_TIME_SEMANTICS });
     assert.equal(result.moodShelf.empty, true);
     assert.ok(result.moodShelf.emptyReason);
+  });
+
+  // -------------------------------------------------------------------------
+  // P5B.3's Advanced Filters: matchesAdvancedFilters (the candidate-pool
+  // predicate), the enforcePrerequisiteChain/hideDismissed off-switches,
+  // and buildShelves()'s own discoverFilters composing with both the named
+  // shelves and an active mood at once.
+  // -------------------------------------------------------------------------
+
+  function advCandidate(overrides) {
+    return { anilistId: 1, seasonYear: 2018, totalEpisodes: 12, normalizedScore: 7, popularity: 5000, studio: 'Studio A', source: 'MANGA', format: 'TV', status: 'FINISHED', staff: [{ role: 'Director', name: 'Jane Director' }], tags: [{ category: 'Theme-Drama', name: 'Tragedy' }], duration: 24, ...overrides };
+  }
+
+  await test('matchesAdvancedFilters: no filters (null or empty object) always passes, matching every other "unset never disqualifies" predicate', () => {
+    assert.equal(matchesAdvancedFilters(advCandidate(), null, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesAdvancedFilters(advCandidate(), {}, MOOD_TIME_SEMANTICS), true);
+  });
+
+  await test('matchesAdvancedFilters: year/episode/score/member ranges each independently gate', () => {
+    assert.equal(matchesAdvancedFilters(advCandidate({ seasonYear: 2018 }), { yearMin: 2015, yearMax: 2020 }, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesAdvancedFilters(advCandidate({ seasonYear: 2010 }), { yearMin: 2015 }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(advCandidate({ totalEpisodes: 12 }), { episodeMax: 13 }, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesAdvancedFilters(advCandidate({ totalEpisodes: 24 }), { episodeMax: 13 }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(advCandidate({ normalizedScore: 7 }), { scoreMin: 8 }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(advCandidate({ popularity: 5000 }), { memberMax: 1000 }, MOOD_TIME_SEMANTICS), false);
+  });
+
+  await test('matchesAdvancedFilters: studio/source/format/airingStatus are exact matches against dropdown-sourced values', () => {
+    assert.equal(matchesAdvancedFilters(advCandidate({ studio: 'Studio A' }), { studio: 'Studio A' }, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesAdvancedFilters(advCandidate({ studio: 'Studio B' }), { studio: 'Studio A' }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(advCandidate({ source: 'MANGA' }), { source: 'LIGHT_NOVEL' }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(advCandidate({ format: 'TV' }), { format: 'MOVIE' }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(advCandidate({ status: 'FINISHED' }), { airingStatus: 'RELEASING' }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(advCandidate({ status: 'FINISHED' }), { airingStatus: 'FINISHED' }, MOOD_TIME_SEMANTICS), true);
+  });
+
+  await test('matchesAdvancedFilters: staffQuery is a case-insensitive substring match, not exact', () => {
+    const candidate = advCandidate({ staff: [{ role: 'Director', name: 'Hayao Miyazaki' }] });
+    assert.equal(matchesAdvancedFilters(candidate, { staffQuery: 'miyazaki' }, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesAdvancedFilters(candidate, { staffQuery: 'Nolan' }, MOOD_TIME_SEMANTICS), false);
+  });
+
+  await test('matchesAdvancedFilters: includeTags is OR (any one matches), excludeTags disqualifies on any match', () => {
+    const candidate = advCandidate({ tags: [{ category: 'Theme-Drama', name: 'Tragedy' }, { category: 'Cast-Main Cast', name: 'Ensemble Cast' }] });
+    assert.equal(matchesAdvancedFilters(candidate, { includeTags: ['Isekai', 'Tragedy'] }, MOOD_TIME_SEMANTICS), true, 'Tragedy alone is enough');
+    assert.equal(matchesAdvancedFilters(candidate, { includeTags: ['Isekai'] }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(candidate, { excludeTags: ['Ensemble Cast'] }, MOOD_TIME_SEMANTICS), false);
+    assert.equal(matchesAdvancedFilters(candidate, { excludeTags: ['Isekai'] }, MOOD_TIME_SEMANTICS), true);
+  });
+
+  await test('matchesAdvancedFilters: maxLengthMinutes reuses moodLogic.js\'s own totalRuntimeMinutes, same "One sitting" runtime semantics', () => {
+    const candidate = advCandidate({ duration: 24, totalEpisodes: 6 }); // 144 minutes total
+    assert.equal(matchesAdvancedFilters(candidate, { maxLengthMinutes: 180 }, MOOD_TIME_SEMANTICS), true);
+    assert.equal(matchesAdvancedFilters(candidate, { maxLengthMinutes: 100 }, MOOD_TIME_SEMANTICS), false);
+  });
+
+  await test('buildShelves: enforcePrerequisiteChain: false lets an unseen sequel surface directly instead of resolving to its unseen prerequisite', () => {
+    const corpus = franchiseCorpus();
+    corpus[2].normalizedScore = 8; // S2 alone qualifies as a hidden gem by score/popularity, same setup as the spec's own required-rule test above
+    const enforced = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0 });
+    const relaxed = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0, enforcePrerequisiteChain: false });
+    const enforcedIds = enforced.shelves.find((s) => s.id === 'hidden-gems').cards.map((c) => c.anilistId);
+    const relaxedIds = relaxed.shelves.find((s) => s.id === 'hidden-gems').cards.map((c) => c.anilistId);
+    assert.ok(!enforcedIds.includes(2), 'default (true): the sequel never surfaces directly, matching every existing prerequisite-chain test');
+    assert.ok(relaxedIds.includes(2), 'false: the same sequel can now surface directly, opted back in explicitly');
+  });
+
+  await test('buildShelves: hideDismissed: false lets a dismissed title surface again, same composition rule hideOwned already follows', () => {
+    const corpus = { 1: { anilistId: 1, genres: [], totalEpisodes: 12, normalizedScore: 8, popularity: 100, tags: [], staff: [], relations: [] } };
+    const hidden = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [1], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0 });
+    const shown = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [1], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0, hideDismissed: false });
+    assert.equal(hidden.shelves.find((s) => s.id === 'hidden-gems').cards.length, 0);
+    assert.equal(shown.shelves.find((s) => s.id === 'hidden-gems').cards.length, 1);
+  });
+
+  await test('buildShelves: hideDismissed: false also applies to Finish What You Started, which bypasses the prerequisite rule by its own design', () => {
+    const corpus = franchiseCorpus();
+    const libraryEntries = [{ anilistId: 1, listStatus: 'watched', genres: ['Action'], relatedIds: [], myScore: 8 }];
+    const hidden = buildShelves({ corpusEntries: corpus, libraryEntries, dismissedIds: [2], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0 });
+    const shown = buildShelves({ corpusEntries: corpus, libraryEntries, dismissedIds: [2], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0, hideDismissed: false });
+    assert.deepEqual(hidden.shelves.find((s) => s.id === 'finish-what-you-started').cards.map((c) => c.anilistId), []);
+    assert.deepEqual(shown.shelves.find((s) => s.id === 'finish-what-you-started').cards.map((c) => c.anilistId), [2]);
+  });
+
+  await test('buildShelves: discoverFilters narrows the candidate pool feeding BOTH a named shelf and an active mood shelf from the same call', () => {
+    const corpus = {
+      501: { anilistId: 501, genres: [], totalEpisodes: 12, normalizedScore: 9, popularity: 100, studio: 'Keep Studio', tags: [], staff: [], relations: [] }, // passes the studio filter
+      502: { anilistId: 502, genres: [], totalEpisodes: 12, normalizedScore: 9, popularity: 100, studio: 'Drop Studio', tags: [], staff: [], relations: [] }, // fails it
+    };
+    const result = buildShelves({
+      corpusEntries: corpus,
+      libraryEntries: [],
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs: Date.now(),
+      localDay: '2026-08-10',
+      rng: () => 0,
+      discoverFilters: { studio: 'Keep Studio' },
+      activeMoodId: 'peak-fiction',
+      timeSemantics: MOOD_TIME_SEMANTICS,
+    });
+    const gemIds = result.shelves.find((s) => s.id === 'hidden-gems').cards.map((c) => c.anilistId);
+    assert.deepEqual(gemIds, [501], 'the named shelf never even sees 502 — filtered out of allCorpusCandidates itself');
+    assert.deepEqual(result.moodShelf.cards.map((c) => c.anilistId), [501], 'the mood shelf draws from the exact same pre-filtered pool');
+  });
+
+  // -------------------------------------------------------------------------
+  // discoverFiltersExport.js (public/js/discoverFiltersExport.js) — P5B.3's
+  // "Copy link" sharing: plain, readable URL query params, pure/no-DOM.
+  // -------------------------------------------------------------------------
+  console.log('discoverFiltersExport.js');
+  const discoverFiltersExportUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'discoverFiltersExport.js').replace(/\\/g, '/');
+  const { buildFilterQueryParams, hasDiscoverFilterParams, parseFilterQueryParams } = await import(discoverFiltersExportUrl);
+
+  await test('buildFilterQueryParams: an all-default filter object produces empty params, never a noisy link', () => {
+    const params = buildFilterQueryParams({ yearMin: null, studio: '', includeTags: [], enforcePrerequisiteChain: true, hideDismissed: true });
+    assert.equal(params.toString(), '');
+  });
+
+  await test('buildFilterQueryParams/parseFilterQueryParams round-trip a real filter object exactly', () => {
+    const filters = {
+      yearMin: 2015, yearMax: 2020, episodeMin: null, episodeMax: 26, scoreMin: 7.5, scoreMax: null,
+      memberMin: null, memberMax: 50000, studio: 'Kyoto Animation', source: 'LIGHT_NOVEL', staffQuery: 'Yamada',
+      format: 'TV', airingStatus: 'FINISHED', includeTags: ['Isekai', 'Tragedy'], excludeTags: ['Ecchi'],
+      maxLengthMinutes: 180, enforcePrerequisiteChain: false, hideDismissed: true,
+    };
+    const params = buildFilterQueryParams(filters);
+    assert.equal(hasDiscoverFilterParams(params), true);
+    const parsed = parseFilterQueryParams(params);
+    assert.deepEqual(parsed, filters);
+  });
+
+  await test('buildFilterQueryParams: hideDismissed (default true) is only written when explicitly false, keeping a range-only link short', () => {
+    const params = buildFilterQueryParams({ yearMin: 2015, hideDismissed: true, enforcePrerequisiteChain: true });
+    assert.equal(params.has('df_hideDismissed'), false);
+    assert.equal(params.has('df_enforcePrerequisiteChain'), false);
+    const params2 = buildFilterQueryParams({ hideDismissed: false });
+    assert.equal(params2.get('df_hideDismissed'), '0');
+  });
+
+  await test('hasDiscoverFilterParams: false when the URL carries no df_* params at all, distinguishing "nothing to import" from "everything default"', () => {
+    assert.equal(hasDiscoverFilterParams(new URLSearchParams('tab=discover')), false);
+    assert.equal(hasDiscoverFilterParams(new URLSearchParams('df_studio=X')), true);
+  });
+
+  await test('parseFilterQueryParams: rejects a present-but-malformed param outright, same "reject never repair" convention as appearanceExport.js', () => {
+    assert.equal(parseFilterQueryParams(new URLSearchParams('df_yearMin=notanumber')), null);
+    assert.equal(parseFilterQueryParams(new URLSearchParams('df_hideDismissed=maybe')), null);
+    assert.notEqual(parseFilterQueryParams(new URLSearchParams('df_studio=Ghibli')), null, 'a well-formed string param must still parse fine');
   });
 
   // -------------------------------------------------------------------------
