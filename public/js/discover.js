@@ -6,6 +6,9 @@ import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle
 import { EventLog } from './eventLog.js';
 import { copy } from './copy.js';
 import { isNoopSort, dateSortValue, compareValues, DEFAULT_SORT_DIR } from './sortLogic.js';
+import { score } from './scorer.js';
+import { TasteProfile } from './tasteProfile.js';
+import { RECOMMENDATIONS } from '../../config/tuning.js';
 
 const SEED_BATCH_SIZE = 5;
 const RECS_PER_SEED = 25;
@@ -241,6 +244,44 @@ export function getDiscoverState() {
     // P5B.1) doesn't exist yet. See corpus.js's own header comment.
     corpusStatus: Corpus.getStatus(),
   };
+}
+
+// P5A.3's debug panel data. Discover's own ranking is still the P1-era
+// seed-based pool above — the real corpus-scored shelves are P5A.4's/
+// P5B.1's job and don't exist yet — so this scores whatever's CURRENTLY
+// displayed against the corpus + taste profile that already exist, purely
+// for visibility into the scorer ahead of that real integration (same
+// forward-dependency shape as this module's own corpusStatus signal).
+// Fetches the full corpus cache fresh on every call rather than caching it
+// — this is an on-demand dev toggle, never called during normal rendering,
+// so the extra request is a non-issue and guarantees the breakdown always
+// reflects the corpus's current contents.
+async function buildScorerDebugRows() {
+  const [corpusCache, tasteProfile] = await Promise.all([Api.getCorpusCache(), TasteProfile.refreshProfile().catch(() => TasteProfile.getProfile())]);
+  const corpusEntries = corpusCache.entries || {};
+  const libraryEntries = Store.getEntries();
+  const droppedTitles = libraryEntries
+    .filter((e) => e.listStatus === 'dropped')
+    .map((e) => ({ genres: e.genres, episode: e.episodesWatched, totalEpisodes: e.totalEpisodes }));
+  const libraryRelatedIds = new Set(libraryEntries.flatMap((e) => e.relatedIds || []));
+  const context = {
+    nowMs: Date.now(),
+    // No adventurousness slider exists yet (P5B.2/P5B.3's own future UI) —
+    // the midpoint is a neutral placeholder, not a real user preference.
+    adventurousness: (RECOMMENDATIONS.adventurousness.min + RECOMMENDATIONS.adventurousness.max) / 2,
+    tuning: RECOMMENDATIONS,
+    droppedTitles,
+    libraryRelatedIds,
+  };
+
+  const { items } = getDiscoverState();
+  return items.slice(0, discoverState.visibleCount).map((item) => {
+    const media = item.media;
+    const title = media.title.english || media.title.romaji;
+    const candidate = corpusEntries[String(media.id)];
+    if (!candidate) return { anilistId: media.id, title, inCorpus: false };
+    return { anilistId: media.id, title, inCorpus: true, ...score(candidate, tasteProfile, context) };
+  });
 }
 
 let lastRenderedCorpusStatusKey = null;
@@ -480,4 +521,5 @@ export const Discover = {
   initDiscover,
   getDiscoverState,
   ensureFreshOnOpen,
+  buildScorerDebugRows,
 };

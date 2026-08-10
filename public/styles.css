@@ -2077,6 +2077,16 @@ kbd {
 .coldstart-tile .check { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-fill); color: var(--accent-contrast); display: none; align-items: center; justify-content: center; font: var(--t-meta); }
 .coldstart-tile.on .check { display: flex; }
 
+/* P5A.3's scorer debug panel — a plain stacked list, not a grid; each card
+   is one Discover candidate's full score breakdown. */
+.scorer-debug-body { display: flex; flex-direction: column; gap: var(--sp-3); max-height: 460px; overflow-y: auto; margin-top: var(--sp-3); }
+.scorer-debug-card { border: 1px solid var(--line); border-radius: 8px; padding: var(--sp-3); }
+.scorer-debug-head { display: flex; justify-content: space-between; align-items: baseline; font: var(--t-card); }
+.scorer-debug-total { font-variant-numeric: tabular-nums; color: var(--accent-lit); }
+.scorer-debug-terms { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 2px; }
+.scorer-debug-term { display: grid; grid-template-columns: 1fr auto auto; gap: var(--sp-2); font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; }
+.scorer-debug-term span:last-child { text-align: right; min-width: 4.5ch; }
+
 /* P6.1: the "Custom" tile lives inside the same .themegrid as the curated
    presets (same button/.on states apply for free) — .custom-swatch is a
    single solid preview instead of .sw2's two-accent-dot pair, since a

@@ -291,6 +291,19 @@
     </div>
   </div>
 
+  <!-- P5A.3's scorer debug panel — hidden dev toggle (press 'd' while on
+       the Discover tab), never a normal Settings row. Scores whatever
+       Discover is currently showing against the corpus + taste profile;
+       real ranking integration is P5A.4's/P5B.1's own job. -->
+  <div id="scorer-debug-overlay" class="overlay" hidden>
+    <div class="overlay-panel" style="max-width:640px">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Scorer debug</h2>
+      <p class="notifications-description">Score breakdown for what Discover is showing right now. Press "d" again to close.</p>
+      <div id="scorer-debug-body" class="scorer-debug-body"></div>
+    </div>
+  </div>
+
   <!-- Episode notifications settings overlay -->
   <div id="notifications-overlay" class="overlay" hidden>
     <div class="overlay-panel">

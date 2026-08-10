@@ -2334,6 +2334,53 @@ function tasteProfileStatusText(profile) {
   return `${base} Redoing the picker adds fresh picks on top of your ratings — it does not remove anything you've already rated.`;
 }
 
+// P5A.3's scorer debug panel — every additive/subtractive term the spec's
+// own score() formula names, in the same order it's written there, plus its
+// own tuning weight key and sign (serendipity has neither: it's already the
+// raw contribution, not a value*weight product).
+const SCORER_TERMS = [
+  ['genreAffinity', 'Genre affinity', 'wGenre', 1],
+  ['tagAffinity', 'Tag affinity', 'wTag', 1],
+  ['studioAffinity', 'Studio affinity', 'wStudio', 1],
+  ['staffAffinity', 'Staff affinity', 'wStaff', 1],
+  ['normalisedGlobalScore', 'Global score', 'wGlobal', 1],
+  ['recencyBoost', 'Recency boost', 'wRecent', 1],
+  ['lengthMismatchPenalty', 'Length mismatch', 'pLength', -1],
+  ['similarityToDroppedPenalty', 'Similar to dropped', 'pSimilar', -1],
+  ['franchiseAlreadySeenPenalty', 'Franchise already seen', 'pSeen', -1],
+];
+
+function scorerDebugRowHtml(row) {
+  if (!row.inCorpus) {
+    return `
+    <div class="scorer-debug-card">
+      <div class="scorer-debug-head"><span class="scorer-debug-title">${escapeHtml(row.title)}</span><span class="scorer-debug-total">not yet in the corpus</span></div>
+    </div>`;
+  }
+  const terms = SCORER_TERMS.map(([key, label, weightKey, sign]) => {
+    const value = row.breakdown[key];
+    const weight = row.weights[weightKey];
+    const contribution = sign * weight * value;
+    return `<div class="scorer-debug-term"><span>${escapeHtml(label)}</span><span>${value.toFixed(2)} × ${weight}${sign < 0 ? ' (−)' : ''}</span><span>${contribution >= 0 ? '+' : ''}${contribution.toFixed(2)}</span></div>`;
+  }).join('');
+  const serendipityRow = `<div class="scorer-debug-term"><span>Serendipity</span><span>—</span><span>+${row.breakdown.serendipity.toFixed(2)}</span></div>`;
+  return `
+    <div class="scorer-debug-card">
+      <div class="scorer-debug-head"><span class="scorer-debug-title">${escapeHtml(row.title)}</span><span class="scorer-debug-total">${row.total.toFixed(2)}</span></div>
+      <div class="scorer-debug-terms">${terms}${serendipityRow}</div>
+    </div>`;
+}
+
+// `rows` is whatever Discover.buildScorerDebugRows() resolved to — this
+// function never fetches or scores anything itself.
+function renderScorerDebugPanel(container, rows) {
+  if (!rows.length) {
+    container.innerHTML = '<p class="card-meta">Nothing on screen to score yet — open Discover with some candidates loaded.</p>';
+    return;
+  }
+  container.innerHTML = rows.map(scorerDebugRowHtml).join('');
+}
+
 // P5A.2's cold-start onboarding grid. `candidates` is whatever
 // TasteProfile.buildColdStartCandidates() resolved to (each already carries
 // its own coverImage, possibly null if the live batch fetch failed for that
@@ -2562,6 +2609,7 @@ export const Render = {
   stepsHtml,
   renderSettingsPanel,
   renderColdStartOverlay,
+  renderScorerDebugPanel,
   renderHelpPanel,
   setHelpTab,
   showToast,
