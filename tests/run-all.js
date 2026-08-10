@@ -3892,6 +3892,15 @@ async function run() {
     pickRotatingAnchors,
     becauseYouLikedMatches,
     formatBecauseYouLiked,
+    isCommunityClassic,
+    isIronicallyEssential,
+    currentSeason,
+    isAiringThisSeason,
+    touchedGenres,
+    genreAverageScores,
+    directorNamesOf,
+    findFavoriteStudioAndDirector,
+    formatBlindSpot,
     buildShelves,
   } = await import(shelvesLogicUrl);
 
@@ -3900,6 +3909,12 @@ async function run() {
     hiddenGem: RECOMMENDATIONS.hiddenGem,
     genreDiversityCapRatio: RECOMMENDATIONS.genreDiversityCapRatio,
     primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority,
+    blindSpot: RECOMMENDATIONS.blindSpot,
+    highNotoriety: RECOMMENDATIONS.highNotoriety,
+    communityClassic: RECOMMENDATIONS.communityClassic,
+    ironicallyEssential: RECOMMENDATIONS.ironicallyEssential,
+    directorRoles: RECOMMENDATIONS.directorRoles,
+    favoriteMinScore: RECOMMENDATIONS.favoriteMinScore,
   };
 
   // Fixture corpus: a 3-entry franchise chain (S1 <- S2 <- S3, PREQUEL
@@ -3951,6 +3966,82 @@ async function run() {
     assert.equal(saga.hiddenCount, 2);
     const movie = groups.find((g) => g.entryPoint.anilistId === 99);
     assert.equal(movie.hiddenCount, 0);
+  });
+
+  await test('collapseFranchises regression: a prequel that AIRED LATER than its own sequel still wins the entry-point slot, not seasonYear', () => {
+    // A real production-corpus case, not a contrived one: AniList's
+    // "Attack on Titan: No Regrets" OVA (seasonYear 2015) is a genuine
+    // PREQUEL to "Attack on Titan" TV (seasonYear 2013) — the prequel
+    // story was told in a side release that came out two years after the
+    // original aired. Picking by seasonYear alone previously chose the
+    // SEQUEL (2013, earlier) as the displayed entry point, which then
+    // disagreed with resolveFranchiseEntryPoint's own PREQUEL-graph walk
+    // and silently defeated hideOwned whenever that wrongly-chosen
+    // "entry point" happened to already be owned.
+    const corpus = {
+      16498: { anilistId: 16498, titleRomaji: 'Attack on Titan', seasonYear: 2013, relations: [{ relationType: 'PREQUEL', relatedId: 20811, relatedType: 'ANIME' }] },
+      20811: { anilistId: 20811, titleRomaji: 'Attack on Titan: No Regrets', seasonYear: 2015, relations: [{ relationType: 'SEQUEL', relatedId: 16498, relatedType: 'ANIME' }] },
+    };
+    const groups = collapseFranchises(Object.values(corpus));
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].entryPoint.anilistId, 20811, 'the true narrative prequel wins, despite airing later');
+    assert.equal(groups[0].hiddenCount, 1);
+  });
+
+  await test('collapseFranchises: falls back to earliest seasonYear when the graph names zero or more than one root', () => {
+    // Zero roots: a pure PREQUEL cycle (a corpus data error, not a real
+    // franchise) — every member has a PREQUEL edge, so there's no
+    // singular graph-topology answer; seasonYear is the only signal left.
+    const cycle = {
+      1: { anilistId: 1, seasonYear: 2020, relations: [{ relationType: 'PREQUEL', relatedId: 2, relatedType: 'ANIME' }] },
+      2: { anilistId: 2, seasonYear: 2019, relations: [{ relationType: 'PREQUEL', relatedId: 1, relatedType: 'ANIME' }] },
+    };
+    assert.equal(collapseFranchises(Object.values(cycle))[0].entryPoint.anilistId, 2, 'earliest seasonYear among all members, the only signal a cycle leaves');
+
+    // Also zero CHAIN roots (not the same as zero roots outright): two
+    // entries connected only via SIDE_STORY, never PREQUEL/SEQUEL —
+    // neither is eligible as a chain root at all (no PREQUEL/SEQUEL edge
+    // whatsoever), so this falls back to seasonYear the same way a cycle
+    // does, just via the "nobody is chain-eligible" path.
+    const sideStoryOnly = {
+      10: { anilistId: 10, seasonYear: 2020, relations: [{ relationType: 'SIDE_STORY', relatedId: 20, relatedType: 'ANIME' }] },
+      20: { anilistId: 20, seasonYear: 2015, relations: [{ relationType: 'SIDE_STORY', relatedId: 10, relatedType: 'ANIME' }] },
+    };
+    assert.equal(collapseFranchises(Object.values(sideStoryOnly))[0].entryPoint.anilistId, 20, 'neither is chain-eligible (no PREQUEL/SEQUEL edge at all), so seasonYear breaks the tie');
+  });
+
+  await test('collapseFranchises regression: real AniList data — compilation-movie/recap satellites never win the entry-point slot, and the LONGER of two competing chains does', () => {
+    // The exact real cluster this fix was written against (this app's
+    // own seeded corpus, "Shingeki no Kyojin" / Attack on Titan): the
+    // full 4-relation-type cluster contains the main 5-entry TV chain
+    // (20811 -> 16498 -> 20958 -> 99147 -> 104578), a SEPARATE 3-entry
+    // recap-movie chain (20691 -> 20692 -> 100465) connected to the main
+    // cluster only via SIDE_STORY/PARENT edges (not modelled here since
+    // this fixture only needs the PREQUEL/SEQUEL edges that matter for
+    // chain-root detection — a real SIDE_STORY tie is exercised by the
+    // sideStoryOnly fixture above), and 3 isolated satellites with no
+    // PREQUEL/SEQUEL edge of their own (a recap compilation, a spin-off,
+    // a plain OVA). The chain-root set is exactly {20811, 20691} — the 3
+    // satellites are excluded even though they also have no PREQUEL edge,
+    // because they have no PREQUEL/SEQUEL edge AT ALL. The main chain (5)
+    // outranks the recap-movie chain (3), so 20811 wins.
+    const corpus = {
+      16498: { anilistId: 16498, seasonYear: 2013, relations: [{ relationType: 'SEQUEL', relatedId: 20958, relatedType: 'ANIME' }, { relationType: 'PREQUEL', relatedId: 20811, relatedType: 'ANIME' }, { relationType: 'SIDE_STORY', relatedId: 119113, relatedType: 'ANIME' }] },
+      20811: { anilistId: 20811, seasonYear: 2015, relations: [{ relationType: 'SEQUEL', relatedId: 16498, relatedType: 'ANIME' }] },
+      20958: { anilistId: 20958, seasonYear: 2017, relations: [{ relationType: 'PREQUEL', relatedId: 16498, relatedType: 'ANIME' }, { relationType: 'SEQUEL', relatedId: 99147, relatedType: 'ANIME' }] },
+      99147: { anilistId: 99147, seasonYear: 2018, relations: [{ relationType: 'PREQUEL', relatedId: 20958, relatedType: 'ANIME' }, { relationType: 'SEQUEL', relatedId: 104578, relatedType: 'ANIME' }] },
+      104578: { anilistId: 104578, seasonYear: 2019, relations: [{ relationType: 'PREQUEL', relatedId: 99147, relatedType: 'ANIME' }] },
+      20691: { anilistId: 20691, seasonYear: 2014, relations: [{ relationType: 'SEQUEL', relatedId: 20692, relatedType: 'ANIME' }, { relationType: 'PARENT', relatedId: 16498, relatedType: 'ANIME' }] },
+      20692: { anilistId: 20692, seasonYear: 2015, relations: [{ relationType: 'PREQUEL', relatedId: 20691, relatedType: 'ANIME' }, { relationType: 'SEQUEL', relatedId: 100465, relatedType: 'ANIME' }] },
+      100465: { anilistId: 100465, seasonYear: 2018, relations: [{ relationType: 'PREQUEL', relatedId: 20692, relatedType: 'ANIME' }] },
+      119113: { anilistId: 119113, seasonYear: 2020, relations: [{ relationType: 'SIDE_STORY', relatedId: 16498, relatedType: 'ANIME' }] }, // recap compilation, no PREQUEL/SEQUEL edge of its own
+      99634: { anilistId: 99634, seasonYear: 2017, relations: [{ relationType: 'PARENT', relatedId: 16498, relatedType: 'ANIME' }] }, // spin-off
+      18397: { anilistId: 18397, seasonYear: 2013, relations: [{ relationType: 'SIDE_STORY', relatedId: 16498, relatedType: 'ANIME' }] }, // plain OVA, earliest seasonYear of the whole cluster — must NOT win just for that
+    };
+    const groups = collapseFranchises(Object.values(corpus));
+    assert.equal(groups.length, 1, 'every member is relation-connected via at least one FRANCHISE_RELATION_TYPES edge, so this is one cluster');
+    assert.equal(groups[0].entryPoint.anilistId, 20811, 'the longer main chain\'s own root wins over the shorter recap-movie chain\'s root and every isolated satellite');
+    assert.equal(groups[0].hiddenCount, 10);
   });
 
   await test('applyDiversityCap: caps one primary genre at the configured ratio when enough alternatives exist', () => {
@@ -4121,6 +4212,194 @@ async function run() {
     const shown = buildShelves({ corpusEntries: corpus, libraryEntries, dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', hideOwned: false, rng: () => 0 });
     assert.equal(hidden.shelves.find((s) => s.id === 'hidden-gems').cards.length, 0);
     assert.equal(shown.shelves.find((s) => s.id === 'hidden-gems').cards.length, 1);
+  });
+
+  // -------------------------------------------------------------------------
+  // P5B.1's own 6 shelves (5-9 of the spec's "Shelves 5 to 10" — 10 has no
+  // social/list-comparison layer and is deferred to the backlog).
+  // -------------------------------------------------------------------------
+
+  await test('isCommunityClassic/isIronicallyEssential: exact opposite quadrants of the score/popularity plane', () => {
+    const opts = { minNormalizedScore: SHELVES_TUNING.communityClassic.minNormalizedScore, minPopularity: SHELVES_TUNING.highNotoriety.minPopularity };
+    assert.equal(isCommunityClassic({ normalizedScore: 8, popularity: 200000 }, opts), true);
+    assert.equal(isCommunityClassic({ normalizedScore: 8, popularity: 1000 }, opts), false, 'high score alone is a hidden gem territory, not a community classic');
+    assert.equal(isCommunityClassic({ normalizedScore: 5, popularity: 200000 }, opts), false, 'high popularity alone is not enough');
+
+    const ironicOpts = { maxNormalizedScore: SHELVES_TUNING.ironicallyEssential.maxNormalizedScore, minPopularity: SHELVES_TUNING.highNotoriety.minPopularity };
+    assert.equal(isIronicallyEssential({ normalizedScore: 3, popularity: 200000 }, ironicOpts), true);
+    assert.equal(isIronicallyEssential({ normalizedScore: 8, popularity: 200000 }, ironicOpts), false, 'a high score disqualifies it, however popular');
+    assert.equal(isIronicallyEssential({ normalizedScore: 3, popularity: 1000 }, ironicOpts), false, 'low notoriety disqualifies it, however low the score');
+  });
+
+  await test('currentSeason/isAiringThisSeason: AniList\'s calendar-quarterly boundaries', () => {
+    assert.deepEqual(currentSeason(new Date('2026-01-15').getTime()), { season: 'WINTER', seasonYear: 2026 });
+    assert.deepEqual(currentSeason(new Date('2026-04-01').getTime()), { season: 'SPRING', seasonYear: 2026 });
+    assert.deepEqual(currentSeason(new Date('2026-07-31').getTime()), { season: 'SUMMER', seasonYear: 2026 });
+    assert.deepEqual(currentSeason(new Date('2026-12-25').getTime()), { season: 'FALL', seasonYear: 2026 });
+    const current = { season: 'SUMMER', seasonYear: 2026 };
+    assert.equal(isAiringThisSeason({ season: 'SUMMER', seasonYear: 2026 }, current), true);
+    assert.equal(isAiringThisSeason({ season: 'SUMMER', seasonYear: 2025 }, current), false, 'same season, wrong year');
+    assert.equal(isAiringThisSeason({ season: 'FALL', seasonYear: 2026 }, current), false, 'same year, wrong season');
+  });
+
+  await test('touchedGenres: every genre on any library entry, regardless of status or rating', () => {
+    const entries = [
+      { genres: ['Action', 'Drama'], listStatus: 'watched', myScore: 9 },
+      { genres: ['Comedy'], listStatus: 'watchlist', myScore: null },
+      { genres: ['Horror'], listStatus: 'dropped', myScore: 2 },
+    ];
+    const touched = touchedGenres(entries);
+    assert.deepEqual([...touched].sort(), ['Action', 'Comedy', 'Drama', 'Horror']);
+  });
+
+  await test('genreAverageScores: a genre-wide average, gated on a minimum sample size', () => {
+    const candidates = [
+      { genres: ['Mecha'], normalizedScore: 9 },
+      { genres: ['Mecha'], normalizedScore: 7 },
+      { genres: ['Josei'], normalizedScore: 9.5 }, // only 1 sample — must not count as "strong critical standing"
+    ];
+    const averages = genreAverageScores(candidates, 2);
+    assert.equal(averages.Mecha, 8);
+    assert.equal('Josei' in averages, false, 'below the minimum sample size, excluded entirely');
+  });
+
+  await test('directorNamesOf: the narrow allowlist excludes dub/episode/sound director credits', () => {
+    const candidate = {
+      staff: [
+        { role: 'Director', name: 'Real Director' },
+        { role: 'Chief Director', name: 'Also Real' },
+        { role: 'ADR Director (English)', name: 'Dub Director' },
+        { role: 'Episode Director (ep 8)', name: 'Episode Director' },
+        { role: 'Sound Director', name: 'Sound Director' },
+      ],
+    };
+    assert.deepEqual(directorNamesOf(candidate, SHELVES_TUNING.directorRoles).sort(), ['Also Real', 'Real Director']);
+  });
+
+  await test('findFavoriteStudioAndDirector: the single highest-scoring qualifying entry decides both, floor and missing-corpus-data respected', () => {
+    const corpus = {
+      1: { anilistId: 1, studio: 'Studio A', staff: [{ role: 'Director', name: 'Director A' }] },
+      2: { anilistId: 2, studio: 'Studio B', staff: [{ role: 'Director', name: 'Director B' }] },
+    };
+    const libraryEntries = [
+      { anilistId: 1, myScore: 9, titleEnglish: 'Show A' },
+      { anilistId: 2, myScore: 8, titleEnglish: 'Show B' }, // lower score than #1 — must lose
+      { anilistId: 3, myScore: 10, titleEnglish: 'Not in corpus' }, // no corpus record — must be skipped
+      { anilistId: 4, myScore: 6, titleEnglish: 'Below the floor' }, // has no corpus record either, but even if it did, 6 < favoriteMinScore(7)
+    ];
+    const { bestStudio, bestDirector } = findFavoriteStudioAndDirector(libraryEntries, corpus, { directorRoles: SHELVES_TUNING.directorRoles, minScore: SHELVES_TUNING.favoriteMinScore });
+    assert.deepEqual(bestStudio, { name: 'Studio A', score: 9, anchorTitle: 'Show A' });
+    assert.deepEqual(bestDirector, { name: 'Director A', score: 9, anchorTitle: 'Show A' });
+  });
+
+  await test('findFavoriteStudioAndDirector: null for both when nothing clears the floor or has corpus data', () => {
+    const { bestStudio, bestDirector } = findFavoriteStudioAndDirector([{ anilistId: 1, myScore: 5, titleEnglish: 'Mediocre' }], { 1: { studio: 'Studio A', staff: [] } }, { directorRoles: SHELVES_TUNING.directorRoles, minScore: SHELVES_TUNING.favoriteMinScore });
+    assert.equal(bestStudio, null);
+    assert.equal(bestDirector, null);
+  });
+
+  await test('formatBlindSpot: cites whichever of the candidate\'s qualifying genres has the highest average', () => {
+    const candidate = { genres: ['Mecha', 'Josei', 'Sports'] };
+    const blindSpotGenres = new Set(['Mecha', 'Josei']); // Sports doesn't qualify, must be ignored even though the candidate carries it
+    const genreAverages = { Mecha: 7.2, Josei: 8.4, Sports: 9.9 };
+    assert.equal(formatBlindSpot(candidate, blindSpotGenres, genreAverages), "You've never watched Josei — but it's critically well-regarded (avg 8.4/10). A stretch, but worth trying.");
+  });
+
+  // Fixture corpus exercising all 6 new shelves at once, so the buildShelves
+  // integration tests below prove the real wiring, not just each predicate
+  // in isolation.
+  function p5b1Corpus(nowMs) {
+    const { season, seasonYear } = currentSeason(nowMs);
+    return {
+      // Blind spot: Mecha, never touched by the library below. 5 entries
+      // (the tuning's own minCandidatesForGenre floor) averaging 7.3,
+      // clearing the 7.0 bar; 501 is the clear highest scorer and must win
+      // the shelf's single slot.
+      501: { anilistId: 501, titleRomaji: 'Mecha Classic', genres: ['Mecha'], totalEpisodes: 24, normalizedScore: 8, popularity: 5000, tags: [], staff: [], relations: [] },
+      502: { anilistId: 502, titleRomaji: 'Mecha Sequel Bait', genres: ['Mecha'], totalEpisodes: 24, normalizedScore: 6, popularity: 5000, tags: [], staff: [], relations: [] },
+      508: { anilistId: 508, titleRomaji: 'Mecha Filler 1', genres: ['Mecha'], totalEpisodes: 24, normalizedScore: 7.5, popularity: 5000, tags: [], staff: [], relations: [] },
+      509: { anilistId: 509, titleRomaji: 'Mecha Filler 2', genres: ['Mecha'], totalEpisodes: 24, normalizedScore: 7.5, popularity: 5000, tags: [], staff: [], relations: [] },
+      510: { anilistId: 510, titleRomaji: 'Mecha Filler 3', genres: ['Mecha'], totalEpisodes: 24, normalizedScore: 7.5, popularity: 5000, tags: [], staff: [], relations: [] },
+      // From the studio / From the director: matches the library's own
+      // highest-rated entry's studio and director (anchor id 1, not in
+      // this corpus object — see libraryEntries below).
+      503: { anilistId: 503, titleRomaji: 'Same Studio Show', genres: ['Drama'], totalEpisodes: 24, normalizedScore: 6, popularity: 900000, studio: 'Ghibli-like Studio', staff: [], tags: [], relations: [] },
+      504: { anilistId: 504, titleRomaji: 'Same Director Show', genres: ['Drama'], totalEpisodes: 24, normalizedScore: 6, popularity: 900000, staff: [{ role: 'Director', name: 'Beloved Director' }], tags: [], relations: [] },
+      // Community classic: high score, huge popularity.
+      505: { anilistId: 505, titleRomaji: 'Universally Loved', genres: ['Comedy'], totalEpisodes: 24, normalizedScore: 8.5, popularity: 500000, tags: [], staff: [], relations: [] },
+      // This season: matches the real current season/year.
+      506: { anilistId: 506, titleRomaji: 'Airing Now', genres: ['Comedy'], totalEpisodes: 12, normalizedScore: 6, popularity: 900000, season, seasonYear, tags: [], staff: [], relations: [] },
+      // Ironically essential: low score, huge popularity.
+      507: { anilistId: 507, titleRomaji: 'So Bad Everyone Watched It', genres: ['Comedy'], totalEpisodes: 24, normalizedScore: 3, popularity: 800000, tags: [], staff: [], relations: [] },
+    };
+  }
+
+  function p5b1LibraryEntries() {
+    return [
+      // The anchor for From the studio / From the director — genre
+      // ('Fantasy') deliberately shares nothing with the corpus above, so
+      // it never contaminates Because You Liked's own matching.
+      { anilistId: 1, myScore: 9, listStatus: 'watched', genres: ['Fantasy'], titleEnglish: 'Anchor Show', relatedIds: [] },
+    ];
+  }
+
+  await test('buildShelves: all 6 of P5B.1\'s own shelves surface a real card from the fixture corpus', () => {
+    const nowMs = Date.now();
+    const corpus = {
+      ...p5b1Corpus(nowMs),
+      // The anchor itself needs a corpus record so findFavoriteStudioAndDirector can read its studio/staff.
+      1: { anilistId: 1, studio: 'Ghibli-like Studio', staff: [{ role: 'Director', name: 'Beloved Director' }], genres: ['Fantasy'], tags: [], relations: [] },
+    };
+    const { shelves } = buildShelves({
+      corpusEntries: corpus,
+      libraryEntries: p5b1LibraryEntries(),
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs,
+      localDay: '2026-08-10',
+      rng: () => 0,
+    });
+    assert.deepEqual(
+      shelves.map((s) => s.id),
+      ['because-you-liked', 'finish-what-you-started', 'hidden-gems', 'short-and-finishable', 'blind-spot', 'from-studio', 'from-director', 'community-classics', 'this-season', 'ironically-essential'],
+      'exactly 10 shelves, in this order, none dropped'
+    );
+    const byId = new Map(shelves.map((s) => [s.id, s]));
+    assert.ok(byId.get('blind-spot').cards.map((c) => c.anilistId).includes(501), 'the higher-scoring of the two blind-spot candidates wins the single slot');
+    assert.equal(byId.get('blind-spot').cards.length, 1, '"the single best entry point" — never more than one card');
+    assert.ok(byId.get('from-studio').cards.some((c) => c.anilistId === 503));
+    assert.ok(byId.get('from-director').cards.some((c) => c.anilistId === 504));
+    assert.ok(byId.get('community-classics').cards.some((c) => c.anilistId === 505));
+    assert.ok(byId.get('this-season').cards.some((c) => c.anilistId === 506));
+    assert.ok(byId.get('ironically-essential').cards.some((c) => c.anilistId === 507));
+  });
+
+  await test('buildShelves: This season, for you never surfaces a title from a different season or year', () => {
+    const nowMs = new Date('2026-07-15').getTime(); // SUMMER 2026
+    const corpus = {
+      1: { anilistId: 1, genres: ['Comedy'], totalEpisodes: 12, normalizedScore: 6, season: 'SUMMER', seasonYear: 2026, tags: [], staff: [], relations: [] }, // matches
+      2: { anilistId: 2, genres: ['Comedy'], totalEpisodes: 12, normalizedScore: 6, season: 'SUMMER', seasonYear: 2025, tags: [], staff: [], relations: [] }, // wrong year
+      3: { anilistId: 3, genres: ['Comedy'], totalEpisodes: 12, normalizedScore: 6, season: 'FALL', seasonYear: 2026, tags: [], staff: [], relations: [] }, // wrong season
+    };
+    const { shelves } = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs, localDay: '2026-08-10', rng: () => 0 });
+    const ids = shelves.find((s) => s.id === 'this-season').cards.map((c) => c.anilistId);
+    assert.deepEqual(ids, [1]);
+  });
+
+  await test('buildShelves: Blind spot reports why it\'s empty, distinguishing "no genre qualifies" from "already tried it"', () => {
+    const corpus = { 1: { anilistId: 1, genres: ['Comedy'], totalEpisodes: 24, normalizedScore: 5, popularity: 100, tags: [], staff: [], relations: [] } };
+    const noneQualify = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0 });
+    const blindSpotEmpty = noneQualify.shelves.find((s) => s.id === 'blind-spot');
+    assert.equal(blindSpotEmpty.empty, true);
+    assert.equal(blindSpotEmpty.emptyReason, 'Nothing stands out as a blind spot yet — check back as the corpus grows.');
+  });
+
+  await test('buildShelves: From the studio/From the director are both empty (not erroring) when no favorite can be determined', () => {
+    const corpus = { 1: { anilistId: 1, genres: ['Comedy'], totalEpisodes: 24, normalizedScore: 5, popularity: 100, tags: [], staff: [], relations: [] } };
+    const { shelves } = buildShelves({ corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0 });
+    assert.equal(shelves.find((s) => s.id === 'from-studio').empty, true);
+    assert.equal(shelves.find((s) => s.id === 'from-director').empty, true);
   });
 
   // -------------------------------------------------------------------------
