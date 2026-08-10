@@ -36,6 +36,13 @@ function pruneMediaFields(raw) {
     genres: raw.genres || [],
     normalizedScore: typeof raw.averageScore === 'number' ? Math.round(raw.averageScore) / 10 : null,
     popularity: typeof raw.popularity === 'number' ? raw.popularity : 0,
+    // AniList's "source material" enum (ORIGINAL/MANGA/LIGHT_NOVEL/...) —
+    // added by P5A.2 for its "source material" affinity dimension. An
+    // already-seeded entry from before this field existed simply has
+    // `source: null` until the weekly refresh naturally re-fetches it
+    // (P5A.1's own PUT-merge semantics update a known id in place) —
+    // graceful degradation, not a migration, since this is Class B.
+    source: raw.source ?? null,
     studio: raw.studios?.nodes?.[0]?.name ?? null,
     tags: (raw.tags || []).map((t) => ({ name: t.name, category: t.category, rank: t.rank })),
     staff: (raw.staff?.edges || []).map((e) => ({ role: e.role, name: e.node?.name?.full ?? null })),

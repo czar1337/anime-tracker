@@ -3040,7 +3040,11 @@ async function run() {
   });
 
   await test('CLASS_B_STORES registers corpusCache last, per rule 4\'s eviction order', () => {
-    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['recommendationsCache', 'airingCache', 'upcomingCache', 'corpusCache']);
+    // P5A.2 inserted tasteProfileCache directly before airingCache — the one
+    // relative position the spec's own rule 4 text names explicitly ("then
+    // the taste profile, then the airing store") — without relitigating
+    // P1.2's own pre-existing airing-before-upcoming order.
+    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['recommendationsCache', 'tasteProfileCache', 'airingCache', 'upcomingCache', 'corpusCache']);
   });
 
   await test('selectCorpusEvictionCandidates: never selects a library id, even when it has the lowest popularity', () => {
@@ -3296,6 +3300,7 @@ async function run() {
     genres: ['Action', 'Drama'],
     averageScore: 85,
     popularity: 1036850,
+    source: 'MANGA',
     studios: { nodes: [{ name: 'WIT STUDIO' }] },
     tags: [{ name: 'Kaiju', category: 'Theme-Fantasy', rank: 93, isMediaSpoiler: false }],
     staff: { edges: [{ role: 'Director', node: { name: { full: 'Some Person' } } }] },
@@ -3314,6 +3319,7 @@ async function run() {
     assert.equal(pruned.duration, 24);
     assert.deepEqual(pruned.genres, ['Action', 'Drama']);
     assert.equal(pruned.popularity, 1036850);
+    assert.equal(pruned.source, 'MANGA'); // P5A.2's "source material" affinity dimension
     assert.equal(pruned.studio, 'WIT STUDIO');
     assert.deepEqual(pruned.tags, [{ name: 'Kaiju', category: 'Theme-Fantasy', rank: 93 }]);
     assert.deepEqual(pruned.staff, [{ role: 'Director', name: 'Some Person' }]);

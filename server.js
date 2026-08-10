@@ -63,6 +63,8 @@ const UPCOMING_CACHE_FILE = path.join(DATA_DIR, 'upcoming-cache.json');
 const UPCOMING_CACHE_TMP_FILE = path.join(DATA_DIR, 'upcoming-cache.json.tmp');
 const CORPUS_CACHE_FILE = path.join(DATA_DIR, 'corpus-cache.json');
 const CORPUS_CACHE_TMP_FILE = path.join(DATA_DIR, 'corpus-cache.json.tmp');
+const TASTE_PROFILE_CACHE_FILE = path.join(DATA_DIR, 'taste-profile-cache.json');
+const TASTE_PROFILE_CACHE_TMP_FILE = path.join(DATA_DIR, 'taste-profile-cache.json.tmp');
 const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
 // P1.5's two new Class A stores. Both live in their own files rather than
 // inside library.json:
@@ -856,6 +858,98 @@ function readCorpusCache() {
   }
 }
 
+// P5A.2's taste profile — Class B, derived from the library + corpus +
+// event log, same fully-regenerable/no-backup/no-corrupt-refusal reasoning
+// as every other cache above.
+function writeTasteProfileCacheAtomic(data) {
+  const json = JSON.stringify(data);
+  const fd = fs.openSync(TASTE_PROFILE_CACHE_TMP_FILE, 'w');
+  try {
+    fs.writeSync(fd, json);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(TASTE_PROFILE_CACHE_TMP_FILE, TASTE_PROFILE_CACHE_FILE);
+}
+
+function readTasteProfileCache() {
+  const empty = { generatedAt: null, affinities: null, meanScore: null, scoreStdDev: null, ratedCount: 0, confidence: 0 };
+  if (!fs.existsSync(TASTE_PROFILE_CACHE_FILE)) return empty;
+  try {
+    return JSON.parse(fs.readFileSync(TASTE_PROFILE_CACHE_FILE, 'utf8'));
+  } catch {
+    return empty;
+  }
+}
+
+// Mirrors loadEventModules()'s exact SEA-safe data: URL technique just
+// below — public/js/tasteProfileLogic.js is a pure, import-free ESM module
+// (a data: URL cannot resolve a relative specifier, same constraint
+// loadEventModules()'s own two files are already held to) loadable either
+// from a real file (dev) or an embedded SEA asset (the packaged .exe).
+let tasteProfileModulePromise = null;
+function loadTasteProfileModule() {
+  if (!tasteProfileModulePromise) {
+    tasteProfileModulePromise = (async () => {
+      const src = IS_SEA
+        ? Buffer.from(sea.getRawAsset('public/js/tasteProfileLogic.js')).toString('utf8')
+        : fs.readFileSync(path.join(__dirname, 'public', 'js', 'tasteProfileLogic.js'), 'utf8');
+      return import(`data:text/javascript;base64,${Buffer.from(src, 'utf8').toString('base64')}`);
+    })();
+  }
+  return tasteProfileModulePromise;
+}
+
+// A FULL recompute every time, deliberately NOT a delta-fold like
+// counters.json's own incremental pattern just below in the events
+// handler: z-score affinity weighting depends on the MEAN and STANDARD
+// DEVIATION over every currently-rated entry, and a single new rating
+// changes both for every PREVIOUSLY-rated entry too, not just the new
+// one — there is no valid way to fold "just the delta" for a statistic
+// like this. "Recomputed incrementally on change" (the spec's own words)
+// is honored in the sense that actually matters here: triggered promptly
+// by each relevant mutation, never lazily deferred to render — see the
+// trigger in the POST /api/events handler below for which event types
+// warrant paying this cost.
+async function computeAndSaveTasteProfile() {
+  const { buildAffinities } = await loadTasteProfileModule();
+  const { types: EventTypes, tuning } = await loadEventModules();
+  const library = readLibrary();
+  const corpus = readCorpusCache();
+  const events = readEventLog();
+
+  const scoreTimestamps = {};
+  const drops = [];
+  const dismissals = [];
+  for (const event of events) {
+    const anilistId = EventTypes.animeIdToAnilistId(event.animeId);
+    if (anilistId === null) continue;
+    if (event.type === 'score_set' && typeof event.to === 'number') {
+      // Events are read in append order, so a later score_set for the same
+      // title always overwrites an earlier one here — only the LATEST
+      // rating's own timestamp is the relevant recency signal.
+      scoreTimestamps[String(anilistId)] = event.ts;
+    } else if (event.type === 'anime_dropped') {
+      drops.push({ anilistId, episode: event.episode });
+    } else if (event.type === 'recommendation_dismissed') {
+      dismissals.push({ anilistId });
+    }
+  }
+
+  const result = buildAffinities({
+    entries: library.entries || [],
+    corpusById: corpus.entries || {},
+    scoreTimestamps,
+    drops,
+    dismissals,
+    nowMs: Date.now(),
+    tuning: tuning.RECOMMENDATIONS,
+  });
+
+  writeTasteProfileCacheAtomic({ generatedAt: new Date().toISOString(), ...result });
+}
+
 // ---------------------------------------------------------------------------
 // Class B eviction + disk quota (P1.2) — see classBEviction.js/diskQuota.js
 // for the pure planning logic. This section is the only place that actually
@@ -864,6 +958,7 @@ function readCorpusCache() {
 
 const CLASS_B_STORE_FILES = {
   recommendationsCache: RECS_CACHE_FILE,
+  tasteProfileCache: TASTE_PROFILE_CACHE_FILE,
   airingCache: AIRING_CACHE_FILE,
   upcomingCache: UPCOMING_CACHE_FILE,
   corpusCache: CORPUS_CACHE_FILE,
@@ -915,6 +1010,8 @@ function trimCorpusCache(deficitBytes) {
 // resetter ignores that same argument, being plain zero-arg functions.
 const CLASS_B_STORE_RESETTERS = {
   recommendationsCache: () => writeRecsCacheAtomic({ generatedAt: null, items: [] }),
+  tasteProfileCache: () =>
+    writeTasteProfileCacheAtomic({ generatedAt: null, affinities: null, meanScore: null, scoreStdDev: null, ratedCount: 0, confidence: 0 }),
   airingCache: () => writeAiringCacheAtomic({ generatedAt: null, entries: {} }),
   upcomingCache: () => writeUpcomingCacheAtomic({ generatedAt: null, items: [] }),
   corpusCache: (deficitBytes) => trimCorpusCache(deficitBytes),
@@ -2050,6 +2147,23 @@ const server = http.createServer(async (req, res) => {
             // check passes and no re-fold is needed.
             updated.logBytes = fileSizeBytes(EVENTS_FILE);
             writeCountersAtomic(updated);
+
+            // P5A.2: the taste profile's own inputs are exactly these three
+            // event types — nothing else it reads (episode_watched,
+            // settings_changed, app_opened, ...) changes any affinity, so
+            // the expensive full recompute only runs when one of them is
+            // actually present in this batch.
+            if (accepted.some((e) => e.type === 'score_set' || e.type === 'anime_dropped' || e.type === 'recommendation_dismissed')) {
+              try {
+                await computeAndSaveTasteProfile();
+              } catch (err) {
+                // A derived Class B artifact failing to recompute must
+                // never fail the events write itself — the events are
+                // already durably appended by this point, and the next
+                // triggering event tries again.
+                console.error(`[taste-profile] Recompute failed: ${err.message}`);
+              }
+            }
           }
           return {
             status: 200,
@@ -2175,6 +2289,11 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/corpus' && req.method === 'GET') {
       sendJson(res, 200, readCorpusCache());
+      return;
+    }
+
+    if (pathname === '/api/taste-profile' && req.method === 'GET') {
+      sendJson(res, 200, readTasteProfileCache());
       return;
     }
 

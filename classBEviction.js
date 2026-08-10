@@ -11,7 +11,12 @@
 // caches, then API response cache, then the taste profile, then the airing
 // store, then the corpus...") mapped onto this app's real files, per
 // docs/v2-plan.md's P1.2 entry: recommendations cache, then airing cache,
-// then upcoming cache, then (once it exists) the corpus cache.
+// then upcoming cache, then (once it exists) the corpus cache. P1.2 already
+// put airing ahead of upcoming for its own unstated reason, predating this
+// comment's visibility into why — P5A.2 doesn't relitigate that pre-existing
+// relative order, it only inserts `tasteProfileCache` at the one relative
+// position the spec's own text names explicitly ("then the taste profile,
+// THEN the airing store") — directly before `airingCache`.
 //
 // Pure — no filesystem access. server.js supplies `currentSizes` (bytes on
 // disk per store id, its own responsibility to measure) and executes the
@@ -20,6 +25,7 @@
 // caches already uses).
 const CLASS_B_STORES = [
   { id: 'recommendationsCache', file: 'recommendations-cache.json', label: 'Recommendations cache' },
+  { id: 'tasteProfileCache', file: 'taste-profile-cache.json', label: 'Taste profile cache' },
   { id: 'airingCache', file: 'airing-cache.json', label: 'Airing cache' },
   { id: 'upcomingCache', file: 'upcoming-cache.json', label: 'Upcoming cache' },
   // P5A.1: last in eviction order, and the one store this registry's own
