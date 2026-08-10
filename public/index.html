@@ -275,6 +275,22 @@
     </div>
   </div>
 
+  <!-- P5A.2 cold-start taste onboarding: ~30 diverse corpus covers, tap to
+       mark liked. Skippable, re-runnable from Settings (events.js's
+       bindColdStartOverlay/openColdStartOnboarding). -->
+  <div id="cold-start-overlay" class="overlay" hidden>
+    <div class="overlay-panel" style="max-width:760px">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>What do you like?</h2>
+      <p class="notifications-description">Tap a few you'd enjoy — ten taps beats a blank Discover. This just gives your recommendations a starting point; rating shows as you watch them will always matter more.</p>
+      <div id="cold-start-grid" class="coldstart-grid"></div>
+      <div class="row" style="margin-top:var(--sp-3);justify-content:space-between">
+        <button id="cold-start-skip-btn" class="btn btn-ghost sm">Skip for now</button>
+        <button id="cold-start-submit-btn" class="btn btn-primary sm rip-host">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Episode notifications settings overlay -->
   <div id="notifications-overlay" class="overlay" hidden>
     <div class="overlay-panel">

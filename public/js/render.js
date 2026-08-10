@@ -13,6 +13,8 @@ import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, com
 import { checkContrastAA, parseRgb } from './contrastCheck.js';
 import { buildPalette, hslToRgb, themeInputFromAccent } from './themeBuilder.js';
 import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
+import { TasteProfile } from './tasteProfile.js';
+import { RECOMMENDATIONS } from '../../config/tuning.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -2317,6 +2319,42 @@ function listsManagerBodyHtml() {
 // Settings panel (design/HANDOVER.md §4 Phase 3: "theme grid, text size,
 // text weight, decoration, original titles"). Replaces the old
 // theme-picker-only overlay — same trigger/id, see events.js's bindThemePicker.
+// The Settings row's own description text — plain, static-ish English
+// like every other row on this panel (P5A.1's corpus banner and P6.1's own
+// picker rows are the precedent for skipping the copy registry here: that
+// registry's actual scope, per its own header comment, is P1.2's
+// concurrency/data-loss messages, not general feature copy).
+function tasteProfileStatusText(profile) {
+  const threshold = RECOMMENDATIONS.coldStartThresholdRatedEntries;
+  const ratedCount = profile.ratedCount || 0;
+  const base =
+    ratedCount < threshold
+      ? `Recommendations are based on ${ratedCount} rated ${ratedCount === 1 ? 'entry' : 'entries'} so far (below the ${threshold} needed for a confident profile) plus anything picked below.`
+      : `Recommendations are based on ${ratedCount} rated entries.`;
+  return `${base} Redoing the picker adds fresh picks on top of your ratings — it does not remove anything you've already rated.`;
+}
+
+// P5A.2's cold-start onboarding grid. `candidates` is whatever
+// TasteProfile.buildColdStartCandidates() resolved to (each already carries
+// its own coverImage, possibly null if the live batch fetch failed for that
+// one entry) — this function never fetches anything itself, and never
+// persists anything: `pickedIds` is events.js's own in-memory selection
+// Set, only written to preferences once the user presses Done.
+function renderColdStartOverlay(container, candidates, pickedIds) {
+  container.innerHTML = candidates
+    .map((c) => {
+      const title = c.titleEnglish || c.titleRomaji || 'Untitled';
+      const picked = pickedIds.has(c.anilistId);
+      return `
+      <button type="button" class="coldstart-tile${picked ? ' on' : ''}" data-anilist-id="${c.anilistId}" aria-pressed="${picked}">
+        <span class="check">✓</span>
+        ${c.coverImage ? `<img src="${escapeHtml(c.coverImage)}" alt="" loading="lazy">` : `<span class="coldstart-tile-noimg" aria-hidden="true"></span>`}
+        <span class="nm">${escapeHtml(title)}</span>
+      </button>`;
+    })
+    .join('');
+}
+
 function renderSettingsPanel(container, appearance) {
   // Every control in here re-renders the whole panel on change (simplest way
   // to keep every row in sync with whatever just changed), but that means
@@ -2360,6 +2398,11 @@ function renderSettingsPanel(container, appearance) {
       copy('sliders.resetAll.heading'),
       copy('sliders.resetAll.description'),
       `<button class="btn btn-ghost sm" data-action="reset-all-sliders">${escapeHtml(copy('sliders.resetAll.button'))}</button>`
+    )}
+    ${settingsRowHtml(
+      'Taste profile',
+      tasteProfileStatusText(TasteProfile.getProfile()),
+      `<button class="btn btn-ghost sm" data-action="redo-cold-start">Redo the quick picker</button>`
     )}
     ${settingsRowHtml(
       'Decoration',
@@ -2518,6 +2561,7 @@ export const Render = {
   renderNavMenu,
   stepsHtml,
   renderSettingsPanel,
+  renderColdStartOverlay,
   renderHelpPanel,
   setHelpTab,
   showToast,

@@ -2066,6 +2066,17 @@ kbd {
 .themegrid .sw2 i { width: 8px; height: 8px; border-radius: 2px; }
 .themegrid .nm { display: block; font: var(--t-nano); letter-spacing: .04em; color: var(--dim); padding: 6px 5px 7px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* P5A.2: the cold-start onboarding grid — same scrollable-grid/.on-state
+   shape as .themegrid above, cover art instead of colour swatches. */
+.coldstart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: var(--sp-2); max-height: 420px; overflow-y: auto; padding-right: 2px; margin-top: var(--sp-3); }
+.coldstart-tile { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: var(--card); cursor: pointer; transition: border-color var(--d-2), transform var(--d-2); }
+.coldstart-tile:hover { border-color: var(--line-lit); transform: translateY(-2px); }
+.coldstart-tile.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.coldstart-tile img, .coldstart-tile-noimg { display: block; width: 100%; aspect-ratio: 2/3; object-fit: cover; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.coldstart-tile .nm { display: block; font: var(--t-nano); letter-spacing: .02em; color: var(--dim); padding: 5px 6px 6px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.coldstart-tile .check { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-fill); color: var(--accent-contrast); display: none; align-items: center; justify-content: center; font: var(--t-meta); }
+.coldstart-tile.on .check { display: flex; }
+
 /* P6.1: the "Custom" tile lives inside the same .themegrid as the curated
    presets (same button/.on states apply for free) — .custom-swatch is a
    single solid preview instead of .sw2's two-accent-dot pair, since a

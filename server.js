@@ -943,6 +943,7 @@ async function computeAndSaveTasteProfile() {
     scoreTimestamps,
     drops,
     dismissals,
+    coldStartPicks: library.preferences?.coldStartPicks || [],
     nowMs: Date.now(),
     tuning: tuning.RECOMMENDATIONS,
   });
@@ -1721,8 +1722,25 @@ const server = http.createServer(async (req, res) => {
           throw err;
         }
         writeLibraryAtomic(toWrite);
-        return { status: 200, body: { ok: true }, etag: computeLibraryEtag(toWrite) };
+        // P5A.2: coldStartPicks is the one preferences field the taste
+        // profile depends on that never flows through /api/events (it's
+        // written straight into preferences by the onboarding overlay, the
+        // same way every other Settings choice is) — so this is the one
+        // place a change to it can be observed. Every other library save
+        // (a rating, a filter change, ...) compares equal here and skips
+        // the recompute, same "only pay for it when it can actually change
+        // something" rule as the /api/events trigger below.
+        const picksChanged =
+          JSON.stringify(current.preferences?.coldStartPicks || []) !== JSON.stringify(toWrite.preferences?.coldStartPicks || []);
+        return { status: 200, body: { ok: true }, etag: computeLibraryEtag(toWrite), picksChanged };
       });
+      if (result.picksChanged) {
+        try {
+          await computeAndSaveTasteProfile();
+        } catch (err) {
+          console.error(`[taste-profile] Recompute failed: ${err.message}`);
+        }
+      }
       sendJson(res, result.status, result.body, result.etag ? { ETag: result.etag } : {});
       return;
     }

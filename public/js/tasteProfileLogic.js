@@ -94,6 +94,56 @@ function addWeight(bucket, key, weight) {
   bucket[key] = (bucket[key] || 0) + weight;
 }
 
+// The first entry from `primaryGenrePriority` (config/tuning.js's ordered
+// niche->broad list, otherwise unconsumed until this substep) that appears
+// in `genres` — the same "one distinguishing genre, not the whole list"
+// resolution the priority array's own header comment describes. No match
+// (empty genres, or every genre on the list absent) returns null rather
+// than guessing.
+function resolvePrimaryGenre(genres, primaryGenrePriority) {
+  if (!Array.isArray(genres) || genres.length === 0) return null;
+  for (const g of primaryGenrePriority) {
+    if (genres.includes(g)) return g;
+  }
+  return null;
+}
+
+// Cold start's "about 30 diverse covers" (spec). Diversity is built by
+// bucketing the corpus by primary genre, sorting each bucket by popularity,
+// then round-robining across buckets — so the picker never fills up with
+// the 30 most-popular titles overall, which in a real corpus skews hard
+// toward one or two genres. A corpus entry with no genre at all has nothing
+// to bucket it by and is excluded, and a corpus that hasn't reached `count`
+// diverse entries yet returns everything it found rather than padding or
+// throwing.
+function selectColdStartCandidates({ corpusEntries, count, primaryGenrePriority }) {
+  const buckets = new Map(primaryGenrePriority.map((g) => [g, []]));
+  for (const entry of Object.values(corpusEntries || {})) {
+    const primary = resolvePrimaryGenre(entry.genres, primaryGenrePriority);
+    if (primary === null) continue;
+    buckets.get(primary).push(entry);
+  }
+  for (const bucket of buckets.values()) bucket.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+
+  const picked = [];
+  const seen = new Set();
+  let round = 0;
+  while (picked.length < count) {
+    let addedThisRound = false;
+    for (const bucket of buckets.values()) {
+      if (picked.length >= count) break;
+      const entry = bucket[round];
+      if (!entry || seen.has(entry.anilistId)) continue;
+      seen.add(entry.anilistId);
+      picked.push(entry);
+      addedThisRound = true;
+    }
+    if (!addedThisRound) break; // every bucket exhausted at this round
+    round += 1;
+  }
+  return picked;
+}
+
 // The core computation.
 //
 // `entries`: every library entry (this function does its own filtering —
@@ -109,8 +159,16 @@ function addWeight(bucket, key, weight) {
 // `drops`: `{anilistId, episode, totalEpisodes}[]` — one per `anime_dropped`
 // event. `dismissals`: `{anilistId}[]` — one per `recommendation_dismissed`
 // event (no `reason` differentiation yet — see `dismissPenaltyWeight`'s own
-// comment in config/tuning.js for why).
-function buildAffinities({ entries, corpusById = {}, scoreTimestamps = {}, drops = [], dismissals = [], nowMs, tuning }) {
+// comment in config/tuning.js for why). `coldStartPicks`: anilistId[] the
+// user tapped "like" on during onboarding (preferences.coldStartPicks,
+// Class A) — corpus-only titles, same as dismissals, so they distribute
+// exactly like a dismissal but positive and via `coldStartPickWeight`
+// rather than `dismissPenaltyWeight`. Deliberately NOT folded into
+// `ratedCount`/`confidence` below: the spec ties confidence specifically to
+// *rated* entries ("fewer than 10 rated entries triggers taste onboarding"),
+// and cold-start picks are a substitute signal source for when that count
+// is low, not a way to inflate the count itself.
+function buildAffinities({ entries, corpusById = {}, scoreTimestamps = {}, drops = [], dismissals = [], coldStartPicks = [], nowMs, tuning }) {
   const affinities = { genre: {}, tag: {}, theme: {}, studio: {}, staff: {}, source: {}, decade: {}, episodeBracket: {} };
   const ratedScores = entries.filter((e) => typeof e.myScore === 'number').map((e) => e.myScore);
   const { mean, stdDev } = computeMeanAndStdDev(ratedScores);
@@ -160,6 +218,15 @@ function buildAffinities({ entries, corpusById = {}, scoreTimestamps = {}, drops
     );
   }
 
+  for (const anilistId of coldStartPicks) {
+    const corpus = corpusById[String(anilistId)];
+    if (!corpus) continue;
+    distribute(
+      { anilistId, genres: corpus.genres, studio: corpus.studio, totalEpisodes: corpus.totalEpisodes, year: corpus.seasonYear },
+      tuning.coldStartPickWeight
+    );
+  }
+
   return {
     affinities,
     meanScore: mean,
@@ -178,5 +245,7 @@ export {
   isThemeTag,
   decadeOf,
   episodeBracketOf,
+  resolvePrimaryGenre,
+  selectColdStartCandidates,
   buildAffinities,
 };

@@ -145,6 +145,15 @@ export const RECOMMENDATIONS = {
   // substep), so this is necessarily a single flat penalty rather than a
   // reason-differentiated one until a future substep adds real reasons.
   dismissPenaltyWeight: 1,
+  // Cold start's ~30-cover picker (spec: "ten taps beats a blank Discover")
+  // is the ONLY signal source before any rating exists, so each pick needs
+  // to carry more weight than an ordinary dismissal (-1) or the profile
+  // built from ten taps would barely move the needle — but deliberately
+  // less than a max-severity drop (3), since a tap during a quick onboarding
+  // pass is a weaker signal than actually watching most of a series and
+  // dropping it anyway. 1.5 sits between the two, roughly matching a
+  // modestly-enthusiastic (not maximal) z-scored rating.
+  coldStartPickWeight: 1.5,
 };
 
 // Named surfaces only, transcribed for completeness (rule: "if a substep
