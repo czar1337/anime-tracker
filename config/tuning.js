@@ -154,6 +154,52 @@ export const RECOMMENDATIONS = {
   // dropping it anyway. 1.5 sits between the two, roughly matching a
   // modestly-enthusiastic (not maximal) z-scored rating.
   coldStartPickWeight: 1.5,
+  // P5B.1's own additions — shelves 5-9 ("Shelves 5 to 10" minus 10, which
+  // has no social/list-comparison layer to depend on and is deferred to
+  // the backlog per the spec's own instruction). None of these are named
+  // numbers in the spec's own Tuning table (it predates P5B.1), but each
+  // is exactly the "adjustable product value" this file's own header rule
+  // describes — same precedent as P5A.2's/P1.7's own additions above.
+  //
+  // Blind spot: "a genre... with strong critical standing" needs a local
+  // definition of "strong" (a genre-wide AVERAGE score, not a single
+  // candidate's own — this is a genre-level judgment, not a per-title
+  // one) and a minimum sample size, so one lucky 9/10 outlier in a genre
+  // with only one corpus entry can't call the whole genre "critically
+  // well-regarded".
+  blindSpot: { minGenreAverageScore: 7.0, minCandidatesForGenre: 5 },
+  // "High notoriety" for both community-classics (7) and ironically-
+  // essential (9) — the same popularity floor, shared, since both shelves
+  // are about the audience-size axis; only the SCORE axis differs between
+  // them (see communityClassic/ironicallyEssential below). Deliberately
+  // double hiddenGem's own 50,000 popularity CEILING, not just its
+  // inverse — "high notoriety" should mean genuinely broad, not merely
+  // "not a hidden gem".
+  highNotoriety: { minPopularity: 100000 },
+  // Community classics: "top-ranked... absent from the library" — reuses
+  // hiddenGem's own >=7.5 score floor (the same bar for "excellent"),
+  // combined with highNotoriety's popularity floor above. The exact
+  // inverse-in-popularity counterpart to hiddenGem.
+  communityClassic: { minNormalizedScore: 7.5 },
+  // Ironically essential: "low scores, high notoriety" — below the
+  // canonical scale's own 5.5 midpoint (SCORE_SCALE above) counts as
+  // "low", combined with highNotoriety's popularity floor.
+  ironicallyEssential: { maxNormalizedScore: 5.5 },
+  // From the director of X: AniList's own `staff.edges[].role` strings are
+  // free text and often qualify a specific dub/episode/sound credit
+  // ("ADR Director (English)", "Episode Director (ep 8)", "Sound
+  // Director") that isn't the show's actual director — confirmed against
+  // this app's own real seeded corpus, which has dozens of distinct
+  // "*Director*" role strings. This allowlist is deliberately narrow:
+  // only the two roles that mean "the person who directed this anime" in
+  // the ordinary sense a viewer means by "director of X".
+  directorRoles: ['Director', 'Chief Director'],
+  // From the studio/director you love: only a rated entry the user scored
+  // at least this well counts toward picking a "favorite" studio or
+  // director — without this floor, a user's only rated-and-corpus-known
+  // entry could crown its studio/director "favorite" even if they scored
+  // it a 2, which isn't what "the studio/director you love" means.
+  favoriteMinScore: 7,
 };
 
 // Named surfaces only, transcribed for completeness (rule: "if a substep
