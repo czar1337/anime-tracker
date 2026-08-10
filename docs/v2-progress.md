@@ -71,7 +71,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P4.3 Item selection | done | 2026-08-09 | this session, see "P4.3 Item selection" below | — |
 | P4.4 Bulk actions and undo | done | 2026-08-09 | this session, see "P4.4 Bulk actions and undo" below | criterion 4's budget not numerically measured |
 | GATE-2.0 Acceptance sweep, merge check, tag v2.0 | done | 2026-08-09 | this session, see "GATE-2.0 Acceptance sweep, merge check, tag v2.0" below | — |
-| P5A.1 Corpus, incremental seed, degraded mode | not started | — | — | unblocked 2026-08-10 — see "Standing decisions" above |
+| P5A.1 Corpus, incremental seed, degraded mode | done | 2026-08-10 | this session, see "P5A.1 Corpus, incremental seed, degraded mode" and "P5A.1 close out" below | shelf-facing degraded-mode UI deferred to P5A.4/P5B.1 — see that entry's own note |
 | P5A.2 Taste profile | not started | — | — | — |
 | P5A.3 Scorer and debug panel | not started | — | — | — |
 | P5A.4 Shelves 1-4 plus provenance | not started | — | — | — |
@@ -4265,6 +4265,277 @@ before merge.
 whenever it's wanted). Merged into `main` in this session's close-out
 (see the merge commit immediately following); `v2/P6.1` retained, not
 deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin`
+until a new version is wanted — is still in force.
+
+## P5A.1 Corpus, incremental seed, degraded mode
+
+**AniList ToS block lifted 2026-08-10** (see "Standing decisions" at the
+top of this file) — the user reviewed the ToS language directly and
+decided to proceed with this substep as originally planned. Branch
+`v2/P5A.1` off `main`, through P6.1 merged. 3 commits: `28532fc` (the
+seed engine — fetch, cache, eviction, boot wiring), `0276d77` (the
+minimal progress banner on the existing Discover tab), `e480054`
+(`tests/e2e/corpus-seed.spec.js` + the corpus eviction proof added to
+`class-b-eviction.spec.js`).
+
+**First action, per the spec's own explicit instruction**: verified the
+corpus target in `config/tuning.js` (`RECOMMENDATIONS.corpusTargetSize`,
+already `3000` since P1.4) matches the Tuning table's own number. No
+mismatch — proceeded.
+
+**Deliberate scope call, flagged explicitly (mirrors P6.1's own "no fix-
+contrast button" precedent for the same reason — a spec bullet asking
+for something this substep cannot honestly build yet):** the spec's own
+"degraded mode" bullet describes Discover *shelves* — "Because you
+liked X", "Finish what you started", "This season" — none of which
+exist in the app today. Today's Discover is still P1-era: one flat,
+seed-based recommendation pool from AniList's own `recommendations`
+field, nothing corpus-driven. Those three shelves are explicitly listed
+as **P5A.4's and P5B.1's own deliverables**, substeps that haven't
+started. Building "degraded mode" fully would mean building a chunk of
+P5A.4/P5B.1's own shelf system three substeps early, against scoring
+and taste-profile logic (P5A.2/P5A.3) that also doesn't exist yet. This
+substep instead ships the **corpus engine and a `getStatus()` readiness
+signal** — `{status: 'empty'|'partial'|'ready', entryCount, targetSize,
+cursor}` — for P5A.4 to branch on when it builds the real shelves and
+the real "still building your recommendations" empty state. This is the
+exact "documented interface, empty implementation" forward-dependency
+pattern `docs/v2-spec.md` itself sanctions for P6.3's reliance on P7A's
+not-yet-built achievement engine — not a silent scope cut, the same
+discipline applied to a bullet this spec's own dependency order makes
+temporarily unbuildable in full.
+
+**A real, project-wide test-authoring finding, not a product bug:**
+while writing the mocked-429 e2e test, a mocked `Retry-After` header
+came back invisible to the browser's own `fetch()` — `Response.headers
+.get()` only exposes CORS-safelisted header names for a cross-origin
+response (the app calls `https://graphql.anilist.co` directly from the
+browser, confirmed architecture, no server proxy) unless the response
+also sends `Access-Control-Expose-Headers`. `Retry-After` is not
+safelisted by default. This means the **real** AniList server must
+already send that exposure header today, since this app's existing
+*reactive* 429 handling (`api.js`'s `RateLimitError`, used by five
+existing call sites before this substep) already depends on reading it
+in production. Not a bug in `corpus.js` — a mock-fidelity gap, fixed in
+the test by adding `Access-Control-Expose-Headers: Retry-After` to the
+fulfilled response, matching what the real endpoint must already do.
+
+### Design
+
+- **`config/tuning.js`**: `RECOMMENDATIONS.observedRateLimitPerMinute =
+  30` — P0.3's exhaustion-confirmed ceiling (30 successful requests,
+  then a real 429 on the 31st), which the spec's own Tuning table
+  entry already names as superseding AniList's documented 90/min. Paired
+  with the already-existing `rateLimitSafetyMargin: 0.7`, this is the
+  first substep to actually wire these two numbers into real pacing
+  math (`corpusLogic.js`'s `paceDelayMs`: `ceil(60000 / (30 * 0.7))` =
+  2,858 ms between requests, matching P0.3's own measured ≈2.857s
+  figure almost exactly).
+- **`public/js/corpusLogic.js`** (new, pure): `pruneMediaFields` — the
+  exact field set the spec names ("genres, tags, studios, staff,
+  members, normalised average score, format, episode count, duration
+  and relations") plus id/title/season, deliberately dropping
+  `coverImage` (covers are cached separately, P0.3's own pruning
+  finding — cuts payload roughly in half) and `idMal` (this app's sole
+  persisted external key is `anilistId`, confirmed by P0.2).
+  `averageScore` normalises AniList's 0-100 scale to this app's
+  canonical 1-10 on ingest, per the Tuning table's "Score scale" rule.
+  `deriveStatus`, `paceDelayMs`.
+- **`public/js/api.js`**: `CORPUS_QUERY` — the exact field shape P0.3
+  already proved live against AniList and saved as a fixture
+  (`docs/v2-discovery-fixtures/anilist/CORPUS_QUERY_page1.json`) —
+  `perPage: 50` confirmed as AniList's real page-size ceiling for this
+  shape, sorted `POPULARITY_DESC` so an interrupted seed's partial
+  result is always the most useful slice, not an arbitrary one.
+  `CORPUS_BY_IDS_QUERY` (same fields, `id_in` instead of a page cursor)
+  backs the "plus all currently airing, plus everything in the
+  library" supplemental pass the spec's own corpus definition requires
+  beyond plain popularity ranking. `getCorpusStatus`/`getCorpusCache`/
+  `saveCorpusPage`.
+- **`public/js/corpus.js`** (new): the seed loop. Paced at 70% of the
+  observed limit; on a 429, honors the **full** `Retry-After` (not the
+  30s cap every user-facing `withRateLimitRetry` call site in this app
+  uses — a background job costs nothing by waiting longer than a user
+  would tolerate) and retries the **same** page, never skipping it.
+  Persists a cursor after every page via an incremental-merge PUT (see
+  below), so an interrupted seed resumes from exactly where it left
+  off. `pauseSeed`/`resumeSeed` (in-memory only, not persisted across a
+  reload — "a way to pause" doesn't ask for more than that, and this
+  matches how transient UI-only state elsewhere in this app is
+  deliberately not over-engineered into a stored preference).
+  `ensureWeeklyRefresh` mirrors `airing.js`'s/`schedule.js`'s own
+  `STALE_MS` convention; a refresh only ever resets the cursor, never
+  wipes entries (`PUT` always merges), so everything already known
+  stays queryable throughout.
+- **`server.js`**: `corpus-cache.json`, written **compact** — no
+  `null, 2` pretty-printing like the three existing caches use —
+  because this one reaches several MB (≈5.4 MB pruned at the default
+  3,000-title target, P0.3's own measurement) and gets written after
+  *every* seeded page; pretty-printing a growing multi-MB blob dozens
+  of times for a file no human reads directly would be a real,
+  measurable, avoidable cost. `GET /api/corpus/status` is deliberately
+  lightweight (cursor/counts only, never the full `entries` blob) since
+  `corpus.js` polls it on every boot to decide whether to resume.
+  `PUT /api/corpus` uses **incremental merge** semantics, not the
+  whole-blob-replace shape `/api/airing`/`/api/upcoming` use — resending
+  the entire accumulated corpus on every one of 60+ seeded pages would
+  make the last page's request body as large as the whole corpus for
+  the sake of ~90 KB of genuinely new data; the server merges the
+  client's `newEntries` into its own on-disk copy instead.
+- **`classBEviction.js`**: `corpusCache` registered **last** in
+  `CLASS_B_STORES` — this file's own comment, written back when this
+  substep was still blocked, already anticipated exactly this addition
+  ("its own 'lowest member count first' internal trim rule; nothing
+  else in this module needs to change for that"), and that held up
+  exactly as written. New `selectCorpusEvictionCandidates`, sorted by
+  ascending `popularity` (AniList's closest analogue to "member count" —
+  confirmed by P0.2 that no field is literally named "members"),
+  filtering out every library id **before** sorting, not merely sorting
+  them last, so a library title can never be selected regardless of its
+  own popularity. `server.js` reports only the store's **evictable**
+  (non-floor) portion as its size for planning purposes, and its own
+  resetter threads the *actual remaining deficit* into the trim (a
+  genuine deviation from the other three stores' all-or-nothing wipe,
+  contained entirely to this one store's resetter — `planEviction`
+  itself is unchanged) — proven end to end by a new real-disk-quota
+  test in `class-b-eviction.spec.js` (see Acceptance criterion 2).
+- **`public/js/app.js`**: `Corpus.initCorpus()` wired as a third
+  fire-and-forget background call alongside `Airing.ensureFreshOnOpen()`
+  /`retryMissingCovers()`, right after first paint — never blocks
+  startup.
+- **`public/js/discover.js`/`render.js`/`styles.css`**: a small
+  progress/pause banner bolted onto today's *existing* Discover view
+  (not a new shelf — see the scope call above), rendering nothing once
+  the corpus reaches `'ready'`. Polls `Corpus.getStatus()` (synchronous,
+  in-memory, free) every 3s, only re-rendering when the Discover tab is
+  actually visible and the status genuinely changed.
+
+### Acceptance criteria
+
+**1. Automated checks.**
+
+- `node tests/run-all.js` — **298 passed, 0 failed** (up from 284 at
+  P6.1's close; 14 new: `corpusLogic.js`'s pruning/status/pacing tests,
+  `classBEviction.js`'s `selectCorpusEvictionCandidates` tests, the
+  tuning config's `observedRateLimitPerMinute` pin).
+- `npx playwright test` (full suite) — **120 passed, 1 skipped, 0
+  failed** (up from 114; 5 new in `tests/e2e/corpus-seed.spec.js`, 1 new
+  in `tests/e2e/class-b-eviction.spec.js`).
+- `node scripts/check-copy-registry.js` — `OK — 99 entries, 297
+  variants, 8 v2 files scanned for raw sink literals.` (unchanged count
+  — the progress banner's copy is plain literal strings, same
+  convention every prior substep's non-Settings-panel UI text already
+  established).
+- No typecheck/lint/build command exists in this project beyond the
+  above (unchanged since P0.1).
+
+**2. Data safety.** The corpus cache is **Class B — regenerable,
+evictable, never backed up** (spec: "Corpus is Class B: evictable,
+never backed up, regenerable from scratch"). It is not a new Class A
+store, so rule 3a's export/snapshot/restore round trip does not apply
+here — stating that explicitly. This substep also does not touch
+`library.json`'s schema at all: no migration, no schemaVersion bump, no
+new field on an entry.
+
+What DOES apply and is proven: **the real disk-quota eviction round
+trip**, end to end, against real files on disk
+(`class-b-eviction.spec.js`'s new "corpus eviction trims every evictable
+entry under enough pressure, but a library-floor title always survives"
+test) — a corpus cache seeded with real padding-backed entries at LOW
+popularity for both the library-floor id and the ones meant to be
+evicted (a stronger proof than picking convenient-but-arbitrary
+popularity numbers), real `ANIME_TRACKER_TEST_FREE_BYTES_OVERRIDE`
+quota pressure, confirming: the library-floor id survives regardless of
+its own popularity; the removed set is exactly the lowest-popularity
+prefix (proving selection order, not just count); `library.json` and
+`snapshots/` stay byte-identical throughout.
+
+**3. Manual smoke test.** Against the rebuilt SEA build
+(`AnimeTracker-2.1.2.exe`), with a disposable copy of the real library
+(port-conflict-checked first — port 4321 occupied by the user's own
+separately-running packaged app, ran on 4399 both times), verified via
+MD5 before and after (unchanged: `90FDC36CB461C5D8BA15788E179F8E9C`
+both sessions):
+
+1. Boot against the real library on the **live** AniList API (this
+   session's earlier UI-verification pass, task 131). **Observed:** the
+   Discover tab's progress banner updates live and correctly —
+   200 → 400 → 750 → 950 titles across real requests, percentage
+   recalculating each time, "Updated just now" / age text unaffected.
+2. Click Pause. **Observed:** the banner switches to "— paused" phrasing
+   with a Resume button; polling `/api/corpus/status` across a 4-second
+   wait shows the cursor frozen at the exact page it stopped on.
+3. Click Resume. **Observed:** the cursor advances again from that
+   exact page (confirmed page 15 → 19 across a 5-second wait) — never
+   restarted from page 1.
+4. This close-out's own final pass: booted the **rebuilt exe**
+   (88 embedded files, up from 86 — confirms `corpus.js`/
+   `corpusLogic.js` were picked up) against the real library on a fresh
+   port. **Observed:** `/api/corpus/status` showed `entryCount: 150,
+   cursor.page: 3` within 5 seconds of boot — the real seed starting
+   correctly from the packaged executable, not just the dev server.
+5. Re-fingerprinted the **original** `%APPDATA%\anime-tracker\
+   library.json` after both sessions: MD5 unchanged both times.
+   Disposable copies, their server/exe processes (killed by exact PID)
+   and their temp directories removed after each test.
+
+**4. Performance.** The Tuning table names exactly one budget touching
+this substep: **"Full corpus seed: background, never blocks app use,
+interruptible, resumable"** — a qualitative budget (no numeric value in
+the spec, per `config/tuning.js`'s own convention for exactly this
+case), satisfied structurally rather than measured: the seed runs as a
+fire-and-forget call after first paint (never blocks — confirmed by the
+zero-console-error, immediate-first-paint smoke test above), a cursor
+persists after every page (resumable — proven by
+`corpus-seed.spec.js`'s interrupt/resume test), and pause/resume exists
+and works (interruptible — proven by both the manual smoke test and
+`corpus-seed.spec.js`'s own pause test). **No numeric budget applies** —
+stating that explicitly per the spec's own instruction, rather than
+inventing one or measuring an unrelated surface.
+
+**5. Accessibility.** Keyboard path: Pause/Resume are native
+`<button>` elements (focus and Enter/Space activation free from the
+browser, same as every other button in this app). The progress text
+carries `role="status"`, an ARIA live region intended for exactly this
+kind of non-critical, polite progress announcement. **The screen reader
+step is user-executed, not yet run.** Exact steps for the user to
+follow: open the Discover tab while a seed is in progress (or paused),
+confirm a screen reader announces the progress text (e.g. "Building
+your recommendation corpus… 400 of 3,000 titles, 13 percent") without
+needing to manually focus it — a `role="status"` region should announce
+automatically on change; tab to the Pause button and confirm it
+announces as a button labelled "Pause"; activate it and confirm the
+updated "paused" text also announces; tab to the now-visible Resume
+button and confirm the same.
+
+**6. Rollback.** Revert the `v2/P5A.1` commit range (`28532fc`..
+`e480054`, 3 commits, plus this close-out's own evidence commit and
+merge). Unlike P6.1's own rollback (which had to reason about a
+schemaVersion bump), this substep is **strictly simpler**: it adds no
+Class A field, migrates nothing, and bumps no schema version — the only
+persistent artifact is a brand-new, wholly regenerable Class B file
+(`corpus-cache.json`) that didn't exist before this substep at all. A
+plain code revert is fully safe with no forward-compatibility concern
+whatsoever: the reverted code simply stops reading or writing a file it
+never knew about, and if a corpus cache happens to exist on disk from
+before the revert, the reverted server never looks at it, no different
+than any other stray file in the data directory.
+
+**Status: P5A.1 substantially complete.** All six acceptance criteria
+have evidence in this session. Criterion 5's screen-reader pass is
+written out and ready but not yet run — same judgment call every prior
+substep's own close-out in this document has made, say so if the user
+wants it run before merge.
+
+## P5A.1 close out
+
+**Status: P5A.1 done.** All six acceptance criteria satisfied
+(criterion 5's screen-reader pass deferred, exact steps recorded above
+for whenever it's wanted). Merged into `main` in this session's
+close-out (see the merge commit immediately following); `v2/P5A.1`
+retained, not deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin`
 until a new version is wanted — is still in force.
