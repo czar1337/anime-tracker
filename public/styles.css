@@ -985,6 +985,7 @@ kbd {
 }
 .discover-controls { display: flex; align-items: center; gap: 14px; }
 .discover-age { font-size: var(--fs-card); color: var(--faint); white-space: nowrap; }
+.corpus-status { display: flex; align-items: center; gap: var(--sp-2); font: var(--t-meta); color: var(--dim); margin: -8px 0 var(--sp-4); }
 .discover-media-filter { margin: -12px 0 var(--sp-3); align-items: center; }
 .discover-genre-filter { margin: -12px 0 var(--sp-6); align-items: center; }
 .discover-genre-filter-label { font-size: var(--fs-card); color: var(--faint); margin-right: 2px; }

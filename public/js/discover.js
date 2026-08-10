@@ -1,5 +1,6 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
+import { Corpus } from './corpus.js';
 import { Render } from './render.js';
 import { pickSeeds, buildGenreProfile, aggregateCandidates, filterOwned, shuffle, poolGenres, applyGenreExclusion, applyGenreInclusion, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
 import { EventLog } from './eventLog.js';
@@ -233,7 +234,35 @@ export function getDiscoverState() {
     filters: mediaFilters(),
     sortKey,
     sortDir,
+    // P5A.1: not this substep's own recommendation pool (that's still the
+    // existing seed-based `computeRecommendations` above) — a minimal
+    // progress signal for the corpus engine's background seed, since the
+    // real shelf system that will actually CONSUME the corpus (P5A.4/
+    // P5B.1) doesn't exist yet. See corpus.js's own header comment.
+    corpusStatus: Corpus.getStatus(),
   };
+}
+
+let lastRenderedCorpusStatusKey = null;
+function corpusStatusKey(status) {
+  return `${status.status}:${status.entryCount}:${status.seeding}:${status.paused}`;
+}
+
+// Corpus.getStatus() is synchronous and reads only this module's own
+// in-memory state — polling it is free. Only re-renders when the Discover
+// tab is actually visible AND the status genuinely changed since the last
+// render, so a seed progressing in the background while the user is on a
+// different tab never wastes a render.
+function pollCorpusStatus() {
+  const view = document.getElementById('discover-view');
+  if (view && !view.hidden) {
+    const key = corpusStatusKey(Corpus.getStatus());
+    if (key !== lastRenderedCorpusStatusKey) {
+      lastRenderedCorpusStatusKey = key;
+      renderNow();
+    }
+  }
+  setTimeout(pollCorpusStatus, 3000);
 }
 
 // Called every time the Discover tab is opened: always shows whatever it
@@ -298,6 +327,17 @@ export function initDiscover({ persistFn } = {}) {
   bindMediaFilterControls(container, persist);
 
   container.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="corpus-pause"]')) {
+      Corpus.pauseSeed();
+      renderNow();
+      return;
+    }
+    if (e.target.closest('[data-action="corpus-resume"]')) {
+      Corpus.resumeSeed();
+      renderNow();
+      return;
+    }
+
     if (e.target.closest('#discover-refresh-btn, #discover-refresh-btn-end')) {
       refreshGeneration += 1;
       runRefresh({ shuffleResults: true }).catch(() => {});
@@ -433,6 +473,7 @@ export function initDiscover({ persistFn } = {}) {
   });
 
   loadCacheFromServer().then(renderNow);
+  pollCorpusStatus();
 }
 
 export const Discover = {
