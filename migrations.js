@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 10;
+const CURRENT_SCHEMA_VERSION = 11;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -312,7 +312,33 @@ function migrate_9_to_10(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10 };
+// P5A.2: onboarding state for the cold-start cover-pick flow — skippable,
+// re-runnable from Settings, per the spec's own explicit requirement.
+// `coldStartPicks` are anilistIds the user marked "liked" during
+// onboarding, folded into the taste profile as a small fixed positive
+// signal (they were never actually added to the library, so unlike a real
+// entry they have no score of their own to derive a z-score from).
+// Deliberately NOT a new event-log type: eventTypes.js's own header warns
+// that its closed union is "a deliberate spec-level act, not something a
+// feature substep does casually" — this is ordinary preference state
+// instead, reusing the existing Class A preferences machinery outright.
+function migrate_10_to_11(data) {
+  const out = { ...data };
+  out.schemaVersion = 11;
+  const before = out.preferences || {};
+  out.preferences = {
+    ...before,
+    coldStartPicks: before.coldStartPicks ?? [],
+    coldStartCompletedAt: before.coldStartCompletedAt ?? null,
+    coldStartSkipped: before.coldStartSkipped ?? false,
+  };
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_10_to_11 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -339,4 +365,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10 };
+module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11 };

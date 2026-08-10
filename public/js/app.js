@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { initEvents, refreshCurrentView, repositionTabPill } from './events.js';
+import { initEvents, refreshCurrentView, repositionTabPill, openColdStartOnboarding } from './events.js';
 import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './discover.js';
@@ -9,6 +9,7 @@ import { Schedule } from './schedule.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 import { Corpus } from './corpus.js';
+import { TasteProfile } from './tasteProfile.js';
 import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
@@ -383,6 +384,17 @@ async function boot() {
   Airing.ensureFreshOnOpen(); // background only — never blocks startup, never fetches more than once/day
   retryMissingCovers().catch(() => {}); // background only — see the function's own comment
   Corpus.initCorpus().catch(() => {}); // background only — P5A.1's paced, resumable corpus seed
+  // P5A.2: fetches the server-computed profile, then independently (never
+  // chained after the corpus's own initCorpus() above, which can run for
+  // minutes on a fresh install) waits a short bounded window for the corpus
+  // to have SOME entries before deciding whether to show cold start.
+  TasteProfile.initTasteProfile({ persistFn: persist })
+    .then(async () => {
+      if (await TasteProfile.maybeAutoTriggerColdStart(Store.state.preferences)) {
+        await openColdStartOnboarding();
+      }
+    })
+    .catch(() => {});
 
   document.addEventListener('library-imported', (e) => {
     refreshCurrentView(); // whatever's on screen — Home/Statistics included, not just the list view

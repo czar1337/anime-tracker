@@ -4539,3 +4539,302 @@ retained, not deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin`
 until a new version is wanted — is still in force.
+
+## P5A.2 Taste profile
+
+Branch `v2/P5A.2` off `main`, through P5A.1 merged. 4 commits: `46b79d4`
+(the affinity engine — z-score weighting, recency, drop/dismissal
+penalties, server-side compute + Class B cache), `a45ae8c`
+(`migrate_10_to_11` for the cold-start preference fields), `3301e4c`
+(the cold-start onboarding overlay + client wiring), `c1940eb` (a
+lazy-bootstrap fix the manual smoke test surfaced).
+
+### Design decisions flagged explicitly
+
+- **Full recompute, not a delta fold.** `counters.json`'s incremental
+  fold-on-write pattern (add just the new event's own delta to a cached
+  running total) does not apply here: z-score affinity weighting
+  depends on the mean and standard deviation over **every** currently-
+  rated entry, and one new rating changes both of those for every
+  previously-rated entry too, not just the new one. There is no valid
+  way to fold "just the delta" for a statistic like this.
+  `computeAndSaveTasteProfile()` always recomputes from the full
+  library + corpus + event log. "Recomputed incrementally on change"
+  (the spec's own words) is honored in the sense that matters: triggered
+  promptly by each relevant mutation (a `score_set`/`anime_dropped`/
+  `recommendation_dismissed` event, or a `coldStartPicks`-changing
+  library save), never lazily deferred to render.
+- **Tag vs. theme split** uses AniList's own tag `category` field,
+  splitting the "Theme-" prefixed subset (`Theme-Fantasy`,
+  `Theme-Drama`, ...) out from the full tag set for the `theme`
+  dimension while `tag` stays the full breadth. The spec names "tag"
+  and "theme" as two separate affinity dimensions without defining the
+  split itself — this reuses AniList's own existing taxonomy rather
+  than inventing a parallel one, a genuine interpretive call documented
+  here rather than silently assumed.
+- **Cold start lives in `preferences`, not a new event type.**
+  `eventTypes.js`'s own header explicitly forbids extending its closed
+  event-type union casually ("a deliberate spec-level act, not
+  something a feature substep does casually"). `coldStartPicks`/
+  `coldStartCompletedAt`/`coldStartSkipped` are Class A preference
+  fields added via `migrate_10_to_11`, the same convention every other
+  substep's own new preference state already follows.
+- **`coldStartPickWeight: 1.5`**, placed between `dismissPenaltyWeight`
+  (1) and `dropPenaltyWeight` (3): the cold-start picker is the only
+  signal source before any rating exists, so each pick needs to carry
+  more weight than an ordinary dismissal or ten taps would barely move
+  the needle — but deliberately less than a max-severity drop, since a
+  tap during a quick onboarding pass is a weaker signal than watching
+  most of a series and dropping it anyway. Folded into `buildAffinities`
+  exactly like an existing dismissal (corpus lookup, signed weight via
+  `distribute()`), and **deliberately not folded into `ratedCount`/
+  `confidence`** — the spec ties confidence specifically to *rated*
+  entries, and cold-start picks are a substitute signal source for when
+  that count is low, not a way to inflate the count itself.
+- **Cover art for the picker's ~30 corpus tiles** reuses the existing
+  `fetchCoversBatch`/`COVERS_BATCH_QUERY` (`api.js`) that
+  `retryMissingCovers()` already relies on, rather than adding a new
+  query — corpus entries never carry `coverImage` at all
+  (`corpusLogic.js`'s `pruneMediaFields` drops it, P0.3's own halved-
+  payload finding), so the overlay fetches covers live for whichever
+  candidates `selectColdStartCandidates` picked.
+- **Diversity via existing genre priority, not a new concept.**
+  `selectColdStartCandidates` (`tasteProfileLogic.js`) buckets the
+  corpus by primary genre using `config/tuning.js`'s own
+  `PRIMARY_GENRE_PRIORITY` (added at P1.4, unconsumed until now) and
+  round-robins across buckets sorted by popularity — so the picker
+  never fills up with the single most-popular genre in the corpus.
+- **The auto-trigger degrades on a cold corpus, deliberately.**
+  `TasteProfile.maybeAutoTriggerColdStart` waits a short, bounded window
+  (5 tries, 2s apart) for the corpus to have at least 30 entries before
+  giving up **for that boot** — waiting on the corpus's own full seed
+  (which can run for minutes on a fresh install) would contradict "ten
+  taps beats a blank Discover" by making cold start itself slow to
+  appear. A first-ever boot on a brand-new install may not show the
+  overlay immediately; every later boot has the corpus already
+  populated from the persisted seed cursor and triggers instantly.
+- **New overlay copy stays out of `copyRegistry.js`**, matching the
+  P5A.1 progress banner's and P6.1's own picker rows' precedent: the
+  registry's actual scope, per its own header comment, is P1.2's
+  concurrency/data-loss messages, not general feature copy. Plain
+  English directly in `index.html`/`render.js`, same as every other
+  Settings row's descriptive text in this app.
+- **A real gap found by the manual smoke test, not by any automated
+  suite:** the maintainer's own real library (161 rated entries, no
+  corpus ever seeded in that install) showed the cold-start overlay on
+  first load, because its taste-profile cache had never been computed
+  at all — `readTasteProfileCache()`'s empty default reports
+  `confidence: 0`, which the client correctly reads as "below
+  threshold" for a cache that genuinely has never run, but wrongly so
+  for a library that just hasn't fired a qualifying event yet. Fixed by
+  making `GET /api/taste-profile` compute once, lazily, the first time
+  anything reads a never-computed cache (`c1940eb`) — closes the gap
+  for every existing library without a dedicated migration or boot-time
+  job. Regression-tested (`taste-profile.spec.js`'s "already well past
+  the cold-start threshold" test) and reconfirmed live against the same
+  real library after the fix: `confidence: 1`, overlay stays hidden.
+- **Noted, not fixed here:** the smoke test's own manual browser check
+  surfaced an unrelated pre-existing bug (`app.js`'s visibilitychange/
+  pagehide handlers call `pauseRouteDwell`/`resumeRouteDwell` without
+  importing them from `events.js` — confirmed present on `main` before
+  this substep, via `git show main:public/js/app.js`). Out of scope for
+  P5A.2; flagged as its own background task rather than folded into
+  this substep's diff.
+
+### Design
+
+- **`config/tuning.js`**: `RECOMMENDATIONS` gains
+  `recencyWindowDays: 90`, `recencyBoostMax: 1.0`, `dropPenaltyWeight: 3`,
+  `dismissPenaltyWeight: 1`, `coldStartPickWeight: 1.5` — all named by
+  the spec's own P5A.2 prose as adjustable requirements, same precedent
+  as every other substep's additions to this file.
+- **`public/js/tasteProfileLogic.js`** (new, pure, zero imports):
+  `computeMeanAndStdDev`, `zScore`, `recencyMultiplier`, `dropPenalty`,
+  `confidenceScore`, `isThemeTag`, `decadeOf`, `episodeBracketOf`,
+  `resolvePrimaryGenre`, `selectColdStartCandidates`, and the core
+  `buildAffinities({entries, corpusById, scoreTimestamps, drops,
+  dismissals, coldStartPicks, nowMs, tuning})`. Verified live against
+  the spec's own harsh/generous-rater example (a user averaging 8.5 who
+  gives a 7 nets negative; a user averaging 5.5 who gives the same 7
+  nets positive) and its own drop example (episode 2 of 24 penalizes far
+  more than episode 20 of 24).
+- **`server.js`**: `taste-profile-cache.json` (Class B, same
+  fully-regenerable/no-backup reasoning as every other cache),
+  `computeAndSaveTasteProfile()` (reads the library, corpus cache and
+  event log; full recompute, see above), `loadTasteProfileModule()`
+  (the same SEA-safe `data:` URL dynamic-import technique
+  `loadEventModules()` established, since `tasteProfileLogic.js` must
+  stay import-free to load from that URL shape). Two recompute
+  triggers: `POST /api/events` (existing pattern, gated to the three
+  relevant event types) and a new one on `PUT /api/library` (comparing
+  `preferences.coldStartPicks` before/after the write — the one input
+  that never flows through the event log). `GET /api/taste-profile`
+  lazily computes on first read of a never-computed cache (see above).
+- **`public/js/tasteProfile.js`** (new): the thin client layer the plan
+  called for — fetch the server-computed profile at boot
+  (`initTasteProfile`), decide whether to auto-trigger
+  (`maybeAutoTriggerColdStart`, gated on confidence and the corpus's own
+  bounded readiness poll), build the overlay's candidates
+  (`buildColdStartCandidates`, corpus selection + live cover batch), and
+  persist the result (`completeColdStart`/`skipColdStart`). Never
+  touches the DOM — events.js/render.js own that, same split every
+  other overlay in this app already keeps.
+- **`public/index.html`/`public/js/render.js`/`public/js/events.js`/
+  `public/styles.css`**: the `#cold-start-overlay` — a heading, one line
+  of copy, a scrollable `.coldstart-grid` of cover tiles (tap to toggle
+  `.on`, mirroring `.themegrid`'s own button/`.on` pattern), Skip and
+  Done buttons. A "Taste profile" row in Settings (`renderSettingsPanel`)
+  with a status line (rated-entry count vs. the cold-start threshold)
+  and a "Redo the quick picker" button that opens the same overlay
+  unconditionally.
+- **`public/js/app.js`**: `TasteProfile.initTasteProfile()` fired
+  alongside `Corpus.initCorpus()` at boot (independently, never chained
+  after it), followed by `openColdStartOnboarding()` if the trigger
+  check passes.
+- **Fixture/tests**: `tests/fixtures/schema-v10-library.json`,
+  `tests/fixtures/taste-profile-warm-library.json` (10 rated entries,
+  neutral filters — see below for why that mattered), 24 new
+  `tasteProfileLogic.js` unit tests (the full affinity math plus
+  candidate selection), a `RECOMMENDATIONS` additions test,
+  `tests/e2e/taste-profile.spec.js` (5 tests: automatic trigger with
+  real covers, picks persisting and triggering a recompute, skip
+  suppressing the auto-trigger while Settings can still re-run it, a
+  completed run staying suppressed, and the lazy-bootstrap regression).
+
+### Acceptance criteria
+
+**1. Automated checks.**
+
+- `node tests/run-all.js` — **323 passed, 0 failed** (up from 298 at
+  P5A.1's close; 25 new across this substep's sessions:
+  `migrate_10_to_11`'s own tests, `tasteProfileLogic.js`'s full affinity
+  math and candidate-selection tests, and the `RECOMMENDATIONS`
+  additions test).
+- `npx playwright test` (full suite) — **125 passed, 1 skipped, 0
+  failed** (up from 120; 5 new in `tests/e2e/taste-profile.spec.js`).
+- `node scripts/check-copy-registry.js` — `OK — 99 entries, 297
+  variants, 8 v2 files scanned for raw sink literals.` (unchanged — the
+  new overlay's copy is plain literal strings, same convention P5A.1's
+  progress banner and P6.1's own non-Settings-panel UI text already
+  established).
+- No typecheck/lint/build command exists in this project beyond the
+  above (unchanged since P0.1).
+- `tests/fixtures/token-conversion-baseline.json` regenerated after the
+  new overlay's markup was added to `index.html` (present, hidden, on
+  every scene) — confirmed **purely additive** via the scratchpad's
+  index-agnostic `compare-baseline.js` (every previously-captured value
+  still present the same or more times; only new groups for
+  `.coldstart-grid` and its two buttons appeared, one per scene, plus
+  one new entry per scene in the pre-existing `.notifications-description`
+  group). The real `token-conversion-baseline.spec.js` passes against
+  the regenerated fixture.
+
+**2. Data safety.** `migrate_10_to_11` (`CURRENT_SCHEMA_VERSION` 10 →
+11) adds three Class A preference fields (`coldStartPicks`,
+`coldStartCompletedAt`, `coldStartSkipped`), defaulted to `[]`/`null`/
+`false` and never touching `entries`/`dismissedItems` — a dedicated
+migration-chain unit test proves entry count is preserved and every
+field defaults correctly, plus an idempotency test (running the
+migration twice is a no-op the second time). `taste-profile-cache.json`
+is Class B — regenerable, evictable, never backed up (already
+registered in `CLASS_B_STORES` at P5A.2's earlier commit, unchanged
+here) — rule 3a's export/snapshot/restore round trip does not apply to
+it. `coldStartPicks` itself, being Class A, **does** flow through the
+existing export/snapshot/restore paths generically (it's a plain
+`preferences` field, same mechanism every other preference field
+already uses — no new code needed, and no new round-trip test needed
+beyond what P1.7's own generic preferences round-trip test already
+covers).
+
+**3. Manual smoke test.** Against the rebuilt SEA build
+(`AnimeTracker-2.1.2.exe`, 90 embedded files — confirms
+`tasteProfile.js`/`tasteProfileLogic.js` were picked up), with a
+disposable copy of the real library (port 4321 confirmed occupied by
+the user's own separately-running packaged app first; ran on 44821),
+verified via MD5 before and after (unchanged:
+`90fdc36cb461c5d8ba15788e179f8e9c` both times):
+
+1. Boot against the real library (161 rated entries, corpus never
+   seeded in this install). **Observed (before the lazy-bootstrap fix):**
+   the cold-start overlay wrongly auto-showed, with real live AniList
+   cover art rendering in the grid — this is exactly the gap described
+   above, caught here rather than shipped.
+2. Restarted the server with the fix in place, same disposable copy.
+   **Observed:** the overlay does not show; `GET /api/taste-profile`
+   reports `generatedAt` newly set, `ratedCount: 161`, `confidence: 1`,
+   `meanScore: 7.27`.
+3. Opened Settings, clicked "Redo the quick picker". **Observed:** the
+   overlay opens unconditionally regardless of the confidence/skip/
+   completed state, showing corpus tiles with real titles.
+4. Tapped two tiles (checkmark + highlighted border both appeared),
+   clicked Done. **Observed:** overlay closes, toast reads "Saved 2
+   picks."; `preferences.coldStartPicks` on disk holds exactly those
+   two ids and `coldStartCompletedAt` is set.
+5. Re-fingerprinted the **original**
+   `%APPDATA%\anime-tracker\library.json` after both server sessions:
+   MD5 unchanged (`90fdc36cb461c5d8ba15788e179f8e9c`) both times.
+   Disposable copies, their server processes (killed by exact PID,
+   confirmed via `netstat`) and their temp directories removed after
+   each session.
+
+**4. Performance.** The Tuning table names no budget covering the
+cold-start overlay or the taste-profile recompute — **stating that
+explicitly**, per the spec's own instruction, rather than inventing one.
+`computeAndSaveTasteProfile()`'s full-recompute cost scales with rated-
+entry count, which the smoke test's own 161-entry real library computed
+well within the time of a single HTTP round trip (no separate timing
+harness needed to observe that — the lazy-bootstrap request itself
+returned promptly in the manual smoke test above).
+
+**5. Accessibility.** Keyboard path: every cold-start tile is a native
+`<button>` (focus and Enter/Space toggle free from the browser, same as
+every `.themegrid` swatch already in this app); Skip and Done are
+native buttons too, reachable by Tab in document order after the last
+tile. The "Redo the quick picker" button in Settings is a plain button
+inside the existing Settings panel's own already-accessible structure.
+Contrast: the overlay reuses this app's standard `.overlay-panel`/
+`.btn` tokens (text/background pairs already verified AA-passing by
+`themeBuilder.js`'s own construction-time guarantee, P6.1), and the
+`.coldstart-tile.on` selection state uses the active theme's `--accent`
+via `box-shadow`, not color alone, for the selected/unselected
+distinction — the check mark icon is a second, non-color signal.
+**The screen reader step is user-executed, not yet run.** Exact steps
+for the user to follow: trigger the cold-start overlay (via Settings'
+"Redo the quick picker" is the reliable way, regardless of rated-entry
+count), confirm a screen reader announces the "What do you like?"
+heading and its description on open; tab through several tiles and
+confirm each announces its title and pressed/not-pressed state; tab to
+Skip and Done and confirm both announce as buttons with their visible
+labels; activate Done and confirm the toast's "Saved N picks." text is
+announced.
+
+**6. Rollback.** Revert the `v2/P5A.2` commit range (`46b79d4`..
+`c1940eb`, 4 commits, plus this close-out's own evidence commit and
+merge). **This substep migrates data** (schemaVersion 10 → 11), so a
+plain code revert is not sufficient on its own: the down-migration path
+is to restore the most recent pre-`migrate_10_to_11` snapshot (schema
+10), which discards nothing since the three new fields default to
+empty/`null`/`false` and no other substep has since written meaningful
+data into them alone. Forward-compatibility holds: reverted (pre-P5A.2)
+code reads a schemaVersion-11 library exactly as it read a
+schemaVersion-10 one, since it never looks at `coldStartPicks`/
+`coldStartCompletedAt`/`coldStartSkipped` at all — the three fields
+are simply extra, unread preference keys to that older code, the same
+forward-compatibility guarantee every prior schema-bumping substep in
+this document has already established and relied on.
+
+**Status: P5A.2 done.** All six acceptance criteria satisfied
+(criterion 5's screen-reader pass deferred, exact steps recorded above
+for whenever it's wanted). A real gap (the taste-profile lazy-bootstrap
+fix) was found and fixed via the manual smoke test itself, not any
+automated suite — the exact reason this substep's own criterion 3 asks
+for a real browser against real-shaped data, not just green CI.
+
+## P5A.2 close out
+
+**Status: P5A.2 done.** Merged into `main` in this session's close-out
+(see the merge commit immediately following); `v2/P5A.2` retained, not
+deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin`
+until a new version is wanted — is still in force.

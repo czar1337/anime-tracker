@@ -22,6 +22,7 @@ import { notifyAchievementEngine } from './achievementHook.js';
 import { buildSelectionJSON, buildSelectionCSV } from './selectionExport.js';
 import { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } from './appearanceExport.js';
 import { triggerDownload } from './download.js';
+import { TasteProfile } from './tasteProfile.js';
 
 // Every destructive/lossy toast passes this as its onExpire — a no-op today
 // (see achievementHook.js), wired for real once P7A implements the engine.
@@ -52,6 +53,8 @@ let activeList = 'watching';
 let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
 let persist = () => {};
 let searchDebounceTimer = null;
+let coldStartCandidates = []; // whatever TasteProfile.buildColdStartCandidates() last resolved to
+let coldStartPickedIds = new Set(); // this session's in-progress picks — nothing persisted until Done
 let replaceTargetId = null; // set while the search overlay is being used to fix a wrong match
 let searchGeneration = 0; // bumped on every new search/close so a slow, superseded response is ignored
 const mediaCache = new Map();
@@ -1783,6 +1786,44 @@ function openHelp() {
   Render.renderHelpPanel(document.getElementById('help-body'));
 }
 
+// P5A.2's cold-start onboarding overlay. Called both by app.js's boot (the
+// automatic trigger, once TasteProfile.maybeAutoTriggerColdStart() says the
+// corpus has something to show) and by the Settings panel's own "Redo the
+// quick picker" button — the exact same function either way, since opening
+// it never itself changes any preference; only Done/Skip below do that.
+async function openColdStartOnboarding() {
+  coldStartCandidates = await TasteProfile.buildColdStartCandidates();
+  if (!coldStartCandidates.length) return; // corpus not ready yet — nothing to show
+  coldStartPickedIds = new Set();
+  openOverlay('cold-start-overlay');
+  Render.renderColdStartOverlay(document.getElementById('cold-start-grid'), coldStartCandidates, coldStartPickedIds);
+}
+
+function bindColdStartOverlay() {
+  const grid = document.getElementById('cold-start-grid');
+  grid.addEventListener('click', (e) => {
+    const tile = e.target.closest('.coldstart-tile');
+    if (!tile) return;
+    const anilistId = Number(tile.dataset.anilistId);
+    if (coldStartPickedIds.has(anilistId)) coldStartPickedIds.delete(anilistId);
+    else coldStartPickedIds.add(anilistId);
+    Render.renderColdStartOverlay(grid, coldStartCandidates, coldStartPickedIds);
+  });
+  document.getElementById('cold-start-skip-btn').addEventListener('click', () => {
+    TasteProfile.skipColdStart();
+    closeAllOverlays();
+  });
+  // No minimum-picks gate on Done — the spec's "ten taps" is an
+  // encouragement, not a hard requirement, and a user who looked and picked
+  // nothing has still made a deliberate choice worth recording as
+  // "completed" (never auto-prompted again) rather than merely "skipped".
+  document.getElementById('cold-start-submit-btn').addEventListener('click', () => {
+    TasteProfile.completeColdStart([...coldStartPickedIds]);
+    closeAllOverlays();
+    Render.showToast(coldStartPickedIds.size ? `Saved ${coldStartPickedIds.size} picks.` : 'Taste onboarding completed.');
+  });
+}
+
 // j/k move a roving focus between whatever `.card` elements are actually on
 // screen right now (list view, or Home's "pick up where you left off"
 // strip — whatever #grid/the page currently has). No wraparound: k at the
@@ -2146,6 +2187,10 @@ function bindSettingsPanel() {
   });
 
   body.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-action="redo-cold-start"]')) {
+      openColdStartOnboarding();
+      return;
+    }
     const themeBtn = e.target.closest('[data-action="pick-theme"]');
     if (themeBtn) {
       const slotKey = themeBtn.dataset.slot;
@@ -2740,7 +2785,7 @@ export function refreshCurrentView() {
 // Exported so detail.js can route its open through the same focus-capture/
 // overlay-close/focus-trap plumbing every other overlay uses, instead of
 // toggling `hidden` directly (which used to skip all of that).
-export { openOverlay, closeAllOverlays };
+export { openOverlay, closeAllOverlays, openColdStartOnboarding };
 
 // Exported so app.js can re-measure the tab pill once the real tab-count
 // text is in (initEvents runs, and thus positions the pill, before
@@ -2842,6 +2887,7 @@ export function initEvents({ initialList, persistFn }) {
   bindKeyboardShortcuts();
   bindOverlayCloseButtons();
   bindSettingsPanel();
+  bindColdStartOverlay();
   bindHelpPanel();
   bindRipple();
   document.addEventListener('keydown', trapOverlayFocus);

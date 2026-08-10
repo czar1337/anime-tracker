@@ -174,6 +174,12 @@ export function defaultSettings() {
     // that module's own header for why (a step's tuning-table value
     // divided by its own step-5 value is always exactly 1.0).
     ...Object.fromEntries(SLIDER_STEP_KEYS.map((key) => [key, DEFAULT_STEP])),
+    // P5A.2: cold-start onboarding state — skippable, re-runnable from
+    // Settings. `coldStartPicks` are anilistIds the user marked "liked"
+    // during onboarding (never actually added to the library).
+    coldStartPicks: [],
+    coldStartCompletedAt: null,
+    coldStartSkipped: false,
   };
 }
 
@@ -223,6 +229,9 @@ export function ensureSettingsShape(preferences) {
   for (const key of SLIDER_STEP_KEYS) {
     prefs[key] = isValidStep(prefs[key]) ? prefs[key] : defaults[key];
   }
+  prefs.coldStartPicks = Array.isArray(prefs.coldStartPicks) ? prefs.coldStartPicks : defaults.coldStartPicks;
+  prefs.coldStartCompletedAt = typeof prefs.coldStartCompletedAt === 'string' ? prefs.coldStartCompletedAt : defaults.coldStartCompletedAt;
+  prefs.coldStartSkipped = Boolean(prefs.coldStartSkipped);
 
   return prefs;
 }

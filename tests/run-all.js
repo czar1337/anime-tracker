@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -380,6 +380,10 @@ async function run() {
       assert.deepEqual(entry.tagIds, []);
       assert.deepEqual(entry.customListIds, []);
     }
+    // P5A.2: cold-start onboarding state defaults to "not yet run".
+    assert.deepEqual(migrated.preferences.coldStartPicks, []);
+    assert.equal(migrated.preferences.coldStartCompletedAt, null);
+    assert.equal(migrated.preferences.coldStartSkipped, false);
   });
 
   await test('migration v9->v10 (P6.1): a LIGHT preset lands in the light slot, mode "light", dark slot defaults to moonlit-shrine', () => {
@@ -435,6 +439,33 @@ async function run() {
     // dead defensive code, not a correctness fix.
   });
 
+  await test('migration v10->v11 (P5A.2): defaults coldStartPicks/coldStartCompletedAt/coldStartSkipped', () => {
+    const v10 = readFixture('schema-v10-library.json');
+    const migrated = migrate_10_to_11(v10);
+    assert.equal(migrated.schemaVersion, 11);
+    assert.deepEqual(migrated.preferences.coldStartPicks, []);
+    assert.equal(migrated.preferences.coldStartCompletedAt, null);
+    assert.equal(migrated.preferences.coldStartSkipped, false);
+  });
+
+  await test('migration v10->v11: never touches entries, appearance, or any other preference field', () => {
+    const v10 = readFixture('schema-v10-library.json');
+    const migrated = migrate_10_to_11(v10);
+    assert.deepEqual(migrated.entries, v10.entries);
+    assert.deepEqual(migrated.preferences.appearance, v10.preferences.appearance);
+    assert.equal(migrated.preferences.uiFont, v10.preferences.uiFont);
+    assert.equal(migrated.preferences.textSizeStep, v10.preferences.textSizeStep);
+  });
+
+  await test('migration v10->v11 is idempotent: running it twice never overwrites an already-present value', () => {
+    const v10 = readFixture('schema-v10-library.json');
+    const withPicks = { ...v10, preferences: { ...v10.preferences, coldStartPicks: [123, 456], coldStartCompletedAt: '2026-01-01T00:00:00.000Z', coldStartSkipped: false } };
+    const migrated = migrate_10_to_11(withPicks);
+    const migratedTwice = migrate_10_to_11(migrated);
+    assert.deepEqual(migratedTwice, migrated);
+    assert.deepEqual(migratedTwice.preferences.coldStartPicks, [123, 456]);
+  });
+
   // -------------------------------------------------------------------------
   // settingsSchema.js (public/js/settingsSchema.js) — the single typed
   // settings object (P1.3), pure/no-DOM, loaded via dynamic import().
@@ -472,6 +503,9 @@ async function run() {
     assert.equal(shaped.headingFont, 'zen-old-mincho');
     assert.equal(shaped.numbersFont, 'schibsted-grotesk');
     assert.deepEqual(shaped.filters.watching, defaultSettings().filters.watching);
+    assert.deepEqual(shaped.coldStartPicks, []);
+    assert.equal(shaped.coldStartCompletedAt, null);
+    assert.equal(shaped.coldStartSkipped, false);
   });
 
   await test('ensureSettingsShape repairs an invalid enum value back to default rather than crashing', () => {
@@ -706,6 +740,19 @@ async function run() {
       pSimilar: 0.9,
       pSeen: 1.5,
     });
+  });
+
+  await test('P5A.2\'s taste-profile RECOMMENDATIONS additions match the spec\'s own numbers', () => {
+    assert.equal(RECOMMENDATIONS.coldStartThresholdRatedEntries, 10);
+    assert.equal(RECOMMENDATIONS.recencyWindowDays, 90);
+    assert.equal(RECOMMENDATIONS.recencyBoostMax, 1.0);
+    assert.equal(RECOMMENDATIONS.dropPenaltyWeight, 3);
+    assert.equal(RECOMMENDATIONS.dismissPenaltyWeight, 1);
+    // Between a dismissal's penalty (1) and a max-severity drop's (3) —
+    // see config/tuning.js's own comment for the reasoning.
+    assert.equal(RECOMMENDATIONS.coldStartPickWeight, 1.5);
+    assert.ok(RECOMMENDATIONS.coldStartPickWeight > RECOMMENDATIONS.dismissPenaltyWeight);
+    assert.ok(RECOMMENDATIONS.coldStartPickWeight < RECOMMENDATIONS.dropPenaltyWeight);
   });
 
   await test('ACHIEVEMENTS point/level-curve values match the spec', () => {
@@ -3040,7 +3087,11 @@ async function run() {
   });
 
   await test('CLASS_B_STORES registers corpusCache last, per rule 4\'s eviction order', () => {
-    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['recommendationsCache', 'airingCache', 'upcomingCache', 'corpusCache']);
+    // P5A.2 inserted tasteProfileCache directly before airingCache — the one
+    // relative position the spec's own rule 4 text names explicitly ("then
+    // the taste profile, then the airing store") — without relitigating
+    // P1.2's own pre-existing airing-before-upcoming order.
+    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['recommendationsCache', 'tasteProfileCache', 'airingCache', 'upcomingCache', 'corpusCache']);
   });
 
   await test('selectCorpusEvictionCandidates: never selects a library id, even when it has the lowest popularity', () => {
@@ -3296,6 +3347,7 @@ async function run() {
     genres: ['Action', 'Drama'],
     averageScore: 85,
     popularity: 1036850,
+    source: 'MANGA',
     studios: { nodes: [{ name: 'WIT STUDIO' }] },
     tags: [{ name: 'Kaiju', category: 'Theme-Fantasy', rank: 93, isMediaSpoiler: false }],
     staff: { edges: [{ role: 'Director', node: { name: { full: 'Some Person' } } }] },
@@ -3314,6 +3366,7 @@ async function run() {
     assert.equal(pruned.duration, 24);
     assert.deepEqual(pruned.genres, ['Action', 'Drama']);
     assert.equal(pruned.popularity, 1036850);
+    assert.equal(pruned.source, 'MANGA'); // P5A.2's "source material" affinity dimension
     assert.equal(pruned.studio, 'WIT STUDIO');
     assert.deepEqual(pruned.tags, [{ name: 'Kaiju', category: 'Theme-Fantasy', rank: 93 }]);
     assert.deepEqual(pruned.staff, [{ role: 'Director', name: 'Some Person' }]);
@@ -3358,6 +3411,250 @@ async function run() {
   await test('paceDelayMs: a looser margin or higher ceiling paces faster, a stricter one paces slower', () => {
     assert.equal(paceDelayMs(1, 60), 1000);
     assert.ok(paceDelayMs(0.5, 30) > paceDelayMs(0.7, 30), 'a smaller safety margin must wait longer between requests');
+  });
+
+  // -------------------------------------------------------------------------
+  // tasteProfileLogic.js (public/js/tasteProfileLogic.js) — P5A.2's pure
+  // affinity math: z-score weighting, recency, drop/dismissal penalties,
+  // cold-start pick folding, and the cold-start candidate picker itself.
+  // -------------------------------------------------------------------------
+  console.log('tasteProfileLogic.js');
+  const tasteProfileLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'tasteProfileLogic.js').replace(/\\/g, '/');
+  const {
+    computeMeanAndStdDev,
+    zScore,
+    recencyMultiplier,
+    dropPenalty,
+    confidenceScore,
+    isThemeTag,
+    decadeOf,
+    episodeBracketOf,
+    resolvePrimaryGenre,
+    selectColdStartCandidates,
+    buildAffinities,
+  } = await import(tasteProfileLogicUrl);
+
+  const TASTE_TUNING = {
+    recencyWindowDays: 90,
+    recencyBoostMax: 1.0,
+    dropPenaltyWeight: 3,
+    dismissPenaltyWeight: 1,
+    coldStartPickWeight: 1.5,
+    coldStartThresholdRatedEntries: 10,
+  };
+
+  await test('computeMeanAndStdDev: empty input has no mean/stdDev rather than NaN', () => {
+    assert.deepEqual(computeMeanAndStdDev([]), { mean: null, stdDev: null });
+  });
+
+  await test('computeMeanAndStdDev: known distribution', () => {
+    const { mean, stdDev } = computeMeanAndStdDev([2, 4, 4, 4, 5, 5, 7, 9]);
+    assert.equal(mean, 5);
+    assert.equal(Math.round(stdDev * 100) / 100, 2);
+  });
+
+  await test('zScore: zero stdDev (every rating identical so far) returns 0, never divides by zero', () => {
+    assert.equal(zScore(7, 7, 0), 0);
+  });
+
+  await test("zScore: the spec's own harsh-rater vs generous-rater example", () => {
+    // "A user averaging 8.5 who gives a 7 is expressing dislike."
+    assert.ok(zScore(7, 8.5, 1) < 0, 'a 7 from a harsh (high-mean) rater must be negative');
+    // "A user averaging 5.5 who gives a 7 is expressing enthusiasm."
+    assert.ok(zScore(7, 5.5, 1) > 0, 'a 7 from a generous (low-mean) rater must be positive');
+  });
+
+  await test('recencyMultiplier: day 0 gets the full boost, the window edge and beyond get exactly the baseline', () => {
+    assert.equal(recencyMultiplier(1000, 1000, 90, 1.0), 2); // 1 (baseline) + 1.0 (full boost)
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    assert.equal(recencyMultiplier(0, ninetyDaysMs, 90, 1.0), 1);
+    assert.equal(recencyMultiplier(0, ninetyDaysMs * 2, 90, 1.0), 1, 'well past the window is still baseline, never below it');
+  });
+
+  await test('recencyMultiplier: a future timestamp (clock skew) degrades to the bare baseline, not a bonus', () => {
+    assert.equal(recencyMultiplier(2000, 1000, 90, 1.0), 1);
+  });
+
+  await test('dropPenalty: unknown totalEpisodes contributes no fractional signal', () => {
+    assert.equal(dropPenalty(2, null, 3), 0);
+    assert.equal(dropPenalty(2, 0, 3), 0);
+    assert.equal(dropPenalty(undefined, 24, 3), 0);
+  });
+
+  await test("dropPenalty: the spec's own example — dropping at episode 2 of 24 penalizes far more than at episode 20 of 24", () => {
+    const early = dropPenalty(2, 24, 3);
+    const late = dropPenalty(20, 24, 3);
+    assert.ok(early > late, `episode 2 (${early}) should penalize more than episode 20 (${late})`);
+    assert.equal(Math.round(early * 100) / 100, 2.75); // 3 * (1 - 2/24)
+    assert.equal(Math.round(late * 100) / 100, 0.5); // 3 * (1 - 20/24)
+  });
+
+  await test('confidenceScore: scales linearly to the threshold, then caps at 1', () => {
+    assert.equal(confidenceScore(0, 10), 0);
+    assert.equal(confidenceScore(5, 10), 0.5);
+    assert.equal(confidenceScore(10, 10), 1);
+    assert.equal(confidenceScore(50, 10), 1, 'never exceeds 1 past the threshold');
+  });
+
+  await test('isThemeTag: only a "Theme-" category prefix counts, per AniList\'s own taxonomy', () => {
+    assert.equal(isThemeTag({ category: 'Theme-Fantasy' }), true);
+    assert.equal(isThemeTag({ category: 'Cast-Female Protagonist' }), false);
+    assert.equal(isThemeTag({}), false);
+    assert.equal(isThemeTag(null), false);
+  });
+
+  await test('decadeOf / episodeBracketOf bucket correctly, and degrade to null on missing input', () => {
+    assert.equal(decadeOf(2013), '2010s');
+    assert.equal(decadeOf(null), null);
+    assert.equal(episodeBracketOf(13), '1-13');
+    assert.equal(episodeBracketOf(14), '14-26');
+    assert.equal(episodeBracketOf(52), '27-52');
+    assert.equal(episodeBracketOf(53), '53+');
+    assert.equal(episodeBracketOf(null), null);
+  });
+
+  await test('resolvePrimaryGenre: the first priority-list genre present in the entry\'s own genres wins', () => {
+    assert.equal(resolvePrimaryGenre(['Comedy', 'Mecha'], RECOMMENDATIONS.primaryGenrePriority), 'Mecha');
+    assert.equal(resolvePrimaryGenre(['Comedy', 'Drama'], RECOMMENDATIONS.primaryGenrePriority), 'Comedy');
+    assert.equal(resolvePrimaryGenre([], RECOMMENDATIONS.primaryGenrePriority), null);
+    assert.equal(resolvePrimaryGenre(['Unlisted Genre'], RECOMMENDATIONS.primaryGenrePriority), null);
+  });
+
+  await test('selectColdStartCandidates: round-robins across genre buckets rather than filling up with the single most-popular genre', () => {
+    const corpusEntries = {};
+    for (let i = 0; i < 20; i++) {
+      corpusEntries[String(1000 + i)] = { anilistId: 1000 + i, genres: ['Action'], popularity: 1000 - i };
+    }
+    for (let i = 0; i < 5; i++) {
+      corpusEntries[String(2000 + i)] = { anilistId: 2000 + i, genres: ['Romance'], popularity: 500 - i };
+    }
+    const picked = selectColdStartCandidates({ corpusEntries, count: 10, primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority });
+    assert.equal(picked.length, 10);
+    const romanceCount = picked.filter((p) => p.genres.includes('Romance')).length;
+    assert.ok(romanceCount >= 5, `expected all 5 Romance entries to be picked before Action fills the rest, got ${romanceCount}`);
+  });
+
+  await test('selectColdStartCandidates: excludes genre-less entries and never returns duplicates', () => {
+    const corpusEntries = {
+      1: { anilistId: 1, genres: ['Action'], popularity: 10 },
+      2: { anilistId: 2, genres: [], popularity: 999 },
+      3: { anilistId: 3, popularity: 999 },
+    };
+    const picked = selectColdStartCandidates({ corpusEntries, count: 30, primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority });
+    assert.deepEqual(picked.map((p) => p.anilistId), [1]);
+  });
+
+  await test('selectColdStartCandidates: a corpus smaller than `count` returns everything it has, no padding', () => {
+    const corpusEntries = { 1: { anilistId: 1, genres: ['Action'], popularity: 1 } };
+    const picked = selectColdStartCandidates({ corpusEntries, count: 30, primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority });
+    assert.equal(picked.length, 1);
+  });
+
+  await test("buildAffinities: the spec's own harsh-rater vs generous-rater example — the SAME raw score of 7 for Mecha nets opposite signs depending on the rest of the user's own distribution", () => {
+    // 'Filler' entries establish the population mean without ever touching
+    // the Mecha bucket themselves, so Mecha's own affinity total is exactly
+    // that one entry's own signed contribution — isolating the effect
+    // rather than summing z-scores across an entire shared bucket (which,
+    // being deviations from their own mean, always sum to exactly zero).
+    const harsh = buildAffinities({
+      entries: [
+        { anilistId: 1, myScore: 7, genres: ['Mecha'] },
+        { anilistId: 2, myScore: 9, genres: ['Filler'] },
+        { anilistId: 3, myScore: 9, genres: ['Filler'] },
+      ],
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.ok(harsh.affinities.genre.Mecha < 0, "a 7 from a harsh (mean 8.33) rater must be a negative Mecha signal");
+
+    const generous = buildAffinities({
+      entries: [
+        { anilistId: 1, myScore: 7, genres: ['Mecha'] },
+        { anilistId: 2, myScore: 5, genres: ['Filler'] },
+        { anilistId: 3, myScore: 5, genres: ['Filler'] },
+      ],
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.ok(generous.affinities.genre.Mecha > 0, "the same 7 from a generous (mean 5.67) rater must be a positive Mecha signal");
+  });
+
+  await test('buildAffinities: ratedCount/confidence come only from scored entries, unaffected by coldStartPicks', () => {
+    const entries = [{ anilistId: 1, myScore: 8, genres: ['Drama'] }];
+    const withPicks = buildAffinities({
+      entries,
+      corpusById: { '500': { genres: ['Comedy'], anilistId: 500 } },
+      coldStartPicks: [500],
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.equal(withPicks.ratedCount, 1);
+    assert.equal(withPicks.confidence, confidenceScore(1, TASTE_TUNING.coldStartThresholdRatedEntries));
+  });
+
+  await test('buildAffinities: coldStartPicks distribute a positive signal via coldStartPickWeight, only for titles the corpus actually knows', () => {
+    const result = buildAffinities({
+      entries: [],
+      corpusById: { '500': { anilistId: 500, genres: ['Comedy'], studio: 'Studio X' } },
+      coldStartPicks: [500, 501], // 501 is not in corpusById — must be skipped, not throw
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.equal(result.affinities.genre.Comedy, TASTE_TUNING.coldStartPickWeight);
+    assert.equal(result.affinities.studio['Studio X'], TASTE_TUNING.coldStartPickWeight);
+  });
+
+  await test("buildAffinities: the spec's own drop example — dropping early penalizes a genre far more than dropping late", () => {
+    const baseEntry = (id, episode) => ({ anilistId: id, genres: ['Horror'], totalEpisodes: 24, episodesWatched: episode });
+    const early = buildAffinities({
+      entries: [baseEntry(1, 2)],
+      drops: [{ anilistId: 1, episode: 2, totalEpisodes: 24 }],
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    const late = buildAffinities({
+      entries: [baseEntry(1, 20)],
+      drops: [{ anilistId: 1, episode: 20, totalEpisodes: 24 }],
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.ok(early.affinities.genre.Horror < late.affinities.genre.Horror, 'an early drop must push the genre further negative than a late drop');
+  });
+
+  await test('buildAffinities: dismissals distribute a flat negative signal against the corpus entry, dropped titles never in the library', () => {
+    const result = buildAffinities({
+      entries: [],
+      corpusById: { '700': { anilistId: 700, genres: ['Isekai'] } },
+      dismissals: [{ anilistId: 700 }],
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.equal(result.affinities.genre.Isekai, -TASTE_TUNING.dismissPenaltyWeight);
+  });
+
+  await test('buildAffinities: recency boosts a recent rating\'s contribution over an equally-scored old one', () => {
+    const nowMs = new Date('2026-01-01').getTime();
+    const recentMs = nowMs; // today
+    const oldMs = nowMs - 200 * 24 * 60 * 60 * 1000; // 200 days ago, past the 90-day window
+    const recent = buildAffinities({
+      entries: [
+        { anilistId: 1, myScore: 9, genres: ['Fantasy'] },
+        { anilistId: 2, myScore: 5, genres: ['Fantasy'] },
+      ],
+      scoreTimestamps: { 1: recentMs, 2: oldMs },
+      nowMs,
+      tuning: TASTE_TUNING,
+    });
+    const old = buildAffinities({
+      entries: [
+        { anilistId: 1, myScore: 9, genres: ['Fantasy'] },
+        { anilistId: 2, myScore: 5, genres: ['Fantasy'] },
+      ],
+      scoreTimestamps: { 1: oldMs, 2: recentMs },
+      nowMs,
+      tuning: TASTE_TUNING,
+    });
+    assert.ok(recent.affinities.genre.Fantasy > old.affinities.genre.Fantasy, 'the same two scores should net a higher affinity when the ABOVE-mean one is the recent one');
   });
 
   // -------------------------------------------------------------------------

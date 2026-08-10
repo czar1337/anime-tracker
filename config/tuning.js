@@ -118,6 +118,42 @@ export const RECOMMENDATIONS = {
   },
   adventurousness: { min: 1, max: 10, serendipityMin: 0.0, serendipityMax: 1.5 },
   affinityMinimumOverlap: 10,
+  // P5A.2's own additions — not itemized as their own Tuning table row
+  // (that table predates this substep), but the spec's own prose names
+  // each of these as an adjustable requirement of the taste profile, which
+  // is exactly what belongs here per this file's "any adjustable
+  // threshold" rule, same precedent as P1.7's maxNameLength below.
+  //
+  // "The last 90 days count more, never decaying to zero": a rating's
+  // recency BONUS (on top of its baseline weight of 1.0, which is never
+  // reduced) decays linearly from `recencyBoostMax` at day 0 down to 0 at
+  // `recencyWindowDays` — the baseline itself is the "never decaying to
+  // zero" floor; only the bonus fades out.
+  recencyWindowDays: 90,
+  recencyBoostMax: 1.0,
+  // "Dropped titles weighted by how early they were dropped": the penalty
+  // scales by the FRACTION of the show left unwatched at drop time
+  // (1 - episodesWatched/totalEpisodes) — dropping at episode 2 of 24
+  // (fraction remaining ~0.92) is a far stronger negative signal than
+  // dropping at episode 20 of 24 (~0.17), per the spec's own example.
+  // `dropPenaltyWeight` is the multiplier at the maximum (drop-at-episode-1)
+  // case.
+  dropPenaltyWeight: 3,
+  // "Explicit dismissals... count as much as positive [signals]" — today
+  // every dismissal's `reason` is hardcoded to `'manual'` (no reason picker
+  // UI exists anywhere in the app yet, confirmed while building this
+  // substep), so this is necessarily a single flat penalty rather than a
+  // reason-differentiated one until a future substep adds real reasons.
+  dismissPenaltyWeight: 1,
+  // Cold start's ~30-cover picker (spec: "ten taps beats a blank Discover")
+  // is the ONLY signal source before any rating exists, so each pick needs
+  // to carry more weight than an ordinary dismissal (-1) or the profile
+  // built from ten taps would barely move the needle — but deliberately
+  // less than a max-severity drop (3), since a tap during a quick onboarding
+  // pass is a weaker signal than actually watching most of a series and
+  // dropping it anyway. 1.5 sits between the two, roughly matching a
+  // modestly-enthusiastic (not maximal) z-scored rating.
+  coldStartPickWeight: 1.5,
 };
 
 // Named surfaces only, transcribed for completeness (rule: "if a substep

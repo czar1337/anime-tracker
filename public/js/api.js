@@ -199,6 +199,15 @@ async function saveCorpusPage({ cursor, newEntries, targetSize }) {
   return body;
 }
 
+// P5A.2's taste profile — server-computed (it only ever needs the library,
+// the corpus cache, and the event log, all of which server.js already has
+// direct disk access to; unlike the corpus itself, nothing here needs the
+// browser's own AniList reach), so the client side is just this one read.
+async function getTasteProfile() {
+  const res = await fetch('/api/taste-profile');
+  return res.json();
+}
+
 async function downloadCover(anilistId, url) {
   const res = await fetch('/api/covers', {
     method: 'POST',
@@ -427,6 +436,7 @@ query ($page: Int) {
       genres
       averageScore
       popularity
+      source
       studios(isMain: true) { nodes { name } }
       tags { name category rank }
       staff(perPage: 5) { edges { role node { name { full } } } }
@@ -461,6 +471,7 @@ query ($idIn: [Int]) {
       genres
       averageScore
       popularity
+      source
       studios(isMain: true) { nodes { name } }
       tags { name category rank }
       staff(perPage: 5) { edges { role node { name { full } } } }
@@ -596,6 +607,7 @@ export const Api = {
   fetchCorpusPage,
   fetchCorpusByIds,
   getCorpusStatus,
+  getTasteProfile,
   getCorpusCache,
   saveCorpusPage,
   extractRelatedIds,
