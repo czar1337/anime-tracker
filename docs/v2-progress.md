@@ -75,7 +75,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5A.2 Taste profile | done | 2026-08-10 | this session, see "P5A.2 Taste profile" and "P5A.2 close out" below | — |
 | P5A.3 Scorer and debug panel | done | 2026-08-10 | this session, see "P5A.3 Scorer and debug panel" and "P5A.3 close out" below | screen-reader pass deferred, de-prioritized (hidden dev-only surface) |
 | P5A.4 Shelves 1-4 plus provenance | done | 2026-08-10 | this session, see "P5A.4 Shelves 1 to 4 plus provenance" and "P5A.4 close out" below | screen-reader pass deferred to the user; "Discover load, warm corpus" perf budget over target (recorded, non-blocking, see criterion 4 and `docs/v2-backlog.md`) |
-| P5B.1 Shelves 5-10 | not started | — | — | — |
+| P5B.1 Shelves 5-10 | done | 2026-08-10 | this session, see "P5B.1 Shelves 5 to 10" and "P5B.1 close out" below | shelf 10 omitted (no social/list-comparison layer), see docs/v2-backlog.md; screen-reader pass deferred to the user |
 | P5B.2 Mood filter | not started | — | — | — |
 | P5B.3 Advanced filters | not started | — | — | — |
 | P5B.4 Feedback loop | not started | — | — | — |
@@ -5452,6 +5452,300 @@ corpus and library during that smoke test.
 
 **Status: P5A.4 done.** Merged into `main` in this session's close-out
 (see the merge commit immediately following); `v2/P5A.4` retained, not
+deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin`
+until a new version is wanted — is still in force.
+
+## P5B.1 Shelves 5 to 10
+
+Branch `v2/P5B.1` off `main`, through P5A.4 merged. 2 commits: `33eb039`
+(shelves 5-9 plus a real `collapseFranchises` bug fix found while
+building shelf 6 — see below), `18ae8b2` (unit + e2e coverage).
+
+`docs/v2-plan.md`'s own P5B.1 file-index entry (written at P0.4, before
+`shelvesLogic.js` existed) names `discover.js`/`recommendLogic.js` —
+stale for the same reason P5A.4's own entry was: `shelvesLogic.js` (new
+at P5A.4) is where shelf logic actually lives now, and this substep
+extends that file, not the two the plan named. Noted here rather than
+edited into the plan file, matching how earlier stale P0.4-era guesses
+have been corrected via their own substep's progress entry rather than
+rewriting the plan retroactively.
+
+### Shelf 10 omitted, per the spec's own instruction
+
+**"Your friends loved, you have not seen": only if a social or
+list-comparison layer exists. If not, omit the shelf and write it to
+`docs/v2-backlog.md`.** Confirmed by direct search: no friend/social/
+list-comparison code anywhere in `public/js/*.js` or `server.js` — this
+is a single-user local tracker. Recorded in `docs/v2-backlog.md`'s
+informational section. Shelves 5-9 shipped; this substep's own "10"
+in its title is the spec's numbering, not a promise every number ships.
+
+### Shelf 6 ships as two shelves, not one
+
+The spec's own item 6 names two distinct headline templates ("From the
+studio behind X and From the director of X") joined by "and," not one.
+Interpreted as two separate shelves — `from-studio` and `from-director`
+— rather than one combined shelf, because a user can have a clear
+favorite studio with zero staff-credit data for a director (or the
+reverse), and each deserves its own honest empty-shelf reason rather
+than one shelf silently showing only whichever half has data. This
+brings the real shipped count for this substep to 6 shelves (5, 6a,
+6b, 7, 8, 9), all extending `shelvesLogic.js`'s existing `buildShelves()`
+return array.
+
+### A real bug found and fixed, not just features shipped
+
+**`collapseFranchises`'s "earliest seasonYear wins" entry-point
+heuristic could pick a member that is actually the SEQUEL of another
+member in the same relation cluster — and once it did, `hideOwned` was
+silently defeated for that entire franchise.** Found live, against this
+app's own real seeded corpus, while manually verifying the new "From
+the studio behind..." shelf: it surfaced "Attack on Titan +6" — the
+user's own OWNED, WATCHED "Attack on Titan" TV entry (`anilistId`
+16498) — as a fresh discovery card, with `hideOwned` checked and
+working correctly on every other shelf. Root cause, confirmed by
+direct inspection of the real corpus data: AniList's own relation graph
+for this franchise is far messier than any test fixture had modelled —
+11 real entries connected via `PREQUEL`/`SEQUEL`/`SIDE_STORY`/`PARENT`,
+including a 5-entry main TV chain, a SEPARATE 3-entry recap-movie
+compilation chain, and 3 more isolated compilation/spin-off/OVA
+satellites with no `PREQUEL`/`SEQUEL` edge of their own at all (a
+recap movie summarizing the story is real content, but it's never the
+"entry point" to start from). `collapseFranchises`'s own seasonYear
+heuristic, run across all 11 undifferentiated, picked the TV entry
+(seasonYear 2013, tied for earliest) — the exact one the user owns —
+instead of "Attack on Titan: No Regrets" (seasonYear 2015), the actual
+narrative PREQUEL. Since `resolveAndFilter`'s owned/dismissed hiding
+check runs against `resolveFranchiseEntryPoint`'s own relation-graph
+walk (which correctly resolves to the 2015 OVA), not whatever
+`collapseFranchises` separately decided to DISPLAY, the two functions'
+notions of "entry point" had silently diverged, and the owned title
+slipped through display-side unfiltered.
+
+Fixed in two iterations (the first fix — "pick the graph's own root
+whenever exactly one exists, else seasonYear" — was still wrong,
+because every satellite with no `PREQUEL` edge counted as a "root" too,
+so real multi-satellite clusters like this one still fell through to
+the broken seasonYear fallback):
+
+1. Compute chain-root eligibility from the `PREQUEL`/`SEQUEL` subgraph
+   ONLY (never `SIDE_STORY`/`PARENT`) — a member is chain-root-eligible
+   only if it has no `PREQUEL` edge AND has at least one `PREQUEL`/
+   `SEQUEL` edge to something. This correctly excludes pure compilation/
+   recap/spin-off satellites (no `PREQUEL`/`SEQUEL` edge at all) from
+   root candidacy entirely, while still counting them toward
+   `hiddenCount` via the full 4-relation-type clustering.
+2. Exactly one chain root: use it directly.
+3. More than one (two genuinely separate `PREQUEL`/`SEQUEL` chains
+   merged into one cluster only via a looser `SIDE_STORY`/`PARENT` tie
+   — exactly this franchise's main-TV-chain vs. recap-movie-chain
+   situation): the LONGER chain's root wins, on the reasoning that a
+   multi-entry main chain is far more likely to be "the series" than a
+   shorter compilation-movie chain. Tie-broken by seasonYear then
+   `anilistId`.
+4. Zero chain roots (a relation cycle, or every member is an isolated
+   satellite): falls back to earliest seasonYear across every member —
+   the same behavior as before this fix, kept as the genuine last
+   resort when the graph offers no usable signal at all.
+
+Verified against the real corpus after the fix: the same "From the
+studio behind..." shelf now correctly shows "Attack on Titan: No
+Regrets +10" (the true, unowned entry point, with all 10 real siblings
+counted) and never shows the owned TV entry. Locked in with 3 new unit
+tests, including one modelling this exact real 11-entry cluster shape
+(competing chains of different lengths plus 3 satellites), and
+reconfirmed the existing `collapseFranchises`/`buildShelves` test suite
+(P5A.4's own required prerequisite-chain test included) still passes
+unchanged — this fix strictly narrows an over-broad heuristic, it
+doesn't change any previously-correct answer.
+
+### Design
+
+- **`config/tuning.js`**: `RECOMMENDATIONS` gained `blindSpot`
+  (`minGenreAverageScore: 7.0`, `minCandidatesForGenre: 5`),
+  `highNotoriety` (`minPopularity: 100000`, shared by community
+  classics and ironically essential — the audience-size axis both
+  shelves are about, only the score axis differs), `communityClassic`
+  (`minNormalizedScore: 7.5`, reusing `hiddenGem`'s own "excellent"
+  floor), `ironicallyEssential` (`maxNormalizedScore: 5.5`, the canonical
+  scale's own midpoint), `directorRoles` (`['Director', 'Chief
+  Director']` — a deliberately narrow allowlist excluding AniList's many
+  dub/episode/sound director credits, confirmed against this app's own
+  real corpus data), `favoriteMinScore` (`7` — the floor a rated entry
+  must clear before its studio/director can be crowned "favorite").
+  None of these are named numbers in the spec's own Tuning table (it
+  predates P5B.1) — each is exactly the "adjustable product value" this
+  file's own header rule describes, same precedent as P5A.2's/P1.7's
+  own additions.
+- **`public/js/shelvesLogic.js`**: `isCommunityClassic`,
+  `isIronicallyEssential`, `currentSeason`/`isAiringThisSeason` (AniList's
+  calendar-quarterly season boundaries), `touchedGenres`,
+  `genreAverageScores`, `directorNamesOf`, `findFavoriteStudioAndDirector`,
+  and the 6 new shelves' own `format*` reason-text builders, all wired
+  into `buildShelves()`'s returned array (now 10 shelves, up from 4).
+  `collapseFranchises` rewritten per the bug fix above — same exported
+  signature, same shape of return value, corrected entry-point logic.
+- **No changes to `discover.js`, `render.js`, `events.js`, `index.html`,
+  or `styles.css`.** Both already iterate `shelves` generically —
+  confirmed via grep that neither file has any shelf-id-specific
+  hardcoding — so 6 new shelves needed zero orchestration or rendering
+  changes, only new `shelvesLogic.js` content for those two layers to
+  iterate over.
+- **Tests**: unit coverage for every new predicate/formatter, a
+  `buildShelves` integration test exercising all 6 new shelves against
+  one shared fixture corpus, 3 `collapseFranchises` regression tests (the
+  exact real prequel-airs-later case, the zero/multiple-chain-root
+  fallback, and the full real 11-entry cluster shape); 3 new
+  `tests/e2e/discover-shelves.spec.js` tests proving the real UI wiring
+  for all 6 shelves; `tests/e2e/scorer-debug-panel.spec.js`'s and
+  `tests/e2e/discover-shelves.spec.js`'s own filler fixtures bumped
+  `normalizedScore` from 5 to 6 (a plain popularity of 900000 combined
+  with score 5 newly qualified for Ironically Essential, a shelf that
+  didn't exist when those fillers were designed).
+
+### Acceptance criteria
+
+**1. Automated checks.**
+
+- `node tests/run-all.js` — **371 passed, 0 failed** (up from 356 at
+  P5A.4's close; 15 new tests: 8 for the new predicates/formatters, 1
+  `buildShelves` integration test, 3 `collapseFranchises` regression
+  tests, plus the `findFavoriteStudioAndDirector` null-case and
+  This-season-wrong-year/wrong-season tests).
+- `npx playwright test` (full suite) — **134 passed, 1 skipped, 0
+  failed** (up from 130 at P5A.4's close; 3 new `discover-shelves.spec.js`
+  tests, plus 1 net addition from a prior count reconciliation — see the
+  actual file diffs for the exact breakdown). Clean run, no flakes this
+  time (the previously-documented `conflict-toast-undo-safety.spec.js`
+  timing sensitivity did not reproduce in this run).
+- `node scripts/check-copy-registry.js` — passes (all 6 new shelves'
+  copy — titles, why-text, empty-shelf reasons — is plain literal
+  strings, same convention every non-Settings-panel UI text in this app
+  already follows).
+- No typecheck/lint/build command exists in this project beyond the
+  above (unchanged since P0.1).
+- `tests/fixtures/token-conversion-baseline.json` regenerated for
+  Discover's own 10-shelf markup (up from 4) — the `discover` scene's
+  diff is exactly the expected shape (6 new `.shelf` sections' worth of
+  markup), confirmed by direct comparison rather than assumed.
+
+**2. Data safety — not applicable.** This substep introduces no new
+Class A store and no schema migration: no new preference field, no new
+entry field, nothing persisted beyond what P5A.4 already covers.
+`collapseFranchises`'s bug fix changes which corpus candidate a shelf
+DISPLAYS — a pure, Class-B-derived presentation decision — and touches
+no stored user data at all.
+
+**3. Manual smoke test.** Against the rebuilt SEA build
+(`AnimeTracker-2.1.2.exe`), with a disposable copy of the real user's
+full app-data directory (library, corpus cache, taste-profile cache,
+covers, backups — port 4321 confirmed occupied by the user's own
+separately-running instance first, ran on 44970-44972 across three
+rebuild-and-reverify cycles), verified via MD5 before and after
+(unchanged: `941a906b71aa9fa72ef3372ec28e3ded` both times):
+
+1. Opened Discover. **Observed:** all 10 shelves rendered against the
+   real corpus (mid-seed at first check, fully complete at 3,003/3,000
+   titles by the final check) and real taste profile — Blind spot
+   surfaced "Sailor Moon" ("You've never watched Mahou Shoujo — but
+   it's critically well-regarded (avg 7.5/10)."), From the director of...
+   surfaced a real card citing the real director by name, Community
+   classics/This season/Ironically essential all rendered (This season
+   and Community classics were briefly empty mid-seed, with their own
+   honest empty-shelf reasons, exactly as designed).
+2. Checked "From the studio behind..." specifically, since it was this
+   substep's own bug-discovery site. **Observed, before the fix:** the
+   shelf incorrectly showed the user's own owned "Attack on Titan" as
+   "Attack on Titan +6" despite "Hide titles already in my library"
+   being checked. **Observed, after the fix (verified via a fresh
+   rebuild and a fresh launch against the same disposable data):** the
+   shelf correctly shows "Attack on Titan: No Regrets +10" — the true,
+   unowned entry point — and the owned TV entry never appears on any
+   shelf. Confirmed via direct JS inspection of the real DOM
+   (`document.querySelectorAll('.discover-card')`), not just visual
+   read, since the fix's own correctness depends on exactly which
+   `anilistId` is displayed.
+3. Confirmed `discover-hide-owned-toggle` was checked (`true`) at every
+   point during this investigation, ruling out "the toggle was
+   accidentally off" as an alternative explanation before concluding it
+   was a real `collapseFranchises` bug.
+4. Re-fingerprinted the **original** `%APPDATA%\anime-tracker\
+   library.json` after the full investigation and both rebuild cycles:
+   MD5 unchanged (`941a906b71aa9fa72ef3372ec28e3ded`). The disposable
+   copy, its server processes (each killed by exact PID) and its temp
+   directory were removed afterward.
+
+**4. Performance.** The Tuning table names "Discover load, warm
+corpus" for this substep too (p95 under 400ms, zero API requests).
+Re-measured via `scripts/perf.js`'s existing `measureDiscoverLoadOnce()`
+(unchanged from P5A.4, now naturally exercising all 10 shelves since
+`buildShelves()` itself grew), 7 runs: 4054/4211/4201/3975/4069/3954/
+4120ms.
+
+- **Zero API requests: PASS**, every run.
+- **p95 latency: 4211ms — OVER BUDGET**, consistent with P5A.4's own
+  finding and for the identical reason (no virtualization/render-path
+  optimization anywhere in this app yet — not specific to this
+  substep's own additions). Isolated profiling — `buildShelves()` called
+  directly in plain Node against the same 3,000-entry corpus and
+  2,000-entry rated library, now building all 10 shelves — measured the
+  pure compute at **8-19ms** across 5 runs, actually still comparable
+  to P5A.4's own 15ms measurement for 4 shelves, confirming the 6 new
+  shelves added negligible real cost. The budget overrun remains
+  entirely in the shared page-boot/render/module-load path, not in
+  `shelvesLogic.js`. No new backlog entry needed — P5A.4's own note in
+  `docs/v2-backlog.md` already covers this shared finding.
+
+**5. Accessibility.** Keyboard path: every new shelf's cards use the
+exact same `shelfCardHtml` markup P5A.4 already built (plain, natively
+focusable "Add to Watchlist"/"Details" buttons) — no new interactive
+control was added anywhere in this substep, so nothing new needed its
+own keyboard path. Contrast: no new color or token was introduced;
+every new shelf reuses the exact same `.shelf`/`.discover-card`/`.why`
+styling already AA-verified at P5A.4/P6.1. **The screen reader step is
+user-executed, not yet run.** Exact steps for the user to run if
+wanted: open Discover, confirm a screen reader announces each of the 6
+new shelf headings ("Blind spot", "From the studio behind...", "From
+the director of...", "Community classics you've missed", "This season,
+for you", "Ironically essential") before its own row/card, and confirm
+Blind spot's single card is announced the same way a multi-card shelf's
+first card would be (no special-cased markup exists for the
+single-card case, so there's no reason to expect a difference, but the
+spec's own accessibility bar means confirming rather than assuming).
+
+**6. Rollback.** Revert the `v2/P5B.1` commit range (`33eb039`..
+`18ae8b2`, 2 commits, plus this close-out's own evidence commit and
+merge). **No data migration** — a plain code revert is fully
+sufficient. Reverted code simply stops returning the 6 new shelves from
+`buildShelves()` (back to P5A.4's own 4) and `collapseFranchises`
+reverts to its pre-fix behavior; nothing on disk was ever written by
+this substep, so there is nothing to restore or verify
+forward-compatibility against. Note for whoever might consider
+reverting only the `collapseFranchises` fix while keeping the 6 new
+shelves: don't — the fix is what makes `hideOwned` reliable on real
+multi-satellite franchise clusters, and reverting it alone would
+silently reintroduce the exact bug this substep found and fixed.
+
+**Status: P5B.1 done.** Five of the criteria are fully satisfied;
+criterion 4's latency is recorded honestly and non-blockingly per this
+project's established P0.4/P5A.4 precedent (its own zero-API-requests
+half passes cleanly), and criterion 5's screen-reader pass is deferred
+to the user. Shelf 10 is a confirmed, spec-sanctioned omission, not a
+gap. One real bug was found and fixed along the way — a
+`collapseFranchises` entry-point heuristic that could silently defeat
+`hideOwned` on real, messy franchise relation graphs — caught by
+manually verifying a new shelf against the real user's own corpus
+before this close-out, not by any test written in advance, then locked
+in with 3 new regression tests modelling the exact real cluster shape
+that exposed it, and reconfirmed live against the real corpus after the
+fix.
+
+## P5B.1 close out
+
+**Status: P5B.1 done.** Merged into `main` in this session's close-out
+(see the merge commit immediately following); `v2/P5B.1` retained, not
 deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin`
