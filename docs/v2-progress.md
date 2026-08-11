@@ -87,7 +87,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5A.4 Shelves 1-4 plus provenance | done | 2026-08-10 | this session, see "P5A.4 Shelves 1 to 4 plus provenance" and "P5A.4 close out" below | screen-reader pass deferred to the user; "Discover load, warm corpus" perf budget over target (recorded, non-blocking, see criterion 4 and `docs/v2-backlog.md`) |
 | P5B.1 Shelves 5-10 | done | 2026-08-10 | this session, see "P5B.1 Shelves 5 to 10" and "P5B.1 close out" below | shelf 10 omitted (no social/list-comparison layer), see docs/v2-backlog.md; screen-reader pass deferred to the user |
 | P5B.2 Mood filter | done | 2026-08-10 | this session, see "P5B.2 Mood filters" and "P5B.2 close out" below | screen-reader pass deferred to the user |
-| P5B.3 Advanced filters | not started | — | — | — |
+| P5B.3 Advanced filters | done | 2026-08-11 | this session, see "P5B.3 Advanced filters" and "P5B.3 close out" below | streaming-availability filter dimension omitted (no such data exists anywhere), see docs/v2-backlog.md; screen-reader pass deferred to the user |
 | P5B.4 Feedback loop | not started | — | — | — |
 | P5B.5 Cards and detail view | not started | — | — | — |
 | GATE-2.1 Acceptance sweep, merge check, tag v2.1 | not started | — | — | — |
@@ -6069,6 +6069,338 @@ any commit landed, recorded above rather than silently fixed.
 
 **Status: P5B.2 done.** Merged into `main` in this session's
 close-out (see the merge commit immediately following); `v2/P5B.2`
+retained, not deleted, per the spec's branching rule.
+
+**Not pushed.** The standing instruction — hold pushes to `origin`
+until a new version is wanted — is still in force.
+
+## P5B.3 Advanced filters
+
+Branch `v2/P5B.3` off `main`, through P5B.2 merged. 3 commits:
+`2683842` (logic, migration, panel UI, copy-link sharing), `b7a7c11`
+(unit tests), `865f2ec` (e2e tests plus the mechanical schemaVersion
+12→13 fixes every prior schema bump has also required, plus a
+`token-conversion-baseline.json` regen for the new overlay markup).
+
+Planned via this session's own plan-mode workflow before any code was
+written, per `CLAUDE.md`'s "use plan mode for every substep" rule —
+warranted here specifically because the spec's own text for this
+substep is two short paragraphs naming a dozen filter dimensions and
+three toggles with no UI, persistence, or sharing mechanism specified,
+unlike P5B.1's shelves (each with its own concrete threshold) or
+P5B.2's moods (a closed, named list). Two genuine product decisions
+were confirmed with the user directly before implementation, rather
+than decided unilaterally:
+
+1. **"Shareable via URL" ships as a one-time "Copy link" action, not
+   live address-bar sync.** This app has never touched the browser URL
+   before this substep (confirmed by direct search: zero uses of
+   `history.pushState`/`URLSearchParams`/`location.search` anywhere in
+   `public/js/*.js` prior to this commit). Live-syncing the address bar
+   on every filter change would be this app's first-ever URL routing,
+   a materially bigger and riskier change than the spec's own two
+   sentences ask for. A button encodes the current panel state into
+   plain, readable query params; the app reads them once at boot,
+   applies them, and calls `history.replaceState` to clean the bar —
+   the params never drift out of sync with later edits because they're
+   never touched again after that one read.
+2. **"Hide sequels of shows I have not started" and "hide dismissed
+   titles" get real off-switches.** Both were previously unconditional,
+   hardcoded rules in `shelvesLogic.js`'s `resolveAndFilter` — this
+   substep threads `enforcePrerequisiteChain`/`hideDismissed`
+   parameters through the exact same closure `hideOwned` already uses,
+   both defaulting `true` so today's behavior is unchanged until a user
+   explicitly opts out.
+
+"Streaming availability" (spec: "if available") is omitted — no such
+field exists anywhere in the corpus or in AniList's own `Media` type.
+Recorded in `docs/v2-backlog.md`, same category as shelf 10's own
+P5B.1-era omission.
+
+### A discovery that reshaped the data-model plan mid-substep
+
+The plan's own data-model section proposed a new `discoverFilters`
+preference key — but `preferences.discoverFilters` **already
+existed**, as `{ format: '', studio: '' }`, dating back to a P1-era
+Discover media-filter bar that P5A.4 later removed (its own comment:
+"Discover itself stopped calling this at P5A.4... shelves have no
+format/studio filter bar of their own — P5B.3's own future 'Advanced
+filters' job"). Confirmed orphaned (unread, unwritten, anywhere in
+`public/js/*.js`) before touching it. Rather than introduce a second,
+differently-named preference key alongside a dead one, this substep
+**extends** the existing object in place: `format`/`studio` are the
+exact fields this substep's own filter panel needs anyway, so nothing
+was renamed, and `migrate_12_to_13` merges the new fields onto whatever
+`discoverFilters` already contains rather than assuming the key is
+absent — a real user's already-set value (which nothing could set via
+UI since P5A.4, but the forward-compatibility rule doesn't get to
+assume that) survives. `eventTypes.js`'s own `VIEW_STATE_PREFERENCE_KEYS`
+list already named `discoverFilters` as view-state (excluded from
+`settings_changed` event logging) years before this substep existed —
+whoever wrote that allowlist had already anticipated this exact field.
+
+### Architecture: filters narrow the pool once, upstream of both shelf mechanisms
+
+`buildShelves()` gained a `discoverFilters` parameter.
+`matchesAdvancedFilters(candidate, filters, timeSemantics)`
+(`shelvesLogic.js`, co-located with `formatMoodMatch`) narrows
+`allCorpusCandidates` itself, once, before the 10 named shelves or an
+active mood shelf are computed — the same array both mechanisms
+already read from. This means a filter composes with a mood
+automatically (confirmed by a dedicated integration test: one
+`discoverFilters` narrows both a named shelf's cards and the mood
+shelf's cards from a single `buildShelves()` call) rather than being a
+third mutually-exclusive "view" the way a mood already is — a filter
+narrows what's available, a mood reshapes how it's presented, and
+those are genuinely different axes.
+
+### Design
+
+- **`migrations.js`**: `migrate_12_to_13`, `CURRENT_SCHEMA_VERSION`
+  13.
+- **`public/js/settingsSchema.js`**: `discoverFilters`'s default shape
+  extended in place (see above) with the full field list: year/episode/
+  score/member ranges, studio, source, staffQuery, format,
+  airingStatus, includeTags/excludeTags, maxLengthMinutes,
+  enforcePrerequisiteChain, hideDismissed.
+- **`public/js/shelvesLogic.js`**: `matchesAdvancedFilters`;
+  `resolveAndFilter` gained the `enforcePrerequisiteChain`/
+  `hideDismissed` branch (an `effectiveDismissedSet` that's empty when
+  `hideDismissed` is false, and a short-circuit that skips the
+  group-by-entry-point step entirely when `enforcePrerequisiteChain`
+  is false — checking each raw candidate's own id instead of whatever
+  it resolves to); the same `effectiveDismissedSet` also now gates
+  "Finish what you started"'s own dismissed-filter, which bypasses the
+  prerequisite rule by design and needed the same toggle applied
+  directly. `collapseFranchises`'s own display-time clustering is
+  untouched and stays permanent — only the upstream hiding decision is
+  what toggles.
+- **New `public/js/discoverFiltersExport.js`** (pure): `buildFilterQueryParams`/
+  `parseFilterQueryParams`/`hasDiscoverFilterParams`. Plain,
+  human-readable `df_*`-prefixed query params, not a base64 short code
+  like P6.1's appearance export — a filter link is meant to be
+  eyeballed and hand-edited, the appearance code was meant to be terse
+  for pasting into chat, and those are different goals. Strict
+  reject-never-repair validation on parse, matching
+  `appearanceExport.js`'s own `validateAppearance` convention exactly:
+  a param that IS present but fails its own type check rejects the
+  whole payload; an absent param is simply unset, never an error.
+- **`public/js/app.js`**: a one-time `URLSearchParams(location.search)`
+  check at boot, right after `Preferences.syncFromLibrary` — applies a
+  valid incoming filter link to `preferences.discoverFilters` and
+  persists it, or shows a toast and leaves the preference untouched for
+  a malformed one, then calls `history.replaceState` either way so the
+  URL never carries stale params into later edits.
+- **`public/js/discover.js`**: passes `discoverFilters`/
+  `enforcePrerequisiteChain`/`hideDismissed` (all read from
+  `Store.state.preferences.discoverFilters`) into `buildShelves()`;
+  caches the fetched `corpusEntries` on `discoverState` so the filter
+  panel's dropdown/tag-picker option lists (studio/source/format/
+  airing-status/tags actually present in the corpus, same "only offer
+  real values" convention `Store.allStudios()` already established for
+  the library) don't need a second fetch; a new `rebuildShelvesNow()`
+  export gives the filter overlay's own handlers (which live outside
+  `#discover-view`, so they can't reach the container's own click
+  delegation) one forced-rebuild entry point, mirroring what every
+  in-container handler already does.
+- **`public/js/render.js`/`events.js`/`index.html`**: a "Filters"
+  button in Discover's banner opens `#discover-filters-overlay` (a new
+  static overlay shell, same split as `#theme-picker-overlay`'s own
+  `#settings-body` — the panel body is rendered dynamically since its
+  dropdown options depend on runtime corpus data). Panel fields carry
+  no live-update handler; values are read straight off the DOM at
+  Apply time, plain-form style — the panel is rebuilt from scratch
+  every time it opens anyway, so there's no separate pending-state
+  object to keep in sync. Tag chips toggle via `classList` directly.
+  `discoverActiveFilterChips`/the chip row reuse the exact `.chip.on`/
+  `.clear` markup `renderActiveFilterChips` already established for
+  the library filter bar — a new instance, not a shared one, since
+  Discover's own preferences object is separate from `filters[list]`.
+- **`public/styles.css`**: `.discover-filter-chips` (identical layout
+  to `.active-filter-chips`), `.df-row`/`.df-num`/`.discover-filter-tag-picker`
+  for the panel's own field layout.
+- **No `copyRegistry.js` changes.** Every new string (field labels,
+  toggle copy, chip labels, toasts) is a plain literal, matching this
+  surface's own pre-existing convention — moods remain the one
+  deliberate exception per the spec's own explicit callout at P5B.2.
+  Confirmed via `node scripts/check-copy-registry.js`: identical output
+  before and after this substep ("108 entries, 324 variants, 8 v2
+  files scanned").
+
+### A process gap caught and corrected, and one avoided
+
+Before writing any code, `git switch -c v2/P5B.3` was run immediately
+after the plan was approved — the branching slip that happened at the
+start of P5B.2 (implementation begun directly on `main`, caught only
+after the fact) did not recur here, having been checked explicitly as
+the very first action per this session's own established habit going
+forward.
+
+### Tests
+
+- Unit: `migrate_12_to_13` (defaults every new field; **extends** a
+  pre-existing `{format, studio}` shape rather than replacing it, with
+  a dedicated regression test proving the old values survive;
+  idempotency); `matchesAdvancedFilters` (every range field, exact-match
+  fields, `staffQuery` substring, `includeTags` OR / `excludeTags`
+  disqualify, `maxLengthMinutes` reusing `moodLogic.js`'s own
+  `totalRuntimeMinutes`); `enforcePrerequisiteChain: false` and
+  `hideDismissed: false` regressions (including one specifically for
+  "Finish what you started"'s own bypass-by-design interaction with
+  `hideDismissed`); the composing `buildShelves()` integration test
+  (one `discoverFilters` narrows a named shelf and an active mood shelf
+  from the same call); `discoverFiltersExport.js` round-trip, the
+  "only write what differs from default" no-op-link test, and malformed
+  rejection.
+- e2e (`tests/e2e/discover-advanced-filters.spec.js`, new, 5 tests):
+  setting a studio filter narrows visible cards and survives a real
+  reload (Class A, not transient — waited out `app.js`'s own 300ms
+  persist debounce before reloading rather than racing it); a chip's
+  own × clears just that filter, leaving another active filter
+  untouched; Clear all resets every field and every chip; Copy Link
+  produces a URL that reproduces the exact same filter on a fresh
+  `page.goto()` and then cleans the address bar; a corrupted filter
+  link (`df_yearMin=notanumber`) is rejected with a toast and the
+  preference is left at its untouched default.
+- Two pre-existing test files broke on the `CURRENT_SCHEMA_VERSION`
+  12→13 bump, the same mechanical fallout every prior schema-version
+  substep has produced (see task history at P3.2's own schemaVersion 8
+  bump): `tests/e2e/settings-migration.spec.js` (4 hardcoded `.toBe(12)`
+  assertions) and `tests/e2e/lists-and-tags.spec.js` (1). Fixed by
+  updating the literal number to 13, plus a small addition to
+  `settings-migration.spec.js`'s own "defaults every new field" test
+  asserting the new `discoverFilters` shape, matching that test's own
+  established per-substep-addition convention (P3.1/P3.2/P4.1/P1.7 are
+  each named inline there already).
+
+### Acceptance criteria
+
+**1. Automated checks.**
+
+- `node tests/run-all.js` — **404 passed, 0 failed** (19 new tests: 4
+  migration, 6 `matchesAdvancedFilters`, 3 toggle regressions, 1
+  composing integration test, 5 `discoverFiltersExport.js` tests).
+- `npx playwright test` (full suite) — **143 passed, 1 skipped, 0
+  failed** (5 new `discover-advanced-filters.spec.js` tests; the 5
+  pre-existing failures caused by the schemaVersion bump are fixed, not
+  masked).
+- `node scripts/check-copy-registry.js` — passes, byte-identical output
+  to before this substep (no new copy anywhere).
+- No typecheck/lint/build command exists in this project beyond the
+  above (unchanged since P0.1).
+- `tests/fixtures/token-conversion-baseline.json` — regenerated, not
+  byte-identical. Diffed the regen against the prior commit to confirm
+  scope: ~120 added keys are the new `#discover-filters-overlay`'s own
+  `.overlay-panel`/`.overlay-close`/`h2`/`button.text-btn` markup
+  (present in the DOM, `hidden` attribute or not — the capture walks
+  every element regardless of visibility); the `.tonight`-widget key
+  churn in the same diff is the identical, already-documented
+  real-date-vs-mocked-schedule-fixture drift from P5B.2's own regen,
+  unrelated to this substep.
+
+**2. Data safety.** `preferences.discoverFilters` is Class A (an
+existing preference object, now extended, not a new store — rule 3a
+doesn't apply since no NEW Class A store was introduced). Migration
+dry run: `migrate_12_to_13` run directly against
+`tests/fixtures/schema-v12-library.json` (a copy, never the real
+library — confirmed no such file exists on this machine, see criterion
+3) — output matches the exact expected shape in the unit test above,
+entries/dismissedItems/every other preference field byte-identical,
+idempotent on a second run. No down-migration needed for rollback
+(criterion 6): this substep only adds optional fields with safe
+defaults, so a code revert alone is forward-compatible per rule 13 —
+a reverted app reading a schemaVersion-13 file simply ignores the
+extra `discoverFilters` fields it doesn't know about.
+
+**3. Manual smoke test.** No real `%APPDATA%\anime-tracker` directory
+exists on this machine (re-confirmed before and after this substep's
+own testing) — verified instead against disposable, from-scratch data
+directories, same approach P5B.2 established:
+
+1. Booted `node server.js` against a fresh scratch directory (port
+   4324), seeded a synthetic corpus (30 filler entries plus a
+   studio/source/tag-tagged candidate). Opened Discover in the
+   browser. **Observed:** the Filters button and all 10 named shelves
+   render; opening the panel shows dropdown options built from the
+   real seeded corpus (`Test Studio`, `MANGA`, `TV`) and a tag chip for
+   the real seeded tag (`Tragedy`) — confirmed via direct JS inspection
+   of the live `<select>`/chip elements, not just a visual read.
+2. Set the studio filter to the seeded value and an include-tag chip,
+   clicked Apply. **Observed:** the panel closed, the matching
+   candidate appeared on a real shelf, the chip row showed both
+   "Studio: Test Studio" and "Tag: Tragedy", and the 10-shelf view
+   stayed intact (filters compose, they don't replace the view).
+3. Clicked Clear all. **Observed:** the chip row disappeared entirely.
+4. Rebuilt the SEA executable (`node scripts/build-exe.js`) and booted
+   it against a second disposable directory (port 4325), seeded a
+   candidate with a distinct studio name. **Observed:** clean boot log,
+   the real dropdown correctly listed **both** the synthetic studio and
+   dozens of real AniList studio names (Kyoto Animation, MAPPA, Studio
+   Ghibli, ...) — the app's own background `Corpus.initCorpus()` had
+   made genuine AniList calls into this disposable corpus while the
+   browser tab sat open, an expected, harmless side effect of the app's
+   own existing seed loop, not something this substep triggers.
+   Applying the studio filter against this real-plus-synthetic mixed
+   corpus correctly isolated the one seeded candidate. Both disposable
+   servers and their scratch directories were torn down afterward
+   (each process killed by its exact PID); re-confirmed no real
+   app-data directory was ever created as a side effect.
+
+**4. Performance.** The Tuning table names "Discover load, warm
+corpus" for this substep too. Re-measured via `scripts/perf.js`'s
+existing `measureDiscoverLoadOnce()` (no `discoverFilters` set, so this
+reflects the same no-filter-active cost path every prior Discover
+substep measured), 7 runs: 3775/3887/4189/3786/3805/3774/3783ms.
+
+- **Zero API requests: PASS**, every run.
+- **p95 latency: 4189ms — OVER BUDGET**, consistent with every prior
+  Discover substep's own finding and for the identical, already-
+  documented reason (no virtualization/render-path optimization
+  anywhere in this app yet). `matchesAdvancedFilters` runs once per
+  corpus candidate before any shelf computes, the same cost class as
+  `matchesMood`'s own already-measured-negligible per-candidate check —
+  no new backlog entry needed, P5A.4's existing note already covers
+  this shared finding.
+
+**5. Accessibility.** Keyboard path: the Filters button, every panel
+field (native `<input>`/`<select>`/checkbox elements, no custom
+widget), and every chip are plain, natively focusable/activatable
+elements — Tab/Enter/Space all work with zero custom key handling.
+Tag chips reuse the exact same `.chip`/`.chip.on` markup and behavior
+as the already-keyboard-tested library genre picker. Contrast: no new
+color or token was introduced; the panel's own controls reuse existing
+`.sel`/`.chip`/`.btn` styling already AA-verified at P6.1/P5B.2.
+**The screen reader step is user-executed, not yet run.** Exact steps
+for the user to run if wanted: open Discover, activate the Filters
+button, confirm a screen reader announces the panel's heading
+("Advanced filters") and each field's own label before its control,
+set a filter and activate Apply, confirm the reshaped shelf view and
+the new filter chip are both announced sensibly.
+
+**6. Rollback.** Revert the `v2/P5B.3` commit range (`2683842`..
+`865f2ec`, 3 commits, plus this close-out's own evidence commit and
+merge). **No down-migration needed** — see criterion 2's
+forward-compatibility note. Reverted code simply stops reading/writing
+the `discoverFilters` fields this substep added; a file already at
+schemaVersion 13 continues to load correctly under the reverted code
+per rule 13, and `tests/fixtures/token-conversion-baseline.json` would
+need regenerating back to its pre-P5B.3 content, the same mechanical
+step every substep's own regen already demonstrates.
+
+**Status: P5B.3 done.** Five of the six criteria are fully satisfied;
+criterion 4's latency is recorded honestly and non-blockingly per this
+project's established precedent, and criterion 5's screen-reader pass
+is deferred to the user, also per established precedent. Two genuine
+product decisions (URL-sharing mechanism, toggle scope) were confirmed
+with the user before implementation rather than decided unilaterally.
+A pre-existing, orphaned preference field was discovered and correctly
+extended rather than duplicated. Streaming availability is a
+confirmed, spec-sanctioned omission, not a gap.
+
+## P5B.3 close out
+
+**Status: P5B.3 done.** Merged into `main` in this session's
+close-out (see the merge commit immediately following); `v2/P5B.3`
 retained, not deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin`
