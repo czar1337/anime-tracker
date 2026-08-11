@@ -304,6 +304,18 @@
     </div>
   </div>
 
+  <!-- P5B.3's Advanced Filters panel — dropdown option lists depend on
+       runtime corpus data (which studios/sources/tags actually exist), so
+       the body is rendered dynamically by render.js, same split
+       theme-picker-overlay's #settings-body already uses. -->
+  <div id="discover-filters-overlay" class="overlay" hidden>
+    <div class="overlay-panel" style="max-width:640px">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2>Advanced filters</h2>
+      <div id="discover-filters-body"></div>
+    </div>
+  </div>
+
   <!-- Episode notifications settings overlay -->
   <div id="notifications-overlay" class="overlay" hidden>
     <div class="overlay-panel">

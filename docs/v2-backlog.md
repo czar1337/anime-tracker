@@ -161,3 +161,11 @@ real, recorded, and not any single substep's job to resolve on its own.
   in `shelvesLogic.js`'s own algorithm, it's elsewhere in the page-boot/
   render/module-load path shared with every other surface, and worth a
   real profiling pass (not a guess) whenever virtualization work happens.
+- **P5B.3's Advanced Filters omits a "streaming availability" filter dimension**,
+  named in the spec's own list ("streaming availability if available").
+  Confirmed by direct check: no such field exists anywhere in the corpus
+  shape (`corpusLogic.js`'s `pruneMediaFields`) or in AniList's `Media`
+  GraphQL type at all — the spec's own hedge ("if available") anticipated
+  exactly this. Same category of omission as shelf 10 above: not a defect,
+  only actionable if a streaming-availability data source is ever added
+  (e.g. a third-party API), which is out of scope for this substep.

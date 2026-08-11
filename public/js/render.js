@@ -1242,8 +1242,139 @@ function moodButtonRowHtml(activeMoodId) {
   return `<div class="discover-mood-row" role="group" aria-label="Discover moods">${buttons}</div>`;
 }
 
+// P5B.3's Advanced Filters. Chips/clear-all reuse the exact `.chip.on`/
+// `.clear` markup renderActiveFilterChips already established for the
+// library filter bar — same visual language, a separate instance scoped
+// to Discover's own preferences.discoverFilters object. Range pairs
+// (year/episode/score/member) are ONE chip each, clearing both bounds at
+// once, matching how the library bar already treats myScoreMin as a
+// single filter concept rather than exposing a min/max pair.
+function discoverActiveFilterChips(filters) {
+  const f = filters || {};
+  const chips = [];
+  if (f.yearMin != null || f.yearMax != null) chips.push({ key: 'year', label: `Year: ${f.yearMin ?? '…'}–${f.yearMax ?? '…'}` });
+  if (f.episodeMin != null || f.episodeMax != null) chips.push({ key: 'episodes', label: `Episodes: ${f.episodeMin ?? '…'}–${f.episodeMax ?? '…'}` });
+  if (f.scoreMin != null || f.scoreMax != null) chips.push({ key: 'score', label: `Score: ${f.scoreMin ?? '…'}–${f.scoreMax ?? '…'}` });
+  if (f.memberMin != null || f.memberMax != null) chips.push({ key: 'members', label: `Members: ${f.memberMin ?? '…'}–${f.memberMax ?? '…'}` });
+  if (f.studio) chips.push({ key: 'studio', label: `Studio: ${f.studio}` });
+  if (f.source) chips.push({ key: 'source', label: `Source: ${formatEnumLabel(f.source)}` });
+  if (f.staffQuery) chips.push({ key: 'staffQuery', label: `Staff: "${f.staffQuery}"` });
+  if (f.format) chips.push({ key: 'format', label: `Format: ${formatEnumLabel(f.format)}` });
+  if (f.airingStatus) chips.push({ key: 'airingStatus', label: `Status: ${formatEnumLabel(f.airingStatus)}` });
+  for (const t of f.includeTags || []) chips.push({ key: `includeTag:${t}`, label: `Tag: ${t}` });
+  for (const t of f.excludeTags || []) chips.push({ key: `excludeTag:${t}`, label: `Not: ${t}` });
+  if (f.maxLengthMinutes != null) chips.push({ key: 'maxLength', label: `Max length: ${(f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '')}h` });
+  if (f.enforcePrerequisiteChain === false) chips.push({ key: 'enforcePrerequisiteChain', label: 'Sequels shown even if unstarted' });
+  if (f.hideDismissed === false) chips.push({ key: 'hideDismissed', label: 'Dismissed titles shown' });
+  return chips;
+}
+
+function discoverFilterChipsRowHtml(filters) {
+  const chips = discoverActiveFilterChips(filters);
+  if (!chips.length) return '';
+  return `
+    <div class="discover-filter-chips" id="discover-active-filter-chips">
+      <span class="lbl">Filtering by</span>
+      ${chips.map((c) => `<button class="chip on" data-chip="${escapeHtml(c.key)}">${escapeHtml(c.label)}</button>`).join('')}
+      <button class="clear" data-chip="__clear_all">Clear all</button>
+    </div>`;
+}
+
+// Only offer values actually present in the corpus, same convention
+// Store's own allFormats/allStudios/allAiringStatuses already establish
+// for the library — an option nothing in the corpus has is a dead
+// dropdown row.
+function corpusFieldValues(corpusEntries, field) {
+  const set = new Set();
+  for (const c of Object.values(corpusEntries || {})) {
+    if (c[field]) set.add(c[field]);
+  }
+  return [...set].sort();
+}
+
+// Mirrors topGenresByFrequency's own "most common N, active ones never
+// hidden" shape, over corpus tag names instead of library genres — the
+// corpus-wide tag vocabulary is far larger than the genre list, so a top-N
+// cutoff matters even more here.
+function corpusTagsByFrequency(corpusEntries, n) {
+  const counts = {};
+  for (const c of Object.values(corpusEntries || {})) {
+    for (const t of c.tags || []) counts[t.name] = (counts[t.name] || 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name]) => name).slice(0, n);
+}
+
+let includeTagsExpanded = false;
+let excludeTagsExpanded = false;
+
+function toggleIncludeTagsOverflow() {
+  includeTagsExpanded = !includeTagsExpanded;
+}
+function toggleExcludeTagsOverflow() {
+  excludeTagsExpanded = !excludeTagsExpanded;
+}
+
+function tagChipPickerHtml(corpusEntries, selected, { idPrefix, expanded, overflowBtnId }) {
+  const allTagNames = [...new Set(Object.values(corpusEntries || {}).flatMap((c) => (c.tags || []).map((t) => t.name)))].sort();
+  const frequent = new Set(corpusTagsByFrequency(corpusEntries, 15));
+  for (const t of selected) frequent.add(t); // an active tag is never hidden, same rule renderGenreFilter already follows
+  const visible = allTagNames.filter((t) => frequent.has(t));
+  const overflow = allTagNames.filter((t) => !frequent.has(t));
+  const tagBtn = (t) => `<button class="chip ${selected.includes(t) ? 'on' : ''}" data-tag-picker="${idPrefix}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>`;
+  return `
+    <div class="discover-filter-tag-picker" id="${idPrefix}-tag-picker">
+      ${visible.map(tagBtn).join('')}
+      ${expanded ? overflow.map(tagBtn).join('') : ''}
+      ${overflow.length ? `<button class="sel" id="${overflowBtnId}">${expanded ? 'Show less' : 'All tags'} <span style="color:var(--faint)">${overflow.length}</span></button>` : ''}
+    </div>`;
+}
+
+// The panel body itself — rendered into the static #discover-filters-body
+// shell (index.html) on demand, right when the Filters button opens the
+// overlay, since dropdown options depend on runtime corpus data. Every
+// field carries a stable id events.js's own Apply handler reads back by
+// id, plain-form style, rather than tracking pending edits as separate
+// state — matches this app's existing "read the DOM at submit time"
+// convention (e.g. the bulk-actions overlay's own inputs).
+function discoverFiltersPanelBodyHtml(corpusEntries, filters) {
+  const f = filters || {};
+  const numField = (id, value) => `<input type="number" id="${id}" class="df-num" value="${value ?? ''}" placeholder="Any">`;
+  const selectField = (id, options, current, allLabel) => `
+    <select id="${id}" class="sel">
+      <option value="">${escapeHtml(allLabel)}</option>
+      ${options.map((o) => `<option value="${escapeHtml(o)}" ${current === o ? 'selected' : ''}>${escapeHtml(formatEnumLabel(o))}</option>`).join('')}
+    </select>`;
+  return `
+    <div class="df-row"><label>Year</label>${numField('df-year-min', f.yearMin)}<span>–</span>${numField('df-year-max', f.yearMax)}</div>
+    <div class="df-row"><label>Episodes</label>${numField('df-episode-min', f.episodeMin)}<span>–</span>${numField('df-episode-max', f.episodeMax)}</div>
+    <div class="df-row"><label>Score</label>${numField('df-score-min', f.scoreMin)}<span>–</span>${numField('df-score-max', f.scoreMax)}</div>
+    <div class="df-row"><label>Members</label>${numField('df-member-min', f.memberMin)}<span>–</span>${numField('df-member-max', f.memberMax)}</div>
+    <div class="df-row"><label>Studio</label>${selectField('df-studio', corpusFieldValues(corpusEntries, 'studio'), f.studio, 'Any studio')}</div>
+    <div class="df-row"><label>Source</label>${selectField('df-source', corpusFieldValues(corpusEntries, 'source'), f.source, 'Any source')}</div>
+    <div class="df-row"><label>Staff</label><input type="text" id="df-staff-query" value="${escapeHtml(f.staffQuery || '')}" placeholder="Name contains…"></div>
+    <div class="df-row"><label>Format</label>${selectField('df-format', corpusFieldValues(corpusEntries, 'format'), f.format, 'Any format')}</div>
+    <div class="df-row"><label>Airing status</label>${selectField('df-airing-status', corpusFieldValues(corpusEntries, 'status'), f.airingStatus, 'Any status')}</div>
+    <div class="df-row"><label>Max length (hours)</label>${numField('df-max-length-hours', f.maxLengthMinutes != null ? (f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '') : null)}</div>
+    <div class="df-row df-tags"><label>Include tags</label>${tagChipPickerHtml(corpusEntries, f.includeTags || [], { idPrefix: 'df-include', expanded: includeTagsExpanded, overflowBtnId: 'df-include-tags-overflow' })}</div>
+    <div class="df-row df-tags"><label>Exclude tags</label>${tagChipPickerHtml(corpusEntries, f.excludeTags || [], { idPrefix: 'df-exclude', expanded: excludeTagsExpanded, overflowBtnId: 'df-exclude-tags-overflow' })}</div>
+    <label class="discover-hide-owned-row"><input type="checkbox" id="df-enforce-prerequisite-chain" ${f.enforcePrerequisiteChain !== false ? 'checked' : ''}>Hide sequels of shows I have not started</label>
+    <label class="discover-hide-owned-row"><input type="checkbox" id="df-hide-dismissed" ${f.hideDismissed !== false ? 'checked' : ''}>Hide dismissed titles</label>
+    <div class="row" style="margin-top:var(--sp-4);justify-content:space-between">
+      <button class="btn btn-ghost sm" id="discover-filters-copy-link">Copy link</button>
+      <div class="row" style="gap:var(--sp-2)">
+        <button class="btn btn-quiet sm" id="discover-filters-clear-all">Clear all</button>
+        <button class="btn btn-primary sm rip-host" id="discover-filters-apply">Apply filters</button>
+      </div>
+    </div>`;
+}
+
+function renderDiscoverFiltersPanel(corpusEntries, filters) {
+  const body = document.getElementById('discover-filters-body');
+  if (body) body.innerHTML = discoverFiltersPanelBodyHtml(corpusEntries, filters);
+}
+
 function renderDiscoverPage(container, viewState) {
-  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null, activeMoodId = null, moodShelf = null } = viewState;
+  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null, activeMoodId = null, moodShelf = null, discoverFilters = {} } = viewState;
   const age = relativeAgeText(generatedAt);
 
   const banner = `
@@ -1259,8 +1390,10 @@ function renderDiscoverPage(container, viewState) {
           Hide titles already in my library
         </label>
         ${Store.getDismissedItems().length ? `<button class="text-btn" id="dismissed-trigger">Dismissed (${Store.getDismissedItems().length})</button>` : ''}
+        <button class="text-btn" data-action="discover-filters-open">Filters</button>
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh shelves'}</button>
       </div>
+      ${discoverFilterChipsRowHtml(discoverFilters)}
       ${moodButtonRowHtml(activeMoodId)}
     </div>
   `;
@@ -2613,4 +2746,8 @@ export const Render = {
   toggleManagerListExpanded,
   setFontSearchDraft,
   fontGridBodyHtml,
+  renderDiscoverFiltersPanel,
+  discoverActiveFilterChips,
+  toggleIncludeTagsOverflow,
+  toggleExcludeTagsOverflow,
 };

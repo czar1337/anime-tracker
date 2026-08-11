@@ -785,6 +785,22 @@ kbd {
 .active-filter-chips .clear:hover { background: var(--accent-soft); }
 .result-count { margin-left: auto; font: var(--t-meta); color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* P5B.3: Advanced Filters. The chip row reuses .active-filter-chips'
+   layout/typography wholesale (same .lbl/.clear classes) — a separate
+   class only because it lives in Discover's own banner, never inside the
+   library filter bar's own #active-filter-chips element. */
+.discover-filter-chips { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
+.discover-filter-chips .lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.discover-filter-chips .clear { font: var(--t-meta); color: var(--accent-lit); background: none; border: none; padding: var(--sp-1) 6px; border-radius: 5px; cursor: pointer; }
+.discover-filter-chips .clear:hover { background: var(--accent-soft); }
+
+.df-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.df-row > label { flex: 0 0 130px; font: var(--t-meta); color: var(--dim); }
+.df-row .df-num { width: 80px; }
+.df-row.df-tags { align-items: flex-start; }
+.df-row.df-tags > label { margin-top: 6px; }
+.discover-filter-tag-picker { display: flex; flex-wrap: wrap; gap: var(--sp-2); flex: 1; }
+
 .text-btn {
   appearance: none;
   border: none;
