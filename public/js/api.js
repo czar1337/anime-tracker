@@ -416,17 +416,29 @@ async function fetchUpcomingMedia(page = 1) {
 // descending so the seed's own early pages are exactly the most useful
 // (most-recognizable, most affinity-relevant) titles first — if a seed is
 // ever interrupted for good, what it already has is the best possible
-// partial corpus, not an arbitrary slice. Deliberately omits `coverImage`
-// (covers are cached separately) and `idMal` (this app's sole persisted
-// external key is `anilistId`) — corpusLogic.js's `pruneMediaFields` drops
-// them again defensively even though they're never requested here.
+// partial corpus, not an arbitrary slice. Deliberately omits `idMal` (this
+// app's sole persisted external key is `anilistId`) — corpusLogic.js's
+// `pruneMediaFields` drops it again defensively even though it's never
+// requested here.
+//
+// P5B.5: `coverImage { medium }` and `title.native` were added back after
+// P0.3 originally excluded the whole `coverImage` object (see
+// docs/v2-discovery.md's payload finding). That finding measured dropping
+// coverImage-plus-trimmed-staff/tags together, not this one small URL
+// field in isolation — even fully unpruned at 5,000 titles the corpus
+// projects to ~17.65MB, under 12% of the 150MB ceiling, so one ~90-char
+// URL string per entry at the current 3,000-title target is immaterial.
+// A lazy `<img>` pointed at it is a media load, not a data-client request
+// — the spec's own rule 107 explicitly carves those out of "no per-card
+// API request, ever".
 const CORPUS_QUERY = `
 query ($page: Int) {
   Page(page: $page, perPage: 50) {
     pageInfo { hasNextPage }
     media(type: ANIME, sort: POPULARITY_DESC) {
       id
-      title { romaji english }
+      title { romaji english native }
+      coverImage { medium }
       format
       status
       season
@@ -461,7 +473,8 @@ query ($idIn: [Int]) {
   Page(page: 1, perPage: 50) {
     media(id_in: $idIn, type: ANIME) {
       id
-      title { romaji english }
+      title { romaji english native }
+      coverImage { medium }
       format
       status
       season
@@ -562,6 +575,8 @@ query ($id: Int) {
     coverImage { large extraLarge }
     bannerImage
     genres
+    tags { name isGeneralSpoiler isMediaSpoiler }
+    trailer { id site thumbnail }
     averageScore
     popularity
     favourites
