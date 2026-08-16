@@ -48,8 +48,16 @@ test('the lineHeight slider (default UI font, no weight collapse involved) actua
     await openSettings(page);
 
     expect(await cssVar(page, '--line-height')).toBe('1.5'); // step 5 default
+    // Post-2.2.0 feedback fix: this token had no CSS consumer at all before
+    // — proving the raw variable changes was never the gap. body's own
+    // computed line-height (px, resolved from the unitless multiplier) is
+    // what proves it now actually reaches real rendered text.
+    const bodyLineHeightPx = () => page.evaluate(() => parseFloat(getComputedStyle(document.body).lineHeight));
+    const before = await bodyLineHeightPx();
     await setSlider(page, 'lineHeight', 9);
     expect(await cssVar(page, '--line-height')).toBe('1.78');
+    const after = await bodyLineHeightPx();
+    expect(after).toBeGreaterThan(before);
   } finally {
     await server.stop();
   }
@@ -95,8 +103,15 @@ test('the coverWidth slider changes --cover-width', async ({ page }) => {
     await openSettings(page);
 
     expect(await cssVar(page, '--cover-width')).toBe('170px');
+    // Post-2.2.0 feedback fix: this token drives .card-grid's own column
+    // width (styles.css) — a real card's rendered width shrinking is what
+    // proves it now actually reaches the grid, not just the root variable.
+    const cardWidth = () => page.locator('.card').first().evaluate((el) => el.getBoundingClientRect().width);
+    const before = await cardWidth();
     await setSlider(page, 'coverWidth', 1);
     expect(await cssVar(page, '--cover-width')).toBe('103.66px');
+    const after = await cardWidth();
+    expect(after).toBeLessThan(before);
   } finally {
     await server.stop();
   }
@@ -109,8 +124,15 @@ test('the letterSpacing slider changes --letter-spacing', async ({ page }) => {
     await page.waitForSelector('.card, .empty');
     await openSettings(page);
 
+    // Post-2.2.0 feedback fix: this token had no CSS consumer at all before
+    // — body's own computed letter-spacing (px, resolved from the em
+    // amount) is what proves it now actually reaches real rendered text,
+    // not just the root variable.
+    const bodyLetterSpacingPx = () => page.evaluate(() => getComputedStyle(document.body).letterSpacing);
+    const before = await bodyLetterSpacingPx(); // step 5 default (0em computes to the "normal" keyword)
     await setSlider(page, 'letterSpacing', 10);
     expect(await cssVar(page, '--letter-spacing')).toBe('0.1em');
+    expect(await bodyLetterSpacingPx()).not.toBe(before);
   } finally {
     await server.stop();
   }

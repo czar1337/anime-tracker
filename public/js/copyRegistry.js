@@ -402,23 +402,11 @@ export const COPY_REGISTRY = {
   // per the same P1.6 rule P1.7's tags/lists section above already follows.
   // ---------------------------------------------------------------------------
 
-  'fonts.ui.heading': { familyFriendly: 'Interface font', standard: 'Interface font', madara: 'Interface font' },
-  'fonts.ui.description': {
-    familyFriendly: 'Used for menus, buttons and body text everywhere.',
-    standard: 'Used for menus, buttons and body text everywhere.',
-    madara: 'Used for menus, buttons and body text everywhere.',
-  },
-  'fonts.heading.heading': { familyFriendly: 'Heading font', standard: 'Heading font', madara: 'Heading font' },
-  'fonts.heading.description': {
-    familyFriendly: 'Used for series titles and section headings.',
-    standard: 'Used for series titles and section headings.',
-    madara: 'Used for series titles and section headings.',
-  },
-  'fonts.numbers.heading': { familyFriendly: 'Numbers font', standard: 'Numbers font', madara: 'Numbers font' },
-  'fonts.numbers.description': {
-    familyFriendly: 'Used for episode counts and statistics.',
-    standard: 'Used for episode counts and statistics.',
-    madara: 'Used for episode counts and statistics.',
+  'fonts.site.heading': { familyFriendly: 'Font', standard: 'Font', madara: 'Font' },
+  'fonts.site.description': {
+    familyFriendly: 'Applies everywhere: menus, series titles, body text, episode counts.',
+    standard: 'Applies everywhere: menus, series titles, body text, episode counts.',
+    madara: 'Applies everywhere: menus, series titles, body text, episode counts.',
   },
   'fonts.search.placeholder': { familyFriendly: 'Search fonts…', standard: 'Search fonts…', madara: 'Search fonts…' },
   'fonts.search.empty': {
@@ -554,9 +542,9 @@ export const COPY_REGISTRY = {
     madara: 'No thinking required (brain: off)',
   },
   'discoverMood.peakFiction': {
-    familyFriendly: 'Peak fiction',
-    standard: 'Peak fiction',
-    madara: 'Peak fiction, allegedly',
+    familyFriendly: 'Widely loved',
+    standard: 'Widely loved',
+    madara: 'Widely loved (fight me)',
   },
   'discoverMood.backgroundNoise': {
     familyFriendly: 'Background noise',
@@ -580,8 +568,8 @@ export const COPY_REGISTRY = {
   },
   'discoverMood.certifiedBrainrot': {
     familyFriendly: 'Just for fun',
-    standard: 'Certified brainrot',
-    madara: 'Certified brainrot (no regrets)',
+    standard: 'Guilty pleasure',
+    madara: 'Guilty pleasure (no regrets)',
   },
   'discoverMood.clear': {
     familyFriendly: 'Back to shelves',
@@ -648,9 +636,9 @@ export const COPY_REGISTRY = {
     madara: 'Surprise me',
   },
   'discoverFeedback.adventurousnessHint': {
-    familyFriendly: 'Higher settings mix in more unexpected picks.',
-    standard: 'Higher settings mix in more unexpected picks.',
-    madara: 'Higher settings mix in more unexpected picks.',
+    familyFriendly: 'Adds a bit of randomness to shelf rankings, so occasionally something outside your usual taste gets a boost. Higher = more wildcards. Uncheck to turn it off without losing your setting.',
+    standard: 'Adds a bit of randomness to shelf rankings, so occasionally something outside your usual taste gets a boost. Higher = more wildcards. Uncheck to turn it off without losing your setting.',
+    madara: 'Adds a bit of randomness to shelf rankings, so occasionally something outside your usual taste gets a boost. Higher = more wildcards. Uncheck to turn it off without losing your setting.',
   },
   'discoverFeedback.pickForMe': {
     familyFriendly: 'Pick for me',

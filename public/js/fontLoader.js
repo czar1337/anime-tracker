@@ -32,9 +32,8 @@ export function ensureFontLoaded(fontId) {
   loaded.add(fontId);
 }
 
-// No separate boot-time "preload the active fonts" entry point: each font
-// setter in preferences.js (setUiFont/setHeadingFont/setNumbersFont) calls
-// ensureFontLoaded itself, and app.js already calls
+// No separate boot-time "preload the active fonts" entry point: preferences.js's
+// setSiteFont calls ensureFontLoaded itself, and app.js already calls
 // Preferences.syncFromLibrary() on every single boot (walking every
 // cosmetic setter, fonts included) — so the active selections' CSS gets
 // registered for free on every boot, the same generic mechanism that

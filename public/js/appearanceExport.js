@@ -86,5 +86,11 @@ export function validateAppearance(appearance) {
   if (!isValidSlot(appearance.light) || !isValidSlot(appearance.dark)) return false;
   const bg = appearance.background;
   if (!bg || !BACKGROUND_TYPES.includes(bg.type)) return false;
-  return typeof bg.opacity === 'number' && bg.opacity >= 0 && bg.opacity <= 100;
+  if (!(typeof bg.opacity === 'number' && bg.opacity >= 0 && bg.opacity <= 100)) return false;
+  // Post-2.2.0 feedback: the gradient effect's 2 optional colours — absent
+  // (undefined, an older export predating this field) or explicitly null
+  // (never picked) are both valid; a present value must be a real hex.
+  if (bg.gradientColor1 != null && !isValidHexColor(bg.gradientColor1)) return false;
+  if (bg.gradientColor2 != null && !isValidHexColor(bg.gradientColor2)) return false;
+  return true;
 }

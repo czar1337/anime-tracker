@@ -619,6 +619,13 @@ function buildShelves({
   nowMs,
   localDay,
   adventurousness,
+  // Post-2.2.0 feedback: an explicit off switch, independent of the slider's
+  // own stored level — false forces the effective value to the tuning
+  // range's own floor, whose serendipityMin is 0 (config/tuning.js), i.e.
+  // scorer.js's serendipity() term is always exactly 0 while off, without
+  // needing its own signature change or losing the user's preferred level
+  // for whenever they turn it back on.
+  adventurousnessEnabled = true,
   hideOwned = true,
   pageSize = 12,
   rng = Math.random,
@@ -644,7 +651,7 @@ function buildShelves({
   const ownedIds = new Set(libraryEntries.map((e) => e.anilistId));
   const dismissedSet = dismissedIds instanceof Set ? dismissedIds : new Set(dismissedIds || []);
   const effectiveDismissedSet = hideDismissed ? dismissedSet : new Set();
-  const effectiveAdventurousness = adventurousness ?? (tuning.adventurousness.min + tuning.adventurousness.max) / 2;
+  const effectiveAdventurousness = adventurousnessEnabled ? adventurousness ?? (tuning.adventurousness.min + tuning.adventurousness.max) / 2 : tuning.adventurousness.min;
   const droppedTitles = libraryEntries
     .filter((e) => e.listStatus === 'dropped')
     .map((e) => ({ genres: e.genres, episode: e.episodesWatched, totalEpisodes: e.totalEpisodes }));
@@ -702,6 +709,31 @@ function buildShelves({
   const anchors = pickRotatingAnchors(ratedEntries, localDay);
   const likedRaw = allCorpusCandidates.filter((c) => becauseYouLikedMatches(c, anchors).length > 0);
   const likedFiltered = resolveAndFilter(likedRaw);
+  // resolveAndFilter/collapseFranchises can surface a franchise's ENTRY
+  // POINT (e.g. an earlier, unseen prequel) as the card actually shown, even
+  // when it was a different season — a sequel — that matched anchors'
+  // genres and earned this candidate its spot on the shelf in the first
+  // place. Recomputing the match against the entry point alone can come up
+  // empty if the prequel's own genres differ, silently falling back to the
+  // generic "Matches what you tend to rate highly." even though a real
+  // anchor match exists. Precomputed per franchise (by entry id, which every
+  // member of a franchise resolves to identically) from likedRaw — the
+  // candidates that actually satisfied this shelf's own inclusion rule —
+  // so the displayed entry point always gets the reason that earned it a
+  // spot, not a reason re-derived from its own possibly-unrelated genres.
+  const reasonMatchesByEntryId = new Map();
+  for (const c of likedRaw) {
+    const entryId = resolveFranchiseEntryPoint(c.anilistId, corpusById);
+    const matches = becauseYouLikedMatches(c, anchors);
+    const existing = reasonMatchesByEntryId.get(entryId) || [];
+    reasonMatchesByEntryId.set(entryId, existing.concat(matches));
+  }
+  function becauseYouLikedReason(c) {
+    const entryId = resolveFranchiseEntryPoint(c.anilistId, corpusById);
+    const pooled = reasonMatchesByEntryId.get(entryId) || becauseYouLikedMatches(c, anchors);
+    const deduped = [...new Map(pooled.map((m) => [m.anilistId, m])).values()].sort((a, b) => b.myScore - a.myScore).slice(0, 2);
+    return formatBecauseYouLiked(deduped);
+  }
   const becauseYouLiked = {
     id: 'because-you-liked',
     title: 'Because you liked...',
@@ -712,7 +744,7 @@ function buildShelves({
       tuning,
       localDay,
       rawCandidateCount: likedRaw.length,
-      reasonFn: (c) => formatBecauseYouLiked(becauseYouLikedMatches(c, anchors)),
+      reasonFn: becauseYouLikedReason,
       emptyReason: {
         noneFound: 'Rate a few more shows and this shelf will find its footing.',
         allFilteredOut: 'You already have everything that matched — nice work.',

@@ -615,6 +615,29 @@ async function run() {
     assert.equal(shaped.coldStartCompletedAt, null);
     assert.equal(shaped.coldStartSkipped, false);
     assert.equal(shaped.discoverHideOwned, true);
+    assert.equal(shaped.adventurousnessEnabled, true);
+    assert.equal(shaped.decorationStep, 5);
+    assert.equal(shaped.appearance.background.gradientColor1, null);
+    assert.equal(shaped.appearance.background.gradientColor2, null);
+  });
+
+  await test('ensureSettingsShape seeds decorationStep from the legacy decorDensity enum on first repair, then leaves an already-valid step untouched', () => {
+    assert.equal(ensureSettingsShape({ decorDensity: 'few' }).decorationStep, 2);
+    assert.equal(ensureSettingsShape({ decorDensity: 'many' }).decorationStep, 8);
+    assert.equal(ensureSettingsShape({ decorDensity: 'many', decorationStep: 3 }).decorationStep, 3, 'an already-valid step is never re-derived from decorDensity again');
+  });
+
+  await test('ensureSettingsShape repairs an invalid gradient colour back to null (auto/theme-derived), preserves a valid one', () => {
+    const invalid = ensureSettingsShape({ appearance: { background: { type: 'gradient', opacity: 40, gradientColor1: 'not-a-colour', gradientColor2: 123 } } });
+    assert.equal(invalid.appearance.background.gradientColor1, null);
+    assert.equal(invalid.appearance.background.gradientColor2, null);
+    const valid = ensureSettingsShape({ appearance: { background: { type: 'gradient', opacity: 40, gradientColor1: '#AABBCC', gradientColor2: '#112233' } } });
+    assert.equal(valid.appearance.background.gradientColor1, '#aabbcc');
+    assert.equal(valid.appearance.background.gradientColor2, '#112233');
+  });
+
+  await test('ensureSettingsShape preserves an explicit adventurousnessEnabled: false rather than re-defaulting it to true', () => {
+    assert.equal(ensureSettingsShape({ adventurousnessEnabled: false }).adventurousnessEnabled, false);
   });
 
   await test('ensureSettingsShape preserves an explicit discoverHideOwned: false rather than re-defaulting it to true', () => {
@@ -663,7 +686,7 @@ async function run() {
       mode: 'system',
       light: { type: 'preset', id: 'wisteria' },
       dark: { type: 'custom', accent: '#3ba55d' },
-      background: { type: 'gradient', opacity: 40 },
+      background: { type: 'gradient', opacity: 40, gradientColor1: null, gradientColor2: null },
     });
     assert.equal(shaped.uiFont, 'inter');
     assert.equal(shaped.headingFont, 'bebas-neue');
@@ -2426,6 +2449,39 @@ async function run() {
     assert.equal(totalItems, 0);
   });
 
+  await test('buildWeekSchedule: an episode that already aired today stays in Today, tagged alreadyAired, even though nextAiringEpisode has moved on to next week', () => {
+    // Post-2.2.0 feedback: previously this title would simply vanish from
+    // Today the moment airing.js's hourly refresh caught up and advanced
+    // nextAiringEpisode past it — airing.js now carries the superseded
+    // episode forward as lastAiredEpisode precisely so this stays visible.
+    const now = new Date(2026, 6, 24, 20, 0, 0); // today, 8pm
+    const watching = [{ anilistId: 1, titleRomaji: 'One Piece', titleEnglish: '', episodesWatched: 1160 }];
+    const airedEarlierToday = new Date(2026, 6, 24, 9, 0, 0);
+    const nextWeek = new Date(2026, 6, 31, 9, 0, 0);
+    const cache = {
+      1: {
+        status: 'RELEASING',
+        episodes: null,
+        nextAiringEpisode: { episode: 1171, airingAt: Math.floor(nextWeek.getTime() / 1000) },
+        lastAiredEpisode: { episode: 1170, airingAt: Math.floor(airedEarlierToday.getTime() / 1000) },
+      },
+    };
+    const week = buildWeekSchedule(cache, watching, now);
+    assert.equal(week[0].items.length, 1, 'Today shows the already-aired episode');
+    assert.equal(week[0].items[0].alreadyAired, true);
+    assert.equal(week[0].items[0].episode, 1170);
+  });
+
+  await test('buildWeekSchedule: a lastAiredEpisode from a day that is no longer today is not shown', () => {
+    const now = new Date(2026, 6, 24, 10, 0, 0);
+    const watching = [{ anilistId: 1, titleRomaji: 'Stale Cache Show', titleEnglish: '', episodesWatched: 5 }];
+    const airedYesterday = new Date(2026, 6, 23, 9, 0, 0);
+    const cache = { 1: { status: 'RELEASING', episodes: null, nextAiringEpisode: null, lastAiredEpisode: { episode: 5, airingAt: Math.floor(airedYesterday.getTime() / 1000) } } };
+    const week = buildWeekSchedule(cache, watching, now);
+    const totalItems = week.reduce((s, d) => s + d.items.length, 0);
+    assert.equal(totalItems, 0, 'a lastAiredEpisode that aired before today must not linger once the day has rolled over');
+  });
+
   await test('formatEpisodeCountdown: a real future airingAt splits into whole days and remainder hours', () => {
     const now = new Date('2026-08-07T00:00:00.000Z');
     const airingAt = Math.floor(new Date('2026-08-10T04:00:00.000Z').getTime() / 1000); // 3d 4h ahead
@@ -3470,6 +3526,11 @@ async function run() {
     for (const type of ['none', 'gradient', 'grain']) {
       assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type, opacity: 0 } }), true);
     }
+    // Post-2.2.0 feedback: gradientColor1/2 are optional — absent
+    // (predates this field) and explicitly null (never picked) both pass.
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40 } }), true);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: null, gradientColor2: null } }), true);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: '#aabbcc', gradientColor2: '#112233' } }), true);
   });
 
   await test('validateAppearance rejects every malformed shape named in the spec (bad hex, unknown preset id, out-of-range opacity, bad mode/background type)', () => {
@@ -3482,6 +3543,8 @@ async function run() {
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 500 } }), false);
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: -1 } }), false);
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 'a lot' } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: 'not-a-hex' } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor2: '#12345' } }), false);
   });
 
   // -------------------------------------------------------------------------
@@ -4397,6 +4460,36 @@ async function run() {
     assert.equal(formatBecauseYouLiked([]), 'Matches what you tend to rate highly.');
   });
 
+  await test('buildShelves regression: "Because you liked" cites the franchise member that actually matched anchors, not the generic fallback, when the resolved entry point itself shares no genre with them', () => {
+    // Reported as user-facing confusion ("Because you liked... what did I
+    // like?"): resolveAndFilter/collapseFranchises can surface a
+    // franchise's entry point (an earlier season) as the displayed card
+    // even when it was a LATER season that actually matched anchors' genre
+    // and earned the franchise its spot on this shelf. Recomputing the
+    // match against the entry point alone came up empty here (different
+    // genre), silently falling back to the generic no-citation string.
+    const corpus = {
+      1: { anilistId: 1, titleRomaji: 'Origin Story', seasonYear: 2015, genres: ['Drama'], totalEpisodes: 12, normalizedScore: 6, popularity: 5000, tags: [], staff: [], relations: [{ relationType: 'SEQUEL', relatedId: 2, relatedType: 'ANIME' }] },
+      2: { anilistId: 2, titleRomaji: 'Origin Story S2', seasonYear: 2016, genres: ['Action'], totalEpisodes: 12, normalizedScore: 6, popularity: 5000, tags: [], staff: [], relations: [{ relationType: 'PREQUEL', relatedId: 1, relatedType: 'ANIME' }] },
+    };
+    const libraryEntries = [{ anilistId: 999, listStatus: 'watched', genres: ['Action'], titleEnglish: 'My Favorite Action Show', myScore: 10, relatedIds: [] }];
+    const { shelves } = buildShelves({
+      corpusEntries: corpus,
+      libraryEntries,
+      dismissedIds: [],
+      tasteProfile: { affinities: {} },
+      tuning: SHELVES_TUNING,
+      nowMs: Date.now(),
+      localDay: '2026-08-10',
+      rng: () => 0,
+    });
+    const liked = shelves.find((s) => s.id === 'because-you-liked');
+    const card = liked.cards.find((c) => c.anilistId === 1);
+    assert.ok(card, 'the resolved entry point (S1, "Origin Story") should surface, not S2 directly');
+    assert.notEqual(card.because, 'Matches what you tend to rate highly.', 'must cite the real anchor match found on S2, not fall back to the generic reason');
+    assert.ok(card.because.includes('My Favorite Action Show'), `expected the specific anchor title in the reason, got: ${card.because}`);
+  });
+
   await test("buildShelves: the spec's own required prerequisite-chain rule — never surfaces a sequel while its prerequisite is unseen, surfaces the entry point instead", () => {
     const corpus = franchiseCorpus();
     corpus[2].normalizedScore = 8; // S2 alone qualifies as a hidden gem by score/popularity
@@ -4440,6 +4533,26 @@ async function run() {
     const gems = shelves.find((s) => s.id === 'hidden-gems');
     const s1Card = gems.cards.find((c) => c.anilistId === 1);
     assert.equal(s1Card.hiddenCount, 0);
+  });
+
+  await test('buildShelves: adventurousnessEnabled: false forces serendipity to exactly 0 (the tuning floor), regardless of the stored slider value or rng draw', () => {
+    // Post-2.2.0 feedback: an explicit off switch, independent of the
+    // slider's own level (see settingsSchema.js's adventurousnessEnabled
+    // and scorer.js's serendipity(), whose serendipityMin is 0 at the
+    // tuning range's own floor) — disabled must be indistinguishable from
+    // the slider pinned at 1, even when the stored value is 10 and rng
+    // would otherwise draw the maximum possible bonus.
+    const corpus = {
+      101: { anilistId: 101, genres: ['Mystery'], totalEpisodes: 12, normalizedScore: 8, popularity: 3000, tags: [], staff: [], relations: [] },
+      102: { anilistId: 102, genres: ['Mystery'], totalEpisodes: 12, normalizedScore: 8, popularity: 3000, tags: [], staff: [], relations: [] },
+      103: { anilistId: 103, genres: ['Mystery'], totalEpisodes: 12, normalizedScore: 8, popularity: 3000, tags: [], staff: [], relations: [] },
+    };
+    const argsBase = { corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10' };
+    const disabledAtMax = buildShelves({ ...argsBase, adventurousness: 10, adventurousnessEnabled: false, rng: () => 1 });
+    const enabledAtFloor = buildShelves({ ...argsBase, adventurousness: 1, adventurousnessEnabled: true, rng: () => 1 });
+    const idsA = disabledAtMax.shelves.find((s) => s.id === 'hidden-gems').cards.map((c) => c.anilistId);
+    const idsB = enabledAtFloor.shelves.find((s) => s.id === 'hidden-gems').cards.map((c) => c.anilistId);
+    assert.deepEqual(idsA, idsB, 'disabled (stored value 10) must rank identically to enabled-at-floor (value 1), proving the serendipity term is fully zeroed, not just clamped low');
   });
 
   await test('buildShelves: once the entry point is owned and completed, the franchise moves from discovery shelves to Finish What You Started', () => {

@@ -181,6 +181,13 @@ function applyBackground(background) {
   const type = background?.type || 'none';
   el.dataset.effect = type;
   el.style.opacity = type === 'none' ? '0' : String((background?.opacity ?? 0) / 100);
+  // Post-2.2.0 feedback: the gradient effect's 2 optional user-picked
+  // colours — null (never picked) removes the inline override so the
+  // CSS var() fallback (today's single-colour-to-transparent look) applies.
+  if (background?.gradientColor1) el.style.setProperty('--bg-gradient-c1', background.gradientColor1);
+  else el.style.removeProperty('--bg-gradient-c1');
+  if (background?.gradientColor2) el.style.setProperty('--bg-gradient-c2', background.gradientColor2);
+  else el.style.removeProperty('--bg-gradient-c2');
 }
 
 // Mirrors just enough of the resolved appearance into localStorage, in a

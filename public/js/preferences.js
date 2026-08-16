@@ -38,10 +38,9 @@ export { DECOR_LEVELS, DECOR_DENSITIES, ORIGINAL_TITLES_MODES };
 const KEYS = {
   decor: 'anime-tracker-decor',
   decorDensity: 'anime-tracker-decor-density',
+  decorationStep: 'anime-tracker-decoration-step',
   originalTitles: 'anime-tracker-original-titles',
-  uiFont: 'anime-tracker-ui-font',
-  headingFont: 'anime-tracker-heading-font',
-  numbersFont: 'anime-tracker-numbers-font',
+  siteFont: 'anime-tracker-site-font',
 };
 // One localStorage key per slider, keyed by its own SLIDER_KEYS name (e.g.
 // 'anime-tracker-slider-textSize'), separate from the fixed KEYS map above
@@ -137,6 +136,19 @@ function setDecorDensity(density) {
   localStorage.setItem(KEYS.decorDensity, density);
 }
 
+// Post-2.2.0 feedback: replaces the Few/Normal/Many segmented control above
+// with a 1-10 slider, same shape as getDecorDensity/setDecorDensity — not a
+// data-attribute, only atmosphere.js's JS reads this.
+function getDecorationStep() {
+  const v = Number(localStorage.getItem(KEYS.decorationStep));
+  return Number.isInteger(v) && v >= 1 && v <= 10 ? v : DEFAULT_STEP;
+}
+function setDecorationStep(step) {
+  const n = Number(step);
+  if (!Number.isInteger(n) || n < 1 || n > 10) return;
+  localStorage.setItem(KEYS.decorationStep, String(n));
+}
+
 // Not a data-attribute — nothing in CSS needs to select on it, it only
 // changes what render.js chooses to put in the markup.
 function getOriginalTitlesMode() {
@@ -148,33 +160,26 @@ function setOriginalTitlesMode(mode) {
   localStorage.setItem(KEYS.originalTitles, mode);
 }
 
-// A font slot writes a real CSS custom property (--ui/--display/--numbers),
-// not a data-attribute — font stacks aren't a small closed enum CSS can
-// switch on via [data-x] selectors the way textSize/decor are; every
-// component rule that already reads var(--ui) etc. picks up the override
-// for free, with zero changes to any component rule. Also loads the
-// font's CSS the moment it's applied (idempotent — a no-op if already
-// loaded), so calling this setter is the one thing any caller (a Settings
-// click, or syncFromLibrary on every boot) needs to do to make a
-// selection actually render.
-function fontPref(cssVarName, storageKey, defaultId) {
-  return {
-    get: () => {
-      const v = localStorage.getItem(storageKey);
-      return Fonts.isValidFontId(v) ? v : defaultId;
-    },
-    set(fontId) {
-      if (!Fonts.isValidFontId(fontId)) return;
-      FontLoader.ensureFontLoaded(fontId);
-      document.documentElement.style.setProperty(cssVarName, Fonts.getCssStack(fontId));
-      localStorage.setItem(storageKey, fontId);
-    },
-  };
+// Post-2.2.0 feedback: one site-wide font instead of 3 independent slots —
+// applies the SAME stack to all 3 CSS custom properties every existing
+// component rule already reads (--ui/--display/--numbers), so no component
+// rule needed to change. uiFont/headingFont/numbersFont (and their prefs
+// above) are no longer written by anything, but stay defined — they're
+// still valid, harmlessly-unused stored preference fields, not a data
+// shape a rollback would need to reverse.
+function getSiteFont() {
+  const v = localStorage.getItem(KEYS.siteFont);
+  return Fonts.isValidFontId(v) ? v : Fonts.DEFAULT_UI_FONT;
 }
-
-const uiFontPref = fontPref('--ui', KEYS.uiFont, Fonts.DEFAULT_UI_FONT);
-const headingFontPref = fontPref('--display', KEYS.headingFont, Fonts.DEFAULT_HEADING_FONT);
-const numbersFontPref = fontPref('--numbers', KEYS.numbersFont, Fonts.DEFAULT_NUMBERS_FONT);
+function setSiteFont(fontId) {
+  if (!Fonts.isValidFontId(fontId)) return;
+  FontLoader.ensureFontLoaded(fontId);
+  const stack = Fonts.getCssStack(fontId);
+  document.documentElement.style.setProperty('--ui', stack);
+  document.documentElement.style.setProperty('--display', stack);
+  document.documentElement.style.setProperty('--numbers', stack);
+  localStorage.setItem(KEYS.siteFont, fontId);
+}
 
 // The cosmetic settings, keyed by their name inside library.json's
 // `preferences` (matches settingsSchema.js's defaultSettings() field names)
@@ -193,19 +198,17 @@ const FONT_IDS = Fonts.FONT_CATALOG.map((f) => f.id);
 const COSMETIC_SETTERS = {
   decor: decorPref.set,
   decorDensity: setDecorDensity,
+  decorationStep: setDecorationStep,
   originalTitles: setOriginalTitlesMode,
-  uiFont: uiFontPref.set,
-  headingFont: headingFontPref.set,
-  numbersFont: numbersFontPref.set,
+  siteFont: setSiteFont,
   ...Object.fromEntries(SLIDER_KEYS.map((key) => [`${key}Step`, sliderPrefs[key].set])),
 };
 const COSMETIC_RAW_KEYS = {
   decor: KEYS.decor,
   decorDensity: KEYS.decorDensity,
+  decorationStep: KEYS.decorationStep,
   originalTitles: KEYS.originalTitles,
-  uiFont: KEYS.uiFont,
-  headingFont: KEYS.headingFont,
-  numbersFont: KEYS.numbersFont,
+  siteFont: KEYS.siteFont,
   ...Object.fromEntries(SLIDER_KEYS.map((key) => [`${key}Step`, SLIDER_STORAGE_KEYS[key]])),
 };
 // reconcileFirstBoot()'s validity check below expects a raw localStorage
@@ -218,10 +221,9 @@ const STEP_VALID = { includes: (raw) => { const n = Number(raw); return Number.i
 const COSMETIC_VALID = {
   decor: DECOR_LEVELS,
   decorDensity: DECOR_DENSITIES,
+  decorationStep: STEP_VALID,
   originalTitles: ORIGINAL_TITLES_MODES,
-  uiFont: FONT_IDS,
-  headingFont: FONT_IDS,
-  numbersFont: FONT_IDS,
+  siteFont: FONT_IDS,
   ...Object.fromEntries(SLIDER_KEYS.map((key) => [`${key}Step`, STEP_VALID])),
 };
 
@@ -333,14 +335,12 @@ export const Preferences = {
   setDecor: decorPref.set,
   getDecorDensity,
   setDecorDensity,
+  getDecorationStep,
+  setDecorationStep,
   getOriginalTitlesMode,
   setOriginalTitlesMode,
-  getUiFont: uiFontPref.get,
-  setUiFont: uiFontPref.set,
-  getHeadingFont: headingFontPref.get,
-  setHeadingFont: headingFontPref.set,
-  getNumbersFont: numbersFontPref.get,
-  setNumbersFont: numbersFontPref.set,
+  getSiteFont,
+  setSiteFont,
   getSliderStep,
   setSliderStep,
   initReducedMotionWatch,

@@ -224,7 +224,7 @@ test('switching directly from one active mood to another shows only the new mood
 
     await page.locator('[data-mood-id="peak-fiction"]').click();
     await expect(page.locator('.shelf')).toHaveCount(1);
-    await expect(page.locator('.shelf h3')).toHaveText('Peak fiction');
+    await expect(page.locator('.shelf h3')).toHaveText('Widely loved');
     await expect(page.locator('.discover-card[data-anilist-id="9900"]')).toHaveCount(0);
     const peakCard = page.locator('.discover-card[data-anilist-id="9902"]');
     await expect(peakCard).toBeVisible();

@@ -60,7 +60,11 @@ export function defaultAppearance() {
     mode: 'dark',
     light: defaultAppearanceSlot('daybreak'),
     dark: defaultAppearanceSlot(DEFAULT_THEME_ID),
-    background: { type: 'none', opacity: 0 },
+    // gradientColor1/2 are null until the user explicitly picks one of
+    // their own — the gradient effect then falls back to the active
+    // theme's own --glow-derived single colour, exactly as before this
+    // pair existed (see themes.js's applyBackground).
+    background: { type: 'none', opacity: 0, gradientColor1: null, gradientColor2: null },
   };
 }
 
@@ -82,7 +86,9 @@ function sanitizeAppearanceSlot(slot, fallback) {
 function sanitizeBackground(background, fallback) {
   const type = background && BACKGROUND_TYPES.includes(background.type) ? background.type : fallback.type;
   const rawOpacity = background && typeof background.opacity === 'number' ? background.opacity : fallback.opacity;
-  return { type, opacity: Math.max(0, Math.min(100, rawOpacity)) };
+  const gradientColor1 = background && isValidHexColor(background.gradientColor1) ? background.gradientColor1.toLowerCase() : null;
+  const gradientColor2 = background && isValidHexColor(background.gradientColor2) ? background.gradientColor2.toLowerCase() : null;
+  return { type, opacity: Math.max(0, Math.min(100, rawOpacity)), gradientColor1, gradientColor2 };
 }
 
 // Named, exported defaults (not inline literals) so preferences.js's
@@ -182,6 +188,12 @@ export function defaultSettings() {
     // them changes nothing about today's behavior.
     decor: DEFAULT_DECOR,
     decorDensity: DEFAULT_DECOR_DENSITY,
+    // Post-2.2.0 feedback: decoration amount became a slider (1-10, same
+    // shape/default as the 8 typography sliders) instead of the 3-value
+    // Few/Normal/Many segmented control above, which stays only as the
+    // legacy value ensureSettingsShape seeds this from for an existing
+    // library that predates the slider.
+    decorationStep: DEFAULT_STEP,
     originalTitles: DEFAULT_ORIGINAL_TITLES,
     appearance: defaultAppearance(),
     // P3.1: uiFont/headingFont/numbersFont default to today's actual,
@@ -191,6 +203,15 @@ export function defaultSettings() {
     uiFont: DEFAULT_UI_FONT,
     headingFont: DEFAULT_HEADING_FONT,
     numbersFont: DEFAULT_NUMBERS_FONT,
+    // Post-2.2.0 feedback: the 3 independent font slots above are no longer
+    // driven by the Settings UI, which now offers ONE site-wide font choice
+    // instead — kept alongside rather than replacing them (the 3 stay
+    // stored, validated, harmlessly unused) so a rollback needs no reverse
+    // migration. Defaults to DEFAULT_UI_FONT: --ui already drove the large
+    // majority of visible text before this (every --t-* token except the
+    // 3 display-heading ones), so this is the smallest-possible default
+    // appearance change a single site-wide font can produce.
+    siteFont: DEFAULT_UI_FONT,
     // P3.2: all eight sliders default to step 5 (spec: "default 5"), which
     // typographySliders.js's computeSliderTokens() guarantees resolves to
     // today's exact existing token values for every one of them — see
@@ -213,6 +234,11 @@ export function defaultSettings() {
     // as coldStartPicks above, but distributed at its own tunable weight).
     adventurousness: null,
     likedRecommendationIds: [],
+    // Post-2.2.0 feedback: an explicit off switch, separate from the 1-10
+    // value itself — 1 is still a real (if minimal) serendipity weight, not
+    // "disabled". True means the slider's value is honoured; false means
+    // scorer.js's serendipity() is skipped entirely.
+    adventurousnessEnabled: true,
   };
 }
 
@@ -248,6 +274,15 @@ export function ensureSettingsShape(preferences) {
   prefs.streamerMode = Boolean(prefs.streamerMode);
   prefs.decor = DECOR_LEVELS.includes(prefs.decor) ? prefs.decor : defaults.decor;
   prefs.decorDensity = DECOR_DENSITIES.includes(prefs.decorDensity) ? prefs.decorDensity : defaults.decorDensity;
+  // decorationStep replaces decorDensity's segmented control with a slider.
+  // A library that already has a valid step keeps it untouched (the slider
+  // is now the sole live-updated field); one that doesn't yet seeds its
+  // FIRST value from whatever the old enum was, so an existing "Many" user
+  // doesn't silently reset to the step-5 default the very first time this
+  // ships. DECOR_DENSITY_SEED_STEP mirrors typographySliders.js's own 1-10
+  // scale, not a separate range.
+  const DECOR_DENSITY_SEED_STEP = { few: 2, normal: 5, many: 8 };
+  prefs.decorationStep = isValidStep(prefs.decorationStep) ? prefs.decorationStep : DECOR_DENSITY_SEED_STEP[prefs.decorDensity] ?? defaults.decorationStep;
   prefs.originalTitles = ORIGINAL_TITLES_MODES.includes(prefs.originalTitles) ? prefs.originalTitles : defaults.originalTitles;
   const appearance = prefs.appearance && typeof prefs.appearance === 'object' ? prefs.appearance : {};
   prefs.appearance = {
@@ -259,6 +294,10 @@ export function ensureSettingsShape(preferences) {
   prefs.uiFont = isValidFontId(prefs.uiFont) ? prefs.uiFont : defaults.uiFont;
   prefs.headingFont = isValidFontId(prefs.headingFont) ? prefs.headingFont : defaults.headingFont;
   prefs.numbersFont = isValidFontId(prefs.numbersFont) ? prefs.numbersFont : defaults.numbersFont;
+  // siteFont seeds from the already-repaired uiFont above on its first-ever
+  // appearance for a given library, same "seed once from the legacy field,
+  // then stay independently live-updated" shape as decorationStep/decorDensity.
+  prefs.siteFont = isValidFontId(prefs.siteFont) ? prefs.siteFont : prefs.uiFont;
   for (const key of SLIDER_STEP_KEYS) {
     prefs[key] = isValidStep(prefs[key]) ? prefs[key] : defaults[key];
   }
@@ -277,6 +316,7 @@ export function ensureSettingsShape(preferences) {
   // config either).
   prefs.adventurousness = typeof prefs.adventurousness === 'number' && prefs.adventurousness >= 1 && prefs.adventurousness <= 10 ? prefs.adventurousness : defaults.adventurousness;
   prefs.likedRecommendationIds = Array.isArray(prefs.likedRecommendationIds) ? prefs.likedRecommendationIds : defaults.likedRecommendationIds;
+  prefs.adventurousnessEnabled = prefs.adventurousnessEnabled === undefined ? defaults.adventurousnessEnabled : Boolean(prefs.adventurousnessEnabled);
 
   return prefs;
 }

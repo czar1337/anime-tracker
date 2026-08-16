@@ -129,6 +129,7 @@ async function buildShelvesNow() {
         // touched) falls back to the tuning range's midpoint the same way
         // an omitted param already did before this substep.
         adventurousness: Store.state.preferences.adventurousness,
+        adventurousnessEnabled: Store.state.preferences.adventurousnessEnabled,
       });
       discoverState.corpusEntries = corpusEntries;
       discoverState.shelves = shelves;
@@ -157,6 +158,7 @@ export function getDiscoverState() {
     hideOwned: Store.state.preferences.discoverHideOwned,
     discoverFilters: Store.state.preferences.discoverFilters,
     adventurousness: Store.state.preferences.adventurousness,
+    adventurousnessEnabled: Store.state.preferences.adventurousnessEnabled,
     // P5A.1's own progress signal, shown as Discover's primary content
     // while the corpus is still below MIN_CORPUS_FOR_SHELVES ('degraded'
     // status) — the "usable degraded Discover, first ever run" budget this
@@ -265,6 +267,11 @@ export function initDiscover({ persistFn } = {}) {
       buildShelvesNow().catch(() => {});
     } else if (e.target.id === 'discover-adventurousness-slider') {
       Store.setPreference(['adventurousness'], Number(e.target.value));
+      persist();
+      buildGeneration += 1;
+      buildShelvesNow().catch(() => {});
+    } else if (e.target.id === 'discover-adventurousness-enabled') {
+      Store.setPreference(['adventurousnessEnabled'], e.target.checked);
       persist();
       buildGeneration += 1;
       buildShelvesNow().catch(() => {});

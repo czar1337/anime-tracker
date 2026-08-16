@@ -38,7 +38,11 @@ export const FONT_CATALOG = [
     id: 'zen-old-mincho',
     name: 'Zen Old Mincho',
     category: 'serif',
-    slots: ['heading'],
+    // Post-2.2.0 feedback: 'ui'/'numbers' added — the 3 independent font
+    // slots were consolidated into one site-wide choice (settingsSchema.js's
+    // siteFont), so every non-displayOnly face needs to be selectable there,
+    // not only in whichever single slot it originally shipped for.
+    slots: ['ui', 'heading', 'numbers'],
     displayOnly: false,
     primary: '"Zen Old Mincho"',
     genericFallback: 'serif',
@@ -96,7 +100,7 @@ export const FONT_CATALOG = [
     id: 'instrument-serif',
     name: 'Instrument Serif',
     category: 'serif',
-    slots: ['heading'],
+    slots: ['ui', 'heading', 'numbers'],
     displayOnly: false,
     primary: '"Instrument Serif"',
     genericFallback: 'serif',
@@ -122,6 +126,41 @@ export const FONT_CATALOG = [
     jpBackbone: true,
     primary: '"Noto Sans JP"',
     genericFallback: 'sans-serif',
+  },
+  // Post-2.2.0 feedback: 3 new, stylistically distinct additions — the
+  // existing 9 skewed heavily toward one look (5 similar geometric-
+  // grotesque sans faces). Chosen to actually diverge, not add more of the
+  // same, while staying legible enough to serve as a single site-wide font
+  // (see settingsSchema.js's siteFont) — no purely decorative/illegible
+  // display or script faces, since those can no longer be scoped to
+  // headings-only the way bebas-neue's displayOnly restriction did before
+  // the 3 independent font slots were consolidated into one.
+  {
+    id: 'fraunces',
+    name: 'Fraunces',
+    category: 'serif',
+    slots: ['ui', 'heading', 'numbers'],
+    displayOnly: false,
+    primary: '"Fraunces"',
+    genericFallback: 'serif',
+  },
+  {
+    id: 'fredoka',
+    name: 'Fredoka',
+    category: 'sans',
+    slots: ['ui', 'heading', 'numbers'],
+    displayOnly: false,
+    primary: '"Fredoka"',
+    genericFallback: 'sans-serif',
+  },
+  {
+    id: 'space-mono',
+    name: 'Space Mono',
+    category: 'mono',
+    slots: ['ui', 'heading', 'numbers'],
+    displayOnly: false,
+    primary: '"Space Mono"',
+    genericFallback: 'monospace',
   },
   {
     id: 'system-default',

@@ -37,6 +37,10 @@ const CATALOG_FILES = {
   'instrument-serif': ['instrument-serif-400.woff2', 'instrument-serif-400-italic.woff2'],
   'jetbrains-mono': ['jetbrains-mono-variable.woff2'],
   'noto-sans-jp': ['noto-sans-jp-japanese-400.woff2'],
+  // Post-2.2.0 feedback: 3 new, stylistically distinct additions.
+  fraunces: ['fraunces-variable.woff2'],
+  fredoka: ['fredoka-variable.woff2'],
+  'space-mono': ['space-mono-400.woff2', 'space-mono-700.woff2'],
   // system-default ships no file at all — zeroLoad in fonts.js.
 };
 

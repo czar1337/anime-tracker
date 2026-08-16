@@ -19,5 +19,8 @@ export const FONT_MANIFEST = {
   'instrument-serif': {"weights":[400],"variableAxes":null,"jpCoverage":false},
   'jetbrains-mono': {"weights":null,"variableAxes":{"wght":[100,800]},"jpCoverage":false},
   'noto-sans-jp': {"weights":[400],"variableAxes":null,"jpCoverage":true},
+  'fraunces': {"weights":null,"variableAxes":{"wght":[100,900]},"jpCoverage":false},
+  'fredoka': {"weights":null,"variableAxes":{"wght":[300,700]},"jpCoverage":false},
+  'space-mono': {"weights":[400,700],"variableAxes":null,"jpCoverage":false},
   'system-default': {"weights":null,"variableAxes":null,"jpCoverage":false},
 };

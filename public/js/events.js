@@ -1784,6 +1784,22 @@ function bindOverlayCloseButtons() {
   });
 }
 
+// Post-2.2.0 feedback: clicking the dimmed backdrop behind any overlay's
+// panel closes it, the same as its own × button or Escape — previously
+// the only way out was the X. One delegated listener on every `.overlay`
+// (each is itself the full-screen backdrop; `.overlay-panel` is the
+// centered content box inside it) rather than one per overlay, so a
+// future overlay picks this up for free. `e.target === overlay` is what
+// distinguishes an actual backdrop click from a click that merely bubbled
+// up from something inside the panel.
+function bindOverlayBackdropClose() {
+  document.querySelectorAll('.overlay').forEach((overlay) => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeAllOverlays();
+    });
+  });
+}
+
 // P5A.3's scorer debug panel. Async (a fresh corpus-cache fetch per open,
 // see discover.js's buildScorerDebugRows for why that's deliberately not
 // cached) — closes first if already open, so a stale "loading" state can
@@ -2439,6 +2455,12 @@ function bindSettingsPanel() {
       return;
     }
 
+    if (e.target.closest('[data-action="reset-background-gradient-colors"]')) {
+      const appearance = Store.state.preferences.appearance;
+      commitAppearance({ ...appearance, background: { ...appearance.background, gradientColor1: null, gradientColor2: null } });
+      return;
+    }
+
     if (e.target.closest('[data-action="export-appearance-json"]')) {
       const stamp = new Date().toISOString().slice(0, 10);
       const blob = new Blob([JSON.stringify(buildAppearanceJSON(Store.state.preferences.appearance), null, 2)], { type: 'application/json' });
@@ -2476,18 +2498,19 @@ function bindSettingsPanel() {
 
     const fontBtn = e.target.closest('.font-grid button');
     if (fontBtn) {
-      const slot = fontBtn.dataset.fontSlot; // 'ui' | 'heading' | 'numbers'
+      // Post-2.2.0 feedback: one site-wide font instead of independent
+      // ui/heading/numbers slots — the grid's own internal slot key stays
+      // 'ui' (render.js's own comment explains why), but the preference
+      // field, setter and recorded event all use the real, current name.
       const fontId = fontBtn.dataset.fontId;
-      const prefKey = `${slot}Font`;
-      const setter = { ui: Preferences.setUiFont, heading: Preferences.setHeadingFont, numbers: Preferences.setNumbersFont }[slot];
-      setter(fontId);
-      const before = Store.state.preferences[prefKey];
-      Store.setPreference([prefKey], fontId);
-      recordSettingChange(prefKey, before, fontId);
+      Preferences.setSiteFont(fontId);
+      const before = Store.state.preferences.siteFont;
+      Store.setPreference(['siteFont'], fontId);
+      recordSettingChange('siteFont', before, fontId);
       // font_previewed: fires once per distinct selection (not on every
       // render/hover) — the spec's own "emit on preview" trigger, since
       // trying a font in this picker IS the preview.
-      if (before !== fontId) EventLog.record('font_previewed', { meta: { slot, fontId } });
+      if (before !== fontId) EventLog.record('font_previewed', { meta: { slot: 'site', fontId } });
       persist();
       repaintSettings();
       return;
@@ -2810,10 +2833,6 @@ function bindSettingsPanel() {
       return;
     }
     if (seg === 'decor') Preferences.setDecor(value);
-    else if (seg === 'decorDensity') {
-      Preferences.setDecorDensity(value);
-      Atmosphere.resyncDensity();
-    }
     else if (seg === 'originalTitles') {
       Preferences.setOriginalTitlesMode(value);
       Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
@@ -2849,7 +2868,7 @@ function bindSettingsPanel() {
       // whole panel's innerHTML, which would steal focus/cursor position
       // out of this very input on every keystroke. Only the grid div next
       // to it needs to change.
-      const currentFontId = { ui: Preferences.getUiFont, heading: Preferences.getHeadingFont, numbers: Preferences.getNumbersFont }[searchSlot]();
+      const currentFontId = Preferences.getSiteFont();
       const grid = document.getElementById(`font-grid-${searchSlot}`);
       if (grid) grid.innerHTML = Render.fontGridBodyHtml(searchSlot, currentFontId);
     }
@@ -2868,6 +2887,18 @@ function bindSettingsPanel() {
       Preferences.setSliderStep(sliderKey, step);
       const prefKey = `${sliderKey}Step`;
       Store.setPreference([prefKey], step);
+      persist();
+      const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
+      if (readout) readout.textContent = String(step);
+    }
+
+    if (e.target.id === 'decoration-step-slider') {
+      const step = Number(e.target.value);
+      Preferences.setDecorationStep(step);
+      Atmosphere.resyncDensity();
+      const beforeSetting = Store.state.preferences.decorationStep;
+      Store.setPreference(['decorationStep'], step);
+      recordSettingChange('decorationStep', beforeSetting, step);
       persist();
       const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
       if (readout) readout.textContent = String(step);
@@ -2905,6 +2936,21 @@ function bindSettingsPanel() {
       persist();
       const readout = opacityInput.closest('.slider-row')?.querySelector('.slider-value');
       if (readout) readout.textContent = `${opacity}%`;
+    }
+
+    // Post-2.2.0 feedback: the gradient effect's 2 optional colours — same
+    // live-preview-without-repaint reasoning as the custom accent input
+    // above (a native <input type="color"> fires 'input' continuously
+    // while its own picker is open).
+    const gradientColorInput = e.target.closest('[data-action="set-background-gradient-color"]');
+    if (gradientColorInput) {
+      const slot = gradientColorInput.dataset.gradientSlot === '1' ? 'gradientColor1' : 'gradientColor2';
+      const hex = gradientColorInput.value;
+      const appearance = Store.state.preferences.appearance;
+      const nextAppearance = { ...appearance, background: { ...appearance.background, [slot]: hex } };
+      Store.setPreference(['appearance'], nextAppearance);
+      Themes.applyAppearance(nextAppearance);
+      persist();
     }
   });
 
@@ -2949,6 +2995,17 @@ function bindSettingsPanel() {
     if (e.target.closest('[data-action="set-background-opacity"]')) {
       const appearance = Store.state.preferences.appearance;
       recordSettingChange('appearance', appearance, appearance);
+      return;
+    }
+
+    // Value is already applied+persisted by the 'input' handler above —
+    // this just logs the settled value and repaints so the "Use theme
+    // colour" reset button appears (it's conditional on a custom colour
+    // now being set, which the lightweight 'input' handler doesn't repaint).
+    if (e.target.closest('[data-action="set-background-gradient-color"]')) {
+      const appearance = Store.state.preferences.appearance;
+      recordSettingChange('appearance', appearance, appearance);
+      repaintSettings();
       return;
     }
 
@@ -3098,6 +3155,7 @@ export function initEvents({ initialList, persistFn }) {
   bindStatsShareOverlay();
   bindKeyboardShortcuts();
   bindOverlayCloseButtons();
+  bindOverlayBackdropClose();
   bindSettingsPanel();
   bindColdStartOverlay();
   bindDiscoverFiltersOverlay();

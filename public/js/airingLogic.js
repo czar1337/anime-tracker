@@ -43,8 +43,20 @@ function calendarDaysBetween(from, to) {
 // entry airing outside the 7-day window (or in the past — a stale cache
 // entry that hasn't refreshed since airing) is left out too. `now` is
 // injectable so tests don't depend on the real clock.
+//
+// Post-2.2.0 feedback: an entry that already aired today used to simply
+// vanish from Today the moment the hourly refresh caught up and advanced
+// nextAiringEpisode to next week's episode — Today looked empty even
+// though something genuinely aired hours ago. airing.js's refresh now
+// carries forward a `lastAiredEpisode` field (the episode that was
+// superseded) precisely so this function can still show it here, tagged
+// `alreadyAired: true`, for the rest of the calendar day it aired on —
+// once that day is over, the date check below simply stops matching and
+// it drops off on its own, the same lifecycle every other item already has.
 export function buildWeekSchedule(cacheEntries, watchingEntries, now = new Date()) {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(todayStart);
     date.setDate(date.getDate() + i);
@@ -54,18 +66,25 @@ export function buildWeekSchedule(cacheEntries, watchingEntries, now = new Date(
   windowEnd.setDate(windowEnd.getDate() + 7);
 
   for (const entry of watchingEntries) {
-    const nextEp = cacheEntries[entry.anilistId]?.nextAiringEpisode;
-    if (!nextEp || !Number.isInteger(nextEp.airingAt)) continue;
-    const airDate = new Date(nextEp.airingAt * 1000);
-    if (airDate < todayStart || airDate >= windowEnd) continue;
-    const dayIndex = calendarDaysBetween(todayStart, airDate);
-    if (dayIndex < 0 || dayIndex > 6) continue; // defensive — should be unreachable given the window check above
-    days[dayIndex].items.push({
-      anilistId: entry.anilistId,
-      title: entry.titleEnglish || entry.titleRomaji,
-      episode: nextEp.episode,
-      airingAt: nextEp.airingAt,
-    });
+    const cache = cacheEntries[entry.anilistId];
+    const title = entry.titleEnglish || entry.titleRomaji;
+    const nextEp = cache?.nextAiringEpisode;
+    if (nextEp && Number.isInteger(nextEp.airingAt)) {
+      const airDate = new Date(nextEp.airingAt * 1000);
+      if (airDate >= todayStart && airDate < windowEnd) {
+        const dayIndex = calendarDaysBetween(todayStart, airDate);
+        if (dayIndex >= 0 && dayIndex <= 6) {
+          days[dayIndex].items.push({ anilistId: entry.anilistId, title, episode: nextEp.episode, airingAt: nextEp.airingAt, alreadyAired: false });
+        }
+      }
+    }
+    const lastAired = cache?.lastAiredEpisode;
+    if (lastAired && Number.isInteger(lastAired.airingAt)) {
+      const airedDate = new Date(lastAired.airingAt * 1000);
+      if (airedDate >= todayStart && airedDate < tomorrowStart) {
+        days[0].items.push({ anilistId: entry.anilistId, title, episode: lastAired.episode, airingAt: lastAired.airingAt, alreadyAired: true });
+      }
+    }
   }
   for (const day of days) day.items.sort((a, b) => a.airingAt - b.airingAt);
   return days;

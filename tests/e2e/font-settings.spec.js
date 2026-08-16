@@ -1,14 +1,15 @@
 'use strict';
-// P3.1's font picker, end to end: real browser selection of a non-default UI
-// font and heading font actually changes the live computed font-family,
-// searching the font grid filters correctly, Bebas Neue (display-only) never
-// appears in the ui/numbers grids, and a selection emits font_previewed.
-// The export/snapshot/restore round trip for the 3 new preference fields is
-// covered by settings-round-trip.spec.js (preferences was already Class A,
-// same mechanism as every other cosmetic field); the legacy-snapshot-defaults
-// case is covered generically by settings-migration.spec.js's schema chain
-// tests, since these are new fields inside an existing store, not a new
-// store the way P1.7's tags/customLists were.
+// P3.1's font picker, end to end — post-2.2.0 feedback rewrote this from 3
+// independent ui/heading/numbers slots down to ONE site-wide font choice
+// (settingsSchema.js's siteFont), so this file now proves: a real browser
+// selection changes ALL THREE existing CSS custom properties (--ui,
+// --display, --numbers) at once, searching the grid filters correctly,
+// Bebas Neue (display-only) never appears in it, and a selection emits
+// font_previewed with the real 'site' slot label. The export/snapshot/
+// restore round trip for siteFont is covered by settings-round-trip.spec.js
+// (preferences was already Class A, same mechanism as every other cosmetic
+// field); the legacy-snapshot-defaults case is covered generically by
+// settings-migration.spec.js's schema chain tests.
 
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
@@ -22,7 +23,7 @@ async function openSettings(page) {
   await page.waitForSelector('#font-grid-ui');
 }
 
-test('selecting a non-default UI font changes --ui\'s live computed value', async ({ page }) => {
+test('selecting a non-default font changes --ui, --display and --numbers together', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await page.goto(server.url);
@@ -35,26 +36,14 @@ test('selecting a non-default UI font changes --ui\'s live computed value', asyn
     await page.click('#font-grid-ui [data-font-id="inter"]');
     await page.waitForTimeout(200);
 
-    const after = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui'));
-    expect(after).toContain('Inter');
-    expect(after).toContain('Noto Sans JP'); // the JP fallback insertion
-  } finally {
-    await server.stop();
-  }
-});
-
-test('selecting a non-default heading font changes --display\'s live computed value', async ({ page }) => {
-  const server = await startFixtureServer(FIXTURE);
-  try {
-    await page.goto(server.url);
-    await page.waitForSelector('.card, .empty');
-    await openSettings(page);
-
-    await page.click('#font-grid-heading [data-font-id="instrument-serif"]');
-    await page.waitForTimeout(200);
-
-    const after = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--display'));
-    expect(after).toContain('Instrument Serif');
+    const vars = await page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      return { ui: cs.getPropertyValue('--ui'), display: cs.getPropertyValue('--display'), numbers: cs.getPropertyValue('--numbers') };
+    });
+    expect(vars.ui).toContain('Inter');
+    expect(vars.ui).toContain('Noto Sans JP'); // the JP fallback insertion
+    expect(vars.display).toContain('Inter');
+    expect(vars.numbers).toContain('Inter');
   } finally {
     await server.stop();
   }
@@ -66,7 +55,7 @@ test('selecting a font persists across a reload (Class A, not a transient UI sta
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
     await openSettings(page);
-    await page.click('#font-grid-numbers [data-font-id="jetbrains-mono"]');
+    await page.click('#font-grid-ui [data-font-id="jetbrains-mono"]');
     await page.waitForTimeout(500); // past the 300ms save debounce
 
     await page.reload();
@@ -75,7 +64,7 @@ test('selecting a font persists across a reload (Class A, not a transient UI sta
     expect(numbersVar).toContain('JetBrains Mono');
 
     const lib = await (await fetch(`${server.url}/api/library`)).json();
-    expect(lib.preferences.numbersFont).toBe('jetbrains-mono');
+    expect(lib.preferences.siteFont).toBe('jetbrains-mono');
   } finally {
     await server.stop();
   }
@@ -122,7 +111,7 @@ test('a search matching nothing shows the empty-state message, not an empty grid
   }
 });
 
-test('Bebas Neue (display-only) never appears in the ui or numbers font grids, only heading', async ({ page }) => {
+test('Bebas Neue (display-only) never appears in the single font grid', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await page.goto(server.url);
@@ -130,14 +119,12 @@ test('Bebas Neue (display-only) never appears in the ui or numbers font grids, o
     await openSettings(page);
 
     expect(await page.locator('#font-grid-ui [data-font-id="bebas-neue"]').count()).toBe(0);
-    expect(await page.locator('#font-grid-numbers [data-font-id="bebas-neue"]').count()).toBe(0);
-    expect(await page.locator('#font-grid-heading [data-font-id="bebas-neue"]').count()).toBe(1);
   } finally {
     await server.stop();
   }
 });
 
-test('selecting a font emits font_previewed, but re-selecting the same one already active does not', async ({ page }) => {
+test('selecting a font emits font_previewed with the site slot, but re-selecting the same one already active does not', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await page.route('**/graphql.anilist.co/**', (route) => route.abort());
@@ -151,7 +138,7 @@ test('selecting a font emits font_previewed, but re-selecting the same one alrea
     const { events } = await (await fetch(`${server.url}/api/events`)).json();
     const previewed = events.filter((e) => e.type === 'font_previewed');
     expect(previewed).toHaveLength(1);
-    expect(previewed[0].meta).toEqual({ slot: 'ui', fontId: 'dm-sans' });
+    expect(previewed[0].meta).toEqual({ slot: 'site', fontId: 'dm-sans' });
 
     // Clicking the now-already-active selection again is a no-op re-render,
     // not a second preview event.
@@ -176,6 +163,24 @@ test('each font grid option renders its own name in its own typeface (self-previ
       return getComputedStyle(btn).fontFamily;
     });
     expect(fontFamily).toContain('Space Grotesk');
+  } finally {
+    await server.stop();
+  }
+});
+
+test('the 3 new post-2.2.0 fonts (Fraunces, Fredoka, Space Mono) are selectable and apply correctly', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card, .empty');
+    await openSettings(page);
+
+    for (const [id, family] of [['fraunces', 'Fraunces'], ['fredoka', 'Fredoka'], ['space-mono', 'Space Mono']]) {
+      await page.click(`#font-grid-ui [data-font-id="${id}"]`);
+      await page.waitForTimeout(150);
+      const uiVar = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui'));
+      expect(uiVar).toContain(family);
+    }
   } finally {
     await server.stop();
   }

@@ -246,3 +246,47 @@ test('a malformed JSON import (bad hex, unknown preset id, out-of-range opacity)
     await server.stop();
   }
 });
+
+test('the gradient background effect takes 2 user-picked colours, persists them, and "Use theme colour" clears back to auto', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card, .empty');
+    await openSettings(page);
+
+    await page.locator('.seg[data-seg="appearance-background-type"] button[data-value="gradient"]').click();
+    await page.waitForSelector('.background-gradient-colors');
+    // No custom colours picked yet — the reset button has nothing to reset.
+    await expect(page.locator('[data-action="reset-background-gradient-colors"]')).toHaveCount(0);
+
+    const setGradientColor = (slot, hex) =>
+      page.locator(`[data-action="set-background-gradient-color"][data-gradient-slot="${slot}"]`).evaluate((el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }, hex);
+
+    await setGradientColor('1', '#ff0055');
+    await setGradientColor('2', '#0055ff');
+    await page.waitForTimeout(500); // past the 300ms save debounce
+
+    const bgVar = await page.evaluate(() => getComputedStyle(document.getElementById('bg-effect')).getPropertyValue('--bg-gradient-c1'));
+    expect(bgVar.trim().toLowerCase()).toBe('#ff0055');
+
+    await page.reload();
+    await page.waitForSelector('.card, .empty');
+    const appearance = await getAppearance(server);
+    expect(appearance.background.gradientColor1).toBe('#ff0055');
+    expect(appearance.background.gradientColor2).toBe('#0055ff');
+
+    await openSettings(page);
+    await expect(page.locator('[data-action="reset-background-gradient-colors"]')).toBeVisible();
+    await page.click('[data-action="reset-background-gradient-colors"]');
+    await page.waitForTimeout(500);
+    const afterReset = await getAppearance(server);
+    expect(afterReset.background.gradientColor1).toBeNull();
+    expect(afterReset.background.gradientColor2).toBeNull();
+  } finally {
+    await server.stop();
+  }
+});

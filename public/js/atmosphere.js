@@ -25,19 +25,24 @@ let feathersEl = null;
 let ambientTimer = null;
 let activeFeather = null; // at most one feather (ambient or reward) at a time — keeps the "six animated elements" budget honest at the "normal" density
 
-// User-controlled amount of leaves/feathers (Settings → Decoration amount).
-// "normal" matches the design system's own numbers exactly (5 leaves, a
-// feather every 42s); "few"/"many" are this app's own addition, not from
-// the spec — "many" deliberately exceeds the "six animated elements"
-// budget, since a user who explicitly asked for more decoration is opting
-// out of that budget on purpose, not something invented behind their back.
-const DENSITY = {
-  few: { leaves: 3, featherIntervalMs: 70000 },
-  normal: { leaves: 5, featherIntervalMs: 42000 },
-  many: { leaves: 8, featherIntervalMs: 18000 },
-};
+// User-controlled amount of leaves/feathers (Settings → Decoration amount),
+// a continuous 1-10 slider since post-2.2.0 feedback replaced the old
+// Few/Normal/Many segmented control. Linearly interpolated between the same
+// two endpoints the old enum's "few" and "many" anchored (2-10 leaves,
+// 80s-15s between feathers) — step 5 (the slider's own default) lands close
+// to the old "normal" (5 leaves, 42s), so a library that never touches this
+// slider sees essentially the same decoration level as before. "many"
+// deliberately exceeds the design system's own "six animated elements"
+// budget at the top of the range, since a user who explicitly asks for more
+// decoration is opting out of that budget on purpose, not something
+// invented behind their back.
 function densityConfig() {
-  return DENSITY[Preferences.getDecorDensity()] || DENSITY.normal;
+  const step = Preferences.getDecorationStep();
+  const t = (step - 1) / 9; // 0 at step 1, 1 at step 10
+  return {
+    leaves: Math.round(2 + t * 8),
+    featherIntervalMs: Math.round(80000 - t * 65000),
+  };
 }
 
 function isLightTheme() {

@@ -104,7 +104,22 @@ export async function refreshNow() {
         const media = await withRateLimitRetry(() => Api.fetchAiringBatch(batches[i]));
         anySucceeded = true;
         for (const m of media) {
-          nextEntries[m.id] = { status: m.status, episodes: m.episodes, nextAiringEpisode: m.nextAiringEpisode || null };
+          const old = cacheEntries[m.id];
+          const nextAiringEpisode = m.nextAiringEpisode || null;
+          const entry = { status: m.status, episodes: m.episodes, nextAiringEpisode };
+          // Schedule's "This week" Today column: carry forward whichever
+          // episode this refresh just superseded (nextAiringEpisode moved
+          // on to a later number, or disappeared entirely because the show
+          // finished) so it can still show "already aired" for the rest of
+          // today instead of the title just vanishing — see
+          // airingLogic.js's buildWeekSchedule for how this gets consumed
+          // and naturally expires once the day is over.
+          if (old?.nextAiringEpisode && (!nextAiringEpisode || nextAiringEpisode.episode > old.nextAiringEpisode.episode)) {
+            entry.lastAiredEpisode = { episode: old.nextAiringEpisode.episode, airingAt: old.nextAiringEpisode.airingAt };
+          } else if (old?.lastAiredEpisode) {
+            entry.lastAiredEpisode = old.lastAiredEpisode;
+          }
+          nextEntries[m.id] = entry;
         }
       } catch {
         // One batch failing (rate limit, transient network blip) shouldn't

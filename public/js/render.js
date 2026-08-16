@@ -1515,7 +1515,7 @@ function renderDiscoverFiltersPanel(corpusEntries, filters) {
 }
 
 function renderDiscoverPage(container, viewState) {
-  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null, activeMoodId = null, moodShelf = null, discoverFilters = {}, adventurousness = null } = viewState;
+  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null, activeMoodId = null, moodShelf = null, discoverFilters = {}, adventurousness = null, adventurousnessEnabled = true } = viewState;
   const age = relativeAgeText(generatedAt);
   // P5B.4: "Surprise me" IS the adventurousness slider — shelvesLogic.js's
   // buildShelves() already defaults a null/unset value to the tuning
@@ -1540,9 +1540,12 @@ function renderDiscoverPage(container, viewState) {
         <button class="text-btn" id="pick-for-me-open">${escapeHtml(copy('discoverFeedback.pickForMe'))}</button>
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh shelves'}</button>
       </div>
-      <div class="discover-adventurousness-row" title="${escapeHtml(copy('discoverFeedback.adventurousnessHint'))}">
-        <label for="discover-adventurousness-slider">${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}</label>
-        <input type="range" id="discover-adventurousness-slider" min="${RECOMMENDATIONS.adventurousness.min}" max="${RECOMMENDATIONS.adventurousness.max}" step="1" value="${adventurousnessDisplay}">
+      <div class="discover-adventurousness-row">
+        <label class="discover-adventurousness-toggle">
+          <input type="checkbox" id="discover-adventurousness-enabled" ${adventurousnessEnabled ? 'checked' : ''}>
+          <span title="${escapeHtml(copy('discoverFeedback.adventurousnessHint'))}">${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}</span>
+        </label>
+        <input type="range" id="discover-adventurousness-slider" min="${RECOMMENDATIONS.adventurousness.min}" max="${RECOMMENDATIONS.adventurousness.max}" step="1" value="${adventurousnessDisplay}" ${adventurousnessEnabled ? '' : 'disabled'} aria-label="${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}">
       </div>
       ${discoverFilterChipsRowHtml(discoverFilters)}
       ${moodButtonRowHtml(activeMoodId)}
@@ -1608,9 +1611,9 @@ function weekStripHtml(week) {
               ? items
                   .map(
                     (it) => `
-              <button class="schedule-item" data-action="show-detail" data-detail-id="${it.anilistId}" title="${escapeHtml(it.title)} — episode ${it.episode}">
+              <button class="schedule-item ${it.alreadyAired ? 'already-aired' : ''}" data-action="show-detail" data-detail-id="${it.anilistId}" title="${escapeHtml(it.title)} — episode ${it.episode}${it.alreadyAired ? ', already aired' : ''}">
                 <span class="schedule-item-title">${escapeHtml(it.title)}</span>
-                <span class="schedule-item-ep">Ep ${it.episode}</span>
+                <span class="schedule-item-ep">${it.alreadyAired ? 'Already aired' : `Ep ${it.episode}`}</span>
               </button>`
                   )
                   .join('')
@@ -2275,13 +2278,28 @@ function stepDescriptor(step) {
 // buttons for just that font's own weights instead of a 1-10 range —
 // "letting the slider silently do nothing recreates the exact complaint
 // that started this" (spec).
+// Post-2.2.0 feedback: Decoration amount became a 1-10 slider instead of
+// the old Few/Normal/Many segmented control — a standalone control rather
+// than reusing sliderRowHtml below, since this doesn't own any CSS custom
+// property computeSliderTokens() would generate (atmosphere.js's own JS is
+// the only consumer, same as the old enum was), so the 8 typography
+// sliders' token/reset-button machinery doesn't apply here.
+function decorationStepSliderHtml() {
+  const step = Preferences.getDecorationStep();
+  return `
+    <div class="slider-row">
+      <input type="range" class="slider-input" id="decoration-step-slider" min="1" max="10" step="1" value="${step}" aria-label="Decoration amount" aria-valuetext="Decoration amount ${step} of 10">
+      <span class="slider-value">${step}</span>
+    </div>`;
+}
+
 function sliderRowHtml(key, label, description) {
   const step = Preferences.getSliderStep(key);
   if (key === 'textWeight') {
-    const entry = FONT_MANIFEST[Preferences.getUiFont()];
+    const entry = FONT_MANIFEST[Preferences.getSiteFont()];
     const collapsed = getCollapsedWeightOptions(entry);
     if (collapsed) {
-      const fontName = Fonts.getFontById(Preferences.getUiFont())?.name || 'This font';
+      const fontName = Fonts.getFontById(Preferences.getSiteFont())?.name || 'This font';
       // Which of the font's own weights is "closest" to the stored step's
       // intended weight — computed from the same derivation
       // typographySliders.js uses for a normal (non-collapsed) slider,
@@ -2298,7 +2316,7 @@ function sliderRowHtml(key, label, description) {
       `;
     }
   }
-  const max = key === 'textWeight' ? getEffectiveMax(key, FONT_MANIFEST[Preferences.getUiFont()]) : MAX_STEP;
+  const max = key === 'textWeight' ? getEffectiveMax(key, FONT_MANIFEST[Preferences.getSiteFont()]) : MAX_STEP;
   const valuetext = `${label} ${step} of ${max}, ${stepDescriptor(step)}`;
   const resetDisabled = step === DEFAULT_STEP ? 'disabled' : '';
   return `
@@ -2456,6 +2474,21 @@ function appearanceSectionHtml(appearance) {
 // only shows once a real effect is picked — at type 'none' there is
 // nothing for it to control, same "hide the irrelevant control" pattern
 // the collapsed weight slider above already uses.
+// Post-2.2.0 feedback: the gradient effect can take 2 user-picked colours
+// as its own endpoints instead of always deriving a single colour from
+// whichever theme is active — only shown for the 'gradient' effect type,
+// since 'grain' has no colour of its own to pick.
+function backgroundGradientColorsHtml(background) {
+  if (background.type !== 'gradient') return '';
+  const hasCustom = Boolean(background.gradientColor1 || background.gradientColor2);
+  return `
+    <div class="row background-gradient-colors" style="gap:var(--sp-2);margin-top:var(--sp-2);align-items:center">
+      <input type="color" class="custom-accent-input" data-action="set-background-gradient-color" data-gradient-slot="1" value="${background.gradientColor1 || '#7c5cff'}" aria-label="Gradient colour 1">
+      <input type="color" class="custom-accent-input" data-action="set-background-gradient-color" data-gradient-slot="2" value="${background.gradientColor2 || '#1a1a2e'}" aria-label="Gradient colour 2">
+      ${hasCustom ? `<button class="text-btn" data-action="reset-background-gradient-colors">Use theme colour</button>` : ''}
+    </div>`;
+}
+
 function appearanceBackgroundHtml(background) {
   const typeSeg = segHtml('appearance-background-type', [['none', 'None'], ['gradient', 'Gradient'], ['grain', 'Grain']], background.type);
   if (background.type === 'none') return `<div class="appearance-background">${typeSeg}</div>`;
@@ -2467,6 +2500,7 @@ function appearanceBackgroundHtml(background) {
         <input type="range" class="slider-input" data-action="set-background-opacity" min="0" max="100" step="1" value="${background.opacity}" aria-label="Background effect opacity" aria-valuetext="${escapeHtml(valuetext)}">
         <span class="slider-value">${background.opacity}%</span>
       </div>
+      ${backgroundGradientColorsHtml(background)}
     </div>`;
 }
 
@@ -2475,7 +2509,7 @@ function appearanceBackgroundHtml(background) {
 // reasoning as settingsNewTagName above, since repaintSettings() rebuilds
 // the whole panel on every change, including one made in a DIFFERENT
 // slot's grid).
-const fontSearchDrafts = { ui: '', heading: '', numbers: '' };
+const fontSearchDrafts = { ui: '' };
 
 function setFontSearchDraft(slot, query) {
   fontSearchDrafts[slot] = query;
@@ -2735,13 +2769,17 @@ function renderSettingsPanel(container, appearance) {
   // bottom rows feel like the panel kept jumping back to the top —
   // restoring only the outer scroll wouldn't have touched it. Same
   // scroll-loss problem for three more scrollable grids
-  // (#font-grid-ui/-heading/-numbers), equally rebuilt from scratch.
+  // (#font-grid-ui — post-2.2.0 feedback consolidated the 3 independent
+  // font slots into one site-wide choice; the DOM id/internal slot key
+  // stays 'ui' rather than being renamed, since 'ui' was already the
+  // broadest-eligibility slot and nothing outside this rendering layer
+  // cares what the string itself says), equally rebuilt from scratch.
   // `.themegrid` alone can match TWO elements now (P6.1's light+dark slots
   // under 'system' mode), matched back up by DOM order — light is always
   // rendered before dark (appearanceSectionHtml) — so captured/restored by
   // querySelectorAll position, not the single-match querySelector the
-  // id-based font grids still use.
-  const OTHER_GRID_SELECTORS = ['#font-grid-ui', '#font-grid-heading', '#font-grid-numbers'];
+  // id-based font grid still uses.
+  const OTHER_GRID_SELECTORS = ['#font-grid-ui'];
   const scroller = container.closest('.overlay-panel') || container;
   const scrollTop = scroller.scrollTop;
   const themeGridScrollTops = Array.from(container.querySelectorAll('.themegrid')).map((g) => g.scrollTop);
@@ -2750,9 +2788,7 @@ function renderSettingsPanel(container, appearance) {
     ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, appearanceSectionHtml(appearance))}
     ${settingsRowHtml('Background effect', 'An optional gradient or grain layer behind your library, at the accent colour of whichever theme is active.', appearanceBackgroundHtml(appearance.background))}
     ${settingsRowHtml('Import & export appearance', 'Copy your whole theme setup as a short code, or download/upload it as a JSON file.', appearanceExportImportHtml())}
-    ${settingsRowHtml(copy('fonts.ui.heading'), copy('fonts.ui.description'), fontGridHtml('ui', Preferences.getUiFont()))}
-    ${settingsRowHtml(copy('fonts.heading.heading'), copy('fonts.heading.description'), fontGridHtml('heading', Preferences.getHeadingFont()))}
-    ${settingsRowHtml(copy('fonts.numbers.heading'), copy('fonts.numbers.description'), fontGridHtml('numbers', Preferences.getNumbersFont()))}
+    ${settingsRowHtml(copy('fonts.site.heading'), copy('fonts.site.description'), fontGridHtml('ui', Preferences.getSiteFont()))}
     ${settingsRowHtml(copy('sliders.textSize.heading'), copy('sliders.textSize.description'), sliderRowHtml('textSize', copy('sliders.textSize.heading')))}
     ${settingsRowHtml(copy('sliders.textWeight.heading'), copy('sliders.textWeight.description'), sliderRowHtml('textWeight', copy('sliders.textWeight.heading')))}
     ${settingsRowHtml(copy('sliders.lineHeight.heading'), copy('sliders.lineHeight.description'), sliderRowHtml('lineHeight', copy('sliders.lineHeight.heading')))}
@@ -2779,7 +2815,7 @@ function renderSettingsPanel(container, appearance) {
     ${settingsRowHtml(
       'Decoration amount',
       'How many leaves and feathers fall.',
-      segHtml('decorDensity', [['few', 'Few'], ['normal', 'Normal'], ['many', 'Many']], Preferences.getDecorDensity())
+      decorationStepSliderHtml()
     )}
     ${settingsRowHtml(
       'Original titles',

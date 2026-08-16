@@ -141,6 +141,17 @@ html, body {
 body {
   min-height: 100vh;
   transition: background-color 0.2s ease, color 0.2s ease;
+  /* P3.2's lineHeight/letterSpacing sliders: computed correctly (see
+     typographySliders.js) but had no CSS consumer anywhere until now (a
+     post-2.2.0 feedback fix) — the fallback matches each token's own
+     step-5 default exactly, so a library that never touches either slider
+     renders identically to before. Every --t-* role token still sets its
+     OWN more specific line-height as part of its font shorthand and wins
+     the cascade over this one, same as any element with its own explicit
+     letter-spacing (e.g. .detail-genre-chip's uppercase tracking) — this
+     only reaches plain text that has neither. */
+  line-height: var(--line-height, 1.5);
+  letter-spacing: var(--letter-spacing, 0em);
 }
 
 /* ---------- Atmosphere ----------
@@ -185,8 +196,13 @@ body {
    rather than needing two different noise colours. */
 #bg-effect { position: fixed; inset: 0; z-index: 89; overflow: hidden; pointer-events: none; }
 #bg-effect[data-effect="none"] { display: none; }
+/* Post-2.2.0 feedback: 2 user-picked colours instead of always the theme's
+   own single --glow-derived colour fading to transparent — themes.js's
+   applyBackground() sets --bg-gradient-c1/-c2 as inline styles only once
+   the user has actually picked both; the var() fallbacks below reproduce
+   today's exact single-colour-to-transparent look until then. */
 #bg-effect[data-effect="gradient"] {
-  background: radial-gradient(closest-side at 50% 0%, var(--glow), transparent 70%);
+  background: radial-gradient(closest-side at 50% 0%, var(--bg-gradient-c1, var(--glow)) 0%, var(--bg-gradient-c2, transparent) 70%);
 }
 #bg-effect[data-effect="grain"] {
   mix-blend-mode: overlay;
@@ -835,7 +851,11 @@ kbd {
    fewer of them fit per row. */
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(calc(170px * var(--text-scale)), 1fr));
+  /* P3.2's coverWidth slider: computed correctly (see typographySliders.js's
+     BASE_COVER_WIDTH_PX) but had no CSS consumer until now — the fallback
+     matches its own step-5 default (170px) exactly, so a library that
+     never touches this slider renders at today's identical column width. */
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale)), 1fr));
   gap: 14px;
 }
 /* P4.1: the progressPercent/episodesRemaining "still airing" trailing
@@ -1047,6 +1067,8 @@ kbd {
   color: var(--dim);
 }
 .discover-adventurousness-row input[type="range"] { flex: 1 1 160px; max-width: 220px; }
+.discover-adventurousness-row input[type="range"]:disabled { opacity: .4; }
+.discover-adventurousness-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; }
 .pick-for-me-result { padding: 12px 0; }
 .pick-for-me-result h4 { margin: 0 0 5px; font: var(--t-card); }
 .pick-for-me-result .m { font: var(--t-meta); color: var(--faint); }
@@ -1958,6 +1980,12 @@ kbd {
   overflow: hidden;
 }
 .schedule-item-ep { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* Post-2.2.0 feedback: an already-aired-today entry stays visible in Today
+   instead of vanishing once the hourly refresh advances past it — greyed
+   out rather than removed, so it still answers "did this air yet?". */
+.schedule-item.already-aired { opacity: .55; }
+.schedule-item.already-aired:hover { opacity: .8; border-color: var(--line); transform: none; }
+.schedule-item.already-aired .schedule-item-ep { text-transform: uppercase; letter-spacing: .04em; }
 .schedule-day-empty { font-size: var(--fs-meta); color: var(--faint); margin: 0; }
 
 .stats-grid-2col {
