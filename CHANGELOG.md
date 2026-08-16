@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.0
+
+Two new features requested after trying 2.2.2 for real, plus a note on the rest of that feedback round.
+
+- **Discover: "View more" on every rankable shelf.** Because you liked..., Finish what you started, Hidden gems, Short and finishable, From the studio/director, Community classics, This season, and Ironically essential each now show a "View more" button when more candidates qualified than fit on the page — click it to grow that one shelf by another page's worth, independent of the others. (Blind spot stays a single card by design, and mood filters already show a larger page once active.)
+- **"Because you liked..." no longer keeps citing the same 1-2 shows.** When a recommended title genuinely matches 3 or more of your rated anchors, which 2 get named now rotates per title instead of always defaulting to your single highest-rated match in that rotation — so a shelf full of cards doesn't read like it's only aware of one or two things you've rated.
+- **Custom themes now take 2 colors, not 1.** The theme builder's Custom option previously derived the whole palette — including the background — from a single accent color. It now offers a second color picker for the background itself, independent of the accent; a "Match accent" button reverts to the original single-color behavior at any time. Existing custom themes are unaffected until you explicitly set a second color.
+- **Note on this round's other 4 reports** (old mood-label wording, no "?" hint on Surprise me, an empty Schedule despite same-day releases, separate interface/heading font pickers): all had already shipped fixes in 2.2.1/2.2.2 — the reports described the exe running beforehand. If you still see any of this after updating to this version, please say so again.
+
 ## 2.2.2
 
 - **Fix: "Surprise me" was unexplained.** The hint text existed but was only a plain-text tooltip with no visual sign it was hoverable, so it went unnoticed. Replaced with a visible "?" badge with a real, focusable tooltip.
