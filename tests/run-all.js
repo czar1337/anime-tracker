@@ -3537,6 +3537,18 @@ async function run() {
     assert.equal('idMal' in pruned, false, 'idMal must be dropped — this app\'s sole persisted external key is anilistId');
   });
 
+  await test('pruneMediaFields (P5B.5) keeps coverMedium/titleNative when AniList provides them', () => {
+    const pruned = pruneMediaFields({ ...RAW_MEDIA_FIXTURE, title: { ...RAW_MEDIA_FIXTURE.title, native: '進撃の巨人' }, coverImage: { medium: 'https://example.test/medium.jpg' } });
+    assert.equal(pruned.coverMedium, 'https://example.test/medium.jpg');
+    assert.equal(pruned.titleNative, '進撃の巨人');
+  });
+
+  await test('pruneMediaFields (P5B.5) degrades coverMedium/titleNative to null when absent — existing corpus entries pre-dating these fields', () => {
+    const pruned = pruneMediaFields(RAW_MEDIA_FIXTURE); // no title.native, coverImage has no .medium
+    assert.equal(pruned.coverMedium, null);
+    assert.equal(pruned.titleNative, null);
+  });
+
   await test('pruneMediaFields normalises averageScore from AniList\'s 0-100 scale to this app\'s canonical 1-10', () => {
     assert.equal(pruneMediaFields({ ...RAW_MEDIA_FIXTURE, averageScore: 85 }).normalizedScore, 8.5);
     assert.equal(pruneMediaFields({ ...RAW_MEDIA_FIXTURE, averageScore: 100 }).normalizedScore, 10);
@@ -3573,6 +3585,46 @@ async function run() {
   await test('paceDelayMs: a looser margin or higher ceiling paces faster, a stricter one paces slower', () => {
     assert.equal(paceDelayMs(1, 60), 1000);
     assert.ok(paceDelayMs(0.5, 30) > paceDelayMs(0.7, 30), 'a smaller safety margin must wait longer between requests');
+  });
+
+  // -------------------------------------------------------------------------
+  // detailLogic.js (public/js/detailLogic.js) — P5B.5's pure detail-overlay
+  // helpers: spoiler-tag partitioning and synopsis truncation. render.js
+  // itself touches `document` at module scope and isn't importable from
+  // Node, so these two pieces of pure logic live in their own module.
+  // -------------------------------------------------------------------------
+  console.log('detailLogic.js');
+  const detailLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'detailLogic.js').replace(/\\/g, '/');
+  const { partitionSpoilerTags, truncateSynopsis } = await import(detailLogicUrl);
+
+  await test('partitionSpoilerTags separates any tag with either spoiler flag from plain tags', () => {
+    const tags = [
+      { name: 'Kaiju', isGeneralSpoiler: false, isMediaSpoiler: false },
+      { name: 'Time Travel', isGeneralSpoiler: true, isMediaSpoiler: false },
+      { name: 'Tragedy', isGeneralSpoiler: false, isMediaSpoiler: true },
+    ];
+    const { plain, spoilers } = partitionSpoilerTags(tags);
+    assert.deepEqual(plain.map((t) => t.name), ['Kaiju']);
+    assert.deepEqual(spoilers.map((t) => t.name), ['Time Travel', 'Tragedy']);
+  });
+
+  await test('partitionSpoilerTags handles an empty/missing tag list without throwing', () => {
+    assert.deepEqual(partitionSpoilerTags([]), { plain: [], spoilers: [] });
+    assert.deepEqual(partitionSpoilerTags(undefined), { plain: [], spoilers: [] });
+  });
+
+  await test('truncateSynopsis leaves text at exactly the limit untouched', () => {
+    const text = 'a'.repeat(180);
+    assert.deepEqual(truncateSynopsis(text, 180), { truncated: text, isTruncated: false });
+  });
+
+  await test('truncateSynopsis truncates text past the limit at a word boundary, never mid-word', () => {
+    const text = `${'word '.repeat(35)}tail`; // 180 chars, well past a 100-char limit
+    const { truncated, isTruncated } = truncateSynopsis(text, 100);
+    assert.equal(isTruncated, true);
+    assert.ok(truncated.length <= 100, 'truncated text must not exceed the limit');
+    assert.ok(!text.startsWith(truncated + 'w'), 'must not cut a word in half');
+    assert.equal(truncated, truncated.trimEnd(), 'no trailing whitespace before the ellipsis/Show more control');
   });
 
   // -------------------------------------------------------------------------

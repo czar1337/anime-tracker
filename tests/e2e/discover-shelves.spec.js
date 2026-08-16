@@ -120,7 +120,8 @@ test('adding a shelf card persists its provenance fields onto the new entry', as
     await expect(card).toBeVisible();
     await expect(card.locator('.why')).toHaveText('Because you rated Anchor Show EN 9.');
 
-    await card.locator('[data-action="discover-add"]').click();
+    // P5B.5: one-tap add is now 3 status buttons — "Add" is the watchlist one.
+    await card.locator('[data-action="discover-add"][data-add-status="watchlist"]').click();
     await expect(card).toHaveCount(0);
 
     // app.js's own persist() debounces the PUT to /api/library by 300ms —
