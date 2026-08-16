@@ -2430,8 +2430,8 @@ function bindSettingsPanel() {
     if (customTile) {
       const slotKey = customTile.dataset.slot;
       const appearance = Store.state.preferences.appearance;
-      const existingAccent = appearance[slotKey].type === 'custom' ? appearance[slotKey].accent : '#8a6fd8';
-      commitAppearance({ ...appearance, [slotKey]: { type: 'custom', accent: existingAccent } });
+      const existing = appearance[slotKey].type === 'custom' ? appearance[slotKey] : null;
+      commitAppearance({ ...appearance, [slotKey]: { type: 'custom', accent: existing?.accent || '#8a6fd8', base: existing?.base || null } });
       return;
     }
     const randomBtn = e.target.closest('[data-action="random-theme"]');
@@ -2447,11 +2447,23 @@ function bindSettingsPanel() {
       try {
         const result = await new window.EyeDropper().open();
         const appearance = Store.state.preferences.appearance;
-        commitAppearance({ ...appearance, [slotKey]: { type: 'custom', accent: result.sRGBHex } });
+        // Preserves an existing base override — the eyedropper only ever
+        // picks the accent, so a background color the user already
+        // customized separately shouldn't silently reset just because
+        // they re-picked the accent with the eyedropper.
+        const existingBase = appearance[slotKey].type === 'custom' ? appearance[slotKey].base : null;
+        commitAppearance({ ...appearance, [slotKey]: { type: 'custom', accent: result.sRGBHex, base: existingBase } });
       } catch {
         // User cancelled the eyedropper (Esc, or clicked away) — no-op,
         // same as cancelling any other picker in this app.
       }
+      return;
+    }
+    const resetBaseBtn = e.target.closest('[data-action="reset-custom-base"]');
+    if (resetBaseBtn) {
+      const slotKey = resetBaseBtn.dataset.slot;
+      const appearance = Store.state.preferences.appearance;
+      commitAppearance({ ...appearance, [slotKey]: { ...appearance[slotKey], base: null } });
       return;
     }
 
@@ -2914,11 +2926,33 @@ function bindSettingsPanel() {
       const slotKey = accentInput.dataset.slot;
       const hex = accentInput.value;
       const appearance = Store.state.preferences.appearance;
-      const nextAppearance = { ...appearance, [slotKey]: { type: 'custom', accent: hex } };
+      const currentBase = appearance[slotKey].base;
+      const nextAppearance = { ...appearance, [slotKey]: { ...appearance[slotKey], type: 'custom', accent: hex } };
       Store.setPreference(['appearance'], nextAppearance);
       Themes.applyAppearance(nextAppearance);
       persist();
       const swatch = accentInput.closest('.appearance-slot')?.querySelector('.custom-swatch');
+      if (swatch) {
+        swatch.querySelector('.custom-swatch-accent').style.background = hex;
+        // base is null (never customized) means the background hue still
+        // follows the accent — the swatch's outer half must track along.
+        if (!currentBase) swatch.style.background = hex;
+      }
+    }
+
+    // Post-2.2.2 feedback: the background's own color, independent of the
+    // accent — same live-preview-without-repaint reasoning as the accent
+    // input above.
+    const baseInput = e.target.closest('[data-action="set-custom-base"]');
+    if (baseInput) {
+      const slotKey = baseInput.dataset.slot;
+      const hex = baseInput.value;
+      const appearance = Store.state.preferences.appearance;
+      const nextAppearance = { ...appearance, [slotKey]: { ...appearance[slotKey], type: 'custom', base: hex } };
+      Store.setPreference(['appearance'], nextAppearance);
+      Themes.applyAppearance(nextAppearance);
+      persist();
+      const swatch = baseInput.closest('.appearance-slot')?.querySelector('.custom-swatch');
       if (swatch) swatch.style.background = hex;
     }
 
@@ -2984,6 +3018,18 @@ function bindSettingsPanel() {
     // logs the settled value and repaints to refresh the contrast
     // confirmation line and swatch state.
     if (e.target.closest('[data-action="set-custom-accent"]')) {
+      const appearance = Store.state.preferences.appearance;
+      recordSettingChange('appearance', appearance, appearance);
+      repaintSettings();
+      return;
+    }
+
+    // Value is already applied+persisted by the 'input' handler above —
+    // this just logs the settled value and repaints so the "Match accent"
+    // reset button appears (conditional on base now being set, which the
+    // lightweight 'input' handler doesn't repaint), same as the accent
+    // input right above.
+    if (e.target.closest('[data-action="set-custom-base"]')) {
       const appearance = Store.state.preferences.appearance;
       recordSettingChange('appearance', appearance, appearance);
       repaintSettings();

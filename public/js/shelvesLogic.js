@@ -332,15 +332,35 @@ function pickRotatingAnchors(ratedEntries, localDay, count = 5) {
   return shuffleWithRng(pool, seededRng(seedFromString(localDay || ''))).slice(0, count);
 }
 
-// Up to 2 anchors sharing a genre with the candidate, highest-rated first —
-// the spec's own example shape ("Because you rated Monster 10 and
-// Steins;Gate 9").
+// Every anchor sharing a genre with the candidate, highest-rated first — NOT
+// capped to 2 here (see pickCitationAnchors below for that), so a caller
+// with more than 2 genuine matches can still choose which 2 to cite rather
+// than always losing the tail to this function's own slice.
 function becauseYouLikedMatches(candidate, anchors) {
   const candidateGenres = new Set(candidate.genres || []);
   return anchors
     .filter((e) => (e.genres || []).some((g) => candidateGenres.has(g)))
-    .sort((a, b) => b.myScore - a.myScore)
-    .slice(0, 2);
+    .sort((a, b) => b.myScore - a.myScore);
+}
+
+// Post-2.2.2 feedback: "because you watched... but not repeated" — with a
+// small fixed anchor pool (pickRotatingAnchors, default 5) and every
+// candidate on this shelf genre-overlapping at least one anchor, always
+// citing the single highest-rated qualifying anchor(s) means whichever
+// anchor happens to have the broadest/most common genre dominates nearly
+// every card's "why", reading as repetitive across a shelf. When a
+// candidate genuinely matches 3+ anchors there's real room to vary which 2
+// get cited; rotate a deterministic 2-anchor window (seeded by localDay +
+// this entry's id, so it's stable within one day's session but not fixed
+// forever) instead of always the same top-2 by score. A candidate matching
+// only 1-2 anchors has no real choice to make and cites exactly what it
+// always did.
+function pickCitationAnchors(sortedMatches, entryId, localDay) {
+  if (sortedMatches.length <= 2) return sortedMatches;
+  const rng = seededRng(seedFromString(`${localDay || ''}:${entryId}`));
+  const start = Math.floor(rng() * sortedMatches.length);
+  const chosen = [sortedMatches[start], sortedMatches[(start + 1) % sortedMatches.length]];
+  return chosen.sort((a, b) => b.myScore - a.myScore);
 }
 
 function formatBecauseYouLiked(matches) {
@@ -598,6 +618,10 @@ function rankAndCapShelf(candidates, { tasteProfile, context, pageSize, tuning, 
   };
 }
 
+// A named export so callers doing "View more" math (discover.js) never have
+// to hardcode this same number a second time.
+const DEFAULT_PAGE_SIZE = 12;
+
 // The main entry point. `corpusEntries`: the corpus cache's own `entries`
 // object, keyed by `String(anilistId)`. `libraryEntries`: Store.getEntries().
 // `dismissedIds`: a Set (or array) of anilistIds. `tasteProfile`: whatever
@@ -627,7 +651,20 @@ function buildShelves({
   // for whenever they turn it back on.
   adventurousnessEnabled = true,
   hideOwned = true,
-  pageSize = 12,
+  pageSize = DEFAULT_PAGE_SIZE,
+  // Post-2.2.1 feedback: "View more" per shelf. A shelf's own `totalCandidates`
+  // (rankAndCapShelf's own count of everything that qualified before the
+  // pageSize cap) was already computed and simply never exposed to any UI —
+  // this lets a caller re-run the whole (still zero-AniList-request, all-
+  // local) computation with a bigger cap for just the one shelf the user
+  // actually asked to expand, keyed by shelf id, rather than the entryPoint's
+  // own diversity-capped `applyDiversityCap` overflow (which never survives
+  // past rankAndCapShelf's own return) being retained speculatively for
+  // every shelf on every build. 'blind-spot' is deliberately never looked up
+  // here — it hardcodes pageSize: 1 below, by design (the spec's own "one
+  // card for a genre you've never touched"), not a value a user should be
+  // able to expand.
+  pageSizeOverrides = {},
   rng = Math.random,
   activeMoodId = null,
   // Defaults mirror config/tuning.js's own TIME_SEMANTICS.
@@ -647,6 +684,7 @@ function buildShelves({
   enforcePrerequisiteChain = true,
   hideDismissed = true,
 }) {
+  const shelfPageSize = (shelfId) => pageSizeOverrides[shelfId] ?? pageSize;
   const corpusById = corpusEntries || {};
   const ownedIds = new Set(libraryEntries.map((e) => e.anilistId));
   const dismissedSet = dismissedIds instanceof Set ? dismissedIds : new Set(dismissedIds || []);
@@ -731,8 +769,8 @@ function buildShelves({
   function becauseYouLikedReason(c) {
     const entryId = resolveFranchiseEntryPoint(c.anilistId, corpusById);
     const pooled = reasonMatchesByEntryId.get(entryId) || becauseYouLikedMatches(c, anchors);
-    const deduped = [...new Map(pooled.map((m) => [m.anilistId, m])).values()].sort((a, b) => b.myScore - a.myScore).slice(0, 2);
-    return formatBecauseYouLiked(deduped);
+    const deduped = [...new Map(pooled.map((m) => [m.anilistId, m])).values()].sort((a, b) => b.myScore - a.myScore);
+    return formatBecauseYouLiked(pickCitationAnchors(deduped, entryId, localDay));
   }
   const becauseYouLiked = {
     id: 'because-you-liked',
@@ -740,7 +778,7 @@ function buildShelves({
     ...rankAndCapShelf(likedFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('because-you-liked'),
       tuning,
       localDay,
       rawCandidateCount: likedRaw.length,
@@ -774,7 +812,7 @@ function buildShelves({
     ...rankAndCapShelf(finishFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('finish-what-you-started'),
       tuning,
       localDay,
       rawCandidateCount: finishRaw.length,
@@ -795,7 +833,7 @@ function buildShelves({
     ...rankAndCapShelf(gemsFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('hidden-gems'),
       tuning,
       localDay,
       rawCandidateCount: gemsRaw.length,
@@ -816,7 +854,7 @@ function buildShelves({
     ...rankAndCapShelf(shortFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('short-and-finishable'),
       tuning,
       localDay,
       rawCandidateCount: shortRaw.length,
@@ -873,7 +911,7 @@ function buildShelves({
     ...rankAndCapShelf(studioFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('from-studio'),
       tuning,
       localDay,
       rawCandidateCount: studioRaw.length,
@@ -893,7 +931,7 @@ function buildShelves({
     ...rankAndCapShelf(directorFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('from-director'),
       tuning,
       localDay,
       rawCandidateCount: directorRaw.length,
@@ -914,7 +952,7 @@ function buildShelves({
     ...rankAndCapShelf(classicsFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('community-classics'),
       tuning,
       localDay,
       rawCandidateCount: classicsRaw.length,
@@ -936,7 +974,7 @@ function buildShelves({
     ...rankAndCapShelf(seasonFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('this-season'),
       tuning,
       localDay,
       rawCandidateCount: seasonRaw.length,
@@ -957,7 +995,7 @@ function buildShelves({
     ...rankAndCapShelf(ironicFiltered, {
       tasteProfile,
       context: scoreContext,
-      pageSize,
+      pageSize: shelfPageSize('ironically-essential'),
       tuning,
       localDay,
       rawCandidateCount: ironicRaw.length,
@@ -1022,6 +1060,7 @@ function buildShelves({
 }
 
 export {
+  DEFAULT_PAGE_SIZE,
   franchiseRelatedIds,
   resolveFranchiseEntryPoint,
   findNextUnseenContinuation,
@@ -1031,6 +1070,7 @@ export {
   isShortAndFinishable,
   pickRotatingAnchors,
   becauseYouLikedMatches,
+  pickCitationAnchors,
   formatBecauseYouLiked,
   formatHiddenGem,
   formatShortAndFinishable,

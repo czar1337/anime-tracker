@@ -109,8 +109,8 @@ const CUSTOM_PROPERTY_NAMES = [
 // class defines, but as inline styles (the only way to apply a value known
 // only at runtime) — see themeBuilder.js's buildPalette(), the same
 // derivation every curated preset already goes through.
-function applyCustomTheme(accentHex, light) {
-  const t = buildPalette(themeInputFromAccent(accentHex, light));
+function applyCustomTheme(accentHex, light, baseHex) {
+  const t = buildPalette(themeInputFromAccent(accentHex, light, baseHex));
   const c = t.colours;
   const s = t.surf;
   const root = document.documentElement.style;
@@ -151,7 +151,7 @@ function clearCustomTheme() {
 
 function applySlot(slot, light) {
   if (slot.type === 'custom') {
-    applyCustomTheme(slot.accent, light);
+    applyCustomTheme(slot.accent, light, slot.base);
     delete document.documentElement.dataset.colorTheme;
   } else {
     clearCustomTheme();

@@ -13,18 +13,23 @@ export function buildAppearanceJSON(appearance) {
   return appearance;
 }
 
-// Minified-key shape for the short code only (`{m,l:{t,i|a},d:{t,i|a},
+// Minified-key shape for the short code only (`{m,l:{t,i|a,b?},d:{t,i|a,b?},
 // bg:{t,o}}`) — the whole point of a short code is being cheap to paste
 // into a chat message, so key names matter here in a way they don't for
-// the JSON file export above.
+// the JSON file export above. `b` (base) is only ever present when the
+// slot actually has one, keeping an accent-only custom slot's short code
+// exactly as short as before this field existed.
 function slotToShort(slot) {
-  return slot.type === 'custom' ? { t: 'c', a: slot.accent } : { t: 'p', i: slot.id };
+  if (slot.type !== 'custom') return { t: 'p', i: slot.id };
+  return slot.base ? { t: 'c', a: slot.accent, b: slot.base } : { t: 'c', a: slot.accent };
 }
 
 function slotFromShort(short) {
   if (!short || typeof short !== 'object') return null;
   if (short.t === 'p' && typeof short.i === 'string') return { type: 'preset', id: short.i };
-  if (short.t === 'c' && typeof short.a === 'string') return { type: 'custom', accent: short.a };
+  if (short.t === 'c' && typeof short.a === 'string') {
+    return typeof short.b === 'string' ? { type: 'custom', accent: short.a, base: short.b } : { type: 'custom', accent: short.a };
+  }
   return null;
 }
 
@@ -69,7 +74,14 @@ export function decodeShortCode(code) {
 function isValidSlot(slot) {
   if (!slot || typeof slot !== 'object') return false;
   if (slot.type === 'preset') return COLOR_THEMES.some((t) => t.id === slot.id);
-  if (slot.type === 'custom') return isValidHexColor(slot.accent);
+  if (slot.type === 'custom') {
+    if (!isValidHexColor(slot.accent)) return false;
+    // base is optional — absent (predates this field) or explicitly null
+    // (never picked) both pass; a present value must be a real hex, same
+    // "absent/null vs. present-must-be-valid" rule the background's own
+    // gradientColor1/2 already follow below.
+    return slot.base == null || isValidHexColor(slot.base);
+  }
   return false;
 }
 

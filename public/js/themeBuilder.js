@@ -157,14 +157,21 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
 // Derives the four inputs buildPalette() needs (base, accent, glow, deco)
 // from just a user's accent hex + a light/dark flag — the "custom theme
-// builder" only ever asks for one color. Not hand-tuned art like the 53
+// builder" only ever asked for one color. Not hand-tuned art like the 53
 // curated recipes (each of those varies base/glow/deco a small,
 // specifically-chosen amount from its own accent); this is a fixed,
 // good-enough-for-custom formula applied uniformly to any input hue.
-function themeInputFromAccent(accentHex, light) {
+// Post-2.2.2 feedback: "custom on both main and accent" — an optional
+// second hex (`baseHex`) overrides ONLY the background's hue, decoupling
+// it from the accent's own hue; everything else (saturation math, glow,
+// deco, all still derived from the accent) is unchanged, since the user's
+// ask was specifically "let the background be its own color", not a
+// second, independently-tunable full palette.
+function themeInputFromAccent(accentHex, light, baseHex) {
   const [h, s, l] = hexToHsl(accentHex);
+  const baseHue = baseHex ? hexToHsl(baseHex)[0] : h;
   return {
-    base: [h, clamp(s * 0.32, 6, 26)],
+    base: [baseHue, clamp(s * 0.32, 6, 26)],
     accent: [h, clamp(s, 30, 70), clamp(l, 40, 64)],
     glow: [h, clamp(s * 0.75, 20, 60), clamp(l + 18, 40, 85)],
     deco: [(h + 8) % 360, clamp(s * 0.85, 20, 58), clamp(l, 44, 62)],

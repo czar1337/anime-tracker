@@ -685,7 +685,7 @@ async function run() {
     assert.deepEqual(shaped.appearance, {
       mode: 'system',
       light: { type: 'preset', id: 'wisteria' },
-      dark: { type: 'custom', accent: '#3ba55d' },
+      dark: { type: 'custom', accent: '#3ba55d', base: null },
       background: { type: 'gradient', opacity: 40, gradientColor1: null, gradientColor2: null },
     });
     assert.equal(shaped.uiFont, 'inter');
@@ -693,6 +693,15 @@ async function run() {
     assert.equal(shaped.numbersFont, 'jetbrains-mono');
     assert.equal(shaped.textSizeStep, 8);
     assert.equal(shaped.animationStep, 1);
+  });
+
+  await test('ensureSettingsShape: a custom appearance slot\'s optional base color repairs an invalid value to null and preserves a valid one', () => {
+    const invalidBase = ensureSettingsShape({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'custom', accent: '#3ba55d', base: 'not-a-hex' }, background: { type: 'none', opacity: 0 } } });
+    assert.equal(invalidBase.appearance.dark.base, null);
+    const validBase = ensureSettingsShape({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'custom', accent: '#3ba55d', base: '#1A2B3C' }, background: { type: 'none', opacity: 0 } } });
+    assert.equal(validBase.appearance.dark.base, '#1a2b3c', 'lowercased, same as accent');
+    const missingBase = ensureSettingsShape({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'custom', accent: '#3ba55d' }, background: { type: 'none', opacity: 0 } } });
+    assert.equal(missingBase.appearance.dark.base, null, 'a slot saved before this field existed defaults to null (auto-derive), not a crash');
   });
 
   await test('ensureSettingsShape preserves an unknown future field untouched (rule 13 forward-compatibility)', () => {
@@ -3465,6 +3474,22 @@ async function run() {
     }
   });
 
+  await test('themeInputFromAccent: an optional base hex overrides ONLY the background hue, everything else still derives from the accent', () => {
+    const accentHex = hex([200, 55, 50]);
+    const baseHex = hex([20, 55, 50]);
+    const accentHue = hexToHsl(accentHex)[0];
+    const baseHue = hexToHsl(baseHex)[0];
+    const withoutBase = themeInputFromAccent(accentHex, false);
+    const withBase = themeInputFromAccent(accentHex, false, baseHex);
+    assert.equal(withoutBase.base[0], accentHue, 'no base hex given: background hue defaults to the accent\'s own hue');
+    assert.equal(withBase.base[0], baseHue, 'a base hex given: background hue comes from IT instead');
+    assert.ok(Math.abs(withBase.base[0] - withoutBase.base[0]) > 100, 'the two hues (200 vs 20) are genuinely far apart, proving real decoupling, not a no-op');
+    assert.equal(withBase.base[1], withoutBase.base[1], 'background saturation math is unchanged (still derived from the accent, not the base hex)');
+    assert.deepEqual(withBase.accent, withoutBase.accent, 'the accent color itself is untouched by a base override');
+    assert.deepEqual(withBase.glow, withoutBase.glow, 'glow still derives from the accent, not the base');
+    assert.deepEqual(withBase.deco, withoutBase.deco, 'deco still derives from the accent, not the base');
+  });
+
   await test('hexToHsl/hex round-trip: converting a hex accent to HSL and back stays visually identical', () => {
     for (const accentHex of ['#8a6fd8', '#2ecc71', '#e74c3c', '#f5f5f5', '#101010']) {
       const roundTripped = hex(hexToHsl(accentHex));
@@ -3512,6 +3537,16 @@ async function run() {
     assert.equal(/[+/=]/.test(code), false, `short code contains a non-URL-safe character: ${code}`);
   });
 
+  await test('encodeShortCode/decodeShortCode round-trip a custom slot WITH a base colour exactly, and omit the key entirely when absent', () => {
+    const withBase = { ...SAMPLE_CUSTOM_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: '#2a1a4d' } };
+    assert.deepEqual(decodeShortCode(encodeShortCode(withBase)), withBase);
+    // No base at all (the common case, and every code generated before this
+    // field existed) must not gain a spurious `base: undefined` key that
+    // would fail a strict deepEqual against the original.
+    const roundTripped = decodeShortCode(encodeShortCode(SAMPLE_CUSTOM_APPEARANCE));
+    assert.equal('base' in roundTripped.dark, false, 'no base key at all, not even undefined, when the original slot never had one');
+  });
+
   await test('decodeShortCode returns null for malformed input rather than throwing', () => {
     assert.equal(decodeShortCode('not-valid-base64-or-json!!!'), null);
     assert.equal(decodeShortCode(''), null);
@@ -3531,6 +3566,11 @@ async function run() {
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40 } }), true);
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: null, gradientColor2: null } }), true);
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: '#aabbcc', gradientColor2: '#112233' } }), true);
+    // Post-2.2.2 feedback: a custom slot's own base colour is optional the
+    // same way — absent, explicitly null, or a real hex all pass.
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8' } }), true);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: null } }), true);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: '#2a1a4d' } }), true);
   });
 
   await test('validateAppearance rejects every malformed shape named in the spec (bad hex, unknown preset id, out-of-range opacity, bad mode/background type)', () => {
@@ -3545,6 +3585,8 @@ async function run() {
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 'a lot' } }), false);
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: 'not-a-hex' } }), false);
     assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor2: '#12345' } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: 'not-a-hex' } }), false);
+    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: '#12345' } }), false);
   });
 
   // -------------------------------------------------------------------------
@@ -4235,6 +4277,7 @@ async function run() {
     isShortAndFinishable,
     pickRotatingAnchors,
     becauseYouLikedMatches,
+    pickCitationAnchors,
     formatBecauseYouLiked,
     isCommunityClassic,
     isIronicallyEssential,
@@ -4447,7 +4490,7 @@ async function run() {
     for (const anchor of a1) assert.ok(anchor.myScore >= 6, 'anchors must come from the top-rated pool, never a mediocre score');
   });
 
-  await test('becauseYouLikedMatches/formatBecauseYouLiked: cites up to 2 genre-overlapping anchors by title and score', () => {
+  await test('becauseYouLikedMatches/formatBecauseYouLiked: cites genre-overlapping anchors by title and score, highest first', () => {
     const anchors = [
       { titleEnglish: 'Monster', myScore: 10, genres: ['Psychological'] },
       { titleEnglish: 'Steins;Gate', myScore: 9, genres: ['Sci-Fi'] },
@@ -4455,9 +4498,38 @@ async function run() {
     ];
     const candidate = { genres: ['Psychological', 'Sci-Fi'] };
     const matches = becauseYouLikedMatches(candidate, anchors);
-    assert.equal(matches.length, 2);
+    assert.equal(matches.length, 2, 'the Romance anchor does not overlap, so it is excluded — but the other two are NOT capped at this layer anymore, see pickCitationAnchors');
     assert.equal(formatBecauseYouLiked(matches), 'Because you rated Monster 10 and Steins;Gate 9.');
     assert.equal(formatBecauseYouLiked([]), 'Matches what you tend to rate highly.');
+  });
+
+  await test('pickCitationAnchors: 2 or fewer matches are returned as-is, no rotation possible or needed', () => {
+    const matches = [{ anilistId: 1, myScore: 9 }, { anilistId: 2, myScore: 7 }];
+    assert.deepEqual(pickCitationAnchors(matches, 555, '2026-08-10'), matches);
+    assert.deepEqual(pickCitationAnchors([matches[0]], 555, '2026-08-10'), [matches[0]]);
+  });
+
+  await test('pickCitationAnchors: with 3+ matches, different candidates (entry ids) cite different anchor pairs on the same day', () => {
+    // 5 matches, all with distinct scores, so a returned pair's identity
+    // is unambiguous. Deliberately checks MANY entry ids so the assertion
+    // (at least 2 distinct pairs appear) can't flake on an unlucky seed
+    // collision the way checking just 2 ids might.
+    const matches = Array.from({ length: 5 }, (_, i) => ({ anilistId: i, myScore: 10 - i }));
+    const pairs = new Set();
+    for (let entryId = 1; entryId <= 30; entryId++) {
+      const chosen = pickCitationAnchors(matches, entryId, '2026-08-10');
+      assert.equal(chosen.length, 2, 'always exactly 2 when 3+ genuinely match');
+      assert.ok(chosen[0].myScore >= chosen[1].myScore, 'the chosen pair is itself sorted highest-first for natural phrasing');
+      pairs.add(chosen.map((m) => m.anilistId).sort().join(','));
+    }
+    assert.ok(pairs.size >= 2, `expected real variety in which pair gets cited across different entries, got only: ${[...pairs]}`);
+  });
+
+  await test('pickCitationAnchors: same entry id and day always cites the same pair (deterministic, not re-randomized per render)', () => {
+    const matches = Array.from({ length: 5 }, (_, i) => ({ anilistId: i, myScore: 10 - i }));
+    const a = pickCitationAnchors(matches, 42, '2026-08-10');
+    const b = pickCitationAnchors(matches, 42, '2026-08-10');
+    assert.deepEqual(a, b);
   });
 
   await test('buildShelves regression: "Because you liked" cites the franchise member that actually matched anchors, not the generic fallback, when the resolved entry point itself shares no genre with them', () => {
@@ -5036,6 +5108,27 @@ async function run() {
     const gemIds = result.shelves.find((s) => s.id === 'hidden-gems').cards.map((c) => c.anilistId);
     assert.deepEqual(gemIds, [501], 'the named shelf never even sees 502 — filtered out of allCorpusCandidates itself');
     assert.deepEqual(result.moodShelf.cards.map((c) => c.anilistId), [501], 'the mood shelf draws from the exact same pre-filtered pool');
+  });
+
+  await test('buildShelves: pageSizeOverrides raises one named shelf\'s own cap without affecting any other shelf', () => {
+    // 20 hidden-gem candidates, each its own distinct genre, so the
+    // genre-diversity cap (35% of pageSize) never truncates any of them
+    // for a reason unrelated to pageSize itself.
+    const corpus = {};
+    for (let i = 1; i <= 20; i++) {
+      corpus[i] = { anilistId: i, genres: [`Genre${i}`], totalEpisodes: 100, normalizedScore: 8, popularity: 100, tags: [], staff: [], relations: [] };
+    }
+    const args = { corpusEntries: corpus, libraryEntries: [], dismissedIds: [], tasteProfile: { affinities: {} }, tuning: SHELVES_TUNING, nowMs: Date.now(), localDay: '2026-08-10', rng: () => 0 };
+    const defaultResult = buildShelves(args);
+    const gems = defaultResult.shelves.find((s) => s.id === 'hidden-gems');
+    assert.equal(gems.cards.length, 12, 'default pageSize (12) still caps the shelf');
+    assert.equal(gems.totalCandidates, 20, 'the full qualifying count is still reported so a "View more" button knows to show');
+
+    const expanded = buildShelves({ ...args, pageSizeOverrides: { 'hidden-gems': 20 } });
+    const expandedGems = expanded.shelves.find((s) => s.id === 'hidden-gems');
+    assert.equal(expandedGems.cards.length, 20, 'overriding just this shelf id surfaces every qualifying candidate');
+    const otherShelf = expanded.shelves.find((s) => s.id === 'short-and-finishable');
+    assert.equal(otherShelf.cards.length, 0, 'a shelf not named in pageSizeOverrides is completely unaffected (and these candidates do not qualify for it anyway)');
   });
 
   // -------------------------------------------------------------------------

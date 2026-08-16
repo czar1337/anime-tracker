@@ -5,7 +5,7 @@ import { Render } from './render.js';
 import { EventLog, computeLocalDay } from './eventLog.js';
 import { score } from './scorer.js';
 import { TasteProfile } from './tasteProfile.js';
-import { buildShelves, franchiseRelatedIds } from './shelvesLogic.js';
+import { buildShelves, franchiseRelatedIds, DEFAULT_PAGE_SIZE } from './shelvesLogic.js';
 import { RECOMMENDATIONS, TIME_SEMANTICS } from '../../config/tuning.js';
 import { openOverlay } from './events.js';
 import { defaultSettings } from './settingsSchema.js';
@@ -55,6 +55,15 @@ const discoverState = {
   // second fetch — the same object buildShelvesNow() already has in hand
   // right before calling buildShelves() below.
   corpusEntries: {},
+  // "View more": each expandable shelf's own CURRENT page size (not an
+  // offset), keyed by shelf id — fed straight into buildShelves' own
+  // pageSizeOverrides, absent entries mean "still the tuning default".
+  // Session-only, same as activeMoodId above — a shelf a user expanded
+  // stays expanded across rebuilds within this session (rating, dismissing,
+  // filtering) but resets next time the app opens, matching how the whole
+  // page is a lightweight exploration surface rather than a place with
+  // durable per-shelf state.
+  expandedShelves: {},
 };
 
 let buildInFlight = null; // shared promise so an auto-build and a manual refresh can't both run at once
@@ -125,6 +134,7 @@ async function buildShelvesNow() {
         discoverFilters,
         enforcePrerequisiteChain: discoverFilters.enforcePrerequisiteChain,
         hideDismissed: discoverFilters.hideDismissed,
+        pageSizeOverrides: discoverState.expandedShelves,
         // P5B.4: the real "Surprise me" slider value — null (never
         // touched) falls back to the tuning range's midpoint the same way
         // an omitted param already did before this substep.
@@ -321,6 +331,21 @@ export function initDiscover({ persistFn } = {}) {
     }
     if (e.target.closest('[data-action="discover-mood-clear"]')) {
       discoverState.activeMoodId = null;
+      buildGeneration += 1;
+      buildShelvesNow().catch(() => {});
+      return;
+    }
+
+    // Post-2.2.2 feedback: "View more" grows one shelf's own page size by
+    // tuning's shelfExpandStep and rebuilds — the whole pipeline is a pure,
+    // zero-AniList-request local computation (P5A.4), so re-running it with
+    // a bigger cap for just this shelf id is as cheap as any other rebuild
+    // this file already triggers on every preference change.
+    const viewMoreBtn = e.target.closest('[data-action="discover-view-more"]');
+    if (viewMoreBtn) {
+      const shelfId = viewMoreBtn.dataset.shelfId;
+      const current = discoverState.expandedShelves[shelfId] ?? DEFAULT_PAGE_SIZE;
+      discoverState.expandedShelves[shelfId] = current + RECOMMENDATIONS.shelfExpandStep;
       buildGeneration += 1;
       buildShelvesNow().catch(() => {});
       return;

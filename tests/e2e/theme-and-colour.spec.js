@@ -92,7 +92,7 @@ test('a custom accent set on one mode slot leaves the other slot\'s preset compl
     await pickCustom(page, 'dark');
     await setCustomAccent(page, 'dark', '#ff3366');
 
-    await expect.poll(async () => (await getAppearance(server)).dark).toEqual({ type: 'custom', accent: '#ff3366' });
+    await expect.poll(async () => (await getAppearance(server)).dark).toEqual({ type: 'custom', accent: '#ff3366', base: null });
     const appearance = await getAppearance(server);
     expect(appearance.light).toEqual({ type: 'preset', id: 'daybreak' });
 

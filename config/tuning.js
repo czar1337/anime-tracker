@@ -231,6 +231,11 @@ export const RECOMMENDATIONS = {
   // you liked" et al. already assume a multi-shelf context they no
   // longer have once a mood is active.
   moodPageSize: 24,
+  // "View more" on an expandable shelf reveals this many additional cards
+  // per click, re-using the shared `pageSize` default (12) itself so the
+  // first expansion doubles a shelf's visible count rather than picking an
+  // arbitrary unrelated increment.
+  shelfExpandStep: 12,
 };
 
 // Named surfaces only, transcribed for completeness (rule: "if a substep

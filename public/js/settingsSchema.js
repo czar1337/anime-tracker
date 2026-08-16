@@ -69,13 +69,19 @@ export function defaultAppearance() {
 }
 
 // A slot is either { type: 'preset', id } naming a real curated theme, or
-// { type: 'custom', accent } with a real 6-digit hex — anything else
-// (corrupt/missing/an id that no longer exists) repairs to `fallback`
+// { type: 'custom', accent, base } with a real 6-digit hex accent — anything
+// else (corrupt/missing/an id that no longer exists) repairs to `fallback`
 // rather than crashing, same "repair, never invent beyond what's actually
 // invalid" rule every other enum field in this file already follows.
+// `base` (post-2.2.2 feedback: "custom on both main and accent") is
+// nullable — null means "derive the background hue from accent", the
+// original single-color behavior, so every custom slot saved before this
+// field existed keeps rendering identically. Same optional-nullable
+// pattern as sanitizeBackground's gradientColor1/2 below.
 function sanitizeAppearanceSlot(slot, fallback) {
   if (slot && slot.type === 'custom' && isValidHexColor(slot.accent)) {
-    return { type: 'custom', accent: slot.accent.toLowerCase() };
+    const base = isValidHexColor(slot.base) ? slot.base.toLowerCase() : null;
+    return { type: 'custom', accent: slot.accent.toLowerCase(), base };
   }
   if (slot && slot.type === 'preset' && COLOR_THEMES.some((t) => t.id === slot.id)) {
     return { type: 'preset', id: slot.id };

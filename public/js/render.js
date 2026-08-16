@@ -1262,6 +1262,25 @@ function shelfCardHtml(shelf, cardData, index = 0) {
     </article>`;
 }
 
+// Post-2.2.2 feedback: "long list I can click View more on". Deliberately
+// excludes 'blind-spot' (hardcoded to a single card by design, see
+// shelvesLogic.js) and the mood shelf (its own id is whatever mood was
+// picked, e.g. 'peak-fiction' — it already gets a larger fixed page size
+// once active, per tuning's moodPageSize, and was never wired to
+// pageSizeOverrides since a full-page single-shelf view has nothing else
+// competing for space the way the 10-shelf view does).
+const EXPANDABLE_SHELF_IDS = new Set([
+  'because-you-liked',
+  'finish-what-you-started',
+  'hidden-gems',
+  'short-and-finishable',
+  'from-studio',
+  'from-director',
+  'community-classics',
+  'this-season',
+  'ironically-essential',
+]);
+
 // "A shelf with nothing says why" (spec) — emptyReason is already the
 // shelf-specific copy shelvesLogic.js chose (distinguishing "nothing
 // qualified" from "everything qualified was already yours/dismissed").
@@ -1279,10 +1298,12 @@ function shelfHtml(shelf) {
         <p class="shelf-empty card-meta">${escapeHtml(shelf.emptyReason || 'Nothing here right now.')}</p>
       </section>`;
   }
+  const canExpand = EXPANDABLE_SHELF_IDS.has(shelf.id) && shelf.cards.length < shelf.totalCandidates;
   return `
     <section class="shelf">
       ${head}
       <div class="shelf-row">${shelf.cards.map((c, i) => shelfCardHtml(shelf, c, i)).join('')}</div>
+      ${canExpand ? `<button class="text-btn shelf-view-more" data-action="discover-view-more" data-shelf-id="${escapeHtml(shelf.id)}">${copy('discoverFeedback.viewMore')}</button>` : ''}
     </section>`;
 }
 
@@ -2382,9 +2403,13 @@ function appearanceSlotThemeGridHtml(slotKey, slot) {
     )
     .join('');
   const isCustom = slot.type === 'custom';
+  // Two-part swatch, same sw2/i shape the preset buttons above use — outer
+  // is the background colour (slot.base, or the accent's own hue when base
+  // was never set), inner dot is the accent itself, matching the two real
+  // <input type="color"> controls a custom slot now offers.
   const customTile = `
     <button class="custom-tile ${isCustom ? 'on' : ''}" data-action="pick-custom" data-slot="${slotKey}" title="Custom colour">
-      <span class="sw2 custom-swatch" style="background:${isCustom ? slot.accent : 'var(--line-lit)'}"></span>
+      <span class="sw2 custom-swatch" style="background:${isCustom ? slot.base || slot.accent : 'var(--line-lit)'}"><i class="custom-swatch-accent" style="background:${isCustom ? slot.accent : 'var(--line-lit)'}"></i></span>
       <span class="nm">Custom</span>
     </button>`;
   return `<div class="themegrid">${swatches}${customTile}</div>`;
@@ -2405,7 +2430,7 @@ function appearanceSlotThemeGridHtml(slotKey, slot) {
 // above already reads from.
 function customAccentContrastHtml(slotKey, slot) {
   const light = slotKey === 'light';
-  const palette = buildPalette(themeInputFromAccent(slot.accent, light));
+  const palette = buildPalette(themeInputFromAccent(slot.accent, light, slot.base));
   const toRgb255 = ([h, s, l]) => hslToRgb(h, s, l).map((v) => Math.round(v * 255));
   const cs = getComputedStyle(document.body);
   const fontSizePx = parseFloat(cs.getPropertyValue('--fs-body')) || 13;
@@ -2421,6 +2446,12 @@ function customAccentContrastHtml(slotKey, slot) {
 // place of a "fix contrast" button — see docs/v2-progress.md's P6.1 entry
 // for why buildPalette() already guarantees this can never fail) — only
 // shown once a slot is actually set to Custom.
+// Post-2.2.2 feedback: "custom on both main and accent" — a second color
+// input for the background's own hue (slot.base), same optional/nullable
+// shape and same reset-button pattern as backgroundGradientColorsHtml's
+// established 2-color-plus-reset UI. Unset (null) shows the accent's own
+// hex so the swatch reflects today's actual auto-derived hue truthfully,
+// and the reset button only appears once a real override is in place.
 function customAccentControlsHtml(slotKey, slot) {
   if (slot.type !== 'custom') return '';
   const eyedropperBtn = typeof window !== 'undefined' && typeof window.EyeDropper === 'function'
@@ -2429,7 +2460,9 @@ function customAccentControlsHtml(slotKey, slot) {
   return `
     <div class="row custom-accent-row" style="margin-top:var(--sp-2)">
       <input type="color" class="custom-accent-input" data-action="set-custom-accent" data-slot="${slotKey}" value="${slot.accent}" aria-label="Custom accent colour">
+      <input type="color" class="custom-accent-input" data-action="set-custom-base" data-slot="${slotKey}" value="${slot.base || slot.accent}" aria-label="Custom background colour">
       ${eyedropperBtn}
+      ${slot.base ? `<button class="text-btn" data-action="reset-custom-base" data-slot="${slotKey}">Match accent</button>` : ''}
       <span class="contrast-confirm" data-contrast-confirm="${slotKey}">${customAccentContrastHtml(slotKey, slot)}</span>
     </div>`;
 }

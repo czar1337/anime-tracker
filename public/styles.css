@@ -1135,6 +1135,7 @@ kbd {
 .shelf { margin-bottom: var(--sp-8); }
 .shelf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--sp-4); }
 .shelf-empty { margin: 0; }
+.shelf-view-more { display: block; margin: var(--sp-3) auto 0; }
 .franchise-count { font: var(--t-nano); color: var(--faint); font-weight: 400; vertical-align: middle; }
 .discover-hide-owned-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-card); color: var(--dim); white-space: nowrap; cursor: pointer; }
 .discover-hide-owned-row input { width: 16px; height: 16px; }
@@ -2273,10 +2274,13 @@ kbd {
 .scorer-debug-term span:last-child { text-align: right; min-width: 4.5ch; }
 
 /* P6.1: the "Custom" tile lives inside the same .themegrid as the curated
-   presets (same button/.on states apply for free) — .custom-swatch is a
-   single solid preview instead of .sw2's two-accent-dot pair, since a
-   custom theme is built from just one accent. */
-.custom-swatch { height: 34px; display: block; }
+   presets (same button/.on states apply for free). Post-2.2.2 feedback
+   ("custom on both main and accent"): .custom-swatch now shows the same
+   background+accent-dot pair a preset's own .sw2/i already renders — it
+   still gets the .sw2 class too (see appearanceSlotThemeGridHtml), whose
+   higher-specificity `.themegrid .sw2` rule above provides the flex/dot
+   layout for free; this block only needs to reassert the shared height. */
+.custom-swatch { height: 34px; }
 .appearance-slot { margin-bottom: var(--sp-4); }
 .appearance-slot:last-child { margin-bottom: 0; }
 .appearance-background { display: flex; flex-direction: column; }

@@ -640,6 +640,11 @@ export const COPY_REGISTRY = {
     standard: 'Adds a bit of randomness to shelf rankings, so occasionally something outside your usual taste gets a boost. Higher = more wildcards. Uncheck to turn it off without losing your setting.',
     madara: 'Adds a bit of randomness to shelf rankings, so occasionally something outside your usual taste gets a boost. Higher = more wildcards. Uncheck to turn it off without losing your setting.',
   },
+  'discoverFeedback.viewMore': {
+    familyFriendly: 'View more',
+    standard: 'View more',
+    madara: 'View more',
+  },
   'discoverFeedback.pickForMe': {
     familyFriendly: 'Pick for me',
     standard: 'Pick for me',
