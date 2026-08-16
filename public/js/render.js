@@ -75,6 +75,20 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// A small, always-visible "?" badge with a real tooltip bubble shown on
+// hover OR focus (so it's reachable by keyboard, and persists after a tap
+// on touch, unlike a bare `title` attribute on plain text — which a user
+// reported not noticing at all: it gives no visual signal that hovering
+// does anything). `tabindex="0"` + `role="button"` make it a real,
+// keyboard-focusable, screen-reader-announced control despite being a
+// <span>, not a native <button> (a <button> here would submit inside a
+// form-like flow in some browsers' default styling — a <span> avoids that
+// with no functional loss, since it does nothing on click but reveal text
+// that :focus already reveals).
+function infoHintHtml(text) {
+  return `<span class="info-hint" tabindex="0" role="button" aria-label="${escapeHtml(text)}">?<span class="info-hint-bubble">${escapeHtml(text)}</span></span>`;
+}
+
 function coverSrc(entry) {
   return entry.coverFile ? `/data/covers/${entry.coverFile.split('/').pop()}` : '';
 }
@@ -1543,8 +1557,9 @@ function renderDiscoverPage(container, viewState) {
       <div class="discover-adventurousness-row">
         <label class="discover-adventurousness-toggle">
           <input type="checkbox" id="discover-adventurousness-enabled" ${adventurousnessEnabled ? 'checked' : ''}>
-          <span title="${escapeHtml(copy('discoverFeedback.adventurousnessHint'))}">${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}</span>
+          <span>${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}</span>
         </label>
+        ${infoHintHtml(copy('discoverFeedback.adventurousnessHint'))}
         <input type="range" id="discover-adventurousness-slider" min="${RECOMMENDATIONS.adventurousness.min}" max="${RECOMMENDATIONS.adventurousness.max}" step="1" value="${adventurousnessDisplay}" ${adventurousnessEnabled ? '' : 'disabled'} aria-label="${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}">
       </div>
       ${discoverFilterChipsRowHtml(discoverFilters)}

@@ -256,3 +256,32 @@ test('"Pick for me" with filters returns a matching Watchlist entry, and "Start 
     await server.stop();
   }
 });
+
+test('the adventurousness "?" info hint is a real, focusable/hoverable control (not a silent title attribute), and the off switch disables the slider', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await skipColdStart(server);
+    await page.route('**/graphql.anilist.co/**', (route) => route.abort());
+    await page.goto(server.url);
+    await page.waitForSelector('.card, .empty');
+    await page.click('[data-tab="discover"]');
+
+    const hint = page.locator('.discover-adventurousness-row .info-hint');
+    await expect(hint).toBeVisible();
+    const bubble = hint.locator('.info-hint-bubble');
+    await expect(bubble).toHaveText(/randomness|serendipity|wildcard/i);
+
+    // Reported gap: a bare `title` attribute on plain text gave no
+    // visual/focus signal at all — this control must be reachable and
+    // reveal its bubble via keyboard focus, not only mouse hover.
+    await hint.focus();
+    await expect(bubble).toHaveCSS('visibility', 'visible');
+
+    const slider = page.locator('#discover-adventurousness-slider');
+    await expect(slider).toBeEnabled();
+    await page.locator('#discover-adventurousness-enabled').uncheck();
+    await expect(slider).toBeDisabled();
+  } finally {
+    await server.stop();
+  }
+});

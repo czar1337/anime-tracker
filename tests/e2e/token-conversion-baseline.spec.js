@@ -121,12 +121,19 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     // returns null once airingAt is in the past, so a fixed noon only
     // renders the countdown badge for however much of the day is still
     // before noon; the suite silently loses `.countdown-badge` from the
-    // baseline every afternoon. A few hours forward keeps both true
-    // regardless of what time the suite runs: still "today" for the
-    // Tonight bucket (barring a run started within a few hours of
-    // midnight, the same boundary-case tolerance the original fixed-noon
-    // value already carried), and always in the future for the countdown.
-    const soonToday = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    // baseline every afternoon. A flat +3h regressed the same way in the
+    // opposite direction: a run starting within ~3h of midnight pushes
+    // airingAt into TOMORROW, dropping the entry from the Tonight bucket
+    // entirely (reproduced live — a run at 21:46 local silently lost
+    // `.tonight`/`.tonight-row` from the baseline). Clamped to at most 1
+    // minute before local midnight instead, so it can never cross into a
+    // different calendar day while staying in the future (still "today"
+    // for the Tonight bucket, always after `now` for the countdown)
+    // regardless of what time the suite runs, no boundary case left.
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 0, 0);
+    const threeHoursOut = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    const soonToday = threeHoursOut < endOfToday ? threeHoursOut : endOfToday;
     fs.writeFileSync(
       path.join(server.dataDir, 'airing-cache.json'),
       JSON.stringify({

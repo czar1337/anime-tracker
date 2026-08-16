@@ -25,23 +25,40 @@ let feathersEl = null;
 let ambientTimer = null;
 let activeFeather = null; // at most one feather (ambient or reward) at a time — keeps the "six animated elements" budget honest at the "normal" density
 
+// Piecewise-linear through a sorted [step, value] anchor list — a single
+// global-linear formula across the full 1-10 range couldn't reproduce all
+// 3 of the old enum's exact values at once (few/normal/many's own
+// leaves/interval deltas aren't proportional to each other), so this
+// interpolates segment-by-segment between real anchors instead.
+function interpolate(step, points) {
+  for (let i = 0; i < points.length - 1; i++) {
+    const [s0, v0] = points[i];
+    const [s1, v1] = points[i + 1];
+    if (step >= s0 && step <= s1) return v0 + ((step - s0) / (s1 - s0)) * (v1 - v0);
+  }
+  return points[points.length - 1][1];
+}
+
 // User-controlled amount of leaves/feathers (Settings → Decoration amount),
 // a continuous 1-10 slider since post-2.2.0 feedback replaced the old
-// Few/Normal/Many segmented control. Linearly interpolated between the same
-// two endpoints the old enum's "few" and "many" anchored (2-10 leaves,
-// 80s-15s between feathers) — step 5 (the slider's own default) lands close
-// to the old "normal" (5 leaves, 42s), so a library that never touches this
-// slider sees essentially the same decoration level as before. "many"
-// deliberately exceeds the design system's own "six animated elements"
-// budget at the top of the range, since a user who explicitly asks for more
-// decoration is opting out of that budget on purpose, not something
-// invented behind their back.
+// Few/Normal/Many segmented control. settingsSchema.js's ensureSettingsShape
+// seeds an existing library's decorationStep from that old enum at exactly
+// step 2 ("few"), 5 ("normal") or 8 ("many") — these anchors are chosen to
+// reproduce those 3 exact old values (3/70000ms, 5/42000ms, 8/18000ms) at
+// precisely those steps, not just approximately, so a migrated library's
+// FIRST render is pixel/timing-identical to before this slider existed;
+// only actually moving the slider changes anything. Steps 1 and 10 extend
+// sensibly beyond the old enum's own range — "many" deliberately already
+// exceeded the design system's own "six animated elements" budget, and step
+// 10 goes further still, since a user asking for the maximum is opting out
+// of that budget on purpose, not something invented behind their back.
+const LEAVES_POINTS = [[1, 2], [2, 3], [5, 5], [8, 8], [10, 10]];
+const FEATHER_INTERVAL_POINTS = [[1, 80000], [2, 70000], [5, 42000], [8, 18000], [10, 12000]];
 function densityConfig() {
   const step = Preferences.getDecorationStep();
-  const t = (step - 1) / 9; // 0 at step 1, 1 at step 10
   return {
-    leaves: Math.round(2 + t * 8),
-    featherIntervalMs: Math.round(80000 - t * 65000),
+    leaves: Math.round(interpolate(step, LEAVES_POINTS)),
+    featherIntervalMs: Math.round(interpolate(step, FEATHER_INTERVAL_POINTS)),
   };
 }
 
