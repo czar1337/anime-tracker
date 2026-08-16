@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2.1
+
+Quick follow-up to 2.2.0, based on hands-on feedback after trying it for real.
+
+- **Fix: "Because you liked..." could show a generic reason with no title named.** When a franchise's displayed card was an earlier season than the one that actually matched your ratings, the shelf recomputed the reason against the wrong season and silently fell back to "Matches what you tend to rate highly." Now always cites the specific title and score that actually earned the recommendation.
+- **Schedule: an episode that already aired today no longer disappears from "Today."** Previously, once the hourly airing refresh caught up, a show that released earlier today vanished from the whole week entirely. It now stays in Today, greyed out and marked "Already aired," for the rest of that day.
+- **Mood filters got clearer names.** "Certified brainrot" → "Guilty pleasure," "Peak fiction" → "Widely loved" — same matching behavior, less internet-slang.
+- **"Surprise me" now has a real off switch**, separate from the slider's own value — turn the wildcard/serendipity bonus off entirely without losing your preferred setting for next time. The hint text also actually explains what it does now.
+- **Any overlay (Settings, detail view, filters, etc.) now closes when you click outside it**, not only via its × button.
+- **One font for the whole app instead of three independent choices** (interface/heading/numbers) that could clash — Settings now shows a single font picker that applies everywhere. Added 3 new, genuinely different-looking options (Fraunces, Fredoka, Space Mono) alongside the existing 11.
+- **Fix: three typography sliders did nothing.** Line height, letter spacing, and cover art size were all computing values with nowhere for them to go — now wired into real text and grid layout.
+- **The gradient background effect now takes 2 colors of your choosing** instead of always deriving one from the active theme, for actual custom color combinations.
+- **Decoration amount is a slider now** (1–10) instead of Few/Normal/Many buttons.
+
 ## 2.2.0
 
 **Discover, rebuilt from scratch, plus a new typography system, sort/search overhaul, bulk actions, custom lists and tags, and a full theme builder.** The single biggest change: Discover no longer depends on AniList's live "recommendations" graph at all. It's now powered by a corpus of AniList titles cached locally and a taste profile built from your own ratings, drops and dismissals — 10 named shelves, mood filters, an advanced filter panel, and a feedback loop that actually learns from what you dismiss and why.
