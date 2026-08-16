@@ -599,6 +599,10 @@ kbd {
      this it's only reachable via keyboard focus, effectively invisible on
      the devices most likely to rely on this media query. */
   .plus { opacity: .85; transform: none; }
+  /* P5B.5: same reasoning — a touch device has no hover to reveal the
+     discover card's alternate-language title, so it stays always-on-small
+     instead of hidden behind an affordance that device can't trigger. */
+  .discover-card-title-alt { max-height: 20px; opacity: 1; margin-top: 2px; }
 }
 
 /* ---------- Main / toolbar ---------- */
@@ -965,12 +969,40 @@ kbd {
   background-position: center;
   filter: var(--cover-filter);
   height: 122px;
+  overflow: hidden;
+}
+/* P5B.5: corpus entries carry a real coverMedium URL once re-synced —
+   older cached entries fall back to the empty placeholder .cov already was. */
+.discover-card .cov img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .discover-card h4 { margin: 0 0 5px; font: var(--t-card); }
+/* P5B.5: primary title in the user's preferred titleLanguage, the other
+   available language revealed on hover — same touch-fallback rule as the
+   .plus button (see the shared @media (hover:none) block below). */
+.discover-card-title-primary { display: block; }
+.discover-card-title-alt {
+  display: block;
+  font: var(--t-meta);
+  color: var(--faint);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height var(--d-2), opacity var(--d-2);
+}
+.discover-card:hover .discover-card-title-alt,
+.discover-card:focus-within .discover-card-title-alt {
+  max-height: 20px;
+  opacity: 1;
+  margin-top: 2px;
+}
 .discover-card .m { font: var(--t-meta); color: var(--faint); margin-bottom: 9px; }
 .discover-card .why { font: var(--t-meta); color: var(--dim); line-height: 1.55; margin-bottom: 11px; padding-left: 9px; border-left: 1px solid var(--accent-deep); }
 .discover-card .why b { color: var(--accent-lit); font-weight: 500; }
-.discover-card .acts { display: flex; gap: 7px; }
+.discover-card .acts { display: flex; flex-wrap: wrap; gap: 7px; }
 .discover-card .x {
   position: absolute;
   top: 10px; right: 10px;
@@ -2508,6 +2540,36 @@ kbd {
   background: var(--accent-soft);
   color: var(--accent-lit);
 }
+/* P5B.5: a second chip row for AniList's own tags, revealed spoiler-flagged
+   ones told apart with a dimmer, bordered treatment instead of the filled
+   accent look plain tags/genres get. */
+.detail-tags-row .detail-genre-chip { background: transparent; border: 1px solid var(--line); color: var(--dim); }
+.detail-tags-row .detail-genre-chip.spoiler { border-color: var(--accent-deep); color: var(--accent-lit); }
+
+/* P5B.5: trailer thumbnail + play glyph, linking out to the real video —
+   no embedded player (this app's existing no-third-party-embed posture). */
+.detail-trailer {
+  position: relative;
+  display: block;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 14px;
+  max-width: 320px;
+  aspect-ratio: 16 / 9;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.detail-trailer img { display: block; width: 100%; height: 100%; object-fit: cover; filter: var(--cover-filter); transition: filter var(--d-2); }
+.detail-trailer:hover img, .detail-trailer:focus-visible img { filter: var(--cover-filter-hover); }
+.detail-trailer-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  color: #fff;
+  background: color-mix(in srgb, black 25%, transparent);
+  text-shadow: 0 1px 4px color-mix(in srgb, black 60%, transparent);
+}
 .detail-owned-badge {
   font: var(--t-nano);
   letter-spacing: .08em;
@@ -2578,6 +2640,8 @@ kbd {
   white-space: pre-line;
   margin-bottom: 18px;
 }
+/* P5B.5: "Show more"/"Show less" past DETAIL_SYNOPSIS_COLLAPSE_LENGTH. */
+.detail-description .text-btn { font: var(--t-meta); padding: 0; }
 
 .detail-foot { display: flex; gap: 9px; flex-wrap: wrap; }
 .detail-foot .btn-danger { margin-left: auto; }

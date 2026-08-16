@@ -11,6 +11,11 @@ import { openOverlay } from './events.js';
 import { defaultSettings } from './settingsSchema.js';
 import { FeedbackLoop } from './feedbackLoop.js';
 
+// P5B.5: one-tap add's toast needs a human label for whichever status the
+// user picked — render.js's own LIST_META isn't exported, so this stays a
+// small local copy rather than adding a cross-module export for 3 strings.
+const ADD_STATUS_LABELS = { watchlist: 'Watchlist', watching: 'Watching', watched: 'Watched' };
+
 // P5A.4: Discover's own main pipeline moved here entirely, off the P1-era
 // seed-based live-AniList-recommendations flow (recommendLogic.js's
 // pickSeeds/aggregateCandidates and friends) — that pipeline structurally
@@ -385,8 +390,13 @@ export function initDiscover({ persistFn } = {}) {
     if (!cardData) return;
     const candidate = cardData.candidate;
 
-    if (e.target.closest('[data-action="discover-add"]')) {
+    const addBtn = e.target.closest('[data-action="discover-add"]');
+    if (addBtn) {
       if (Store.getEntry(anilistId)) return;
+      // P5B.5: one-tap add now offers a status choice (mirrors
+      // renderSearchResults' own data-add-status buttons) instead of always
+      // landing in Watchlist.
+      const addStatus = addBtn.dataset.addStatus || 'watchlist';
       Store.addEntry({
         anilistId: candidate.anilistId,
         titleRomaji: candidate.titleRomaji,
@@ -406,7 +416,7 @@ export function initDiscover({ persistFn } = {}) {
         season: candidate.season || null,
         studio: candidate.studio || null,
         airingStatus: candidate.status || null,
-        listStatus: 'watchlist',
+        listStatus: addStatus,
         relatedIds: franchiseRelatedIds(candidate),
         // P5A.4's own new Class A provenance fields, real values now that a
         // real shelf identity and a real corpus popularity exist.
@@ -417,7 +427,7 @@ export function initDiscover({ persistFn } = {}) {
         adventurousness: Store.state.preferences.adventurousness,
         membersAtSurfacing: candidate.popularity ?? null,
       });
-      EventLog.recordForEntry('anime_added', candidate.anilistId, { to: 'watchlist' });
+      EventLog.recordForEntry('anime_added', candidate.anilistId, { to: addStatus });
       EventLog.recordForEntry('recommendation_added', candidate.anilistId, {
         shelfId,
         meta: { adventurousness: Store.state.preferences.adventurousness, membersAtSurfacing: candidate.popularity ?? null, because: cardData.because, hiddenCount: cardData.hiddenCount },
@@ -426,7 +436,7 @@ export function initDiscover({ persistFn } = {}) {
       renderNow();
       Render.renderTabCounts();
       persist();
-      Render.showToast(`Added "${candidate.titleRomaji}" to Watchlist`);
+      Render.showToast(`Added "${candidate.titleRomaji}" to ${ADD_STATUS_LABELS[addStatus] || 'Watchlist'}`);
       // Corpus entries never carry a cover (corpusLogic.js's own pruning) —
       // same live cover-batch fetch the cold-start overlay already
       // established for exactly this gap, rather than waiting on app.js's

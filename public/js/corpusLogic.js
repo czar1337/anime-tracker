@@ -16,17 +16,22 @@
 // average score, format, episode count, duration and relations") plus id
 // and title (needed to identify/display an entry at all) and season/
 // seasonYear (P5B.1's future "This season" shelf). Deliberately drops
-// `coverImage` (covers are cached separately via the app's existing
-// covers/ mechanism — P0.3's own measured pruning finding, cuts payload
-// roughly in half) and `idMal` (this app's sole persisted external key is
-// `anilistId`, never `malId`, confirmed by P0.2). `averageScore` normalises
-// AniList's 0-100 scale to this app's canonical 1-10 scale on ingest, per
-// the Tuning table's "Score scale" rule.
+// `idMal` (this app's sole persisted external key is `anilistId`, never
+// `malId`, confirmed by P0.2). `averageScore` normalises AniList's 0-100
+// scale to this app's canonical 1-10 scale on ingest, per the Tuning
+// table's "Score scale" rule.
+//
+// P5B.5 kept `coverMedium`/`titleNative` where P0.3 had originally excluded
+// the whole `coverImage` object — see the CORPUS_QUERY comment in api.js
+// for the payload-budget math that makes one small URL string, plus one
+// short title string, immaterial against that finding.
 function pruneMediaFields(raw) {
   return {
     anilistId: raw.id,
     titleRomaji: raw.title?.romaji ?? null,
     titleEnglish: raw.title?.english ?? null,
+    titleNative: raw.title?.native ?? null,
+    coverMedium: raw.coverImage?.medium ?? null,
     format: raw.format ?? null,
     status: raw.status ?? null,
     season: raw.season ?? null,
