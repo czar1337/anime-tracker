@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.2
+
+- **Fix: "Surprise me" was unexplained.** The hint text existed but was only a plain-text tooltip with no visual sign it was hoverable, so it went unnoticed. Replaced with a visible "?" badge with a real, focusable tooltip.
+- **Fix: the Decoration amount slider's exact leaf/feather counts drifted slightly from the old Few/Normal/Many buttons** at the migrated positions — an existing library now renders identically to before the slider replaced them, down to the exact leaf count.
+- **Fix: a rare test-suite timing bug** (unrelated to any user-facing behavior) that could make an internal verification check fail depending on what time of day it ran.
+
 ## 2.2.1
 
 Quick follow-up to 2.2.0, based on hands-on feedback after trying it for real.
