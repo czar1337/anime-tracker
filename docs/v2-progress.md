@@ -90,7 +90,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5B.3 Advanced filters | done | 2026-08-11 | this session, see "P5B.3 Advanced filters" and "P5B.3 close out" below | streaming-availability filter dimension omitted (no such data exists anywhere), see docs/v2-backlog.md; screen-reader pass deferred to the user |
 | P5B.4 Feedback loop | done | 2026-08-11 | this session, see "P5B.4 Feedback loop" and "P5B.4 close out" below | screen-reader pass deferred to the user |
 | P5B.5 Cards and detail view | done | 2026-08-16 | this session, see "P5B.5 Card and detail" and "P5B.5 close out" below | screen-reader pass deferred to the user |
-| GATE-2.1 Acceptance sweep, merge check, tag v2.1 | not started | — | — | — |
+| GATE-2.1 Acceptance sweep, merge check, tag v2.1 | sweep done, awaiting user confirmation to tag | 2026-08-16 | this session, see "GATE-2.1 release sweep" below | tagging `v2.1` deferred to explicit user confirmation, per the gate's own rule 5 |
 | P6.1 Theme and colour | done | 2026-08-10 | this session, see "P6.1 Theme and colour" and "P6.1 close out" below | — |
 | P6.2 Identity plus review and audio fields | not started | — | — | — |
 | P6.3 Profile card renderer | not started | — | — | — |
@@ -6789,3 +6789,46 @@ P5B.4's close-out.
 
 With P5A.1 through P5B.5 all `done`, **GATE-2.1** (acceptance sweep,
 merge check, tag `v2.1`) is next.
+
+## GATE-2.1 release sweep
+
+Not an implementation substep — the spec's own 5-step checklist,
+run in order.
+
+**1. P5A.1 through P5B.5 are `done` in the table, each with a matching
+commit in `git log --all`.** Confirmed for all 8 substeps
+(P5A.1/P5A.2/P5A.3/P5A.4/P5B.1/P5B.2/P5B.3/P5B.4/P5B.5) — every one has
+at least a feature commit and a `write progress entry... close out` (or
+equivalent) commit matching its own `v2(<id>):` subject prefix. No
+mismatches found.
+
+**2. Every branch in this gate is merged into the mainline.**
+Confirmed via `git branch --merged main` for all 9 branches
+(`v2/P5A.1` through `v2/P5B.5`) — every one shows as merged. None
+deleted, per the spec's own never-delete-branches rule.
+
+**3. Full acceptance set.** `node tests/run-all.js`: **428 passed, 0
+failed.** Full Playwright e2e suite (`npx playwright test`): **155
+passed, 1 skipped** (pre-existing, unrelated) on a clean run, confirmed
+twice. One additional run without retries hit a single flake in
+`conflict-toast-undo-safety.spec.js` — that test boots a real server
+without mocking AniList, and a real corpus-seed page landing inside its
+own ~10s cold-start poll window (`tasteProfile.js`'s
+`waitForCorpusEntries`) can race the cold-start overlay into view; this
+is a pre-existing network-timing dependency in a test this substep
+never touched, not a P5B.5 regression — it passed clean both times it
+was retried in isolation. Named budgets: the zero-API-request
+assertion (`discover-shelves.spec.js`'s "opening Discover with a warm
+corpus makes zero requests to AniList"), the Discover load budget
+(P5A.4's own `scripts/perf.js` measurement, recorded over target and
+already logged to `docs/v2-backlog.md`, non-blocking per that entry),
+the prerequisite-chain test (`shelvesLogic.js`'s
+`buildShelves regression` suite), and the P5A.4 provenance round trip
+(`discover-shelves.spec.js`'s "adding a shelf card persists its
+provenance fields") all pass.
+
+**4. Recorded** on the GATE-2.1 row above, subject `v2(GATE-2.1):
+release sweep`.
+
+**5. Tagging `v2.1`** is deferred to the user's explicit confirmation,
+per this gate's own rule 5 — not performed automatically by this sweep.
