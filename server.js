@@ -933,7 +933,10 @@ async function computeAndSaveTasteProfile() {
     } else if (event.type === 'anime_dropped') {
       drops.push({ anilistId, episode: event.episode });
     } else if (event.type === 'recommendation_dismissed') {
-      dismissals.push({ anilistId });
+      // P5B.4: real reasons now flow through meta.reason; buildAffinities'
+      // dismissalPlan() falls back to the old flat penalty for any event
+      // missing one (every dismissal recorded before this substep shipped).
+      dismissals.push({ anilistId, reason: event.meta?.reason ?? null });
     }
   }
 
@@ -944,6 +947,7 @@ async function computeAndSaveTasteProfile() {
     drops,
     dismissals,
     coldStartPicks: library.preferences?.coldStartPicks || [],
+    likedRecommendationIds: library.preferences?.likedRecommendationIds || [],
     nowMs: Date.now(),
     tuning: tuning.RECOMMENDATIONS,
   });

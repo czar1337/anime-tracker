@@ -67,4 +67,12 @@ export function refreshDetailIfOpen(anilistId) {
   renderNow({ status: 'ready', media: cache.get(anilistId), localEntry: Store.getEntry(anilistId) });
 }
 
-export const Detail = { showDetail, initDetail, refreshDetailIfOpen };
+// P5B.4: "Already watched, not tracked" needs the full media object (not
+// just the id events.js's delegated handler already has off the
+// container's dataset) to build a library entry — this is the only other
+// reader of the cache besides showDetail/refreshDetailIfOpen above.
+export function getCachedMedia(anilistId) {
+  return cache.get(anilistId) || null;
+}
+
+export const Detail = { showDetail, initDetail, refreshDetailIfOpen, getCachedMedia };

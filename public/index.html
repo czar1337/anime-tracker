@@ -316,6 +316,17 @@
     </div>
   </div>
 
+  <!-- P5B.4's "Pick for me" — a randomiser over the Watchlist, same
+       render-on-demand split as discover-filters-body above (its genre
+       dropdown depends on runtime library data). -->
+  <div id="pick-for-me-overlay" class="overlay" hidden>
+    <div class="overlay-panel" style="max-width:480px">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <h2 id="pick-for-me-title"></h2>
+      <div id="pick-for-me-body"></div>
+    </div>
+  </div>
+
   <!-- Episode notifications settings overlay -->
   <div id="notifications-overlay" class="overlay" hidden>
     <div class="overlay-panel">

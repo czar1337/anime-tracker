@@ -1132,6 +1132,40 @@ function relativeAgeText(generatedAt) {
 // (coverSrc's own empty-string case). A real cover appears once the title
 // is actually added (discover.js's own add handler fetches it then, a
 // genuine per-item user action, not "rendering a shelf").
+// P5B.4: which cards currently show the dismiss-reason strip instead of
+// their normal actions row — module-level, same reasoning as
+// includeTagsExpanded/excludeTagsExpanded above (a full re-render rebuilds
+// every card from scratch, so this can't live in the DOM). × toggles a
+// card into this set rather than dismissing immediately; picking a reason
+// chip (or Skip) is what actually performs the dismiss.
+const openReasonStripIds = new Set();
+function toggleReasonStrip(anilistId) {
+  if (openReasonStripIds.has(anilistId)) openReasonStripIds.delete(anilistId);
+  else openReasonStripIds.add(anilistId);
+}
+function closeReasonStrip(anilistId) {
+  openReasonStripIds.delete(anilistId);
+}
+
+const DISMISS_REASON_COPY_KEYS = {
+  wrongGenre: 'discoverFeedback.reasonWrongGenre',
+  tooLong: 'discoverFeedback.reasonTooLong',
+  artStyle: 'discoverFeedback.reasonArtStyle',
+  seenEnough: 'discoverFeedback.reasonSeenEnough',
+  notInMood: 'discoverFeedback.reasonNotInMood',
+};
+
+function discoverReasonStripHtml() {
+  const chips = Object.entries(DISMISS_REASON_COPY_KEYS)
+    .map(([id, key]) => `<button class="chip" data-action="discover-dismiss-reason" data-reason="${id}">${escapeHtml(copy(key))}</button>`)
+    .join('');
+  return `
+    <div class="discover-reason-strip" role="group" aria-label="Why not interested?">
+      ${chips}
+      <button class="chip" data-action="discover-dismiss-skip">${escapeHtml(copy('discoverFeedback.reasonSkip'))}</button>
+    </div>`;
+}
+
 function shelfCardHtml(shelf, cardData, index = 0) {
   const c = cardData.candidate;
   const primary = c.titleEnglish || c.titleRomaji;
@@ -1139,6 +1173,19 @@ function shelfCardHtml(shelf, cardData, index = 0) {
   const franchiseBadge = cardData.hiddenCount
     ? ` <span class="franchise-count" title="${cardData.hiddenCount} more season${cardData.hiddenCount === 1 ? '' : 's'} in this franchise">+${cardData.hiddenCount}</span>`
     : '';
+  const reasonOpen = openReasonStripIds.has(c.anilistId);
+  const thumbedUp = (Store.state.preferences.likedRecommendationIds || []).includes(c.anilistId);
+  const thumbUpLabel = escapeHtml(copy('discoverFeedback.thumbsUp'));
+  const thumbDownLabel = escapeHtml(copy('discoverFeedback.thumbsDown'));
+  const actsHtml = reasonOpen
+    ? discoverReasonStripHtml()
+    : `
+        <div class="acts">
+          <button class="btn btn-primary sm rip-host" data-action="discover-add">Add to Watchlist</button>
+          <button class="btn btn-quiet sm" data-action="show-detail" data-detail-id="${c.anilistId}">Details</button>
+          <button class="icn thumb-btn ${thumbedUp ? 'on' : ''}" data-action="discover-thumb-up" title="${thumbUpLabel}" aria-label="${thumbUpLabel}" aria-pressed="${thumbedUp}">👍</button>
+          <button class="icn thumb-btn" data-action="discover-thumb-down" title="${thumbDownLabel}" aria-label="${thumbDownLabel}">👎</button>
+        </div>`;
   return `
     <article class="discover-card" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" style="animation-delay:${staggerDelayMs(index)}ms">
       <div class="cov"></div>
@@ -1146,12 +1193,9 @@ function shelfCardHtml(shelf, cardData, index = 0) {
         <h4 data-action="show-detail" data-detail-id="${c.anilistId}" style="cursor:pointer">${escapeHtml(primary)}${franchiseBadge}</h4>
         <div class="m">${metaBits.map(escapeHtml).join(' · ')}${c.normalizedScore != null ? ` · ★ ${c.normalizedScore}` : ''}</div>
         <div class="why">${escapeHtml(cardData.because)}</div>
-        <div class="acts">
-          <button class="btn btn-primary sm rip-host" data-action="discover-add">Add to Watchlist</button>
-          <button class="btn btn-quiet sm" data-action="show-detail" data-detail-id="${c.anilistId}">Details</button>
-        </div>
+        ${actsHtml}
       </div>
-      <button class="x" data-action="discover-dismiss" title="Not interested" aria-label="Not interested">×</button>
+      <button class="x" data-action="discover-dismiss" title="Not interested" aria-label="Not interested" aria-expanded="${reasonOpen}">×</button>
     </article>`;
 }
 
@@ -1208,6 +1252,54 @@ function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios,
 // while the corpus is below shelvesLogic.js's own diversity floor (see
 // discover.js's MIN_CORPUS_FOR_SHELVES) — renders nothing once the corpus
 // is 'ready', so an existing user with a mature corpus never sees it.
+// P5B.4's "Pick for me" — a randomiser over the Watchlist. Same static-
+// shell/dynamic-body split discoverFiltersPanelBodyHtml established
+// (index.html's #pick-for-me-body, rendered on demand), since the genre
+// dropdown depends on runtime library data. `picked`: undefined (not
+// attempted yet — show the filter form), null (attempted, nothing matched
+// — show the form again plus an empty-result message), or an entry object
+// (show the result card + its actions).
+function pickForMeGenreOptions(entries) {
+  const set = new Set();
+  for (const e of entries) for (const g of e.genres || []) set.add(g);
+  return [...set].sort();
+}
+
+function renderPickForMePanel(container, { entries, filters = {}, picked }) {
+  const titleEl = document.getElementById('pick-for-me-title');
+  if (titleEl) titleEl.textContent = copy('discoverFeedback.pickForMeTitle');
+  if (picked) {
+    const metaBits = [picked.year, formatEnumLabel(picked.format), picked.totalEpisodes ? `${picked.totalEpisodes} ep` : null].filter(Boolean);
+    container.innerHTML = `
+      <div class="pick-for-me-result">
+        <h4 data-action="show-detail" data-detail-id="${picked.anilistId}" style="cursor:pointer">${escapeHtml(picked.titleEnglish || picked.titleRomaji)}</h4>
+        <div class="m">${metaBits.map(escapeHtml).join(' · ')}</div>
+      </div>
+      <div class="row" style="margin-top:var(--sp-4);justify-content:space-between">
+        <button class="btn btn-quiet sm" id="pick-for-me-close">${escapeHtml(copy('discoverFeedback.pickForMeClose'))}</button>
+        <div class="row" style="gap:var(--sp-2)">
+          <button class="btn btn-ghost sm" id="pick-for-me-reroll">${escapeHtml(copy('discoverFeedback.pickForMeReroll'))}</button>
+          <button class="btn btn-primary sm rip-host" id="pick-for-me-start-watching">${escapeHtml(copy('discoverFeedback.pickForMeStartWatching'))}</button>
+        </div>
+      </div>`;
+    return;
+  }
+  const genres = pickForMeGenreOptions(entries);
+  container.innerHTML = `
+    <div class="df-row"><label>${escapeHtml(copy('discoverFeedback.pickForMeMaxEpisodes'))}</label><input type="number" id="pick-for-me-max-episodes" class="df-num" value="${filters.maxEpisodes ?? ''}" placeholder="Any"></div>
+    <div class="df-row"><label>${escapeHtml(copy('discoverFeedback.pickForMeGenre'))}</label>
+      <select id="pick-for-me-genre" class="sel">
+        <option value="">Any</option>
+        ${genres.map((g) => `<option value="${escapeHtml(g)}" ${filters.genre === g ? 'selected' : ''}>${escapeHtml(g)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="df-row"><label>${escapeHtml(copy('discoverFeedback.pickForMeMinScore'))}</label><input type="number" id="pick-for-me-min-score" class="df-num" min="1" max="10" value="${filters.minScore ?? ''}" placeholder="Any"></div>
+    ${picked === null ? `<p class="card-meta">${escapeHtml(copy('discoverFeedback.pickForMeEmpty'))}</p>` : ''}
+    <div class="row" style="margin-top:var(--sp-4);justify-content:flex-end">
+      <button class="btn btn-primary sm rip-host" id="pick-for-me-action">${escapeHtml(copy('discoverFeedback.pickForMeAction'))}</button>
+    </div>`;
+}
+
 function corpusStatusHtml(corpusStatus) {
   if (!corpusStatus || corpusStatus.status === 'ready') return '';
   const { entryCount, targetSize, seeding, paused } = corpusStatus;
@@ -1374,8 +1466,13 @@ function renderDiscoverFiltersPanel(corpusEntries, filters) {
 }
 
 function renderDiscoverPage(container, viewState) {
-  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null, activeMoodId = null, moodShelf = null, discoverFilters = {} } = viewState;
+  const { status, shelves = [], generatedAt, hideOwned = true, corpusStatus = null, activeMoodId = null, moodShelf = null, discoverFilters = {}, adventurousness = null } = viewState;
   const age = relativeAgeText(generatedAt);
+  // P5B.4: "Surprise me" IS the adventurousness slider — shelvesLogic.js's
+  // buildShelves() already defaults a null/unset value to the tuning
+  // range's midpoint, so the slider's displayed position needs the same
+  // fallback (an unset preference isn't "0", it's "no explicit choice yet").
+  const adventurousnessDisplay = adventurousness ?? (RECOMMENDATIONS.adventurousness.min + RECOMMENDATIONS.adventurousness.max) / 2;
 
   const banner = `
     <div class="discover-hero">
@@ -1391,7 +1488,12 @@ function renderDiscoverPage(container, viewState) {
         </label>
         ${Store.getDismissedItems().length ? `<button class="text-btn" id="dismissed-trigger">Dismissed (${Store.getDismissedItems().length})</button>` : ''}
         <button class="text-btn" data-action="discover-filters-open">Filters</button>
+        <button class="text-btn" id="pick-for-me-open">${escapeHtml(copy('discoverFeedback.pickForMe'))}</button>
         <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh shelves'}</button>
+      </div>
+      <div class="discover-adventurousness-row" title="${escapeHtml(copy('discoverFeedback.adventurousnessHint'))}">
+        <label for="discover-adventurousness-slider">${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}</label>
+        <input type="range" id="discover-adventurousness-slider" min="${RECOMMENDATIONS.adventurousness.min}" max="${RECOMMENDATIONS.adventurousness.max}" step="1" value="${adventurousnessDisplay}">
       </div>
       ${discoverFilterChipsRowHtml(discoverFilters)}
       ${moodButtonRowHtml(activeMoodId)}
@@ -1947,7 +2049,12 @@ function renderDetailOverlay(container, state) {
           <button class="btn btn-quiet" data-action="close-overlay">Close</button>
           ${local.listStatus === 'dropped' ? '' : `<button class="btn btn-danger" data-action="detail-drop">Drop the series</button>`}
         </div>
-      ` : ''}
+      ` : `
+        <div class="detail-foot">
+          <button class="btn btn-quiet" data-action="detail-already-watched">${escapeHtml(copy('discoverFeedback.alreadyWatched'))}</button>
+          <button class="btn btn-quiet" data-action="close-overlay">Close</button>
+        </div>
+      `}
     </div>
   `;
 }
@@ -2750,4 +2857,7 @@ export const Render = {
   discoverActiveFilterChips,
   toggleIncludeTagsOverflow,
   toggleExcludeTagsOverflow,
+  toggleReasonStrip,
+  closeReasonStrip,
+  renderPickForMePanel,
 };

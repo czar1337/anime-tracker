@@ -6,6 +6,7 @@ import { pickSeeds, buildGenreProfile, filterOwned, applyMediaFilters, poolStudi
 import { rankUpcoming } from './scheduleLogic.js';
 import { EventLog } from './eventLog.js';
 import { copy } from './copy.js';
+import { FeedbackLoop } from './feedbackLoop.js';
 
 const PAGE_SIZE = 20;
 const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on manual refresh
@@ -234,13 +235,15 @@ export function initSchedule({ persistFn } = {}) {
         .then(() => persist())
         .catch(() => {});
     } else if (e.target.closest('[data-action="schedule-dismiss"]')) {
-      Store.addDismissedItem(anilistId, {
+      // P5B.4: shared with discover.js's dismiss path — this surface has no
+      // reason-picker UI of its own (a single click here still means a
+      // plain, reason-less dismiss), just the same underlying event shape.
+      FeedbackLoop.dismissRecommendation({
+        anilistId,
+        shelfId: 'schedule-upcoming',
         title: item.media.title.english || item.media.title.romaji,
         coverImage: item.media.coverImage?.large || null,
-      });
-      EventLog.recordForEntry('recommendation_dismissed', anilistId, {
-        shelfId: 'schedule-upcoming',
-        meta: { reason: 'manual' },
+        reason: null,
       });
       scheduleState.pool = scheduleState.pool.filter((it) => it.media.id !== anilistId);
       renderNow();

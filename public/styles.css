@@ -988,6 +988,37 @@ kbd {
 .discover-card:hover .x, .discover-card:focus-within .x { opacity: 1; }
 .discover-card .x:hover { border-color: var(--accent); color: var(--accent-lit); }
 
+/* P5B.4: thumbs on the card's own .acts row, the dismiss-reason strip that
+   replaces .acts while open, the adventurousness slider row, and the
+   Pick-for-me result card. */
+.discover-card .thumb-btn {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--faint);
+  font-size: 13px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color var(--d-2), color var(--d-2), background var(--d-2);
+}
+.discover-card .thumb-btn:hover { border-color: var(--line-lit); color: var(--text); }
+.discover-card .thumb-btn.on { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
+.discover-reason-strip { display: flex; flex-wrap: wrap; gap: 7px; }
+.discover-adventurousness-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font: var(--t-meta);
+  color: var(--dim);
+}
+.discover-adventurousness-row input[type="range"] { flex: 1 1 160px; max-width: 220px; }
+.pick-for-me-result { padding: 12px 0; }
+.pick-for-me-result h4 { margin: 0 0 5px; font: var(--t-card); }
+.pick-for-me-result .m { font: var(--t-meta); color: var(--faint); }
+
 /* P5A.4: one section per shelf, each its own wrapping grid of the same
    .discover-card markup/animation the P1-era flat pool already used —
    reused as-is rather than duplicated, see shelfCardHtml's own comment. */
