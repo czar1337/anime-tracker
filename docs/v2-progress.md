@@ -89,7 +89,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5B.2 Mood filter | done | 2026-08-10 | this session, see "P5B.2 Mood filters" and "P5B.2 close out" below | screen-reader pass deferred to the user |
 | P5B.3 Advanced filters | done | 2026-08-11 | this session, see "P5B.3 Advanced filters" and "P5B.3 close out" below | streaming-availability filter dimension omitted (no such data exists anywhere), see docs/v2-backlog.md; screen-reader pass deferred to the user |
 | P5B.4 Feedback loop | done | 2026-08-11 | this session, see "P5B.4 Feedback loop" and "P5B.4 close out" below | screen-reader pass deferred to the user |
-| P5B.5 Cards and detail view | not started | — | — | — |
+| P5B.5 Cards and detail view | done | 2026-08-16 | this session, see "P5B.5 Card and detail" and "P5B.5 close out" below | screen-reader pass deferred to the user |
 | GATE-2.1 Acceptance sweep, merge check, tag v2.1 | not started | — | — | — |
 | P6.1 Theme and colour | done | 2026-08-10 | this session, see "P6.1 Theme and colour" and "P6.1 close out" below | — |
 | P6.2 Identity plus review and audio fields | not started | — | — | — |
@@ -6602,3 +6602,190 @@ deleted, per the spec's branching rule.
 **Pushed to `origin`.** The user explicitly asked, this session, to
 push toward a new publishable version — the standing "hold pushes"
 instruction from P5B.2/P5B.3 no longer applies as of this close-out.
+
+## P5B.5 Card and detail
+
+**Key finding, verified against the actual measured numbers rather than
+assumed.** The shelf card's `.cov` div has rendered empty since P1-era
+Discover: `CORPUS_QUERY`/`CORPUS_BY_IDS_QUERY` never fetched
+`coverImage` and `pruneMediaFields` never kept it, per P0.3's own
+measured finding (`docs/v2-discovery.md:1076-1166`) that pruning cuts
+corpus payload to ~49% of raw, driven mostly by dropping the *whole*
+`coverImage` object (all 3 URL sizes) plus trimming `staff`/`tags`. But
+even fully unpruned at 5,000 titles, projected disk size is ~17.65MB —
+under 12% of the 150MB ceiling (`config/tuning.js`'s
+`corpusStorageCeilingMb`). Re-adding *one* small field —
+`coverImage { medium }`, a single ~90-character URL string, not the
+full 3-size object — is immaterial against both that budget and the
+original finding, which was about dropping the whole object plus other
+fields, not this one URL in isolation. The spec's own rule 107 ("no
+per-card API request, ever") explicitly carves out media loads —
+*"lazy-loaded cover images and trailer thumbnails are media
+requests and are expected"* — so a lazy `<img>` pointed at a stored
+`medium` URL doesn't violate it; the shelf card's old empty-`.cov`
+comment overstated the constraint before this substep's correction.
+
+Since `CORPUS_QUERY`/`CORPUS_BY_IDS_QUERY` were already being touched
+for `coverImage { medium }`, `title.native` was added to the same
+`title {...}` field too — `TITLE_LANGUAGES` (`settingsSchema.js`) has
+supported all three values (`romaji`/`english`/`native`) since P1.3,
+but the corpus queries only ever fetched two, so "titleLanguage" was an
+incomplete feature (2 of 3 values) before this substep, not a genuinely
+new one being added now.
+
+**What shipped:**
+- **Shelf card cover**: `coverImage { medium }` added to both corpus
+  queries, kept as a flat `coverMedium` field by `pruneMediaFields`
+  (`corpusLogic.js`). `shelfCardHtml` (`render.js`) renders a real,
+  lazy-loaded `<img>` when present, falling back to the pre-existing
+  empty placeholder for a corpus entry that predates this field (every
+  entry seeded before this substep's next sync).
+- **titleLanguage-aware title with hover alternative**: a new
+  `discoverCardTitleHtml()` helper picks the primary title from
+  `preferences.titleLanguage`, falling back through the other two when
+  the preferred one is missing for a given candidate; the other
+  available language is revealed on hover (pointer devices) or shown
+  always-small under `@media (hover:none)` — the same touch-fallback
+  rule the `.plus` button already established — and doubles as the
+  element's `title` attribute, giving keyboard focus/assistive tech a
+  non-hover-dependent path to the same information.
+- **One-tap add with status selection**: the shelf card's single
+  hardcoded "Add to Watchlist" button is now three buttons
+  (`data-add-status="watchlist"/"watching"/"watched"`), mirroring
+  `renderSearchResults`' own pattern exactly. `discover.js`'s add
+  handler reads `data-add-status` (falling back to `'watchlist'`)
+  instead of hardcoding it, driving both the new entry's `listStatus`
+  and the `anime_added` event's `to` field.
+- **Trailer preview**: `DETAIL_QUERY` gains `trailer { id site
+  thumbnail }`. The detail overlay shows the trailer's own static
+  thumbnail with a play-glyph overlay, wrapped in `<a target="_blank"
+  rel="noopener">` linking out to the real YouTube/Dailymotion page —
+  no embedded iframe/player, matching this zero-dependency app's
+  existing no-third-party-embed posture. Absent when AniList has none.
+- **Keyboard navigable**: `shelfCardHtml`'s `<article>` gains
+  `tabindex="0"`; `events.js`'s existing `focusAdjacentCard()` (`j`/`k`)
+  selector extended from `.card` to `.card, .discover-card` so the same
+  roving-focus shortcut reaches Discover too.
+- **Spoiler guard**: `DETAIL_QUERY` gains `tags { name isGeneralSpoiler
+  isMediaSpoiler }`. A new second chip row below genres splits plain
+  tags (always shown) from spoiler-flagged ones (either flag set),
+  which stay hidden behind a "Reveal spoiler tags (N)" button until
+  clicked — AniList's own flags are the only source of truth, this app
+  never infers a spoiler itself.
+- **Synopsis collapse**: descriptions past 180 characters (a plain
+  constant, `DETAIL_SYNOPSIS_COLLAPSE_LENGTH` — spec-fixed prose, not a
+  Tuning-table product threshold, same treatment as
+  `EPISODE_SQUARE_CAP`/`TAIL`) collapse behind "Show more", truncating
+  at a word boundary so a click never reveals a word cut in half.
+- New `public/js/detailLogic.js`: the two pure pieces above
+  (`partitionSpoilerTags`, `truncateSynopsis`) live here rather than in
+  `render.js` itself, which touches `document` at module scope and
+  isn't importable from Node for unit testing — same shape as this
+  app's other `*Logic.js` modules.
+
+**1. Automated checks.** `node tests/run-all.js`: **428 passed, 0
+failed** (6 new — `pruneMediaFields` keeping/degrading
+`coverMedium`/`titleNative`, `partitionSpoilerTags`'s spoiler/plain
+split plus its empty-input case, `truncateSynopsis`'s exact-180-no-op
+and truncate-at-word-boundary cases). Full Playwright e2e suite: **155
+passed, 1 skipped** (pre-existing skip, unrelated), including a new
+`tests/e2e/discover-card-detail.spec.js` (7 scenarios: a
+`coverMedium`-bearing candidate renders a real `<img>` while a
+same-shelf candidate without it still renders the empty placeholder;
+one-tap add via `data-add-status="watching"` lands directly in
+Watching and survives reload; `j`/`k` moves focus onto a Discover card;
+a trailer thumbnail renders and links out correctly, and is absent when
+AniList has none — 2 scenarios; a spoiler-flagged tag stays hidden
+until the reveal button is clicked while a plain tag is always visible;
+a long synopsis collapses behind "Show more" and expands on click).
+Fixing this required updating one pre-existing test that assumed the
+old single-button add: `discover-shelves.spec.js`'s provenance test now
+clicks `[data-add-status="watchlist"]` specifically, since 3 buttons now
+match `[data-action="discover-add"]`. `token-conversion-baseline.spec.js`
+passed unchanged — this substep's new DOM didn't happen to shift any of
+its captured scene indices, so no regen was needed this time.
+
+**2. Data safety.** No new Class A store or field —
+`coverMedium`/`titleNative`/`trailer`/spoiler-flagged tags are all
+Class B (corpus cache / detail-fetch cache), regenerable and never
+user-owned. Not applicable beyond the existing corpus-cache write path
+(plain object merge, no schema validation to update), which is
+unchanged by this substep.
+
+**3. Manual smoke test**, against a production preview
+(`node server.js`) with the user's real library and its real,
+still-syncing corpus (not a fixture):
+1. Opened Discover. **Observed:** shelf cards from entries the
+   in-progress corpus re-sync had already reached rendered real AniList
+   cover thumbnails (confirmed via `document.querySelectorAll` reading
+   real `s4.anilist.co` URLs off the rendered `<img>` elements); cards
+   from not-yet-re-synced entries still rendered the old empty
+   placeholder, not a broken image.
+2. Read every card's title/alt pair via the DOM. **Observed:** romaji-
+   primary titles correctly paired with their native alternative (e.g.
+   "Kagurabachi" / "カグラバチ", "Gungrave" / "ガングレイヴ"), matching
+   the user's `titleLanguage` preference.
+3. Opened a real title's detail overlay ("Kingdom"). **Observed:** the
+   real AniList trailer thumbnail rendered with a working
+   `https://www.youtube.com/watch?v=xXLf0iAXw_s` link; the tags row
+   rendered 14 real plain tags (this title has none of AniList's own
+   tags spoiler-flagged, so no reveal button — correctly conditional);
+   the synopsis rendered truncated with a real "Show more" button,
+   which expanded to the full 780-character description and flipped to
+   "Show less" on click.
+4. Console stayed clean of any newly-introduced error throughout (the
+   same pre-existing, unrelated 429 from the corpus's own background
+   seeding rate limit already noted in P5B.4's smoke test).
+5. Rebuilding and booting the packaged `.exe` was not re-run this
+   session, same established precedent as every P5B substep before it.
+
+**4. Performance.** `PERFORMANCE_BUDGETS`' "Discover load, warm corpus"
+(zero AniList requests, p95 400ms) names this substep explicitly — the
+new cover `<img>` is a lazy media load, not a data-client request (the
+spec's own rule 107 carve-out), so the zero-API-request half still
+holds; the e2e suite's existing `page.route('**/graphql.anilist.co/**',
+route => route.abort())` guard passing clean across every new Discover
+scenario confirms it. "Opening a title's detail: at most 1 API request"
+also names this substep — trailer/spoiler-tag fields ride the same
+`DETAIL_QUERY` call `fetchAnimeDetail()` already made, not a second
+request.
+
+**5. Accessibility.** Cover images use `alt=""` (decorative — the
+title text next to it already conveys the same information). The
+hover-title alternative gets a `title` attribute (not hover-dependent,
+read by assistive tech and shown on keyboard focus too) plus an
+always-visible small line under `@media (hover:none)` for touch. The
+spoiler-reveal button and "Show more"/"Show less" are both real
+focusable `<button>`s, not click-anywhere divs. Contrast: the new
+`.detail-tags-row .detail-genre-chip` styling and `.detail-trailer-play`
+glyph reuse existing `--line`/`--dim`/`--accent-lit`/`--accent-deep`
+tokens, no new colour introduced. **The screen-reader step is
+user-executed, not yet run**, same established precedent as every
+P5A/P5B substep before it.
+
+**6. Rollback.** Revert the `v2/P5B.5` commit range plus this
+close-out's own evidence commit and merge. No data migration needed —
+`coverMedium`/`titleNative`/`trailer`/spoiler tags are all Class B and
+simply stop being populated/read on revert; a corpus cache entry
+carrying them post-revert is harmlessly ignored by the reverted code
+(same forward-compatibility rule 13 already relied on by every prior
+substep's rollback plan).
+
+**Status: P5B.5 done.** All six criteria addressed; criterion 5's
+screen-reader pass is deferred to the user, per established P5A/P5B
+precedent. The framing correction above (re-adding one small
+`coverImage` field is immaterial against P0.3's own measured budget) is
+documented rather than silently deviated from.
+
+## P5B.5 close out
+
+**Status: P5B.5 done.** Merged into `main` in this session's close-out
+(see the merge commit immediately following); `v2/P5B.5` retained, not
+deleted, per the spec's branching rule.
+
+**Pushed to `origin`.** Continuing this session's standing "push
+toward the version to be published" instruction, unchanged since
+P5B.4's close-out.
+
+With P5A.1 through P5B.5 all `done`, **GATE-2.1** (acceptance sweep,
+merge check, tag `v2.1`) is next.
