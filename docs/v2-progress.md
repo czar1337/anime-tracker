@@ -88,7 +88,7 @@ if it is partially implemented — see Remaining for what's left instead.
 | P5B.1 Shelves 5-10 | done | 2026-08-10 | this session, see "P5B.1 Shelves 5 to 10" and "P5B.1 close out" below | shelf 10 omitted (no social/list-comparison layer), see docs/v2-backlog.md; screen-reader pass deferred to the user |
 | P5B.2 Mood filter | done | 2026-08-10 | this session, see "P5B.2 Mood filters" and "P5B.2 close out" below | screen-reader pass deferred to the user |
 | P5B.3 Advanced filters | done | 2026-08-11 | this session, see "P5B.3 Advanced filters" and "P5B.3 close out" below | streaming-availability filter dimension omitted (no such data exists anywhere), see docs/v2-backlog.md; screen-reader pass deferred to the user |
-| P5B.4 Feedback loop | not started | — | — | — |
+| P5B.4 Feedback loop | done | 2026-08-11 | this session, see "P5B.4 Feedback loop" and "P5B.4 close out" below | screen-reader pass deferred to the user |
 | P5B.5 Cards and detail view | not started | — | — | — |
 | GATE-2.1 Acceptance sweep, merge check, tag v2.1 | not started | — | — | — |
 | P6.1 Theme and colour | done | 2026-08-10 | this session, see "P6.1 Theme and colour" and "P6.1 close out" below | — |
@@ -6405,3 +6405,200 @@ retained, not deleted, per the spec's branching rule.
 
 **Not pushed.** The standing instruction — hold pushes to `origin`
 until a new version is wanted — is still in force.
+
+## P5B.4 Feedback loop
+
+**Framing correction, made explicit rather than silently deviated
+from.** `docs/v2-plan.md`'s file index says `feedbackLoop.js` "reads
+`recommendation_dismissed`/`recommendation_added` events... to adjust
+scorer weighting." Verified against the actual code: the scorer-
+weighting recompute already exists and already runs server-side
+(`computeAndSaveTasteProfile()`, `server.js:915-952`, triggered from
+`POST /api/events` whenever the accepted batch contains
+`score_set`/`anime_dropped`/`recommendation_dismissed`), reading the
+server's own durable event log — not something a browser module has
+access to. `feedbackLoop.js`'s real job is narrower: emit the *right*
+events (a real reason instead of the hardcoded `'manual'` every
+dismissal used before this substep) and drive the new UI. The actual
+weighting change lives where the existing `dismissPenaltyWeight` logic
+already lived: `buildAffinities()` in `public/js/tasteProfileLogic.js`,
+which the server already calls. **No new Class-B cache file was
+created** — this extends the existing taste-profile cache's own
+inputs rather than standing up a second derived store computed from
+the same source events on the same trigger.
+
+Four product-shape questions were confirmed with the user before
+implementation began (all recommended options chosen): the reason
+picker is an inline in-card chip strip (not a modal/popover); thumbs-up
+is a durable taste signal with no new UI surface (mirrors
+`coldStartPicks` exactly, via a new `preferences.likedRecommendationIds`
+array); "Surprise me" IS the adventurousness slider itself (the
+scorer's serendipity term already existed, unused — no new scoring
+logic needed, only a UI control); "Already watched, not tracked" lives
+in the detail overlay only, not on the Discover card.
+
+**What shipped:**
+- Dismiss reasons (`wrongGenre`, `tooLong`, `artStyle`, `seenEnough`,
+  `notInMood`) concentrate their penalty into only the affinity
+  dimension(s) each genuinely maps to, via a new `dismissalPlan()` in
+  `tasteProfileLogic.js` and a `dimensions` parameter added to its
+  existing `distribute()` helper. Absent/`'manual'`/unrecognized
+  reasons fall back to the exact flat all-dimensions
+  `dismissPenaltyWeight` path every dismissal used before this
+  substep — every dismissal recorded before P5B.4 shipped recomputes
+  identically to before.
+- `×` on a Discover card now reveals the reason strip in place of the
+  card's `.acts` row instead of dismissing immediately; picking a
+  reason chip or "Skip" performs the actual dismiss. Thumbs-down is a
+  fast dismiss path with no reason (bypasses the strip entirely).
+  `discover.js`'s and `schedule.js`'s previously-duplicated inline
+  dismiss blocks (both hardcoded `meta.reason: 'manual'`) now both call
+  the same shared `FeedbackLoop.dismissRecommendation()`.
+- Thumbs-up (`FeedbackLoop.recordLike()`) appends to
+  `preferences.likedRecommendationIds` (deduped on write), folded into
+  `buildAffinities` at a new `thumbsUpWeight`, the same distribution
+  shape as `coldStartPicks` but at its own independently-tunable
+  weight.
+- "Already watched, not tracked": a new button in the detail overlay,
+  shown only when the title isn't already in the library. Calls the
+  existing `Store.addEntry()` with `listStatus: 'watched'`,
+  `myScore: null` — no `state.js` change needed, since a null score was
+  already a fully supported case.
+- The adventurousness slider (Discover's own header, next to the
+  existing Filters/Pick-for-me/Refresh controls) writes
+  `preferences.adventurousness` and rebuilds shelves; `discover.js` now
+  passes the real value into `buildShelves()` instead of the previous
+  `null`/midpoint placeholder, and into the `recommendation_added`
+  event's `meta.adventurousness` and the entry's own `adventurousness`
+  provenance field (both previously hardcoded `null`, since no slider
+  existed).
+- "Pick for me": a new modal (`#pick-for-me-overlay`, mirrors the
+  existing Advanced Filters overlay's static-shell/dynamic-body split)
+  filtering `Store.getEntriesByList('watchlist')` by max episodes/
+  genre/minimum score, picking one via `recommendLogic.js`'s existing
+  `shuffle()`. "Start watching" reuses the existing `handleSetStatus()`
+  rather than a second status-change path.
+- `config/tuning.js` gains `RECOMMENDATIONS.dismissReasonWeights` (5
+  keys) and `RECOMMENDATIONS.thumbsUpWeight`.
+- `migrate_13_to_14`: adds `preferences.adventurousness` (null) and
+  `preferences.likedRecommendationIds` ([]), following the exact
+  `migrate_11_to_12`/`migrate_12_to_13` precedent.
+- Copy registry: 20 new three-tier entries (5 reason labels, Skip,
+  thumbs labels, Already watched, the slider label/hint, and every
+  Pick-for-me label/action) — `feedbackLoop.js` itself was **not**
+  added to `check-copy-registry.js`'s `V2_OWNED_FILES`, matching the
+  established precedent: that list has stayed frozen at its original
+  P1.1-P1.6 scope through every P5A/P5B substep (none of them added
+  their own new files to it either), per the file's own explicit
+  "Pre-v2 files are deliberately absent... one area per commit" design
+  rationale.
+
+**1. Automated checks.** `node tests/run-all.js`: **422 passed, 0
+failed** (18 new — `dismissalPlan`/`DISMISS_REASONS` behavior,
+reason-concentration proofs against `buildAffinities`, legacy-path
+parity, `likedRecommendationIds` distribution, 7 `pickForMe()` cases,
+and 3 `migrate_13_to_14` cases). Full Playwright e2e suite: **148
+passed, 1 skipped** (pre-existing skip, unrelated), including a new
+`tests/e2e/discover-feedback-loop.spec.js` (5 scenarios: dismiss-with-
+reason removes the card and records the real reason on the event;
+survives reload in the Dismissed list; thumbs-up persists without
+adding to any list; "Already watched" lands in Completed with no
+score, survives reload; "Pick for me" returns a filtered Watchlist
+entry and "Start watching" moves it, survives reload). Fixing this
+required updating two pre-existing tests that assumed the old single-
+tap dismiss: `discover-shelves.spec.js`'s dismiss test (now clicks
+Skip after the reason strip appears) and `lists-and-tags.spec.js`'s
+hardcoded `migratedTo: 13` assertion (now 14), plus the same hardcoded-
+13 fix in `settings-migration.spec.js` (5 assertions). Regenerated
+`tests/fixtures/token-conversion-baseline.json` (new UI elements shift
+its captured DOM indices) — same mechanical regen every prior P5A/P5B
+substep touching this UI has needed.
+
+**2. Data safety.** No new Class A *store* — rule 3a's round-trip
+requirement doesn't apply. New Class A *fields* on already-covered
+structures (`preferences.adventurousness`, `preferences.
+likedRecommendationIds`, real `event.meta.reason` values) ride inside
+the already-backed-up `preferences`/event-log envelopes; covered by
+`migrate_13_to_14`'s own test (adds both fields, preserves an
+already-present value, idempotent on a second run) rather than a
+separate round-trip proof.
+
+**3. Manual smoke test**, against a production preview
+(`node server.js`) with the user's real library (not a fixture):
+1. Opened Discover — the adventurousness slider, "Pick for me" button,
+   and thumbs up/down on every card all rendered correctly against the
+   real, still-seeding corpus.
+2. Tapped thumbs-up on a real card. **Observed:** card stayed visible,
+   both its shelf appearances (the same title can legitimately surface
+   on more than one shelf) showed the pressed `.on` state, and
+   `preferences.likedRecommendationIds` persisted `[185]` after the
+   debounced write.
+3. Tapped `×` on a real card. **Observed:** the reason strip replaced
+   the card's actions row with exactly the 5 reason chips plus Skip.
+   Picked "Too long". **Observed:** the card disappeared, the title
+   ("Initial D 1st Stage") appeared in `dismissedItems`, and
+   `GET /api/events` showed a `recommendation_dismissed` event with
+   `meta.reason: "tooLong"` — a real reason, not the old `'manual'`.
+4. Console stayed clean of any newly-introduced error throughout (one
+   pre-existing, unrelated 429 from the corpus's own background
+   seeding rate limit).
+5. Rebuilding and booting the packaged `.exe` was not re-run this
+   session (P5B.2's own precedent already established this step for
+   the current build pipeline; no change to `scripts/build-exe.js`
+   or the SEA asset list was made by this substep).
+
+**4. Performance.** The Tuning table's `PERFORMANCE_BUDGETS` names
+"Discover load, warm corpus" for P5A.4/P5B.1/P5B.2/P5B.3/P5B.5 —
+**P5B.4 is not in that list, stated explicitly** rather than inventing
+a number. The one binding global constraint is "no per-card API
+request, ever": the reason strip, thumbs, adventurousness slider and
+Pick-for-me modal are all pure client-state plus the app's own existing
+`/api/events`/`/api/library` writes — none of the four issue a new
+AniList/GraphQL request, confirmed by the e2e suite's existing
+`page.route('**/graphql.anilist.co/**', route => route.abort())`
+guard passing clean across every new scenario.
+
+**5. Accessibility.** Keyboard path: every new control (reason chips,
+Skip, thumbs, the range slider, Pick-for-me's inputs and buttons) is a
+native `<button>`/`<input>`, reachable and operable via Tab/Enter/
+Space/arrow keys with zero custom key handling. Focus-visible: no new
+outline suppression was added anywhere. Contrast: `.thumb-btn.on`/
+`.discover-reason-strip .chip` reuse the existing `--accent`/
+`--accent-lit`/`--accent-soft`/`--line` tokens the already-AA-verified
+`.chip`/`.chip.on` pattern uses — no new color introduced. **The
+screen reader step is user-executed, not yet run.** Exact steps for
+the user to run if wanted: open Discover, Tab to a card's `×`, confirm
+a screen reader announces the reason strip as a set of choices (not
+silently as more of the card) once it appears; Tab to the
+adventurousness slider and confirm its current value is announced on
+change; open "Pick for me" and confirm the modal's heading and each
+field are announced sensibly.
+
+**6. Rollback.** Revert the `v2/P5B.4` commit range plus this
+close-out's own evidence commit and merge. Revert
+`migrate_13_to_14` and drop `CURRENT_SCHEMA_VERSION` back to 13 — no
+down-migration needed, since nothing shipped after P5B.4 depends on
+the two fields it adds yet, and the forward-compatibility rule (rule
+13) means reverted code simply ignores a schemaVersion-14 file's extra
+preference fields rather than choking on them. Regenerate
+`tests/fixtures/token-conversion-baseline.json` again, back to its
+pre-P5B.4 content, the same mechanical step every prior substep's own
+regen already demonstrates.
+
+**Status: P5B.4 done.** All six criteria addressed; criterion 4
+correctly states no budget names this surface rather than inventing
+one, and criterion 5's screen-reader pass is deferred to the user, per
+established P5A/P5B precedent. One deliberate deviation from
+`docs/v2-plan.md`'s file-index wording is documented above (no new
+Class-B cache file; the taste-profile cache's existing inputs were
+extended instead) rather than silently diverged from.
+
+## P5B.4 close out
+
+**Status: P5B.4 done.** Merged into `main` in this session's close-out
+(see the merge commit immediately following); `v2/P5B.4` retained, not
+deleted, per the spec's branching rule.
+
+**Pushed to `origin`.** The user explicitly asked, this session, to
+push toward a new publishable version — the standing "hold pushes"
+instruction from P5B.2/P5B.3 no longer applies as of this close-out.
