@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14 } = require('../migrations.js');
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -544,6 +544,34 @@ async function run() {
     assert.deepEqual(migratedTwice, migrated);
     assert.equal(migratedTwice.preferences.discoverFilters.yearMin, 2015);
     assert.equal(migratedTwice.preferences.discoverFilters.enforcePrerequisiteChain, false);
+  });
+
+  await test('migration v13->v14 (P5B.4): adds adventurousness (null) and likedRecommendationIds ([]), defaulting to today\'s exact behavior', () => {
+    const v12 = readFixture('schema-v12-library.json');
+    const v13 = migrate_12_to_13(v12);
+    const migrated = migrate_13_to_14(v13);
+    assert.equal(migrated.schemaVersion, 14);
+    assert.equal(migrated.preferences.adventurousness, null);
+    assert.deepEqual(migrated.preferences.likedRecommendationIds, []);
+    assert.deepEqual(migrated.entries, v13.entries, 'must not change entries or any other preference field');
+  });
+
+  await test('migration v13->v14: preserves an already-present value rather than overwriting it', () => {
+    const v12 = readFixture('schema-v12-library.json');
+    const v13 = migrate_12_to_13(v12);
+    const withValues = { ...v13, preferences: { ...v13.preferences, adventurousness: 7, likedRecommendationIds: [123] } };
+    const migrated = migrate_13_to_14(withValues);
+    assert.equal(migrated.preferences.adventurousness, 7);
+    assert.deepEqual(migrated.preferences.likedRecommendationIds, [123]);
+  });
+
+  await test('migration v13->v14 is idempotent: running it twice never overwrites an already-present value', () => {
+    const v12 = readFixture('schema-v12-library.json');
+    const v13 = migrate_12_to_13(v12);
+    const withValues = { ...v13, preferences: { ...v13.preferences, adventurousness: 3, likedRecommendationIds: [55] } };
+    const migrated = migrate_13_to_14(withValues);
+    const migratedTwice = migrate_13_to_14(migrated);
+    assert.deepEqual(migratedTwice, migrated);
   });
 
   // -------------------------------------------------------------------------
@@ -3566,6 +3594,9 @@ async function run() {
     resolvePrimaryGenre,
     selectColdStartCandidates,
     buildAffinities,
+    DISMISS_REASONS,
+    isKnownDismissReason,
+    dismissalPlan,
   } = await import(tasteProfileLogicUrl);
 
   const TASTE_TUNING = {
@@ -3575,6 +3606,9 @@ async function run() {
     dismissPenaltyWeight: 1,
     coldStartPickWeight: 1.5,
     coldStartThresholdRatedEntries: 10,
+    // P5B.4
+    dismissReasonWeights: { wrongGenre: 1.5, tooLong: 1.5, artStyle: 0.5, seenEnough: 0.5, notInMood: 0.15 },
+    thumbsUpWeight: 1.0,
   };
 
   await test('computeMeanAndStdDev: empty input has no mean/stdDev rather than NaN', () => {
@@ -3766,6 +3800,88 @@ async function run() {
     assert.equal(result.affinities.genre.Isekai, -TASTE_TUNING.dismissPenaltyWeight);
   });
 
+  // ---------------------------------------------------------------------------
+  // P5B.4: dismissalPlan() and reason-differentiated dismissals
+  // ---------------------------------------------------------------------------
+
+  await test('isKnownDismissReason / DISMISS_REASONS: exactly the five spec reasons, nothing else', () => {
+    assert.deepEqual(DISMISS_REASONS, ['wrongGenre', 'tooLong', 'artStyle', 'seenEnough', 'notInMood']);
+    for (const r of DISMISS_REASONS) assert.equal(isKnownDismissReason(r), true);
+    assert.equal(isKnownDismissReason('manual'), false);
+    assert.equal(isKnownDismissReason(null), false);
+    assert.equal(isKnownDismissReason('bogus-future-reason'), false);
+  });
+
+  await test('dismissalPlan: wrongGenre concentrates into genre/tag/theme only, at its own weight', () => {
+    const plan = dismissalPlan('wrongGenre', TASTE_TUNING);
+    assert.deepEqual(plan, { weight: TASTE_TUNING.dismissReasonWeights.wrongGenre, dimensions: ['genre', 'tag', 'theme'] });
+  });
+
+  await test('dismissalPlan: tooLong concentrates into episodeBracket only', () => {
+    const plan = dismissalPlan('tooLong', TASTE_TUNING);
+    assert.deepEqual(plan, { weight: TASTE_TUNING.dismissReasonWeights.tooLong, dimensions: ['episodeBracket'] });
+  });
+
+  await test('dismissalPlan: absent, "manual", or an unrecognized reason all fall back to the legacy flat all-dimensions plan, unchanged from before this substep', () => {
+    const legacy = { weight: TASTE_TUNING.dismissPenaltyWeight, dimensions: 'all' };
+    assert.deepEqual(dismissalPlan(undefined, TASTE_TUNING), legacy);
+    assert.deepEqual(dismissalPlan(null, TASTE_TUNING), legacy);
+    assert.deepEqual(dismissalPlan('manual', TASTE_TUNING), legacy);
+    assert.deepEqual(dismissalPlan('bogus-future-reason', TASTE_TUNING), legacy);
+  });
+
+  await test('buildAffinities: a wrongGenre dismissal moves genre/tag/theme but leaves studio/episodeBracket untouched', () => {
+    const result = buildAffinities({
+      entries: [],
+      corpusById: { '701': { anilistId: 701, genres: ['Isekai'], studio: 'Studio Y', totalEpisodes: 12, tags: [{ name: 'Reincarnation', category: 'Theme-Reincarnation' }] } },
+      dismissals: [{ anilistId: 701, reason: 'wrongGenre' }],
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.equal(result.affinities.genre.Isekai, -TASTE_TUNING.dismissReasonWeights.wrongGenre);
+    assert.equal(result.affinities.tag.Reincarnation, -TASTE_TUNING.dismissReasonWeights.wrongGenre);
+    assert.equal(result.affinities.theme.Reincarnation, -TASTE_TUNING.dismissReasonWeights.wrongGenre);
+    assert.equal(result.affinities.studio['Studio Y'], undefined, 'studio must not move for a wrongGenre reason');
+    assert.equal(result.affinities.episodeBracket['1-13'], undefined, 'episodeBracket must not move for a wrongGenre reason');
+  });
+
+  await test('buildAffinities: a tooLong dismissal moves episodeBracket only, not genre', () => {
+    const result = buildAffinities({
+      entries: [],
+      corpusById: { '702': { anilistId: 702, genres: ['Isekai'], totalEpisodes: 24 } },
+      dismissals: [{ anilistId: 702, reason: 'tooLong' }],
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.equal(result.affinities.episodeBracket['14-26'], -TASTE_TUNING.dismissReasonWeights.tooLong);
+    assert.equal(result.affinities.genre.Isekai, undefined, 'genre must not move for a tooLong reason');
+  });
+
+  await test('buildAffinities: a legacy (no-reason) dismissal still spreads flat across every dimension, exactly as before this substep', () => {
+    const result = buildAffinities({
+      entries: [],
+      corpusById: { '703': { anilistId: 703, genres: ['Isekai'], studio: 'Studio Z', totalEpisodes: 12 } },
+      dismissals: [{ anilistId: 703 }], // no reason field at all, matching every dismissal recorded before P5B.4
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.equal(result.affinities.genre.Isekai, -TASTE_TUNING.dismissPenaltyWeight);
+    assert.equal(result.affinities.studio['Studio Z'], -TASTE_TUNING.dismissPenaltyWeight);
+    assert.equal(result.affinities.episodeBracket['1-13'], -TASTE_TUNING.dismissPenaltyWeight);
+  });
+
+  await test('buildAffinities: likedRecommendationIds distribute a positive signal via thumbsUpWeight, independent of coldStartPicks', () => {
+    const result = buildAffinities({
+      entries: [],
+      corpusById: { '800': { anilistId: 800, genres: ['Comedy'], studio: 'Studio Q' } },
+      likedRecommendationIds: [800, 801], // 801 unknown to the corpus — must be skipped, not throw
+      nowMs: Date.now(),
+      tuning: TASTE_TUNING,
+    });
+    assert.equal(result.affinities.genre.Comedy, TASTE_TUNING.thumbsUpWeight);
+    assert.equal(result.affinities.studio['Studio Q'], TASTE_TUNING.thumbsUpWeight);
+  });
+
   await test('buildAffinities: recency boosts a recent rating\'s contribution over an equally-scored old one', () => {
     const nowMs = new Date('2026-01-01').getTime();
     const recentMs = nowMs; // today
@@ -3789,6 +3905,65 @@ async function run() {
       tuning: TASTE_TUNING,
     });
     assert.ok(recent.affinities.genre.Fantasy > old.affinities.genre.Fantasy, 'the same two scores should net a higher affinity when the ABOVE-mean one is the recent one');
+  });
+
+  // -------------------------------------------------------------------------
+  // feedbackLoop.js (public/js/feedbackLoop.js) — P5B.4's pure pickForMe()
+  // randomiser. dismissRecommendation()/recordLike() are thin DOM-adjacent
+  // wrappers around Store/EventLog, exercised by the e2e suite instead.
+  // -------------------------------------------------------------------------
+  console.log('feedbackLoop.js');
+  const feedbackLoopUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'feedbackLoop.js').replace(/\\/g, '/');
+  const { pickForMe } = await import(feedbackLoopUrl);
+
+  await test('pickForMe: an empty pool returns null', () => {
+    assert.equal(pickForMe({ entries: [] }), null);
+  });
+
+  await test('pickForMe: no filters set returns a pick from the full pool', () => {
+    const entries = [{ anilistId: 1 }, { anilistId: 2 }];
+    const picked = pickForMe({ entries, rng: () => 0 });
+    assert.ok(entries.includes(picked));
+  });
+
+  await test('pickForMe: maxEpisodes excludes anything over the limit, and anything with an unknown episode count', () => {
+    const entries = [
+      { anilistId: 1, totalEpisodes: 12 },
+      { anilistId: 2, totalEpisodes: 24 },
+      { anilistId: 3, totalEpisodes: null },
+    ];
+    const picked = pickForMe({ entries, maxEpisodes: 12, rng: () => 0 });
+    assert.equal(picked.anilistId, 1);
+  });
+
+  await test('pickForMe: genre requires that exact genre present', () => {
+    const entries = [
+      { anilistId: 1, genres: ['Comedy'] },
+      { anilistId: 2, genres: ['Drama'] },
+    ];
+    const picked = pickForMe({ entries, genre: 'Drama', rng: () => 0 });
+    assert.equal(picked.anilistId, 2);
+  });
+
+  await test('pickForMe: minScore excludes an entry with no score at all, unset minScore never disqualifies (matchesAdvancedFilters\' own convention)', () => {
+    const entries = [
+      { anilistId: 1, averageScore: null },
+      { anilistId: 2, averageScore: 90 }, // raw 0-100 scale -> 9.0 on the 1-10 minScore scale
+    ];
+    assert.equal(pickForMe({ entries, minScore: 8, rng: () => 0 }).anilistId, 2);
+    assert.equal(pickForMe({ entries: [entries[0]], rng: () => 0 }).anilistId, 1, 'no minScore set: a null-score entry is still pickable');
+  });
+
+  await test('pickForMe: no entry matches every filter together returns null, not a wrong pick', () => {
+    const entries = [{ anilistId: 1, totalEpisodes: 24, genres: ['Comedy'] }];
+    assert.equal(pickForMe({ entries, maxEpisodes: 12, genre: 'Comedy' }), null);
+  });
+
+  await test('pickForMe: a fixed rng sequence is reproducible, same convention as recommendLogic.js\'s own shuffle()', () => {
+    const entries = [{ anilistId: 1 }, { anilistId: 2 }, { anilistId: 3 }];
+    const a = pickForMe({ entries, rng: () => 0.5 });
+    const b = pickForMe({ entries, rng: () => 0.5 });
+    assert.deepEqual(a, b);
   });
 
   // -------------------------------------------------------------------------
