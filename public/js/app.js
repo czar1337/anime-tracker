@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { initEvents, refreshCurrentView, repositionTabPill, openColdStartOnboarding } from './events.js';
+import { initEvents, refreshCurrentView, repositionTabPill, openColdStartOnboarding, pauseRouteDwell, resumeRouteDwell } from './events.js';
 import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './discover.js';
