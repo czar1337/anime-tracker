@@ -164,7 +164,12 @@ test('dismissing a shelf card removes it from screen and records it as dismissed
 
     const card = page.locator('.discover-card[data-anilist-id="9002"]');
     await expect(card).toBeVisible();
+    // P5B.4: × now reveals a reason strip in place of dismissing
+    // immediately — Skip is the no-reason-given equivalent of this test's
+    // original single-tap dismiss.
     await card.locator('[data-action="discover-dismiss"]').click();
+    await expect(card.locator('.discover-reason-strip')).toBeVisible();
+    await card.locator('[data-action="discover-dismiss-skip"]').click();
     await expect(card).toHaveCount(0);
 
     // app.js's own persist() debounces the save by 300ms.

@@ -588,6 +588,120 @@ export const COPY_REGISTRY = {
     standard: 'Back to shelves',
     madara: 'Back to shelves',
   },
+
+  // ---------------------------------------------------------------------------
+  // P5B.4 — feedback loop: dismiss reasons, thumbs, "already watched", the
+  // adventurousness slider, and "Pick for me". Reason labels are user-facing
+  // choices the same way a mood's name is (not a structural heading like
+  // "Hidden gems"), so they go through the registry on the same precedent —
+  // Madara gets the light personality this surface already permits where
+  // there's a natural joke, the rest stay identical since there's no real
+  // reason to diverge.
+  'discoverFeedback.reasonWrongGenre': {
+    familyFriendly: 'Wrong genre',
+    standard: 'Wrong genre',
+    madara: 'Wrong genre',
+  },
+  'discoverFeedback.reasonTooLong': {
+    familyFriendly: 'Too long',
+    standard: 'Too long',
+    madara: 'Too long (life is short)',
+  },
+  'discoverFeedback.reasonArtStyle': {
+    familyFriendly: 'Not my style',
+    standard: 'Art style',
+    madara: 'Art style',
+  },
+  'discoverFeedback.reasonSeenEnough': {
+    familyFriendly: 'Seen enough of this',
+    standard: 'Seen enough of this',
+    madara: 'Seen enough of this',
+  },
+  'discoverFeedback.reasonNotInMood': {
+    familyFriendly: 'Not in the mood',
+    standard: 'Not in the mood',
+    madara: 'Not in the mood',
+  },
+  'discoverFeedback.reasonSkip': {
+    familyFriendly: 'Skip',
+    standard: 'Skip',
+    madara: 'Skip',
+  },
+  'discoverFeedback.thumbsUp': {
+    familyFriendly: 'I like this',
+    standard: 'I like this',
+    madara: 'I like this',
+  },
+  'discoverFeedback.thumbsDown': {
+    familyFriendly: 'Not for me',
+    standard: 'Not for me',
+    madara: 'Not for me',
+  },
+  'discoverFeedback.alreadyWatched': {
+    familyFriendly: 'Already watched, not tracked',
+    standard: 'Already watched, not tracked',
+    madara: 'Already watched, not tracked',
+  },
+  'discoverFeedback.adventurousnessLabel': {
+    familyFriendly: 'Surprise me',
+    standard: 'Surprise me',
+    madara: 'Surprise me',
+  },
+  'discoverFeedback.adventurousnessHint': {
+    familyFriendly: 'Higher settings mix in more unexpected picks.',
+    standard: 'Higher settings mix in more unexpected picks.',
+    madara: 'Higher settings mix in more unexpected picks.',
+  },
+  'discoverFeedback.pickForMe': {
+    familyFriendly: 'Pick for me',
+    standard: 'Pick for me',
+    madara: 'Pick for me',
+  },
+  'discoverFeedback.pickForMeTitle': {
+    familyFriendly: 'Pick something for me',
+    standard: 'Pick something for me',
+    madara: 'Pick something for me',
+  },
+  'discoverFeedback.pickForMeMaxEpisodes': {
+    familyFriendly: 'Max episodes',
+    standard: 'Max episodes',
+    madara: 'Max episodes',
+  },
+  'discoverFeedback.pickForMeGenre': {
+    familyFriendly: 'Genre',
+    standard: 'Genre',
+    madara: 'Genre',
+  },
+  'discoverFeedback.pickForMeMinScore': {
+    familyFriendly: 'Minimum score',
+    standard: 'Minimum score',
+    madara: 'Minimum score',
+  },
+  'discoverFeedback.pickForMeAction': {
+    familyFriendly: 'Pick',
+    standard: 'Pick',
+    madara: 'Pick',
+  },
+  'discoverFeedback.pickForMeReroll': {
+    familyFriendly: 'Reroll',
+    standard: 'Reroll',
+    madara: 'Reroll',
+  },
+  'discoverFeedback.pickForMeStartWatching': {
+    familyFriendly: 'Start watching',
+    standard: 'Start watching',
+    madara: 'Start watching',
+  },
+  'discoverFeedback.pickForMeClose': {
+    familyFriendly: 'Close',
+    standard: 'Close',
+    madara: 'Close',
+  },
+  'discoverFeedback.pickForMeEmpty': {
+    familyFriendly: 'Nothing in your Watchlist matches those filters.',
+    standard: 'Nothing in your Watchlist matches those filters.',
+    madara: 'Nothing in your Watchlist matches those filters.',
+  },
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

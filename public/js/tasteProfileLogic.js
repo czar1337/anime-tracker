@@ -94,6 +94,36 @@ function addWeight(bucket, key, weight) {
   bucket[key] = (bucket[key] || 0) + weight;
 }
 
+// P5B.4's dismiss-reason picker. A closed union, same convention as
+// eventTypes.js's own EVENT_TYPES — a reason absent, `'manual'` (every
+// dismissal recorded before this substep shipped), or any future/unknown
+// string all fall back to the flat, all-dimensions dismissPenaltyWeight via
+// dismissalPlan() below, so pre-existing dismissals recompute identically to
+// before this substep.
+const DISMISS_REASONS = ['wrongGenre', 'tooLong', 'artStyle', 'seenEnough', 'notInMood'];
+function isKnownDismissReason(reason) {
+  return DISMISS_REASONS.includes(reason);
+}
+
+// Which affinity dimensions each reason actually informs. 'all' means the
+// same flat spread dismissPenaltyWeight already used. wrongGenre/tooLong
+// concentrate into only the dimension(s) that reason maps to; artStyle is a
+// weak proxy (studio is the closest thing this schema has to "art style");
+// seenEnough/notInMood are generic like today, just weighted differently
+// (see config/tuning.js's dismissReasonWeights comment).
+const DISMISS_REASON_DIMENSIONS = {
+  wrongGenre: ['genre', 'tag', 'theme'],
+  tooLong: ['episodeBracket'],
+  artStyle: ['studio'],
+  seenEnough: 'all',
+  notInMood: 'all',
+};
+
+function dismissalPlan(reason, tuning) {
+  if (!isKnownDismissReason(reason)) return { weight: tuning.dismissPenaltyWeight, dimensions: 'all' };
+  return { weight: tuning.dismissReasonWeights[reason], dimensions: DISMISS_REASON_DIMENSIONS[reason] };
+}
+
 // The first entry from `primaryGenrePriority` (config/tuning.js's ordered
 // niche->broad list, otherwise unconsumed until this substep) that appears
 // in `genres` — the same "one distinguishing genre, not the whole list"
@@ -157,35 +187,49 @@ function selectColdStartCandidates({ corpusEntries, count, primaryGenrePriority 
 // to the entry's own `updatedAt` when no such event exists (pre-event-log
 // data, or an event log that's been archived/rotated).
 // `drops`: `{anilistId, episode, totalEpisodes}[]` — one per `anime_dropped`
-// event. `dismissals`: `{anilistId}[]` — one per `recommendation_dismissed`
-// event (no `reason` differentiation yet — see `dismissPenaltyWeight`'s own
-// comment in config/tuning.js for why). `coldStartPicks`: anilistId[] the
-// user tapped "like" on during onboarding (preferences.coldStartPicks,
-// Class A) — corpus-only titles, same as dismissals, so they distribute
-// exactly like a dismissal but positive and via `coldStartPickWeight`
-// rather than `dismissPenaltyWeight`. Deliberately NOT folded into
-// `ratedCount`/`confidence` below: the spec ties confidence specifically to
-// *rated* entries ("fewer than 10 rated entries triggers taste onboarding"),
-// and cold-start picks are a substitute signal source for when that count
-// is low, not a way to inflate the count itself.
-function buildAffinities({ entries, corpusById = {}, scoreTimestamps = {}, drops = [], dismissals = [], coldStartPicks = [], nowMs, tuning }) {
+// event. `dismissals`: `{anilistId, reason}[]` — one per
+// `recommendation_dismissed` event; `reason` (P5B.4) picks which affinity
+// dimensions the penalty concentrates into and at what weight, via
+// dismissalPlan() — absent/`'manual'`/unrecognized falls back to the flat
+// all-dimensions `dismissPenaltyWeight` every dismissal used before P5B.4.
+// `coldStartPicks`: anilistId[] the user tapped "like" on during onboarding
+// (preferences.coldStartPicks, Class A) — corpus-only titles, same as
+// dismissals, so they distribute exactly like a dismissal but positive and
+// via `coldStartPickWeight` rather than `dismissPenaltyWeight`.
+// `likedRecommendationIds` (P5B.4): anilistId[] the user thumbs-upped on
+// Discover post-onboarding (preferences.likedRecommendationIds, Class A) —
+// same corpus-only distribution shape as coldStartPicks, via its own
+// `thumbsUpWeight`. Deliberately NOT folded into `ratedCount`/`confidence`
+// below: the spec ties confidence specifically to *rated* entries ("fewer
+// than 10 rated entries triggers taste onboarding"), and cold-start picks/
+// thumbs-ups are substitute signal sources, not a way to inflate the count
+// itself.
+function buildAffinities({ entries, corpusById = {}, scoreTimestamps = {}, drops = [], dismissals = [], coldStartPicks = [], likedRecommendationIds = [], nowMs, tuning }) {
   const affinities = { genre: {}, tag: {}, theme: {}, studio: {}, staff: {}, source: {}, decade: {}, episodeBracket: {} };
   const ratedScores = entries.filter((e) => typeof e.myScore === 'number').map((e) => e.myScore);
   const { mean, stdDev } = computeMeanAndStdDev(ratedScores);
 
-  function distribute(entryLike, signedWeight) {
+  // `dimensions`: 'all' (default, every existing call site's original
+  // behavior) or an array restricting which affinity buckets this call
+  // touches — P5B.4's dismissalPlan() is the only caller that restricts it,
+  // so a wrongGenre dismissal moves genre/tag/theme without also nudging
+  // studio/decade/episodeBracket the way a flat dismissal still does.
+  function distribute(entryLike, signedWeight, dimensions = 'all') {
     const corpus = corpusById[String(entryLike.anilistId)] || null;
-    for (const g of entryLike.genres || []) addWeight(affinities.genre, g, signedWeight);
-    addWeight(affinities.studio, entryLike.studio, signedWeight);
-    addWeight(affinities.decade, decadeOf(entryLike.year ?? corpus?.seasonYear), signedWeight);
-    addWeight(affinities.episodeBracket, episodeBracketOf(entryLike.totalEpisodes ?? corpus?.totalEpisodes), signedWeight);
+    const has = (d) => dimensions === 'all' || dimensions.includes(d);
+    if (has('genre')) for (const g of entryLike.genres || []) addWeight(affinities.genre, g, signedWeight);
+    if (has('studio')) addWeight(affinities.studio, entryLike.studio, signedWeight);
+    if (has('decade')) addWeight(affinities.decade, decadeOf(entryLike.year ?? corpus?.seasonYear), signedWeight);
+    if (has('episodeBracket')) addWeight(affinities.episodeBracket, episodeBracketOf(entryLike.totalEpisodes ?? corpus?.totalEpisodes), signedWeight);
     if (corpus) {
-      for (const t of corpus.tags || []) {
-        addWeight(affinities.tag, t.name, signedWeight);
-        if (isThemeTag(t)) addWeight(affinities.theme, t.name, signedWeight);
+      if (has('tag') || has('theme')) {
+        for (const t of corpus.tags || []) {
+          if (has('tag')) addWeight(affinities.tag, t.name, signedWeight);
+          if (has('theme') && isThemeTag(t)) addWeight(affinities.theme, t.name, signedWeight);
+        }
       }
-      for (const s of corpus.staff || []) addWeight(affinities.staff, s.name, signedWeight);
-      addWeight(affinities.source, corpus.source, signedWeight);
+      if (has('staff')) for (const s of corpus.staff || []) addWeight(affinities.staff, s.name, signedWeight);
+      if (has('source')) addWeight(affinities.source, corpus.source, signedWeight);
     }
   }
 
@@ -212,9 +256,11 @@ function buildAffinities({ entries, corpusById = {}, scoreTimestamps = {}, drops
     // every other corpus lookup in this function.
     const corpus = corpusById[String(dismissal.anilistId)];
     if (!corpus) continue;
+    const plan = dismissalPlan(dismissal.reason, tuning);
     distribute(
       { anilistId: dismissal.anilistId, genres: corpus.genres, studio: corpus.studio, totalEpisodes: corpus.totalEpisodes, year: corpus.seasonYear },
-      -tuning.dismissPenaltyWeight
+      -plan.weight,
+      plan.dimensions
     );
   }
 
@@ -224,6 +270,19 @@ function buildAffinities({ entries, corpusById = {}, scoreTimestamps = {}, drops
     distribute(
       { anilistId, genres: corpus.genres, studio: corpus.studio, totalEpisodes: corpus.totalEpisodes, year: corpus.seasonYear },
       tuning.coldStartPickWeight
+    );
+  }
+
+  // P5B.4: a thumbs-up is the same "liked without adding" signal shape as a
+  // cold-start pick — corpus-only, distributed positively — but happens
+  // post-onboarding at its own tunable weight (see config/tuning.js's
+  // thumbsUpWeight comment) rather than reusing coldStartPickWeight.
+  for (const anilistId of likedRecommendationIds) {
+    const corpus = corpusById[String(anilistId)];
+    if (!corpus) continue;
+    distribute(
+      { anilistId, genres: corpus.genres, studio: corpus.studio, totalEpisodes: corpus.totalEpisodes, year: corpus.seasonYear },
+      tuning.thumbsUpWeight
     );
   }
 
@@ -248,4 +307,7 @@ export {
   resolvePrimaryGenre,
   selectColdStartCandidates,
   buildAffinities,
+  DISMISS_REASONS,
+  isKnownDismissReason,
+  dismissalPlan,
 };

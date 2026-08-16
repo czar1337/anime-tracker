@@ -206,6 +206,13 @@ export function defaultSettings() {
     // P5A.4: "hide everything already in the library by default, with a
     // toggle" — applies to every shelf.
     discoverHideOwned: true,
+    // P5B.4: "Surprise me" adventurousness slider (null until the user ever
+    // touches it — buildShelves() itself defaults to the tuning range's
+    // midpoint, so null here means "no explicit choice yet", not "0"), and
+    // thumbs-up's durable signal list (corpus-only anilistIds, same shape
+    // as coldStartPicks above, but distributed at its own tunable weight).
+    adventurousness: null,
+    likedRecommendationIds: [],
   };
 }
 
@@ -262,6 +269,14 @@ export function ensureSettingsShape(preferences) {
   // true, so a missing value can't just coerce through Boolean(undefined)
   // (=== false) — it needs its own explicit "still unset" branch.
   prefs.discoverHideOwned = prefs.discoverHideOwned === undefined ? defaults.discoverHideOwned : Boolean(prefs.discoverHideOwned);
+  // P5B.4. adventurousness's valid range (1-10) mirrors config/tuning.js's
+  // RECOMMENDATIONS.adventurousness — duplicated as a literal range rather
+  // than imported, same call this file already makes for slider steps
+  // (isValidStep validates against typographySliders.js's own MIN_STEP/
+  // MAX_STEP, a sibling domain module, not a cross-import of the tuning
+  // config either).
+  prefs.adventurousness = typeof prefs.adventurousness === 'number' && prefs.adventurousness >= 1 && prefs.adventurousness <= 10 ? prefs.adventurousness : defaults.adventurousness;
+  prefs.likedRecommendationIds = Array.isArray(prefs.likedRecommendationIds) ? prefs.likedRecommendationIds : defaults.likedRecommendationIds;
 
   return prefs;
 }

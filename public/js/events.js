@@ -2,6 +2,7 @@ import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
 import { Discover } from './discover.js';
+import { FeedbackLoop } from './feedbackLoop.js';
 import { Schedule } from './schedule.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
@@ -1928,6 +1929,64 @@ function bindDiscoverFiltersOverlay() {
   });
 }
 
+// P5B.4's "Pick for me" — a randomiser over the Watchlist. Same
+// static-shell/read-DOM-at-submit-time shape bindDiscoverFiltersOverlay
+// uses (#pick-for-me-body is rebuilt from scratch every time it renders,
+// so there's no separate pending-filter state to keep in sync), except a
+// Pick attempt's RESULT also has to persist across re-renders — held in a
+// small module-level object rather than the DOM, since the result view
+// replaces the form entirely rather than sitting alongside it.
+let pickForMeFilters = { maxEpisodes: null, genre: '', minScore: null };
+let pickForMeResult; // undefined = not attempted, null = attempted/no match, entry = a real pick
+
+function readPickForMeFiltersFromDom() {
+  const maxEpisodesEl = document.getElementById('pick-for-me-max-episodes');
+  const genreEl = document.getElementById('pick-for-me-genre');
+  const minScoreEl = document.getElementById('pick-for-me-min-score');
+  return {
+    maxEpisodes: maxEpisodesEl.value === '' ? null : Number(maxEpisodesEl.value),
+    genre: genreEl.value,
+    minScore: minScoreEl.value === '' ? null : Number(minScoreEl.value),
+  };
+}
+
+function bindPickForMeOverlay() {
+  const body = document.getElementById('pick-for-me-body');
+  body.addEventListener('click', (e) => {
+    if (e.target.closest('#pick-for-me-action')) {
+      pickForMeFilters = readPickForMeFiltersFromDom();
+      pickForMeResult = FeedbackLoop.pickForMe({
+        entries: Store.getEntriesByList('watchlist'),
+        maxEpisodes: pickForMeFilters.maxEpisodes,
+        genre: pickForMeFilters.genre || null,
+        minScore: pickForMeFilters.minScore,
+      });
+      Render.renderPickForMePanel(body, { entries: Store.getEntriesByList('watchlist'), filters: pickForMeFilters, picked: pickForMeResult });
+      return;
+    }
+    if (e.target.closest('#pick-for-me-reroll')) {
+      pickForMeResult = FeedbackLoop.pickForMe({
+        entries: Store.getEntriesByList('watchlist'),
+        maxEpisodes: pickForMeFilters.maxEpisodes,
+        genre: pickForMeFilters.genre || null,
+        minScore: pickForMeFilters.minScore,
+      });
+      Render.renderPickForMePanel(body, { entries: Store.getEntriesByList('watchlist'), filters: pickForMeFilters, picked: pickForMeResult });
+      return;
+    }
+    if (e.target.closest('#pick-for-me-start-watching')) {
+      if (pickForMeResult) handleSetStatus(pickForMeResult.anilistId, 'watching');
+      closeAllOverlays();
+      pickForMeResult = undefined;
+      return;
+    }
+    if (e.target.closest('#pick-for-me-close')) {
+      closeAllOverlays();
+      pickForMeResult = undefined;
+    }
+  });
+}
+
 // j/k move a roving focus between whatever `.card` elements are actually on
 // screen right now (list view, or Home's "pick up where you left off"
 // strip — whatever #grid/the page currently has). No wraparound: k at the
@@ -2125,6 +2184,35 @@ function bindDetailOverlay() {
     }
     else if (action === 'detail-mark-next') handleIncrement(null, id);
     else if (action === 'detail-drop') confirmDrop(id);
+    else if (action === 'detail-already-watched') {
+      // P5B.4: only reachable when `local` is absent (renderDetailOverlay
+      // only renders this button in that branch), but re-checked here too —
+      // a stale click queued behind an add-from-elsewhere must not double-add.
+      if (Store.getEntry(id)) return;
+      const media = Detail.getCachedMedia(id);
+      if (!media) return;
+      Store.addEntry({
+        anilistId: media.id,
+        titleRomaji: media.title.romaji,
+        titleEnglish: media.title.english,
+        format: media.format,
+        year: media.seasonYear,
+        totalEpisodes: media.episodes,
+        duration: media.duration,
+        genres: media.genres,
+        averageScore: media.averageScore,
+        studio: (media.studios?.nodes || [])[0]?.name || null,
+        airingStatus: media.status || null,
+        listStatus: 'watched',
+        myScore: null,
+        relatedIds: Api.extractRelatedIds(media),
+      });
+      refreshGridOnly();
+      Render.renderTabCounts();
+      Detail.refreshDetailIfOpen(id);
+      persist();
+      Render.showToast(`Marked "${media.title.romaji}" as watched`);
+    }
     // P1.7: tag/list membership toggles and the two inline create forms.
     // Every branch re-renders both the card grid (so a chip appears there
     // immediately too) and the detail view in place, then persists — the
@@ -3003,6 +3091,7 @@ export function initEvents({ initialList, persistFn }) {
   bindSettingsPanel();
   bindColdStartOverlay();
   bindDiscoverFiltersOverlay();
+  bindPickForMeOverlay();
   bindHelpPanel();
   bindRipple();
   document.addEventListener('keydown', trapOverlayFocus);

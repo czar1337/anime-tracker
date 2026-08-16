@@ -154,6 +154,30 @@ export const RECOMMENDATIONS = {
   // dropping it anyway. 1.5 sits between the two, roughly matching a
   // modestly-enthusiastic (not maximal) z-scored rating.
   coldStartPickWeight: 1.5,
+  // P5B.4's own additions. A dismissal reason concentrates its penalty into
+  // only the scorer dimension(s) that reason genuinely maps to, instead of
+  // dismissPenaltyWeight's flat spread across every dimension — see
+  // tasteProfileLogic.js's dismissalPlan(). wrongGenre/tooLong are
+  // concentrated (so a stronger per-dimension nudge than the flat default),
+  // artStyle is a weak proxy (studio only — no real art-style dimension
+  // exists anywhere in the corpus schema), seenEnough/notInMood are generic
+  // (spread like today) but reduced, since neither is really a taste
+  // rejection. A reason absent, `'manual'`, or unrecognized still falls back
+  // to dismissPenaltyWeight above, unchanged — every dismissal recorded
+  // before this substep shipped keeps recomputing identically.
+  dismissReasonWeights: {
+    wrongGenre: 1.5,
+    tooLong: 1.5,
+    artStyle: 0.5,
+    seenEnough: 0.5,
+    notInMood: 0.15,
+  },
+  // A thumbs-up is the same "liked this without adding it" signal shape as
+  // coldStartPicks (distributed the same way, via the same distribute()
+  // call) but happens post-onboarding, against a real (if partial) taste
+  // profile already in place — weighted separately so it can be tuned
+  // independently of coldStartPickWeight above.
+  thumbsUpWeight: 1.0,
   // P5B.1's own additions — shelves 5-9 ("Shelves 5 to 10" minus 10, which
   // has no social/list-comparison layer to depend on and is deferred to
   // the backlog per the spec's own instruction). None of these are named

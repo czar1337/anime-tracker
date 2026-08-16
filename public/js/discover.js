@@ -9,6 +9,7 @@ import { buildShelves, franchiseRelatedIds } from './shelvesLogic.js';
 import { RECOMMENDATIONS, TIME_SEMANTICS } from '../../config/tuning.js';
 import { openOverlay } from './events.js';
 import { defaultSettings } from './settingsSchema.js';
+import { FeedbackLoop } from './feedbackLoop.js';
 
 // P5A.4: Discover's own main pipeline moved here entirely, off the P1-era
 // seed-based live-AniList-recommendations flow (recommendLogic.js's
@@ -119,6 +120,10 @@ async function buildShelvesNow() {
         discoverFilters,
         enforcePrerequisiteChain: discoverFilters.enforcePrerequisiteChain,
         hideDismissed: discoverFilters.hideDismissed,
+        // P5B.4: the real "Surprise me" slider value — null (never
+        // touched) falls back to the tuning range's midpoint the same way
+        // an omitted param already did before this substep.
+        adventurousness: Store.state.preferences.adventurousness,
       });
       discoverState.corpusEntries = corpusEntries;
       discoverState.shelves = shelves;
@@ -146,6 +151,7 @@ export function getDiscoverState() {
     ...discoverState,
     hideOwned: Store.state.preferences.discoverHideOwned,
     discoverFilters: Store.state.preferences.discoverFilters,
+    adventurousness: Store.state.preferences.adventurousness,
     // P5A.1's own progress signal, shown as Discover's primary content
     // while the corpus is still below MIN_CORPUS_FOR_SHELVES ('degraded'
     // status) — the "usable degraded Discover, first ever run" budget this
@@ -252,6 +258,11 @@ export function initDiscover({ persistFn } = {}) {
       persist();
       buildGeneration += 1;
       buildShelvesNow().catch(() => {});
+    } else if (e.target.id === 'discover-adventurousness-slider') {
+      Store.setPreference(['adventurousness'], Number(e.target.value));
+      persist();
+      buildGeneration += 1;
+      buildShelvesNow().catch(() => {});
     }
   });
 
@@ -276,6 +287,12 @@ export function initDiscover({ persistFn } = {}) {
     if (e.target.closest('[data-action="discover-filters-open"]')) {
       Render.renderDiscoverFiltersPanel(discoverState.corpusEntries, Store.state.preferences.discoverFilters);
       openOverlay('discover-filters-overlay');
+      return;
+    }
+
+    if (e.target.closest('#pick-for-me-open')) {
+      Render.renderPickForMePanel(document.getElementById('pick-for-me-body'), { entries: Store.getEntriesByList('watchlist'), filters: {}, picked: undefined });
+      openOverlay('pick-for-me-overlay');
       return;
     }
 
@@ -391,19 +408,19 @@ export function initDiscover({ persistFn } = {}) {
         airingStatus: candidate.status || null,
         listStatus: 'watchlist',
         relatedIds: franchiseRelatedIds(candidate),
-        // P5A.4's own new Class A provenance fields — real values now that
-        // a real shelf identity and a real corpus popularity exist.
-        // adventurousness stays null: no slider exists yet (P5B.2/P5B.3's
-        // own future UI), same documented placeholder used everywhere else
-        // this substep touches that concept.
+        // P5A.4's own new Class A provenance fields, real values now that a
+        // real shelf identity and a real corpus popularity exist.
+        // adventurousness (P5B.4): the slider value actually active when
+        // this candidate surfaced, replacing the null placeholder used
+        // before the slider existed.
         shelfId,
-        adventurousness: null,
+        adventurousness: Store.state.preferences.adventurousness,
         membersAtSurfacing: candidate.popularity ?? null,
       });
       EventLog.recordForEntry('anime_added', candidate.anilistId, { to: 'watchlist' });
       EventLog.recordForEntry('recommendation_added', candidate.anilistId, {
         shelfId,
-        meta: { adventurousness: null, membersAtSurfacing: candidate.popularity ?? null, because: cardData.because, hiddenCount: cardData.hiddenCount },
+        meta: { adventurousness: Store.state.preferences.adventurousness, membersAtSurfacing: candidate.popularity ?? null, because: cardData.because, hiddenCount: cardData.hiddenCount },
       });
       removeCardEverywhere(anilistId);
       renderNow();
@@ -424,14 +441,35 @@ export function initDiscover({ persistFn } = {}) {
         })
         .catch(() => {});
     } else if (e.target.closest('[data-action="discover-dismiss"]')) {
-      Store.addDismissedItem(anilistId, {
-        title: candidate.titleEnglish || candidate.titleRomaji,
-        coverImage: null, // no cover known for a corpus candidate — renderDismissedOverlay already tolerates this
-      });
-      // meta.reason: dismiss is a single unlabeled button today, so there is no
-      // reason to capture. 'manual' is honest about that rather than guessing
-      // one; a reason picker would be a product change, not a logging change.
-      EventLog.recordForEntry('recommendation_dismissed', anilistId, { shelfId, meta: { reason: 'manual' } });
+      // P5B.4: × no longer dismisses immediately — it reveals the reason
+      // strip in place of .acts (Render.toggleReasonStrip), and picking a
+      // reason chip or Skip (below) is what actually performs the dismiss.
+      Render.toggleReasonStrip(anilistId);
+      renderNow();
+      return;
+    } else if (e.target.closest('[data-action="discover-dismiss-reason"]')) {
+      const reason = e.target.closest('[data-action="discover-dismiss-reason"]').dataset.reason;
+      FeedbackLoop.dismissRecommendation({ anilistId, shelfId, title: candidate.titleEnglish || candidate.titleRomaji, reason });
+      Render.closeReasonStrip(anilistId);
+      removeCardEverywhere(anilistId);
+      renderNow();
+      persist();
+    } else if (e.target.closest('[data-action="discover-dismiss-skip"]')) {
+      FeedbackLoop.dismissRecommendation({ anilistId, shelfId, title: candidate.titleEnglish || candidate.titleRomaji, reason: null });
+      Render.closeReasonStrip(anilistId);
+      removeCardEverywhere(anilistId);
+      renderNow();
+      persist();
+    } else if (e.target.closest('[data-action="discover-thumb-up"]')) {
+      FeedbackLoop.recordLike(anilistId);
+      renderNow();
+      persist();
+    } else if (e.target.closest('[data-action="discover-thumb-down"]')) {
+      // A fast dismiss path, no reason strip — the one place a dismissal
+      // still carries no reason on purpose (a thumbs-down IS the signal;
+      // making the user also pick a reason for it would be friction the
+      // spec's "one-tap" framing doesn't ask for).
+      FeedbackLoop.dismissRecommendation({ anilistId, shelfId, title: candidate.titleEnglish || candidate.titleRomaji, reason: null });
       removeCardEverywhere(anilistId);
       renderNow();
       persist();
