@@ -1993,9 +1993,11 @@ function bindPickForMeOverlay() {
 // first card or j at the last just stays put, matching the "move between
 // cards" wording rather than a carousel.
 function focusAdjacentCard(delta) {
-  const cards = Array.from(document.querySelectorAll('.card'));
+  // P5B.5: extended to Discover's own card type so j/k also rove there —
+  // reuses this existing roving-focus shortcut instead of a parallel one.
+  const cards = Array.from(document.querySelectorAll('.card, .discover-card'));
   if (cards.length === 0) return;
-  const current = document.activeElement.closest && document.activeElement.closest('.card');
+  const current = document.activeElement.closest && document.activeElement.closest('.card, .discover-card');
   const currentIndex = current ? cards.indexOf(current) : -1;
   const nextIndex = Math.max(0, Math.min(cards.length - 1, currentIndex + delta));
   cards[nextIndex].focus();
@@ -2228,6 +2230,14 @@ function bindDetailOverlay() {
       refreshGridOnly();
       Detail.refreshDetailIfOpen(id);
       persist();
+    }
+    else if (action === 'detail-reveal-spoilers') {
+      Render.toggleDetailSpoilers();
+      Detail.refreshDetailIfOpen(id);
+    }
+    else if (action === 'detail-toggle-synopsis') {
+      Render.toggleDetailSynopsis();
+      Detail.refreshDetailIfOpen(id);
     }
     else if (action === 'show-new-tag-form') {
       Render.toggleDetailNewTagForm(true);

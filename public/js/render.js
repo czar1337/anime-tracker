@@ -16,6 +16,7 @@ import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 import { TasteProfile } from './tasteProfile.js';
 import { RECOMMENDATIONS } from '../../config/tuning.js';
 import { MOOD_REGISTRY } from './moodRegistry.js';
+import { partitionSpoilerTags, truncateSynopsis } from './detailLogic.js';
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -110,12 +111,29 @@ let detailNewTagColorId = DEFAULT_TAG_COLOR_ID;
 // 'input' listener) rather than only on submit.
 let detailNewTagName = '';
 let detailShowNewListForm = false;
+// P5B.5: spoiler tags stay hidden and the synopsis stays collapsed until the
+// user opts in for THIS open of the overlay — same module-level/reset-on-open
+// shape as the tag/list forms just above, so a re-render from an unrelated
+// mutation (e.g. toggling a tag) doesn't silently re-hide something the user
+// already revealed.
+let detailSpoilersRevealed = false;
+let detailSynopsisExpanded = false;
 
 function resetDetailCreateForms() {
   detailShowNewTagForm = false;
   detailNewTagColorId = DEFAULT_TAG_COLOR_ID;
   detailNewTagName = '';
   detailShowNewListForm = false;
+  detailSpoilersRevealed = false;
+  detailSynopsisExpanded = false;
+}
+
+function toggleDetailSpoilers() {
+  detailSpoilersRevealed = true;
+}
+
+function toggleDetailSynopsis() {
+  detailSynopsisExpanded = !detailSynopsisExpanded;
 }
 
 function isSelectMode() {
@@ -1166,9 +1184,30 @@ function discoverReasonStripHtml() {
     </div>`;
 }
 
+// P5B.5: titleLanguage-aware primary title, the other available language
+// surfaced as a hover reveal (pointer devices) or an always-visible small
+// line under `@media (hover:none)` (styles.css — same touch-fallback
+// pattern the `.plus` button already established). The `title` attribute
+// doubles as the non-hover-dependent path acceptance criteria 5 asks for:
+// it's read by assistive tech and shown by the browser on keyboard focus
+// too, not just mouse hover.
+function discoverCardTitleHtml(c) {
+  const fields = { romaji: c.titleRomaji, english: c.titleEnglish, native: c.titleNative };
+  const lang = Store.state.preferences.titleLanguage;
+  const order = [lang, ...Object.keys(fields).filter((l) => l !== lang)];
+  const primaryLang = order.find((l) => fields[l]) || 'romaji';
+  const primary = fields[primaryLang] || c.titleRomaji || c.titleEnglish || c.titleNative;
+  const altLang = order.find((l) => l !== primaryLang && fields[l] && fields[l] !== primary);
+  const alt = altLang ? fields[altLang] : null;
+  const html = `<span class="discover-card-title-primary">${escapeHtml(primary)}</span>${
+    alt ? `<span class="discover-card-title-alt">${escapeHtml(alt)}</span>` : ''
+  }`;
+  return { primary, alt, html };
+}
+
 function shelfCardHtml(shelf, cardData, index = 0) {
   const c = cardData.candidate;
-  const primary = c.titleEnglish || c.titleRomaji;
+  const title = discoverCardTitleHtml(c);
   const metaBits = [c.seasonYear, formatEnumLabel(c.format), c.totalEpisodes ? `${c.totalEpisodes} ep` : null].filter(Boolean);
   const franchiseBadge = cardData.hiddenCount
     ? ` <span class="franchise-count" title="${cardData.hiddenCount} more season${cardData.hiddenCount === 1 ? '' : 's'} in this franchise">+${cardData.hiddenCount}</span>`
@@ -1177,20 +1216,30 @@ function shelfCardHtml(shelf, cardData, index = 0) {
   const thumbedUp = (Store.state.preferences.likedRecommendationIds || []).includes(c.anilistId);
   const thumbUpLabel = escapeHtml(copy('discoverFeedback.thumbsUp'));
   const thumbDownLabel = escapeHtml(copy('discoverFeedback.thumbsDown'));
+  // One-tap add with status selection — mirrors renderSearchResults' own
+  // three-button data-add-status pattern exactly (render.js's search
+  // results block, wired in events.js:1573), replacing the single
+  // hardcoded "Add to Watchlist" button.
   const actsHtml = reasonOpen
     ? discoverReasonStripHtml()
     : `
         <div class="acts">
-          <button class="btn btn-primary sm rip-host" data-action="discover-add">Add to Watchlist</button>
+          <button class="btn btn-primary sm rip-host" data-action="discover-add" data-add-status="watchlist">Add</button>
+          <button class="btn btn-quiet sm" data-action="discover-add" data-add-status="watching">Watching</button>
+          <button class="btn btn-quiet sm" data-action="discover-add" data-add-status="watched">Watched</button>
           <button class="btn btn-quiet sm" data-action="show-detail" data-detail-id="${c.anilistId}">Details</button>
           <button class="icn thumb-btn ${thumbedUp ? 'on' : ''}" data-action="discover-thumb-up" title="${thumbUpLabel}" aria-label="${thumbUpLabel}" aria-pressed="${thumbedUp}">👍</button>
           <button class="icn thumb-btn" data-action="discover-thumb-down" title="${thumbDownLabel}" aria-label="${thumbDownLabel}">👎</button>
         </div>`;
+  // Corpus entries only carry a small `coverMedium` URL once a P5B.5-or-later
+  // corpus sync has run (corpusLogic.js's pruneMediaFields) — older cached
+  // entries simply render the empty placeholder until the next sync.
+  const coverHtml = c.coverMedium ? `<img class="discover-card-cover" src="${escapeHtml(c.coverMedium)}" alt="" loading="lazy">` : '';
   return `
-    <article class="discover-card" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" style="animation-delay:${staggerDelayMs(index)}ms">
-      <div class="cov"></div>
+    <article class="discover-card" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" tabindex="0" style="animation-delay:${staggerDelayMs(index)}ms">
+      <div class="cov">${coverHtml}</div>
       <div>
-        <h4 data-action="show-detail" data-detail-id="${c.anilistId}" style="cursor:pointer">${escapeHtml(primary)}${franchiseBadge}</h4>
+        <h4 data-action="show-detail" data-detail-id="${c.anilistId}" style="cursor:pointer" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}${franchiseBadge}</h4>
         <div class="m">${metaBits.map(escapeHtml).join(' · ')}${c.normalizedScore != null ? ` · ★ ${c.normalizedScore}` : ''}</div>
         <div class="why">${escapeHtml(cardData.because)}</div>
         ${actsHtml}
@@ -1975,6 +2024,53 @@ function episodesBlockHtml(entry) {
   return `<p class="detail-lbl">Episodes</p><div class="eps">${squares}</div>`;
 }
 
+// P5B.5's synopsis "Show more" cutoff — spec-fixed prose, not a product
+// tunable like the Tuning table's named values, so it stays a plain
+// constant here (same treatment as EPISODE_SQUARE_CAP/TAIL just above).
+const DETAIL_SYNOPSIS_COLLAPSE_LENGTH = 180;
+
+// AniList's trailer thumbnail with a play-button overlay that links out to
+// the real video — no embedded iframe/player, matching this zero-dependency
+// app's existing no-third-party-embed posture (no iframe/player precedent
+// anywhere else in the codebase). Absent for the common case of a title
+// with no trailer on AniList.
+function detailTrailerHtml(trailer) {
+  if (!trailer?.thumbnail || !trailer?.id) return '';
+  const site = trailer.site === 'dailymotion' ? 'dailymotion' : 'youtube';
+  const url = site === 'dailymotion' ? `https://www.dailymotion.com/video/${trailer.id}` : `https://www.youtube.com/watch?v=${trailer.id}`;
+  return `
+    <a class="detail-trailer" href="${escapeHtml(url)}" target="_blank" rel="noopener" aria-label="Watch trailer (opens in a new tab)">
+      <img src="${escapeHtml(trailer.thumbnail)}" alt="" loading="lazy">
+      <span class="detail-trailer-play" aria-hidden="true">▶</span>
+    </a>`;
+}
+
+// A second chip row below genres: plain tags always shown, spoiler-flagged
+// ones (AniList's own isGeneralSpoiler/isMediaSpoiler — this app never
+// infers a spoiler itself) hidden behind a reveal button until clicked.
+function detailTagsRowHtml(tags) {
+  const { plain, spoilers } = partitionSpoilerTags(tags);
+  if (!plain.length && !spoilers.length) return '';
+  const plainChips = plain.map((t) => `<span class="detail-genre-chip">${escapeHtml(t.name)}</span>`).join('');
+  const spoilerChips = !spoilers.length
+    ? ''
+    : detailSpoilersRevealed
+    ? spoilers.map((t) => `<span class="detail-genre-chip spoiler">${escapeHtml(t.name)}</span>`).join('')
+    : `<button class="btn btn-quiet sm" data-action="detail-reveal-spoilers">Reveal spoiler tags (${spoilers.length})</button>`;
+  return `<div class="detail-genres detail-tags-row">${plainChips}${spoilerChips}</div>`;
+}
+
+function detailSynopsisHtml(description) {
+  if (!description) return `<p class="card-meta">No synopsis available.</p>`;
+  const { truncated, isTruncated } = truncateSynopsis(description, DETAIL_SYNOPSIS_COLLAPSE_LENGTH);
+  if (!isTruncated || detailSynopsisExpanded) {
+    return `<div class="detail-description">${escapeHtml(description)}${
+      isTruncated ? ` <button class="text-btn" data-action="detail-toggle-synopsis">Show less</button>` : ''
+    }</div>`;
+  }
+  return `<div class="detail-description">${escapeHtml(truncated)}… <button class="text-btn" data-action="detail-toggle-synopsis">Show more</button></div>`;
+}
+
 function renderDetailOverlay(container, state) {
   delete container.dataset.anilistId;
   if (state.status === 'loading') {
@@ -2023,6 +2119,8 @@ function renderDetailOverlay(container, state) {
         ${m.favourites ? `<span>${m.favourites.toLocaleString()} favourites</span>` : ''}
       </div>
       ${(m.genres || []).length ? `<div class="detail-genres">${m.genres.map((g) => `<span class="detail-genre-chip">${escapeHtml(g)}</span>`).join('')}</div>` : ''}
+      ${detailTagsRowHtml(m.tags)}
+      ${detailTrailerHtml(m.trailer)}
       ${local ? `<div class="detail-owned-badge">In your ${escapeHtml(local.listStatus)} list</div>` : ''}
       ${local ? `
         <div class="detail-section">${episodesBlockHtml(local)}</div>
@@ -2042,7 +2140,7 @@ function renderDetailOverlay(container, state) {
         ${m.source ? `<div><span class="detail-meta-label">Source</span><span>${escapeHtml(formatEnumLabel(m.source))}</span></div>` : ''}
         ${airedRange ? `<div><span class="detail-meta-label">Aired</span><span>${escapeHtml(airedRange)}</span></div>` : ''}
       </div>
-      ${description ? `<div class="detail-description">${escapeHtml(description)}</div>` : `<p class="card-meta">No synopsis available.</p>`}
+      ${detailSynopsisHtml(description)}
       ${local ? `
         <div class="detail-foot">
           ${local.totalEpisodes && local.episodesWatched >= local.totalEpisodes ? '' : `<button class="btn btn-primary rip-host" data-action="detail-mark-next">Mark episode ${Math.min(local.episodesWatched + 1, local.totalEpisodes || local.episodesWatched + 1)} watched</button>`}
@@ -2860,4 +2958,6 @@ export const Render = {
   toggleReasonStrip,
   closeReasonStrip,
   renderPickForMePanel,
+  toggleDetailSpoilers,
+  toggleDetailSynopsis,
 };
