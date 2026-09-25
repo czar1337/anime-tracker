@@ -1661,13 +1661,22 @@ function weekStripHtml(week) {
     </div>`;
 }
 
+// v3 Phase 1 item 13: AniList can return a title with no coverImage at all.
+// Design system §9: a missing cover is the first letter on a flat panel, never an
+// empty box, and never a TypeError that aborts the whole render.
+function coverOrInitialHtml(url, title) {
+  if (url) return `<img src="${escapeHtml(url)}" alt="" loading="lazy">`;
+  const initial = (String(title || '').trim()[0] || '?').toUpperCase();
+  return `<span class="cover-initial" aria-hidden="true">${escapeHtml(initial)}</span>`;
+}
+
 function scheduleCardHtml(item, index = 0) {
   const m = item.media;
   return `
     <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelayMs(index)}ms">
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
-        <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy">
+        ${coverOrInitialHtml(m.coverImage?.large, m.title?.english || m.title?.romaji)}
         ${m.format ? `<span class="card-format-badge">${escapeHtml(m.format)}</span>` : ''}
       </div>
       <div class="card-body">
@@ -1773,7 +1782,7 @@ function renderSearchResults(container, results, ownedIds, { replaceMode = false
       const native = showNative && m.title.native && m.title.native !== primary ? m.title.native : null;
       return `
       <div class="search-result" data-anilist-id="${m.id}">
-        <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy">
+        ${coverOrInitialHtml(m.coverImage?.large, primary)}
         <div class="search-result-info">
           <div class="search-result-title">${escapeHtml(primary)}</div>
           ${secondary ? `<div class="search-result-title-sub">${escapeHtml(secondary)}</div>` : ''}
