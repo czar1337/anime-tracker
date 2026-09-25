@@ -90,9 +90,26 @@ function removeCardEverywhere(anilistId) {
   }
 }
 
+// v3 Phase 1 item 8: a rebuild requested while another is running (a filter,
+// mood or setting changed mid-build) is queued to run once the current one ends.
+// v2 returned the in-flight promise instead, and that build then threw its own
+// result away because the generation had moved on, so the request was lost.
+let queuedBuild = null;
+let inFlightGeneration = null;
+
 async function buildShelvesNow() {
-  if (buildInFlight) return buildInFlight;
+  if (buildInFlight) {
+    if (inFlightGeneration === buildGeneration) return buildInFlight; // already building exactly this
+    if (!queuedBuild) {
+      queuedBuild = buildInFlight.then(() => {
+        queuedBuild = null;
+        return buildShelvesNow();
+      });
+    }
+    return queuedBuild;
+  }
   const myGeneration = buildGeneration;
+  inFlightGeneration = myGeneration;
   discoverState.status = 'loading';
   renderNow();
 
