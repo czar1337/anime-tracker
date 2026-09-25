@@ -28,7 +28,11 @@ The v2 docs (`docs/v2-*.md`) are frozen history. Never edit `docs/v2-spec.md`.
 - Checkpoint at the end of every phase: full suites, acceptance list item by item, a
   fresh subagent reviews the phase diff against the brief, fixes applied, a checkpoint
   entry written, then merge, push and continue.
-- Keep `docs/v3-progress.md` lean: a status table plus short evidence per phase.
+- Keep `docs/v3-progress.md` lean: a status table plus short evidence per phase. Update
+  the status table after every meaningful commit and before any context compaction, so
+  a new session given "resume" can continue from it alone.
+- Use subagents for parallel review and verification when it helps, and verify their
+  output before relying on it.
 
 ## Autonomy
 
@@ -36,6 +40,8 @@ Do not ask the user questions during the program. When something is ambiguous, p
 option most consistent with the brief, the Discover spec and the design system, record
 it under "Decisions made autonomously" in `docs/v3-plan.md`, and continue. After three
 honest failed fix attempts, record the item as deferred with a `todo` test and move on.
+Only stop the whole run if a failure blocks every later phase (for example the app no
+longer starts).
 
 Hard stops, the only reasons to stop and wait:
 1. Anything that would write to the real data directory (`%APPDATA%\anime-tracker\`).
@@ -53,8 +59,9 @@ Never run: `git reset --hard`, `git clean`, `git branch -d`, `git branch -D`,
 `rm -rf`, or anything else that discards work. Never delete files: retire them with
 `git mv` into `docs/archive/` or `archive/`. Superseded code inside a file being
 refactored may be removed as part of that refactor. Run `git status --porcelain` before
-any branch operation and stop if the tree is not clean (on resume, a dirty tree on the
-active phase's own branch is expected: report it and continue).
+any branch operation and stop if the tree is not clean. One carve-out: on resume, a
+dirty tree while already on the active phase's own branch is expected. Do not switch,
+stash or commit; report it and continue. Dirty on any other branch still means stop.
 
 Never extract or print credentials. Releases are built by CI from a tag the user pushes.
 
@@ -63,8 +70,8 @@ Never extract or print credentials. Releases are built by CI from a tag the user
 - Class A (user-owned, irreplaceable): library entries, notes, tags, custom lists,
   settings, the event log and lifetime counters, watch history. Class B (regenerable):
   corpus, airing store, caches, taste profile, cover hues. Class C: snapshots.
-- Class A is never evicted, never pruned by a quota handler, and never touched by a
-  migration that has not passed a dry run on a copy of the real library.
+- Class A is never evicted, never pruned, and never touched by a migration that has not
+  passed a dry run on a copy of the real library.
 - Any new Class A store or field extends export, snapshot, checksum and restore in the
   same change, with a round-trip test (v2 spec rules 3 and 3a).
 - Tests never touch the real data directory; they use `ANIME_TRACKER_DATA_DIR`.
@@ -73,7 +80,8 @@ Never extract or print credentials. Releases are built by CI from a tag the user
     new; never replaced by an empty library while backups or snapshots exist.
   - Every Class A write goes through the single-writer lock; the If-Match check and the
     write stay in one critical section.
-  - `events.jsonl` is append-only; restore unions by id; reset renames the log.
+  - `events.jsonl` is append-only; restore unions by id; reset renames the log and never
+    deletes it.
   - `counters = baseline + fold(log)`.
   - Snapshots are verified at build, at read-back and before restore; the pinned
     snapshot never rotates; invalid files are quarantined, never deleted.
@@ -84,6 +92,7 @@ Never extract or print credentials. Releases are built by CI from a tag the user
 ## Code rules
 
 - Zero runtime dependencies. Pinned devDependencies are allowed.
-- All user-facing copy is English and goes through the copy registry.
+- All user-facing copy is English and goes through the copy registry. Content tiers
+  affect copy only, never logic and never IDs (tiers themselves are out of v3.0).
 - Adjustable thresholds live in `config/tuning.js`. Schema versions, store names, event
   type strings, stable IDs and protocol constants live in their own domain modules.

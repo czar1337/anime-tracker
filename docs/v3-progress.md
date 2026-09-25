@@ -40,6 +40,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
   the tab "double count" is two different numbers; the backlog's "no streaming data"
   claim is wrong, as the brief says. Several findings are worse than stated (items 4, 8,
   11; the snapshot CSRF gap; the reduced-motion bug also hides `.schedule-day`).
+- **Independent review (fresh subagent):** found the Discover §1 item 10 row checking the wrong claim, missing rows (mobile header, 3:2 crop, Settings rebuild, a11y, shimmer loops, all of Phase 7), thin acceptance criteria for Phases 1, 3, 4 and 5, missing Phase 6 preference migrations, and rules weakened in the new CLAUDE.md. All fixed before merge. The brief/spec commit (`de8335d`) landed on `main` before the phase branch, as the run instructions asked.
 - **Deferred:** nothing.
 
 ## Evidence index

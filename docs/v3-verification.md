@@ -53,7 +53,8 @@ completes a show at the total (Phase 3 completion flow covers it).
 | 8d | C | `tasteProfileLogic.js:239` falls back to `nowMs` → weight 2.0 | Imports get near-maximum boost for 90 days via import-time `updatedAt`. |
 | 8e | C | `scorer.js:120-123` checks candidate relations against owned titles' neighbour ids | A two-hop test; misses direct sequels, counts CHARACTER/OTHER relations. |
 | 9 | C | `scripts/` has no evaluation script | |
-| 10 | P | `server.js:915-956`; inside the lock only on the events path (`:2148`→`:2180`), outside on PUT and the GET bootstrap | Full synchronous read of log + corpus + library, blocking Class A writes on the events path. Scores are latest-state; drops and dismissals are not. |
+| 10 | C | 10 shelves rendered as stacked wrapping grids (`render.js:1268-1300`, `.shelf-row` `styles.css:1136`); 7 buttons per card (`render.js:1240-1246`, `1261`); reason in `--t-meta`/`--dim`; moods, adventurousness, filters, hide-owned and Pick for me all in the Discover header (`render.js:1532-1600`) | "The UI fights the task". |
+| §8 rebuild | P | `server.js:915-956`; inside the lock only on the events path (`:2148`→`:2180`), outside on PUT and the GET bootstrap | Spec §8 taste-profile rebuild. Full synchronous read of log + corpus + library, blocking Class A writes on the events path. Scores are latest-state; drops and dismissals are not. |
 
 ### v2.3.0 engine shape (input for Phase 6)
 
@@ -115,3 +116,31 @@ completes a show at the total (Phase 3 completion flow covers it).
 | Notifications only while open | C | `notifications.js:3-9`, `34-55`; `airing.js:9`, `152-156` | No interval even while open; "single instance" is only EADDRINUSE. |
 | `bannerImage` fetched | P | `api.js:576` (DETAIL_QUERY) | Fetched, never read, never stored. |
 | Covers local, same-origin | C | `server.js:2373-2393`, `render.js:92-94` | No decoder server-side; AniList offers a precomputed `coverImage { color }`. |
+
+### Missing from the first pass (added after the Phase 0 review)
+
+| Claim | Verdict | Evidence | Note |
+|---|---|---|---|
+| Mobile header takes ~1/6 of the screen | C | `index.html:60-110`: header, tab row and 7 action buttons stack at 349 px (seen in the browser during v2.3.0 testing) | Re-measured with screenshots in Phase 4. |
+| Cards crop covers to 3:2 | C | `styles.css:1283-1289` fixed `calc(126px * var(--text-scale))` height at full card width | Design system §5 asks for it; v3 moves to portrait 2:3 (Phase 4) and updates the design doc. |
+| Settings rebuilds itself on every change | C | `events.js:2393-2408` `repaintSettings()` replaces the panel from every `commitAppearance`; focus re-targeting after slider changes `events.js:2970-2980` | |
+| Tabs are not a full tab pattern | P | `index.html:73-81` has `role="tablist"`/`role="tab"` | No `tabpanel`/`aria-controls`, no arrow keys. |
+| No alert role on the error banner | C | `index.html:108` | |
+| No stable live region | P | `index.html:454` toast container has `aria-live="polite"` | Bulk actions have none. |
+| Contrast check misses the custom theme | P | `render.js:2427-2438` checks custom text on bg only | Not dim/faint/accent-lit or the focus ring. |
+| 30+ simultaneous shimmer loops on Watching | C | `styles.css:1466` `shimmerSweep 2.4s infinite` on every `.progress-fill::after`; also `:1316`, `:1346`, `savePulse`, `hudScan`, `epsBlip` infinite | One loop per Watching card. |
+| Design system forbids count-ups and exclamation marks | C | `design/moonlit-shrine-design-system.md` §10 ("Forbidden: … counting numbers"), §12 ("No exclamation marks") | |
+
+## Phase 7
+
+| Claim | Verdict | Evidence | Note |
+|---|---|---|---|
+| `tests/run-all.js` is 5,196 lines, 442 tests | C | `wc -l`; baseline run | |
+| `nowMs: Date.now()` in tests | C | 41 occurrences in `tests/run-all.js` | |
+| e2e server stdout piped, never read | C | `tests/e2e/harness.js:73`, `:169` `stdio: 'pipe'` | |
+| Releases use credential extraction + curl | C | the 2.2.x/2.3.0 releases | Replaced by CI in Phase 7. |
+| `rcedit@latest`, `npx -y postject` | C | `scripts/build-exe.js:146`, `:163` | |
+| Tesseract ~15 MB | C | `public/vendor` 15 MB (3 wasm variants + `eng.traineddata.gz`) | |
+| 5.4 MB token-baseline fixture | C | 5,414,872 bytes | |
+| ~30 merged `v2/P*` branches | C | 28 local `v2/*` branches | |
+| `design-explorations/` duplicates `design/reference/` | P | 3 of the 4 files in `design/reference/` also exist in `design-explorations/`, which holds 9 more exploration files | Archived as a whole in Phase 7. |
