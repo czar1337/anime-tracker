@@ -1626,6 +1626,9 @@ function bindBackupOverlay() {
       const text = await file.text();
       const data = JSON.parse(text);
       if (!Array.isArray(data.entries)) throw new Error('File does not look like a library backup.');
+      // The server requires an explicit schemaVersion (v3). A backup file with
+      // none is by definition schema 1: the field arrived in schema 2.
+      if (data.schemaVersion === undefined) data.schemaVersion = 1;
       await Api.saveLibrary(data, Store.getEtag());
       // Re-fetch rather than trust the pre-upload local copy: the server may
       // have just migrated it (an old exported file can carry an old

@@ -54,11 +54,21 @@ function migrate_2_to_3(data) {
 // being a permanent, invisible one-way trip. Old entries (dismissed before
 // this existed) get title/coverImage: null — they still work for exclusion,
 // they just show as "Unknown title" if the user ever opens that list.
+// v3 Phase 1 item 15: idempotent. v2 rebuilt dismissedItems from dismissedIds
+// unconditionally, so running it on data that had already been migrated (or on
+// a current-shape body that merely lacked a schemaVersion) replaced every
+// dismissed item with an empty list. Existing items are now kept and only ids
+// not already present are added.
 function migrate_3_to_4(data) {
   const out = { ...data };
   out.schemaVersion = 4;
   const oldIds = Array.isArray(out.dismissedIds) ? out.dismissedIds : [];
-  out.dismissedItems = oldIds.map((anilistId) => ({ anilistId, title: null, coverImage: null }));
+  const existing = Array.isArray(out.dismissedItems) ? out.dismissedItems : [];
+  const known = new Set(existing.map((item) => item && item.anilistId));
+  out.dismissedItems = [
+    ...existing,
+    ...oldIds.filter((anilistId) => !known.has(anilistId)).map((anilistId) => ({ anilistId, title: null, coverImage: null })),
+  ];
   delete out.dismissedIds;
   return out;
 }
@@ -292,6 +302,16 @@ function migrate_9_to_10(data) {
   const out = { ...data };
   out.schemaVersion = 10;
   const before = out.preferences || {};
+  // v3 Phase 1 item 15: idempotent. A second run found no colorTheme (the first
+  // run removed it), fell back to the default theme and overwrote the user's
+  // real appearance (both slots, custom accent, background). An existing
+  // appearance object is now left exactly as it is.
+  if (before.appearance && typeof before.appearance === 'object') {
+    if (!('colorTheme' in before)) return out;
+    const { colorTheme, ...rest } = before;
+    out.preferences = rest;
+    return out;
+  }
   const currentThemeId = typeof before.colorTheme === 'string' && before.colorTheme ? before.colorTheme : 'moonlit-shrine';
   const currentIsLight = LIGHT_THEME_IDS_AT_V10.has(currentThemeId);
   const currentSlot = { type: 'preset', id: currentThemeId };
@@ -451,4 +471,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14 };
+module.exports = { CURRENT_SCHEMA_VERSION, MIGRATIONS, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_2_to_3, migrate_3_to_4, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14 };

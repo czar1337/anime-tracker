@@ -1760,6 +1760,13 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'Body must be a library object with an entries array.' });
         return;
       }
+      // v3 Phase 1 item 15: required. A body without one used to be read as
+      // schema 1 and run through every migration, which silently emptied the
+      // dismissed list and reset the appearance of current-shape data.
+      if (!Number.isInteger(body.schemaVersion) || body.schemaVersion < 1) {
+        sendJson(res, 400, { error: 'Body must carry an integer schemaVersion.' });
+        return;
+      }
       // Required, not optional: a P1.2 contract change to this endpoint (see
       // docs/v2-progress.md's P1.2 section for why this is safe to require
       // rather than additive). Checked before the lock — this alone can't
