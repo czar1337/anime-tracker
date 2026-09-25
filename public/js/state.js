@@ -194,6 +194,27 @@ function updateEntry(anilistId, patch) {
   return { before, after: { ...entry } };
 }
 
+// v3 Phase 1 item 9: what an Undo may put back. Only the fields the action's
+// own patch changed, and only where the entry still holds the value that patch
+// set: if the user edited that field again inside the undo window, their later
+// edit wins. v2 re-applied a full copy of the entry from before the action,
+// which also reverted every other edit made in the meantime (a note, a score).
+function computeRevertPatch(current, patch, before) {
+  const revert = {};
+  for (const key of Object.keys(patch || {})) {
+    if (JSON.stringify(current?.[key]) === JSON.stringify(patch[key])) revert[key] = before?.[key];
+  }
+  return revert;
+}
+
+function revertEntryPatch(anilistId, patch, before) {
+  const entry = getEntry(anilistId);
+  if (!entry) return {};
+  const revert = computeRevertPatch(entry, patch, before);
+  if (Object.keys(revert).length > 0) updateEntry(anilistId, revert);
+  return revert;
+}
+
 function removeEntry(anilistId) {
   const idx = state.entries.findIndex((e) => e.anilistId === anilistId);
   if (idx === -1) return null;
@@ -696,6 +717,8 @@ export const Store = {
   getCounts,
   addEntry,
   updateEntry,
+  revertEntryPatch,
+  computeRevertPatch,
   removeEntry,
   replaceEntryMedia,
   restoreEntrySnapshot,

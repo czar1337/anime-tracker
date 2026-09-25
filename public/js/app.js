@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { initEvents, refreshCurrentView, repositionTabPill, openColdStartOnboarding, pauseRouteDwell, resumeRouteDwell } from './events.js';
+import { initEvents, refreshCurrentView, refreshCurrentViewWhenIdle, repositionTabPill, openColdStartOnboarding, pauseRouteDwell, resumeRouteDwell } from './events.js';
 import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './discover.js';
@@ -319,7 +319,7 @@ async function retryMissingCovers() {
       .map((e) => ({ anilistId: e.anilistId, url: urlById.get(e.anilistId) }));
     await downloadCoversLimited(toDownload);
     persist();
-    refreshCurrentView();
+    refreshCurrentViewWhenIdle();
     if (i + COVER_RETRY_BATCH_SIZE < missing.length) await sleep(800);
   }
 }
@@ -453,12 +453,13 @@ async function boot() {
     Render.showToast(`Imported ${e.detail.added} entries from MyAnimeList.`);
   });
 
+  // Background data: never re-render under someone typing (v3 Phase 1 item 10).
   document.addEventListener('airing-updated', () => {
-    refreshCurrentView();
+    refreshCurrentViewWhenIdle();
   });
 
   document.addEventListener('covers-updated', () => {
-    refreshCurrentView();
+    refreshCurrentViewWhenIdle();
     persist();
   });
 

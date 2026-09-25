@@ -401,10 +401,28 @@ function recordProgressEvent(entry, from, to) {
   });
 }
 
+// v3 Phase 1 item 9: episode undo is relative to the CURRENT value, not a jump
+// back to the number before the action, so an edit made inside the undo window
+// (another +1, a typed episode number) is not thrown away.
+function undoEpisodeStep(id, step) {
+  const entry = Store.getEntry(id);
+  if (!entry) return;
+  const current = entry.episodesWatched;
+  let target = current - step;
+  if (target < 0) target = 0;
+  if (entry.totalEpisodes) target = Math.min(target, entry.totalEpisodes);
+  if (target === current) return;
+  Store.updateEntry(id, { episodesWatched: target });
+  recordProgressEvent(entry, current, target);
+}
+
 function handleIncrement(card, id) {
   const entry = Store.getEntry(id);
   if (!entry) return;
   const before = entry.episodesWatched;
+  // v3 Phase 1 item 12: never past the known total (the typed-number path
+  // already clamped; +1, Space, the hero and the detail button did not).
+  if (entry.totalEpisodes && before >= entry.totalEpisodes) return;
   Store.updateEntry(id, { episodesWatched: entry.episodesWatched + 1 });
   recordProgressEvent(entry, before, before + 1);
   const btn = card?.querySelector('.plus');
@@ -422,11 +440,10 @@ function handleIncrement(card, id) {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, { episodesWatched: before });
       // An undo is itself a real transition, recorded as one rather than
       // erased — the log is append-only, so the honest record is
       // "advanced, then went back", not silence.
-      recordProgressEvent(entry, before + 1, before);
+      undoEpisodeStep(id, +1);
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -495,8 +512,7 @@ function handleDecrement(id) {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, { episodesWatched: before });
-      recordProgressEvent(entry, before - 1, before);
+      undoEpisodeStep(id, -1);
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -521,8 +537,8 @@ function handleSetScore(id, score) {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, { myScore: beforeScore });
-      EventLog.recordForEntry('score_set', id, { from: newScore, to: beforeScore });
+      const reverted = Store.revertEntryPatch(id, { myScore: newScore }, { myScore: beforeScore });
+      if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: newScore, to: beforeScore });
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -588,11 +604,11 @@ function handleSetStatus(id, newStatus) {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, fullBefore);
-      EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
-      if (patch.episodesWatched !== undefined && patch.episodesWatched !== fullBefore.episodesWatched) {
-        recordProgressEvent(entry, patch.episodesWatched, fullBefore.episodesWatched);
-      }
+      // Only the fields this move changed (status, and the fast-forwarded
+      // progress/completion date), and only if still untouched since.
+      const reverted = Store.revertEntryPatch(id, patch, fullBefore);
+      if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
+      if ('episodesWatched' in reverted) recordProgressEvent(entry, patch.episodesWatched, fullBefore.episodesWatched);
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -657,11 +673,9 @@ function handleBulkMove(newStatus) {
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       changes.forEach(({ id, before, patch }) => {
-        Store.updateEntry(id, before);
-        EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before.listStatus });
-        if (patch.episodesWatched !== undefined && patch.episodesWatched !== before.episodesWatched) {
-          recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
-        }
+        const reverted = Store.revertEntryPatch(id, patch, before);
+        if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before.listStatus });
+        if ('episodesWatched' in reverted) recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
       });
       refreshView();
       Render.renderTabCounts();
@@ -712,8 +726,8 @@ function handleBulkSetScore(score) {
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       changes.forEach(({ id, before }) => {
-        Store.updateEntry(id, before);
-        EventLog.recordForEntry('score_set', id, { from: score, to: before.myScore });
+        const reverted = Store.revertEntryPatch(id, { myScore: score }, before);
+        if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: score, to: before.myScore });
       });
       refreshView();
       persist();
@@ -742,8 +756,8 @@ function handleBulkClearScore() {
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       changes.forEach(({ id, before }) => {
-        Store.updateEntry(id, before);
-        EventLog.recordForEntry('score_set', id, { from: null, to: before.myScore });
+        const reverted = Store.revertEntryPatch(id, { myScore: null }, before);
+        if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: null, to: before.myScore });
       });
       refreshView();
       persist();
@@ -777,10 +791,7 @@ function handleBulkIncrement() {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      changes.forEach(({ id, before, entry }) => {
-        Store.updateEntry(id, { episodesWatched: before });
-        recordProgressEvent(entry, before + 1, before);
-      });
+      changes.forEach(({ id }) => undoEpisodeStep(id, +1));
       refreshView();
       Render.renderTabCounts();
       persist();
@@ -809,10 +820,7 @@ function handleBulkDecrement() {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      changes.forEach(({ id, before, entry }) => {
-        Store.updateEntry(id, { episodesWatched: before });
-        recordProgressEvent(entry, before - 1, before);
-      });
+      changes.forEach(({ id }) => undoEpisodeStep(id, -1));
       refreshView();
       Render.renderTabCounts();
       persist();
@@ -940,11 +948,9 @@ function handleBulkMarkCompleted() {
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       changes.forEach(({ id, before, patch }) => {
-        Store.updateEntry(id, before);
-        EventLog.recordForEntry('status_changed', id, { from: 'watched', to: before.listStatus });
-        if (patch.episodesWatched !== undefined && patch.episodesWatched !== before.episodesWatched) {
-          recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
-        }
+        const reverted = Store.revertEntryPatch(id, patch, before);
+        if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: 'watched', to: before.listStatus });
+        if ('episodesWatched' in reverted) recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
       });
       refreshView();
       Render.renderTabCounts();
@@ -3089,6 +3095,37 @@ function bindHelpPanel() {
 // view that is — same logic refreshView() already uses internally.
 export function refreshCurrentView() {
   refreshView();
+}
+
+// v3 Phase 1 item 10: refreshes nobody asked for (airing data arriving, covers
+// downloaded in the background) re-render the grid, which destroys an episode
+// number or a card note being typed. Those wait until focus leaves the field
+// (after its own blur/commit handler has run), then run once.
+let backgroundRefreshPending = false;
+function isEditingInView() {
+  const el = document.activeElement;
+  return Boolean(isTypingTarget(el) && el.closest('#app') && !el.closest('.overlay'));
+}
+
+export function refreshCurrentViewWhenIdle() {
+  if (!isEditingInView()) {
+    refreshView();
+    return;
+  }
+  if (backgroundRefreshPending) return;
+  backgroundRefreshPending = true;
+  document.addEventListener(
+    'focusout',
+    () => {
+      // After the blur handlers (a note commits on blur) and after focus has
+      // actually moved somewhere.
+      setTimeout(() => {
+        backgroundRefreshPending = false;
+        refreshCurrentViewWhenIdle();
+      }, 0);
+    },
+    { once: true }
+  );
 }
 
 // Exported so detail.js can route its open through the same focus-capture/
