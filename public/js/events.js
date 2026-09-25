@@ -86,6 +86,21 @@ function recordSettingChange(key, from, to) {
   EventLog.record('settings_changed', { key, from: from ?? null, to: to ?? null });
 }
 
+// v3 Phase 1 item 11: drag controls (sliders, colour pickers) write the Store on
+// every 'input' tick for live preview, so by 'change' time the Store already
+// holds the final value and "before" read then equals "after": v2 logged
+// nothing for any of them. The value at the start of the gesture is captured on
+// its first tick instead, and one event is logged when the gesture settles.
+const gestureStartValues = new Map();
+function beginSettingGesture(key, currentValue) {
+  if (!gestureStartValues.has(key)) gestureStartValues.set(key, currentValue === undefined ? undefined : JSON.parse(JSON.stringify(currentValue)));
+}
+function endSettingGesture(key, settledValue) {
+  const from = gestureStartValues.has(key) ? gestureStartValues.get(key) : settledValue;
+  gestureStartValues.delete(key);
+  recordSettingChange(key, from, settledValue);
+}
+
 // ---------------------------------------------------------------------------
 // route_dwell (P1.5)
 //
@@ -2898,6 +2913,7 @@ function bindSettingsPanel() {
       const step = Number(e.target.value);
       Preferences.setSliderStep(sliderKey, step);
       const prefKey = `${sliderKey}Step`;
+      beginSettingGesture(prefKey, Store.state.preferences[prefKey]);
       Store.setPreference([prefKey], step);
       persist();
       const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
@@ -2908,9 +2924,8 @@ function bindSettingsPanel() {
       const step = Number(e.target.value);
       Preferences.setDecorationStep(step);
       Atmosphere.resyncDensity();
-      const beforeSetting = Store.state.preferences.decorationStep;
+      beginSettingGesture('decorationStep', Store.state.preferences.decorationStep);
       Store.setPreference(['decorationStep'], step);
-      recordSettingChange('decorationStep', beforeSetting, step);
       persist();
       const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
       if (readout) readout.textContent = String(step);
@@ -2926,6 +2941,7 @@ function bindSettingsPanel() {
       const slotKey = accentInput.dataset.slot;
       const hex = accentInput.value;
       const appearance = Store.state.preferences.appearance;
+      beginSettingGesture('appearance', appearance);
       const currentBase = appearance[slotKey].base;
       const nextAppearance = { ...appearance, [slotKey]: { ...appearance[slotKey], type: 'custom', accent: hex } };
       Store.setPreference(['appearance'], nextAppearance);
@@ -2948,6 +2964,7 @@ function bindSettingsPanel() {
       const slotKey = baseInput.dataset.slot;
       const hex = baseInput.value;
       const appearance = Store.state.preferences.appearance;
+      beginSettingGesture('appearance', appearance);
       const nextAppearance = { ...appearance, [slotKey]: { ...appearance[slotKey], type: 'custom', base: hex } };
       Store.setPreference(['appearance'], nextAppearance);
       Themes.applyAppearance(nextAppearance);
@@ -2964,6 +2981,7 @@ function bindSettingsPanel() {
     if (opacityInput) {
       const opacity = Number(opacityInput.value);
       const appearance = Store.state.preferences.appearance;
+      beginSettingGesture('appearance', appearance);
       const nextAppearance = { ...appearance, background: { ...appearance.background, opacity } };
       Store.setPreference(['appearance'], nextAppearance);
       Themes.applyAppearance(nextAppearance);
@@ -2981,6 +2999,7 @@ function bindSettingsPanel() {
       const slot = gradientColorInput.dataset.gradientSlot === '1' ? 'gradientColor1' : 'gradientColor2';
       const hex = gradientColorInput.value;
       const appearance = Store.state.preferences.appearance;
+      beginSettingGesture('appearance', appearance);
       const nextAppearance = { ...appearance, background: { ...appearance.background, [slot]: hex } };
       Store.setPreference(['appearance'], nextAppearance);
       Themes.applyAppearance(nextAppearance);
@@ -3006,8 +3025,7 @@ function bindSettingsPanel() {
     if (sliderKey) {
       const step = Number(e.target.value);
       const prefKey = `${sliderKey}Step`;
-      const before = Store.state.preferences[prefKey];
-      recordSettingChange(prefKey, before, step);
+      endSettingGesture(prefKey, step);
       repaintSettings();
       body.querySelector(`[data-slider="${sliderKey}"]`)?.focus();
       return;
@@ -3018,8 +3036,7 @@ function bindSettingsPanel() {
     // logs the settled value and repaints to refresh the contrast
     // confirmation line and swatch state.
     if (e.target.closest('[data-action="set-custom-accent"]')) {
-      const appearance = Store.state.preferences.appearance;
-      recordSettingChange('appearance', appearance, appearance);
+      endSettingGesture('appearance', Store.state.preferences.appearance);
       repaintSettings();
       return;
     }
@@ -3030,8 +3047,7 @@ function bindSettingsPanel() {
     // lightweight 'input' handler doesn't repaint), same as the accent
     // input right above.
     if (e.target.closest('[data-action="set-custom-base"]')) {
-      const appearance = Store.state.preferences.appearance;
-      recordSettingChange('appearance', appearance, appearance);
+      endSettingGesture('appearance', Store.state.preferences.appearance);
       repaintSettings();
       return;
     }
@@ -3039,8 +3055,7 @@ function bindSettingsPanel() {
     // Value is already applied+persisted by the 'input' handler above;
     // this just logs the settled value once the drag ends.
     if (e.target.closest('[data-action="set-background-opacity"]')) {
-      const appearance = Store.state.preferences.appearance;
-      recordSettingChange('appearance', appearance, appearance);
+      endSettingGesture('appearance', Store.state.preferences.appearance);
       return;
     }
 
@@ -3049,9 +3064,13 @@ function bindSettingsPanel() {
     // colour" reset button appears (it's conditional on a custom colour
     // now being set, which the lightweight 'input' handler doesn't repaint).
     if (e.target.closest('[data-action="set-background-gradient-color"]')) {
-      const appearance = Store.state.preferences.appearance;
-      recordSettingChange('appearance', appearance, appearance);
+      endSettingGesture('appearance', Store.state.preferences.appearance);
       repaintSettings();
+      return;
+    }
+
+    if (e.target.id === 'decoration-step-slider') {
+      endSettingGesture('decorationStep', Store.state.preferences.decorationStep);
       return;
     }
 
