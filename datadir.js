@@ -84,11 +84,27 @@ function migrateLegacyDataDir(oldDir, newDir) {
     return { action: 'skip-corrupt-source', error: err.message };
   }
 
+  // v3 Phase 1 item 5. v2 copied straight into newDir and, on any failure, ran
+  // rmSync on newDir itself — the whole data directory, including anything that
+  // was already in it (backups, snapshots, the event log, covers). Now the copy
+  // goes into a fresh staging directory inside newDir, is verified there, and is
+  // then moved into newDir entry by entry, never overwriting anything that already
+  // exists. library.json moves last, so a failure part-way leaves newDir without a
+  // library and the next start simply retries. The only directory ever removed is
+  // the staging directory this call created.
+  const stagingDir = path.join(newDir, `.migrating-${process.pid}-${Date.now()}`);
+  let stagingCreated = false;
   try {
     fs.mkdirSync(newDir, { recursive: true });
-    fs.cpSync(oldDir, newDir, { recursive: true });
-    const verify = JSON.parse(fs.readFileSync(newLibFile, 'utf8'));
-    if (!verify || typeof verify !== 'object') throw new Error('Copied library.json did not parse to an object.');
+    fs.mkdirSync(stagingDir);
+    stagingCreated = true;
+    copyDir(oldDir, stagingDir);
+    const source = JSON.parse(fs.readFileSync(oldLibFile, 'utf8'));
+    const staged = JSON.parse(fs.readFileSync(path.join(stagingDir, 'library.json'), 'utf8'));
+    if (canonicalJSON(staged) !== canonicalJSON(source)) throw new Error('The copied library.json does not match the original.');
+    const skipped = [];
+    moveInto(stagingDir, newDir, skipped, { libraryLast: true });
+    if (!fs.existsSync(newLibFile)) throw new Error('library.json did not arrive in the new folder.');
     fs.writeFileSync(
       movedMarker,
       `Your Anime Tracker data has moved.\n\n` +
@@ -97,15 +113,56 @@ function migrateLegacyDataDir(oldDir, newDir) {
         `or deleted — you can remove it manually once you've confirmed the new ` +
         `location looks right.\n`
     );
-    return { action: 'migrated', oldDir, newDir };
+    removeIfEmpty(stagingDir); // anything skipped stays there, reported below
+    return { action: 'migrated', oldDir, newDir, skipped };
   } catch (err) {
-    // Clean up only the copy we just made in newDir — oldDir is never touched.
-    try {
-      fs.rmSync(newDir, { recursive: true, force: true });
-    } catch {
-      // best-effort cleanup only
+    // Only the staging directory this call created is removed. newDir, and
+    // anything that was in it before, is never deleted; oldDir is never touched.
+    if (stagingCreated) {
+      try {
+        fs.rmSync(stagingDir, { recursive: true, force: true });
+      } catch {
+        // best-effort cleanup only
+      }
     }
     return { action: 'migration-failed', error: err.message };
+  }
+}
+
+// Injectable for tests (a copy that fails part-way).
+let copyDir = (from, to) => fs.cpSync(from, to, { recursive: true });
+function setCopyDirForTests(fn) {
+  const previous = copyDir;
+  copyDir = fn || ((from, to) => fs.cpSync(from, to, { recursive: true }));
+  return previous;
+}
+
+// Moves every entry of `from` into `to` by rename, merging directories and never
+// replacing an existing file; clashes are left in `from` and listed in `skipped`.
+function moveInto(from, to, skipped, { libraryLast = false, root = to } = {}) {
+  let names = fs.readdirSync(from);
+  if (libraryLast) names = [...names.filter((n) => n !== 'library.json'), ...names.filter((n) => n === 'library.json')];
+  for (const name of names) {
+    const src = path.join(from, name);
+    const dest = path.join(to, name);
+    if (!fs.existsSync(dest)) {
+      fs.renameSync(src, dest);
+      continue;
+    }
+    if (fs.statSync(src).isDirectory() && fs.statSync(dest).isDirectory()) {
+      moveInto(src, dest, skipped, { root });
+      removeIfEmpty(src);
+    } else {
+      skipped.push(path.relative(root, dest));
+    }
+  }
+}
+
+function removeIfEmpty(dir) {
+  try {
+    if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+  } catch {
+    // leave it
   }
 }
 
@@ -116,4 +173,4 @@ function resolveSnapshotsDir(dataDir) {
   return path.join(dataDir, 'snapshots');
 }
 
-module.exports = { resolveDataDir, migrateLegacyDataDir, canonicalJSON, resolveSnapshotsDir };
+module.exports = { resolveDataDir, migrateLegacyDataDir, canonicalJSON, resolveSnapshotsDir, setCopyDirForTests };
