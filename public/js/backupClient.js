@@ -3,6 +3,7 @@
 // are all data-safety operations rather than library/AniList data flow.
 
 import { copy } from './copy.js';
+import { writeHeaders } from './writeToken.js';
 
 async function getSnapshots() {
   const res = await fetch('/api/snapshots');
@@ -12,7 +13,7 @@ async function getSnapshots() {
 }
 
 async function createSnapshot() {
-  const res = await fetch('/api/snapshots', { method: 'POST' });
+  const res = await fetch('/api/snapshots', { method: 'POST', headers: writeHeaders() });
   const body = await res.json();
   if (!res.ok) throw new Error(body.error || copy('backupClient.createFailed'));
   return body;
@@ -21,7 +22,7 @@ async function createSnapshot() {
 async function restoreSnapshot(file) {
   const res = await fetch('/api/snapshots/restore', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify({ file }),
   });
   const body = await res.json();
@@ -47,7 +48,7 @@ async function downloadExport() {
 async function resetEverything(confirmText) {
   const res = await fetch('/api/reset', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify({ confirm: confirmText }),
   });
   const body = await res.json();

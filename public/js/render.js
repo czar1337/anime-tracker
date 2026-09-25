@@ -387,7 +387,7 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
       <svg class="hold-ring" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle></svg>
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
-        ${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">` : ''}
+        ${src ? `<img src="${src}" alt="" loading="lazy">` : ''}
         ${isNew ? `<span class="dot" title="New episode"></span>` : ''}
         ${seasonLabel
           ? `<span class="card-format-badge season-badge">${escapeHtml(seasonLabel)}</span>`
@@ -447,7 +447,7 @@ function franchiseCardHtml(group, list, index = 0) {
       <div class="franchise-summary" data-action="toggle-group">
         <div class="card-cover-wrap">
           <div class="skeleton"></div>
-          ${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">` : ''}
+          ${src ? `<img src="${src}" alt="" loading="lazy">` : ''}
           <span class="card-format-badge">${group.length} seasons</span>
         </div>
         <div class="card-body">
@@ -1667,7 +1667,7 @@ function scheduleCardHtml(item, index = 0) {
     <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelayMs(index)}ms">
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
-        <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">
+        <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy">
         ${m.format ? `<span class="card-format-badge">${escapeHtml(m.format)}</span>` : ''}
       </div>
       <div class="card-body">

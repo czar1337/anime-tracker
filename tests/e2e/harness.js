@@ -13,6 +13,41 @@ const path = require('node:path');
 
 const SERVER_PATH = path.join(__dirname, '..', '..', 'server.js');
 const STOP_GRACE_MS = 5000;
+const WRITE_TOKEN_HEADER = 'x-anime-tracker-token';
+
+// v3 Phase 1: every write to the server needs the per-launch token it injects
+// into index.html (see httpSecurity.js). The browser pages under test read it
+// from the page like the real app does. Tests also write directly from Node
+// with the global fetch (seeding a corpus, simulating a second tab), so the
+// harness learns each server's token once and adds it to those requests. A test
+// that wants to exercise a missing or wrong token passes its own header value,
+// which is never overwritten.
+const tokensByOrigin = new Map();
+const realFetch = globalThis.fetch;
+function tokenFor(input) {
+  try {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    return tokensByOrigin.get(url.origin) || null;
+  } catch {
+    return null;
+  }
+}
+globalThis.fetch = function harnessFetch(input, init = {}) {
+  const token = tokenFor(input);
+  const method = (init.method || 'GET').toUpperCase();
+  if (!token || method === 'GET' || method === 'HEAD') return realFetch(input, init);
+  const headers = new Headers(init.headers || {});
+  if (!headers.has(WRITE_TOKEN_HEADER)) headers.set(WRITE_TOKEN_HEADER, token);
+  return realFetch(input, { ...init, headers });
+};
+
+async function learnWriteToken(url) {
+  const html = await (await realFetch(url + '/')).text();
+  const match = /<meta name="anime-tracker-token" content="([0-9a-f]+)">/.exec(html);
+  if (!match) throw new Error('Server did not inject a write token into index.html');
+  tokensByOrigin.set(new URL(url).origin, match[1]);
+  return match[1];
+}
 
 async function waitForServer(url, timeoutMs = 15000) {
   const start = Date.now();
@@ -89,6 +124,9 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
 
   const startupErrors = [];
   child.stderr.on('data', (chunk) => startupErrors.push(chunk.toString()));
+  // stdout is piped but nothing reads it; drain it so a chatty server can never
+  // block on a full pipe buffer.
+  child.stdout.resume();
 
   // Idempotent and bounded: safe to call more than once (a second call
   // just re-resolves the same in-flight/completed cleanup), and never
@@ -133,14 +171,16 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
   }
 
   const url = `http://localhost:${testPort}`;
+  let token;
   try {
     await waitForServer(url);
+    token = await learnWriteToken(url);
   } catch (err) {
     await stop();
     throw new Error(`${err.message}\nServer stderr:\n${startupErrors.join('')}`);
   }
 
-  return { url, dataDir, pid: child.pid, stop };
+  return { url, dataDir, pid: child.pid, token, stop };
 }
 
 // For the P1.1 review-fixes regression test proving a healthy library with a
@@ -173,6 +213,7 @@ async function startProcessExpectingExit(fixtureLibraryPath, envOverrides = {}, 
   child.stderr.on('data', (chunk) => {
     stderr += chunk.toString();
   });
+  child.stdout.resume();
 
   try {
     const exitCode = await Promise.race([

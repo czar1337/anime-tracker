@@ -27,6 +27,7 @@ const { computeLibraryEtag } = require('./libraryEtag.js');
 const { createWriteLock, LockTimeoutError } = require('./writeLock.js');
 const { CLASS_B_STORES, planEviction, selectCorpusEvictionCandidates } = require('./classBEviction.js');
 const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuota.js');
+const HttpSecurity = require('./httpSecurity.js');
 
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
@@ -34,6 +35,10 @@ const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuo
 // Test/harness override only (P0.4): lets a test server run on a free port
 // alongside a real running instance without EADDRINUSE. Unset in normal use.
 const PORT = Number(process.env.ANIME_TRACKER_PORT) || 4321;
+// v3: a per-launch random token that every write must carry. Only a page served
+// by this process can know it (it is injected into index.html), which is what
+// stops a page in another tab from writing here. See httpSecurity.js.
+const WRITE_TOKEN = HttpSecurity.createWriteToken();
 const IS_SEA = sea.isSea();
 const APP_ROOT = IS_SEA ? path.dirname(process.execPath) : __dirname;
 const PUBLIC_DIR = path.join(__dirname, 'public'); // only meaningful outside SEA mode
@@ -1412,6 +1417,7 @@ function sendJson(res, status, body, extraHeaders = {}) {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(json),
     'Cache-Control': 'no-store', // dynamic data — a cached /api/library response is stale data
+    ...HttpSecurity.securityHeaders(),
     ...extraHeaders,
   });
   res.end(json);
@@ -1491,6 +1497,7 @@ function serveStatic(req, res, rootDir, urlPath, extraHeaders = {}) {
     res.writeHead(200, {
       'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
       'Content-Length': stat.size,
+      ...HttpSecurity.securityHeaders(),
       ...extraHeaders,
     });
     fs.createReadStream(filePath).pipe(res);
@@ -1513,7 +1520,33 @@ const NO_CACHE_HEADERS = { 'Cache-Control': 'no-store' };
 // /config/ resolve against CONFIG_DIR (dev) / a config/... asset key (SEA)
 // instead of PUBLIC_DIR/public/... — same boundary check, same MIME lookup,
 // same no-cache headers either way, just a second, equally-bounded root.
+// index.html is the one asset that is not served verbatim: it carries this
+// launch's write token and the Content-Security-Policy.
+function serveIndexHtml(res) {
+  let html;
+  try {
+    html = IS_SEA
+      ? Buffer.from(sea.getRawAsset('public/index.html')).toString('utf8')
+      : fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
+  } catch {
+    sendJson(res, 404, { error: 'Not found' });
+    return;
+  }
+  const body = Buffer.from(HttpSecurity.injectWriteToken(html, WRITE_TOKEN), 'utf8');
+  res.writeHead(200, {
+    'Content-Type': MIME_TYPES['.html'],
+    'Content-Length': body.byteLength,
+    ...NO_CACHE_HEADERS,
+    ...HttpSecurity.securityHeaders({ html: true }),
+  });
+  res.end(body);
+}
+
 function serveAppAsset(req, res, urlPath) {
+  if (urlPath === '/index.html') {
+    serveIndexHtml(res);
+    return;
+  }
   const isConfigAsset = urlPath === '/config' || urlPath.startsWith('/config/');
   const rootDir = isConfigAsset ? CONFIG_DIR : PUBLIC_DIR;
   const assetPrefix = isConfigAsset ? 'config' : 'public';
@@ -1538,6 +1571,7 @@ function serveAppAsset(req, res, urlPath) {
     'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
     'Content-Length': buf.byteLength,
     ...NO_CACHE_HEADERS,
+    ...HttpSecurity.securityHeaders(),
   });
   res.end(Buffer.from(buf));
 }
@@ -1607,6 +1641,11 @@ const CONFLICT_GUARDED_PATHS = new Set([
   '/api/backups/restore',
 ]);
 
+// The port the Host/Origin checks compare against. Equal to PORT today; kept
+// separate so a later ANIME_TRACKER_PORT=0 (bind any free port) can set it from
+// server.address() once listening.
+let boundPort = PORT;
+
 const server = http.createServer(async (req, res) => {
   let url;
   try {
@@ -1616,6 +1655,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   const { pathname } = url;
+
+  const rejection = HttpSecurity.checkRequest(req, { port: boundPort, token: WRITE_TOKEN });
+  if (rejection) {
+    sendJson(res, rejection.status, { error: rejection.error, ...(rejection.badToken ? { badToken: true } : {}) });
+    return;
+  }
 
   try {
     if (CONFLICT_GUARDED_PATHS.has(pathname) && dataDirConflict) {

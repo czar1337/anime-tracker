@@ -1,3 +1,4 @@
+import { writeHeaders } from './writeToken.js';
 // All network I/O: local server calls (library CRUD, backups, cover
 // downloads) and direct-to-AniList GraphQL search (AniList's endpoint sends
 // permissive CORS headers, so the browser can call it without a proxy).
@@ -44,7 +45,7 @@ async function getVersionInfo() {
 async function postEvents(events, { keepalive = false } = {}) {
   const res = await fetch('/api/events', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify({ events }),
     keepalive,
   });
@@ -56,7 +57,7 @@ async function postEvents(events, { keepalive = false } = {}) {
 async function saveLibrary(data, etag) {
   const res = await fetch('/api/library', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'If-Match': etag },
+    headers: writeHeaders({ 'If-Match': etag }),
     body: JSON.stringify(data),
   });
   const body = await res.json();
@@ -80,7 +81,7 @@ async function listBackups() {
 async function restoreBackup(file) {
   const res = await fetch('/api/backups/restore', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify({ file }),
   });
   const body = await res.json();
@@ -96,7 +97,7 @@ async function getRecommendationsCache() {
 async function saveRecommendationsCache(data) {
   const res = await fetch('/api/recommendations', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify(data),
   });
   const body = await res.json();
@@ -119,7 +120,7 @@ async function getAiringCache() {
 async function saveAiringCache(data) {
   const res = await fetch('/api/airing', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify(data),
   });
   const body = await res.json();
@@ -142,7 +143,7 @@ async function getUpcomingCache() {
 async function saveUpcomingCache(data) {
   const res = await fetch('/api/upcoming', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify(data),
   });
   const body = await res.json();
@@ -187,7 +188,7 @@ async function getCorpusCache() {
 async function saveCorpusPage({ cursor, newEntries, targetSize }) {
   const res = await fetch('/api/corpus', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify({ cursor, newEntries, targetSize, generatedAt: new Date().toISOString() }),
   });
   const body = await res.json();
@@ -211,7 +212,7 @@ async function getTasteProfile() {
 async function downloadCover(anilistId, url) {
   const res = await fetch('/api/covers', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: writeHeaders(),
     body: JSON.stringify({ anilistId, url }),
   });
   const body = await res.json();

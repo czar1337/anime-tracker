@@ -43,6 +43,7 @@ const LOCAL_MODULES = [
   { requireLine: "require('./writeLock.js')", file: 'writeLock.js', varName: '__writeLockModule' },
   { requireLine: "require('./classBEviction.js')", file: 'classBEviction.js', varName: '__classBEvictionModule' },
   { requireLine: "require('./diskQuota.js')", file: 'diskQuota.js', varName: '__diskQuotaModule' },
+  { requireLine: "require('./httpSecurity.js')", file: 'httpSecurity.js', varName: '__httpSecurityModule' },
 ];
 
 function inlineLocalModules(serverSource) {

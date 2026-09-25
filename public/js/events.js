@@ -3174,10 +3174,29 @@ function bindRipple() {
   });
 }
 
+// Cover images fade in over their skeleton once loaded. This used to be an
+// inline onload= attribute on every <img>, which a `script-src 'self'` CSP
+// forbids; `load` does not bubble, so one capture-phase listener on the document
+// sees every image instead (v3 Phase 1 item 2).
+function bindCoverImageLoad() {
+  document.addEventListener(
+    'load',
+    (e) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement) || !img.parentElement?.classList.contains('card-cover-wrap')) return;
+      img.classList.add('loaded');
+      const skeleton = img.previousElementSibling;
+      if (skeleton?.classList.contains('skeleton')) skeleton.remove();
+    },
+    true
+  );
+}
+
 export function initEvents({ initialList, persistFn }) {
   activeList = initialList;
   currentView = initialList;
   persist = persistFn;
+  bindCoverImageLoad();
   bindTabs();
   bindHome();
   bindNavMenu();
