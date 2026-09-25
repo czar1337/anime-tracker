@@ -44,6 +44,7 @@ const LOCAL_MODULES = [
   { requireLine: "require('./classBEviction.js')", file: 'classBEviction.js', varName: '__classBEvictionModule' },
   { requireLine: "require('./diskQuota.js')", file: 'diskQuota.js', varName: '__diskQuotaModule' },
   { requireLine: "require('./httpSecurity.js')", file: 'httpSecurity.js', varName: '__httpSecurityModule' },
+  { requireLine: "require('./instanceLock.js')", file: 'instanceLock.js', varName: '__instanceLockModule' },
 ];
 
 function inlineLocalModules(serverSource) {

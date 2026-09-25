@@ -28,6 +28,7 @@ const { createWriteLock, LockTimeoutError } = require('./writeLock.js');
 const { CLASS_B_STORES, planEviction, selectCorpusEvictionCandidates } = require('./classBEviction.js');
 const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuota.js');
 const HttpSecurity = require('./httpSecurity.js');
+const { acquireInstanceLock } = require('./instanceLock.js');
 
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
@@ -107,6 +108,27 @@ function readAppVersion() {
 }
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+// v3 Phase 1 item 3: the single-instance lock is the first write to DATA_DIR,
+// before the legacy migration, the integrity check (which can migrate the
+// schema), counters or any snapshot. A second copy of the app pointed at the same
+// folder therefore stops here without touching anything, instead of finding out
+// through EADDRINUSE after it has already written. See instanceLock.js.
+const instanceLock = acquireInstanceLock(DATA_DIR, { port: PORT });
+if (!instanceLock.acquired) {
+  const holder = instanceLock.holder || {};
+  const holderUrl = `http://localhost:${holder.port || PORT}`;
+  console.error(`Anime Tracker is already running for ${DATA_DIR} (pid ${holder.pid ?? 'unknown'}). Nothing was changed.`);
+  if (IS_SEA) {
+    console.error(`Opening ${holderUrl} in your browser instead of starting a second copy.`);
+    openBrowser(holderUrl);
+    process.exit(0);
+  }
+  process.exit(1);
+}
+process.on('exit', () => instanceLock.release());
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => process.exit(0));
+}
 const migrationResult = migrateLegacyDataDir(LEGACY_DATA_DIR, DATA_DIR);
 if (migrationResult.action === 'migrated') {
   console.log(`[migration] Moved data from ${migrationResult.oldDir} to ${migrationResult.newDir}.`);
@@ -2484,10 +2506,17 @@ const server = http.createServer(async (req, res) => {
 
 // Best-effort: opens the user's default browser. Only used in SEA mode,
 // where this .exe is the whole app (no start.bat wrapping it to do this).
+// Detached and unref'd so it survives this process exiting straight after (the
+// second-instance path does exactly that).
 function openBrowser(url) {
-  const { exec } = require('node:child_process');
-  const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
-  exec(cmd, () => {});
+  const { spawn } = require('node:child_process');
+  const [cmd, args] =
+    process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  try {
+    spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  } catch {
+    // best effort
+  }
 }
 
 server.on('error', (err) => {
