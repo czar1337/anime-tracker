@@ -232,9 +232,13 @@ export function createOutbox({ storage, post, maxEvents = OUTBOX_MAX_EVENTS }) {
     try {
       const result = await post(batch);
       const acceptedIds = new Set(result?.acceptedIds || batch.map((e) => e.id));
-      pending = pending.filter((e) => !acceptedIds.has(e.id));
+      // v3: the server reports invalid events separately (and keeps them in its
+      // own quarantine file). Re-sending them could never succeed, and before
+      // this one bad event kept the whole outbox from ever draining.
+      const rejectedIds = new Set(result?.rejectedIds || []);
+      pending = pending.filter((e) => e && e.id && !acceptedIds.has(e.id) && !rejectedIds.has(e.id));
       persistPending();
-      return { flushed: acceptedIds.size };
+      return { flushed: acceptedIds.size, rejected: rejectedIds.size };
     } catch {
       return { flushed: 0, retained: pending.length };
     } finally {

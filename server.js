@@ -84,6 +84,7 @@ const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
 const EVENTS_FILE = path.join(DATA_DIR, 'events.jsonl');
 const COUNTERS_FILE = path.join(DATA_DIR, 'counters.json');
 const COUNTERS_TMP_FILE = path.join(DATA_DIR, 'counters.json.tmp');
+const EVENTS_REJECTED_FILE = path.join(DATA_DIR, 'events.rejected.jsonl');
 // A single unusually active session (a big import, a bulk cover-recovery
 // run) can create dozens of backups in a few hours — at 30, that safety net
 // can be completely cycled through in a single day, pruning away anything
@@ -493,6 +494,14 @@ function eventBodyHashById() {
 // Appends validated events, deduping by id. Returns what actually happened per
 // event so the client can drain its outbox precisely.
 //
+// v3 Phase 1 item 4: nothing is acknowledged before it is on disk. Events are
+// validated and staged first; the dedup index and body hashes are committed only
+// after the append has been fsync'd. A write failure throws with the index left
+// untouched (and invalidated, so the next call re-reads what really reached the
+// file), so a retry is appended rather than wrongly reported as a duplicate. An
+// invalid event no longer rejects the whole batch: it is reported in "rejected",
+// kept in events.rejected.jsonl for inspection, and the valid ones still land.
+//
 // Callers must hold the write lock: this is a read-modify-write (dedup, then
 // append), and Windows offers no atomic-append guarantee worth relying on.
 async function appendEvents(incoming) {
@@ -502,7 +511,10 @@ async function appendEvents(incoming) {
   const accepted = [];
   const duplicates = [];
   const collisions = [];
-  const lines = [];
+  const rejected = [];
+  const staged = []; // { event, hash }
+  const stagedHashById = new Map();
+  let stagedMaxTs = eventLogMaxTs;
 
   for (const raw of incoming) {
     // The server NEVER fills in id/ts/tzOffset/localDay/sessionId. They are
@@ -510,24 +522,31 @@ async function appendEvents(incoming) {
     // spec's Stockholm/Tokyo paragraph. An event that sat in an outbox across a
     // flight or a DST change would otherwise get a silently wrong localDay,
     // with no way to detect it afterwards.
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      rejected.push({ id: null, reason: 'Event is not an object.', raw });
+      continue;
+    }
     if (!EventLogShared.hasRequiredEventFields(raw)) {
-      throw new EventValidationError('Event is missing one or more required fields (id, schemaVersion, type, ts, tzOffset, localDay, sessionId).');
+      rejected.push({ id: raw.id ?? null, reason: 'Event is missing one or more required fields (id, schemaVersion, type, ts, tzOffset, localDay, sessionId).', raw });
+      continue;
     }
     if (!EventLogShared.isKnownEventType(raw.type)) {
-      throw new EventValidationError(`Unknown event type: ${raw.type}`);
+      rejected.push({ id: raw.id, reason: 'Unknown event type: ' + raw.type, raw });
+      continue;
     }
 
     const event = { ...raw };
     // meta.clockSkew is the ONE field the server may add, because only it knows
     // the on-disk maximum ts. The event is still appended in arrival order and
     // the log is never reordered; readers sort by ts.
-    if (Number.isFinite(event.ts) && eventLogMaxTs > 0 && event.ts < eventLogMaxTs) {
+    if (Number.isFinite(event.ts) && stagedMaxTs > 0 && event.ts < stagedMaxTs) {
       event.meta = { ...(event.meta || {}), clockSkew: true };
     }
 
-    if (index.has(event.id)) {
-      const existing = bodyHashes.get(event.id);
-      if (existing && existing === eventBodyHash(event)) {
+    const known = stagedHashById.has(event.id) || index.has(event.id);
+    if (known) {
+      const existingHash = stagedHashById.get(event.id) ?? bodyHashes.get(event.id);
+      if (existingHash && existingHash === eventBodyHash(event)) {
         // Genuine idempotent retry (an outbox re-flush): a no-op that reports
         // success, exactly as the spec requires.
         duplicates.push(event.id);
@@ -537,31 +556,67 @@ async function appendEvents(incoming) {
       // duplicate would swallow a real event forever, so append it under a
       // fresh id and make the anomaly visible instead.
       const originalId = event.id;
-      event.id = `${originalId}-COLLISION-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+      event.id = originalId + '-COLLISION-' + crypto.randomBytes(6).toString('hex').toUpperCase();
       event.meta = { ...(event.meta || {}), idCollision: originalId };
       collisions.push({ originalId, appendedAs: event.id });
-      console.error(`[events] Event id collision with a different body: ${originalId} appended as ${event.id}.`);
+      console.error('[events] Event id collision with a different body: ' + originalId + ' appended as ' + event.id + '.');
     }
 
-    lines.push(JSON.stringify(event));
-    index.add(event.id);
-    bodyHashes.set(event.id, eventBodyHash(event));
-    if (Number.isFinite(event.ts) && event.ts > eventLogMaxTs) eventLogMaxTs = event.ts;
-    accepted.push(event);
+    const hash = eventBodyHash(event);
+    staged.push({ event, hash });
+    stagedHashById.set(event.id, hash);
+    if (Number.isFinite(event.ts) && event.ts > stagedMaxTs) stagedMaxTs = event.ts;
   }
 
-  if (lines.length > 0) {
-    const fd = fs.openSync(EVENTS_FILE, 'a');
+  if (staged.length > 0) {
     try {
-      fs.writeSync(fd, lines.join('\n') + '\n');
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
+      if (TEST_FAIL_EVENT_WRITES.remaining > 0) {
+        TEST_FAIL_EVENT_WRITES.remaining -= 1;
+        throw new Error('Forced event-log write failure (test-only).');
+      }
+      const fd = fs.openSync(EVENTS_FILE, 'a');
+      try {
+        fs.writeSync(fd, staged.map((x) => JSON.stringify(x.event)).join('\n') + '\n');
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch (err) {
+      // Whatever part of the write reached the file (if any) is re-read, and a
+      // torn tail recovered, on the next call. Nothing here was acknowledged.
+      eventIdIndex = null;
+      eventBodyHashByIdCache = null;
+      eventLogMaxTs = 0;
+      throw err;
     }
+    for (const { event, hash } of staged) {
+      index.add(event.id);
+      bodyHashes.set(event.id, hash);
+      accepted.push(event);
+    }
+    eventLogMaxTs = stagedMaxTs;
   }
 
-  return { accepted, duplicates, collisions };
+  if (rejected.length > 0) quarantineRejectedEvents(rejected);
+
+  return { accepted, duplicates, collisions, rejected };
 }
+
+// Rejected events are never simply dropped: they go to their own append-only
+// file next to the log (never read back into it), so a client bug that produced
+// them can be diagnosed and nothing a user did silently vanishes.
+function quarantineRejectedEvents(rejected) {
+  try {
+    const lines = rejected.map((r) => JSON.stringify({ receivedAt: new Date().toISOString(), reason: r.reason, event: r.raw })).join('\n') + '\n';
+    fs.appendFileSync(EVENTS_REJECTED_FILE, lines);
+  } catch (err) {
+    console.error('[events] Could not record rejected events:', err.message);
+  }
+}
+
+// Test-only fault injection (same convention as the ANIME_TRACKER_TEST_* flags
+// below): fail the next N event-log appends. Unset in normal use.
+const TEST_FAIL_EVENT_WRITES = { remaining: Number(process.env.ANIME_TRACKER_TEST_FAIL_EVENT_WRITES) || 0 };
 
 class EventValidationError extends Error {
   constructor(message) {
@@ -2214,7 +2269,7 @@ const server = http.createServer(async (req, res) => {
       }
       const result = await libraryWriteLock.run(async () => {
         try {
-          const { accepted, duplicates, collisions } = await appendEvents(body.events);
+          const { accepted, duplicates, collisions, rejected } = await appendEvents(body.events);
           // Counters advance by folding ONLY the newly-appended events onto the
           // cached total — never by re-folding the whole log, which would grow
           // linearly with history on every single write.
@@ -2264,6 +2319,10 @@ const server = http.createServer(async (req, res) => {
               acceptedIds: [...accepted.map((e) => e.id), ...duplicates],
               duplicateIds: duplicates,
               collisions,
+              // Invalid events the client should stop re-sending. They are kept
+              // server-side in events.rejected.jsonl, never in the log itself.
+              rejectedIds: rejected.map((r) => r.id).filter((id) => id !== null && id !== undefined),
+              rejected: rejected.map((r) => ({ id: r.id, reason: r.reason })),
             },
           };
         } catch (err) {
