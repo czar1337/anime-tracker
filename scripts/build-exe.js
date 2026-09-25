@@ -45,6 +45,7 @@ const LOCAL_MODULES = [
   { requireLine: "require('./diskQuota.js')", file: 'diskQuota.js', varName: '__diskQuotaModule' },
   { requireLine: "require('./httpSecurity.js')", file: 'httpSecurity.js', varName: '__httpSecurityModule' },
   { requireLine: "require('./instanceLock.js')", file: 'instanceLock.js', varName: '__instanceLockModule' },
+  { requireLine: "require('./coverDownload.js')", file: 'coverDownload.js', varName: '__coverDownloadModule' },
 ];
 
 function inlineLocalModules(serverSource) {

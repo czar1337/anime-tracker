@@ -29,6 +29,7 @@ const { CLASS_B_STORES, planEviction, selectCorpusEvictionCandidates } = require
 const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuota.js');
 const HttpSecurity = require('./httpSecurity.js');
 const { acquireInstanceLock } = require('./instanceLock.js');
+const { downloadImage, isAllowedCoverUrl } = require('./coverDownload.js');
 
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
@@ -1673,53 +1674,8 @@ function serveAppAsset(req, res, urlPath) {
   res.end(Buffer.from(buf));
 }
 
-const DOWNLOAD_TIMEOUT_MS = 15000;
-
-function downloadImage(url, destPath, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    const req = https
-      .get(url, { timeout: DOWNLOAD_TIMEOUT_MS }, (response) => {
-        if (
-          [301, 302, 303, 307, 308].includes(response.statusCode) &&
-          response.headers.location &&
-          redirectsLeft > 0
-        ) {
-          response.resume();
-          downloadImage(response.headers.location, destPath, redirectsLeft - 1).then(resolve, reject);
-          return;
-        }
-        if (response.statusCode !== 200) {
-          response.resume();
-          reject(new Error(`Cover download failed with status ${response.statusCode}`));
-          return;
-        }
-        const tmpPath = `${destPath}.tmp`;
-        const fileStream = fs.createWriteStream(tmpPath);
-        response.pipe(fileStream);
-        fileStream.on('finish', () => {
-          fileStream.close((err) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            fs.renameSync(tmpPath, destPath);
-            resolve();
-          });
-        });
-        fileStream.on('error', (err) => {
-          fs.unlink(tmpPath, () => {});
-          reject(err);
-        });
-      })
-      .on('error', reject);
-    // The `timeout` option alone doesn't abort anything — it just fires this
-    // event once the socket's been idle that long. Without destroying the
-    // request here, a stalled connection to the cover CDN would hang the
-    // whole /api/covers request (and whatever awaited it client-side)
-    // forever instead of ever settling.
-    req.on('timeout', () => req.destroy(new Error('Cover download timed out')));
-  });
-}
+// Cover downloads live in coverDownload.js (host allowlist, image/* only, size
+// cap, unique temp file, every failure path cleaned up).
 
 // ---------------------------------------------------------------------------
 // Routing
@@ -2525,12 +2481,16 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'Body must include numeric anilistId and url.' });
         return;
       }
+      if (!isAllowedCoverUrl(imageUrl)) {
+        sendJson(res, 400, { error: 'Covers are only downloaded from AniList.' });
+        return;
+      }
       const destPath = path.join(COVERS_DIR, `${anilistId}.jpg`);
       try {
         await downloadImage(imageUrl, destPath);
         sendJson(res, 200, { file: `covers/${anilistId}.jpg` });
       } catch (err) {
-        sendJson(res, 502, { error: `Could not download cover: ${err.message}` });
+        sendJson(res, err.status || 502, { error: `Could not download cover: ${err.message}` });
       }
       return;
     }
