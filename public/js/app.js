@@ -20,6 +20,14 @@ let saveDebounceTimer = null;
 let retryTimer = null;
 let hasUnsavedChanges = false; // true from persist() until a save actually succeeds
 let saveInFlight = false;
+// v3 Phase 1 item 7: one PUT in flight at a time. A save requested while one is
+// in flight only sets `saveQueued`; the follow-up goes out after the reply, with
+// the ETag that reply returned. v2 sent the second PUT with the pre-reply ETag,
+// so the server 409'd the user's own edit.
+let saveQueued = false;
+// Set by persist(), cleared when a save starts. Tells a finished save whether
+// the Store changed after its body was taken.
+let dirtySinceSend = false;
 
 function setSaveIndicator(state, text) {
   const el = document.getElementById('save-indicator');
@@ -45,8 +53,24 @@ async function reloadAfterConflict() {
   Render.clearError();
 }
 
+function requestSave() {
+  if (saveInFlight) {
+    saveQueued = true;
+    return;
+  }
+  attemptSave(0);
+}
+
+function runQueuedSave() {
+  if (!saveQueued) return false;
+  saveQueued = false;
+  attemptSave(0);
+  return true;
+}
+
 async function attemptSave(attempt = 0) {
   saveInFlight = true;
+  dirtySinceSend = false;
   setSaveIndicator('saving', 'Saving');
   // Events flush alongside every save, but through their OWN endpoint and
   // deliberately NOT awaited into this function's success path (P1.5). The two
@@ -60,12 +84,15 @@ async function attemptSave(attempt = 0) {
     const result = await Api.saveLibrary(Store.toJSON(), Store.getEtag());
     Store.setEtag(result.etag);
     saveInFlight = false;
+    Render.clearError();
+    if (runQueuedSave()) return;
+    if (dirtySinceSend) return; // persist()'s own debounce will send the rest
     hasUnsavedChanges = false;
     setSaveIndicator('saved', 'Saved');
-    Render.clearError();
   } catch (err) {
     saveInFlight = false;
     if (err.conflict) {
+      saveQueued = false;
       setSaveIndicator('failed', copy('save.indicator.conflict'));
       Render.showToast(
         copy('save.conflict.body'),
@@ -101,6 +128,9 @@ async function attemptSave(attempt = 0) {
     // etag either succeeds normally or (if the lock-holder itself changed
     // the library, e.g. a restore) surfaces as a conflict on the very next
     // attempt, handled above.
+    // A queued request folds into this retry: the retry sends the Store's
+    // current state anyway.
+    saveQueued = false;
     const delay = attempt < 3 ? 1500 * (attempt + 1) : 5000;
     retryTimer = setTimeout(() => attemptSave(attempt + 1), delay);
   }
@@ -108,10 +138,11 @@ async function attemptSave(attempt = 0) {
 
 function persist() {
   hasUnsavedChanges = true;
+  dirtySinceSend = true;
   setSaveIndicator('saving', 'Saving');
   clearTimeout(saveDebounceTimer);
   clearTimeout(retryTimer);
-  saveDebounceTimer = setTimeout(() => attemptSave(0), 300);
+  saveDebounceTimer = setTimeout(requestSave, 300);
 }
 
 // Best-effort guard against closing the tab while a save is still pending —
