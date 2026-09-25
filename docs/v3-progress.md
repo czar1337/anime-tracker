@@ -8,7 +8,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | Phase | Branch | Status | Next step |
 |---|---|---|---|
 | 0 Verify, decide, plan | `v3/0-plan` | done | — |
-| 1 Safety and correctness | `v3/1-foundation-safety` | in progress | items 1-6 committed; next item 7 (save queue). Regression proofs run against a pristine v2.3.0 copy in the scratch dir (`git archive 86b4f9c` + tests via `git show`) |
+| 1 Safety and correctness | `v3/1-foundation-safety` | in progress | items 1-19 committed (+ cold-start interrupt fix); next: token-baseline regen, full suites, perf, browser check, CHANGELOG, checkpoint review. Regression proofs run against a pristine v2.3.0 copy in the scratch dir (`git archive 86b4f9c` + tests via `git show`) |
 | 2 Render engine and structure | `v3/2-render-engine` | not started | |
 | 3 Design system and motion | `v3/3-design-motion` | not started | |
 | 4 Flow and screens | `v3/4-flow-screens` | not started | |
