@@ -107,6 +107,10 @@ function computeManifestChecksum(snapshot) {
       createdAt: snapshot.createdAt ?? null,
       pinned: Boolean(snapshot.pinned),
       stores: storeChecksums,
+      // v3: an optional label ("pre-migration-14-to-15", "pre-import-…"). Bound
+      // into the checksum only when present, so every snapshot written before
+      // labels existed still verifies byte-for-byte.
+      ...(snapshot.label !== undefined ? { label: snapshot.label } : {}),
     })
   );
 }
@@ -116,7 +120,7 @@ function computeManifestChecksum(snapshot) {
 // exportRegistry.js's CLASS_A_STORES via dynamic import() and passes it here;
 // tests can pass a synthetic registry to prove this function never hardcodes a
 // store id.
-function buildSnapshotStores(registry, sources, { pinned = false } = {}) {
+function buildSnapshotStores(registry, sources, { pinned = false, label } = {}) {
   const stores = {};
   for (const store of registry) {
     stores[store.id] = buildStoreSnapshot(store, sources);
@@ -125,6 +129,7 @@ function buildSnapshotStores(registry, sources, { pinned = false } = {}) {
     schemaVersion: sources.library?.schemaVersion ?? null,
     createdAt: new Date().toISOString(),
     pinned: Boolean(pinned),
+    ...(label !== undefined ? { label: String(label) } : {}),
     stores,
   };
   snapshot.manifestChecksum = computeManifestChecksum(snapshot);

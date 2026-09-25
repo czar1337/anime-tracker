@@ -271,14 +271,34 @@ function checkStartupIntegrity() {
   }
 
   if (compat === 'migrate') {
-    try {
-      const migrated = migrate(data, SCHEMA_VERSION);
-      writeLibraryAtomic(migrated); // backs up the pre-migration file, then atomically writes the migrated one
-      console.log(`[startup] Migrated library.json from schemaVersion ${dataVersion} to ${SCHEMA_VERSION}.`);
-    } catch (err) {
-      libraryState = { corrupt: true, error: `Migration from schemaVersion ${dataVersion} failed: ${err.message}`, tooNew: false, dataVersion };
-      console.error('[startup] Migration failed, library.json left untouched:', err.message);
-    }
+    // v3 Phase 1 item 6: not migrated here. The migration runs in the async
+    // startup sequence (runPendingMigration), after a verified snapshot pinned to
+    // this schema version exists. v2 migrated first and only took its pinned
+    // snapshot afterwards, so the only pre-image was an unverified backup copy
+    // that rotation could prune.
+    pendingMigration = { data, dataVersion };
+  }
+}
+
+let pendingMigration = null;
+
+// Runs before counters and the pinned snapshot, before listen(). Throws (and the
+// startup sequence refuses to start) if the pre-migration snapshot cannot be
+// built and verified: nothing is migrated without one.
+async function runPendingMigration() {
+  if (!pendingMigration) return;
+  const { data, dataVersion } = pendingMigration;
+  pendingMigration = null;
+  const label = `pre-migration-${dataVersion}-to-${SCHEMA_VERSION}`;
+  const snap = await createSnapshotNow({ pinned: true, label });
+  console.log(`[startup] Took verified snapshot ${snap.file} of schemaVersion ${dataVersion} before migrating (pinned, never pruned).`);
+  try {
+    const migrated = migrate(data, SCHEMA_VERSION);
+    writeLibraryAtomic(migrated); // also backs up the pre-migration file
+    console.log(`[startup] Migrated library.json from schemaVersion ${dataVersion} to ${SCHEMA_VERSION}.`);
+  } catch (err) {
+    libraryState = { corrupt: true, error: `Migration from schemaVersion ${dataVersion} failed: ${err.message}`, tooNew: false, dataVersion };
+    console.error('[startup] Migration failed, library.json left untouched:', err.message);
   }
 }
 
@@ -1346,10 +1366,10 @@ function buildClassASources() {
   return { library: readLibrary(), eventLog: readEventLog(), counters: readCountersFile() || {} };
 }
 
-async function createSnapshotNow({ pinned = false } = {}) {
+async function createSnapshotNow({ pinned = false, label } = {}) {
   const { CLASS_A_STORES } = await loadExportRegistryModule();
   const sources = buildClassASources();
-  const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, sources, { pinned });
+  const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, sources, { pinned, label });
   const selfCheck = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
   if (!selfCheck.valid) {
     // Nothing was written yet, so there's nothing to clean up here.
@@ -1374,7 +1394,7 @@ async function createSnapshotNow({ pinned = false } = {}) {
     throw new Error(`Snapshot written to disk failed verification on read-back: ${err.message}`);
   }
   if (!pinned) pruneSnapshots();
-  return { file, createdAt: snapshot.createdAt, pinned: snapshot.pinned };
+  return { file, createdAt: snapshot.createdAt, pinned: snapshot.pinned, label: snapshot.label };
 }
 
 // Runs once at startup, before the server accepts any connection. Creates the
@@ -1955,6 +1975,7 @@ const server = http.createServer(async (req, res) => {
           createdAt: snapshot.createdAt,
           schemaVersion: snapshot.schemaVersion,
           pinned: Boolean(snapshot.pinned),
+          label: snapshot.label ?? null,
           verified: valid,
           errors,
           // Non-fatal notes, e.g. "this snapshot predates store X" (P1.5).
@@ -2611,6 +2632,16 @@ server.on('error', (err) => {
 // quietly for those (see its own comment) and startup proceeds normally so
 // the user can reach the restore UI.
 (async () => {
+  // v3: the startup order is instance lock (module top) → integrity check
+  // (module top, classify only) → verified pre-migration snapshot → migrate →
+  // counters → pinned snapshot → listen.
+  try {
+    await runPendingMigration();
+  } catch (err) {
+    console.error('[startup] Could not take a verified snapshot before migrating the library. Nothing was changed. Refusing to start.', err.message);
+    process.exit(1);
+    return;
+  }
   // P1.5: seed or self-heal counters.json BEFORE the pinned snapshot, so the
   // very first snapshot already contains a correct counters store rather than
   // an empty one. Deliberately does NOT build the event-log dedup index (that
