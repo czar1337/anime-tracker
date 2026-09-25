@@ -1034,12 +1034,6 @@ function bindGridEvents() {
   // dashboard's "continue watching" strip both get the same interactions.
   const root = document.getElementById('app');
 
-  // Once the entrance animation finishes, hand transform back to the hover
-  // rule — see the .settled CSS comment for why this is needed at all.
-  root.addEventListener('animationend', (e) => {
-    if (e.animationName === 'cardEnter') e.target.classList.add('settled');
-  });
-
   root.addEventListener('click', (e) => {
     // Checked before toggle-group: a title inside a franchise card's summary
     // must open details, not also expand/collapse the season list.
