@@ -1,59 +1,98 @@
 # CLAUDE.md
 
 Project instructions for Claude Code in the Anime Tracker repository.
+The v2 version of this file is kept at `docs/archive/v2/CLAUDE-v2.md`.
 
-## v2 work in progress
+## Current program: v3.0
 
-Spec: docs/v2-spec.md. Prompts and the runnability matrix: docs/v2-prompts.md.
-Read only the spec sections named in the prompt plus "How to work on this",
-"Global constraints", "Storage classes and data safety", "Tuning table" and
-"Acceptance criteria per substep".
+Brief: `docs/v3/25-09-2026-v3-brief.md`. Discover spec: `docs/v3/25-09-2026-v3-discover-spec.md`.
+Plan, decisions and acceptance criteria: `docs/v3-plan.md`.
+**Resume state: `docs/v3-progress.md`.** Its status table says which phase is active and
+what is left. On "resume", read that table first, then `git log --oneline -20`, and
+continue. Trust git over the table if they disagree, and fix the table.
 
-File ownership, which the prompts depend on:
-- docs/v2-discovery.md is created by P0.1, appended by P0.2 and P0.3.
-- docs/v2-plan.md, docs/v2-progress.md and docs/v2-backlog.md are created by P0.4.
-  Nothing before P0.4 reads or writes them.
-- docs/v2-token-audit.md is created by P1.4, consumed by P2.
-- docs/v2-achievement-checklist.md is created by P7B.B1.
-Never read a file that its owning substep has not created yet. Check the matrix.
+The v2 docs (`docs/v2-*.md`) are frozen history. Never edit `docs/v2-spec.md`.
 
-P0.1 to P0.3 record acceptance evidence in docs/v2-discovery.md.
-P0.4 onward record it in docs/v2-progress.md.
+## Process
 
-One active substep at a time. Multiple sessions per substep are expected.
-Reconcile against git log --all --oneline --grep "^v2(" before writing anything, plus
-the progress table once it exists. Trust git over the table.
+- One branch per phase: `v3/<phase-id>-<short-name>`, from `main`, merged back with
+  `git merge --no-ff` as soon as the phase checkpoint passes. Push `main` and the phase
+  branch after each merge. Never force-push.
+- Never create tags or GitHub releases, and never change repository settings. The user
+  does that.
+- Commit subject: `v3(<phase-id>): <what changed>`. Small, reviewable commits; do not mix
+  unrelated changes.
+- "Done" for a phase: unit and e2e tests pass; new behaviour has tests; perf budgets are
+  measured with `npm run perf`; checked in the browser at 1440px and 390px with reduced
+  motion on and off; a CHANGELOG entry; evidence in `docs/v3-progress.md`.
+- Checkpoint at the end of every phase: full suites, acceptance list item by item, a
+  fresh subagent reviews the phase diff against the brief, fixes applied, a checkpoint
+  entry written, then merge, push and continue.
+- Keep `docs/v3-progress.md` lean: a status table plus short evidence per phase. Update
+  the status table after every meaningful commit and before any context compaction, so
+  a new session given "resume" can continue from it alone.
+- Use subagents for parallel review and verification when it helps, and verify their
+  output before relying on it.
 
-Commit subject format: v2(<substep-id>): <what changed>
-Update docs/v2-progress.md alongside the code it describes. An evidence-only closing
-commit v2(<substep-id>): close out is expected and permitted.
+## Autonomy
 
-Branch each substep from the mainline, which is `main`, and merge it back on
-completion. P0.1 is the exception: it branches from current HEAD because it is the
-substep that discovers the mainline name. Release tags go on the mainline.
+Do not ask the user questions during the program. When something is ambiguous, pick the
+option most consistent with the brief, the Discover spec and the design system, record
+it under "Decisions made autonomously" in `docs/v3-plan.md`, and continue. After three
+honest failed fix attempts, record the item as deferred with a `todo` test and move on.
+Only stop the whole run if a failure blocks every later phase (for example the app no
+longer starts).
 
-docs/v2-prompts.md already has the mainline filled in as `main`. You may edit that
-file only to correct the mainline name, and only after the user confirms a correction.
-You may never edit docs/v2-spec.md.
+Hard stops, the only reasons to stop and wait:
+1. Anything that would write to the real data directory (`%APPDATA%\anime-tracker\`).
+   Read and copy it only. Migrations run on a copy.
+2. Tags, GitHub releases, repository settings.
+3. An action on the git never-run list below.
+4. Adding a runtime dependency.
+5. The release checkpoint at the end of Phase 7.
 
-Never run: git reset --hard, git clean, git branch -d, git branch -D,
-git checkout ., git restore over uncommitted work, git switch --discard-changes,
-git commit --amend, git rebase, git push --force, git rm, git worktree remove, rm -rf,
-or anything else that discards work. Never delete files. Run git status --porcelain
-before any branch operation and stop if the tree is not clean.
+## Git safety
 
-One carve-out: on RESUME, a dirty tree while already on that substep's own branch is
-expected. Do not switch, stash or commit; report and continue. Dirty on any other
-branch still means stop.
+Never run: `git reset --hard`, `git clean`, `git branch -d`, `git branch -D`,
+`git checkout .`, `git restore` over uncommitted work, `git switch --discard-changes`,
+`git commit --amend`, `git rebase`, `git push --force`, `git rm`, `git worktree remove`,
+`rm -rf`, or anything else that discards work. Never delete files: retire them with
+`git mv` into `docs/archive/` or `archive/`. Superseded code inside a file being
+refactored may be removed as part of that refactor. Run `git status --porcelain` before
+any branch operation and stop if the tree is not clean. One carve-out: on resume, a
+dirty tree while already on the active phase's own branch is expected. Do not switch,
+stash or commit; report it and continue. Dirty on any other branch still means stop.
 
-User-owned data (Class A) is never evicted, never pruned by a quota handler, and
-never touched by a migration that has not passed a dry run on a copy. Any substep
-adding a Class A store extends the export, snapshot, checksum and restore paths in
-the same substep. See "Storage classes and data safety" rules 3 and 3a.
+Never extract or print credentials. Releases are built by CI from a tag the user pushes.
 
-All user-facing copy is English. Content tiers affect copy only, never logic and
-never IDs.
+## Data safety
 
-Adjustable product thresholds live in the central tuning config. Schema versions,
-store names, event type strings, stable IDs and protocol constants live in their own
-domain modules.
+- Class A (user-owned, irreplaceable): library entries, notes, tags, custom lists,
+  settings, the event log and lifetime counters, watch history. Class B (regenerable):
+  corpus, airing store, caches, taste profile, cover hues. Class C: snapshots.
+- Class A is never evicted, never pruned, and never touched by a migration that has not
+  passed a dry run on a copy of the real library.
+- Any new Class A store or field extends export, snapshot, checksum and restore in the
+  same change, with a round-trip test (v2 spec rules 3 and 3a).
+- Tests never touch the real data directory; they use `ANIME_TRACKER_DATA_DIR`.
+- Invariants that no refactor may break:
+  - `library.json` is written only as tmp, fsync, rename; never while corrupt or too
+    new; never replaced by an empty library while backups or snapshots exist.
+  - Every Class A write goes through the single-writer lock; the If-Match check and the
+    write stay in one critical section.
+  - `events.jsonl` is append-only; restore unions by id; reset renames the log and never
+    deletes it.
+  - `counters = baseline + fold(log)`.
+  - Snapshots are verified at build, at read-back and before restore; the pinned
+    snapshot never rotates; invalid files are quarantined, never deleted.
+  - Class B eviction touches only `CLASS_B_STORES` and never evicts corpus entries that
+    are in the library.
+  - A schema newer than the app is never written (409 `tooNew`).
+
+## Code rules
+
+- Zero runtime dependencies. Pinned devDependencies are allowed.
+- All user-facing copy is English and goes through the copy registry. Content tiers
+  affect copy only, never logic and never IDs (tiers themselves are out of v3.0).
+- Adjustable thresholds live in `config/tuning.js`. Schema versions, store names, event
+  type strings, stable IDs and protocol constants live in their own domain modules.

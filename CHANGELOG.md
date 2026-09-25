@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.0 (in progress)
+
+Entries are added phase by phase and rewritten into final release notes at the end.
+
+- Internal: the v3 plan is in place (`docs/v3-plan.md`), with every issue from the external review re-checked against the code first (`docs/v3-verification.md`). No change to the app yet.
+
 ## 2.3.0
 
 Two new features requested after trying 2.2.2 for real, plus a note on the rest of that feedback round.
