@@ -71,6 +71,17 @@ export const COPY_REGISTRY = {
 
   // The 423 surface. Client-resolved from the server's `locked: true` flag —
   // see copy.js's header for why the tier is resolved on this side.
+  // v3 Phase 1: cold start offered without interrupting someone mid-task.
+  'coldStart.prompt': {
+    familyFriendly: 'Pick a few shows you like and Discover gets personal.',
+    standard: 'Pick a few shows you like and Discover gets personal.',
+    madara: 'Pick a few shows you like and Discover gets personal.',
+  },
+  'coldStart.promptAction': {
+    familyFriendly: 'Pick shows',
+    standard: 'Pick shows',
+    madara: 'Pick shows',
+  },
   'save.locked': {
     familyFriendly:
       'Another save, snapshot, restore or reset is taking longer than expected. Close other tabs or windows and try again — your changes are kept here until it succeeds.',

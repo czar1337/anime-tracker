@@ -1842,9 +1842,23 @@ function openHelp() {
 // corpus has something to show) and by the Settings panel's own "Redo the
 // quick picker" button — the exact same function either way, since opening
 // it never itself changes any preference; only Done/Skip below do that.
-async function openColdStartOnboarding() {
+// `mayInterrupt` (the boot auto-trigger passes one): building the candidates can
+// take seconds (their covers come from AniList), so whether it is still fine to
+// open a modal is decided after that, not before. If the user has started doing
+// something in the meantime, they get a toast they can act on instead of a
+// dialog opening over whatever they were in the middle of.
+async function openColdStartOnboarding({ mayInterrupt } = {}) {
   coldStartCandidates = await TasteProfile.buildColdStartCandidates();
   if (!coldStartCandidates.length) return; // corpus not ready yet — nothing to show
+  if (mayInterrupt && !mayInterrupt()) {
+    Render.showToast(copy('coldStart.prompt'), {
+      actionLabel: copy('coldStart.promptAction'),
+      onAction: () => openColdStartOnboarding(),
+      duration: 15000,
+      trackUndo: false,
+    });
+    return;
+  }
   coldStartPickedIds = new Set();
   openOverlay('cold-start-overlay');
   Render.renderColdStartOverlay(document.getElementById('cold-start-grid'), coldStartCandidates, coldStartPickedIds);

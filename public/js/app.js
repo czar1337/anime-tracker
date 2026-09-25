@@ -356,6 +356,13 @@ function initEventFlushLifecycle() {
   });
 }
 
+// Set by the first click or key press after the page loads. Only used to decide
+// whether a late, unrequested dialog (cold start) may still open on its own.
+let userHasInteracted = false;
+for (const type of ['pointerdown', 'keydown']) {
+  document.addEventListener(type, () => (userHasInteracted = true), { capture: true, once: true });
+}
+
 async function boot() {
   let loaded;
   try {
@@ -442,7 +449,11 @@ async function boot() {
   TasteProfile.initTasteProfile({ persistFn: persist })
     .then(async () => {
       if (await TasteProfile.maybeAutoTriggerColdStart(Store.state.preferences)) {
-        await openColdStartOnboarding();
+        // This resolves seconds after boot. It must never throw a modal over
+        // someone who has already started using the app (v3 Phase 1).
+        await openColdStartOnboarding({
+          mayInterrupt: () => !userHasInteracted && !document.querySelector('.overlay:not([hidden])'),
+        });
       }
     })
     .catch(() => {});
