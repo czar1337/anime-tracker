@@ -1535,33 +1535,56 @@ function sendJson(res, status, body, extraHeaders = {}) {
 // multipart). Refusing anything else means a malicious page in another tab
 // can't silently trigger a write here without a real preflight, which fails
 // anyway since this server never sends an Access-Control-Allow-Origin header.
+// v3 Phase 1 item 19: a client error in the body gets the matching status
+// (415 wrong type, 413 too large, 400 malformed) instead of a 500, and an
+// oversized body is drained rather than the socket destroyed, so the client
+// actually receives the 413.
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
 function readJsonBody(req, maxBytes = 10 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const contentType = req.headers['content-type'] || '';
     if (!contentType.toLowerCase().startsWith('application/json')) {
-      reject(new Error('Content-Type must be application/json'));
+      req.resume(); // discard whatever was sent
+      reject(new HttpError(415, 'Content-Type must be application/json'));
+      return;
+    }
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      req.resume();
+      reject(new HttpError(413, 'Request body too large'));
       return;
     }
     let size = 0;
+    let tooLarge = false;
     const chunks = [];
     req.on('data', (chunk) => {
+      if (tooLarge) return; // keep draining, stop storing
       size += chunk.length;
       if (size > maxBytes) {
-        reject(new Error('Request body too large'));
-        req.destroy();
+        tooLarge = true;
+        chunks.length = 0;
+        reject(new HttpError(413, 'Request body too large'));
         return;
       }
       chunks.push(chunk);
     });
     req.on('end', () => {
+      if (tooLarge) return;
       if (chunks.length === 0) {
         resolve(undefined);
         return;
       }
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-      } catch (err) {
-        reject(new Error('Invalid JSON body'));
+      } catch {
+        reject(new HttpError(400, 'Invalid JSON body'));
       }
     });
     req.on('error', reject);
@@ -2543,6 +2566,10 @@ const server = http.createServer(async (req, res) => {
 
     sendJson(res, 404, { error: 'Not found' });
   } catch (err) {
+    if (err instanceof HttpError) {
+      sendJson(res, err.status, { error: err.message });
+      return;
+    }
     if (err instanceof LockTimeoutError) {
       // The real-architecture equivalent of the spec's "close other tabs to
       // continue" — a queued save/snapshot/restore/reset waited its full
