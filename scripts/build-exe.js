@@ -46,6 +46,8 @@ const LOCAL_MODULES = [
   { requireLine: "require('./httpSecurity.js')", file: 'httpSecurity.js', varName: '__httpSecurityModule' },
   { requireLine: "require('./instanceLock.js')", file: 'instanceLock.js', varName: '__instanceLockModule' },
   { requireLine: "require('./coverDownload.js')", file: 'coverDownload.js', varName: '__coverDownloadModule' },
+  { requireLine: "require('./fsRetry.js')", file: 'fsRetry.js', varName: '__fsRetryModule' },
+  { requireLine: "require('./backupRetention.js')", file: 'backupRetention.js', varName: '__backupRetentionModule' },
 ];
 
 function inlineLocalModules(serverSource) {

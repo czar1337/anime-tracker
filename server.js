@@ -30,6 +30,8 @@ const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuo
 const HttpSecurity = require('./httpSecurity.js');
 const { acquireInstanceLock } = require('./instanceLock.js');
 const { downloadImage, isAllowedCoverUrl } = require('./coverDownload.js');
+const BackupRetention = require('./backupRetention.js');
+const { renameSyncWithRetry } = require('./fsRetry.js');
 
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
@@ -76,8 +78,8 @@ const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
 // P1.5's two new Class A stores. Both live in their own files rather than
 // inside library.json:
 //  - events.jsonl is append-only and grows indefinitely (the spec forbids
-//    pruning it), so it must never enter rotateBackup()'s 150-copy rotation.
-//    Its redundancy is the <=4 snapshots, which DO include it per rule 3.
+//    pruning it), so it must never enter rotateBackup()'s backup rotation.
+//    Its redundancy is the snapshots, which DO include it per rule 3.
 //  - counters.json is a materialized fold of the log plus a historical
 //    baseline, so keeping it separate makes `total = baseline + fold(log)` a
 //    checkable, self-healing invariant instead of just "fails together with
@@ -86,12 +88,10 @@ const EVENTS_FILE = path.join(DATA_DIR, 'events.jsonl');
 const COUNTERS_FILE = path.join(DATA_DIR, 'counters.json');
 const COUNTERS_TMP_FILE = path.join(DATA_DIR, 'counters.json.tmp');
 const EVENTS_REJECTED_FILE = path.join(DATA_DIR, 'events.rejected.jsonl');
-// A single unusually active session (a big import, a bulk cover-recovery
-// run) can create dozens of backups in a few hours — at 30, that safety net
-// can be completely cycled through in a single day, pruning away anything
-// old enough to matter. Backups are tiny (a personal library.json, not
-// media), so a much larger cap costs negligible disk space.
-const MAX_BACKUPS = 150;
+// Backup retention is tiered (the newest 50, one per day for 30 days, one per
+// month) and saves within one minute share one backup: see backupRetention.js.
+// v2 kept the newest 150 by count, so one busy session could push out every
+// older backup.
 const SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
 const APP_VERSION = readAppVersion();
 const RAW_VERSION_URL = 'https://raw.githubusercontent.com/czar1337/anime-tracker/main/version.json';
@@ -355,8 +355,7 @@ function listBackups() {
 }
 
 function pruneBackups() {
-  const backups = listBackups();
-  const toDelete = backups.slice(MAX_BACKUPS);
+  const toDelete = BackupRetention.selectBackupsToPrune(listBackups());
   for (const file of toDelete) {
     fs.unlinkSync(path.join(BACKUPS_DIR, file));
   }
@@ -364,7 +363,12 @@ function pruneBackups() {
 
 function rotateBackup() {
   if (!fs.existsSync(LIBRARY_FILE)) return;
-  const stamp = timestampForBackup(new Date());
+  const now = new Date();
+  // Saves are debounced to ~300 ms, so an evening of edits used to mean hundreds
+  // of backups. The first backup of a minute (the state before that minute's
+  // first save) is kept; later saves in the same minute do not add one.
+  if (BackupRetention.shouldCoalesce(listBackups(), now)) return;
+  const stamp = timestampForBackup(now);
   let name = `library-${stamp}.json`;
   let n = 1;
   while (fs.existsSync(path.join(BACKUPS_DIR, name))) {
@@ -392,7 +396,7 @@ function writeLibraryAtomic(data, { skipBackup = false } = {}) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(LIBRARY_TMP_FILE, LIBRARY_FILE);
+  renameSyncWithRetry(LIBRARY_TMP_FILE, LIBRARY_FILE);
   libraryState = { corrupt: false, error: null, tooNew: false, dataVersion: null };
 }
 
@@ -665,7 +669,7 @@ function writeCountersAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(COUNTERS_TMP_FILE, COUNTERS_FILE);
+  renameSyncWithRetry(COUNTERS_TMP_FILE, COUNTERS_FILE);
 }
 
 // Recomputes `fromLog` by folding the whole log, and rewrites counters.json.
@@ -706,7 +710,7 @@ function archiveEventLogForReset() {
   const stamp = timestampForBackup(new Date());
   const archived = `${EVENTS_FILE}.${stamp}.archived`;
   try {
-    fs.renameSync(EVENTS_FILE, archived);
+    renameSyncWithRetry(EVENTS_FILE, archived);
   } catch (err) {
     console.error('[events] Could not archive events.jsonl during reset:', err.message);
     return null;
@@ -867,7 +871,7 @@ function writeRecsCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(RECS_CACHE_TMP_FILE, RECS_CACHE_FILE);
+  renameSyncWithRetry(RECS_CACHE_TMP_FILE, RECS_CACHE_FILE);
 }
 
 function readRecsCache() {
@@ -891,7 +895,7 @@ function writeUpcomingCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(UPCOMING_CACHE_TMP_FILE, UPCOMING_CACHE_FILE);
+  renameSyncWithRetry(UPCOMING_CACHE_TMP_FILE, UPCOMING_CACHE_FILE);
 }
 
 function readUpcomingCache() {
@@ -914,7 +918,7 @@ function writeAiringCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(AIRING_CACHE_TMP_FILE, AIRING_CACHE_FILE);
+  renameSyncWithRetry(AIRING_CACHE_TMP_FILE, AIRING_CACHE_FILE);
 }
 
 function readAiringCache() {
@@ -948,7 +952,7 @@ function writeCorpusCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(CORPUS_CACHE_TMP_FILE, CORPUS_CACHE_FILE);
+  renameSyncWithRetry(CORPUS_CACHE_TMP_FILE, CORPUS_CACHE_FILE);
 }
 
 function readCorpusCache() {
@@ -973,7 +977,7 @@ function writeTasteProfileCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(TASTE_PROFILE_CACHE_TMP_FILE, TASTE_PROFILE_CACHE_FILE);
+  renameSyncWithRetry(TASTE_PROFILE_CACHE_TMP_FILE, TASTE_PROFILE_CACHE_FILE);
 }
 
 function readTasteProfileCache() {
@@ -1292,7 +1296,7 @@ function writeSnapshotFileAtomic(file, data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(tmpPath, finalPath);
+  renameSyncWithRetry(tmpPath, finalPath);
 }
 
 // Lightweight metadata (file/createdAt/pinned only) for pruning decisions —
@@ -1343,7 +1347,7 @@ function quarantineSnapshotFile(file) {
   try {
     const from = path.join(SNAPSHOTS_DIR, file);
     const to = path.join(SNAPSHOTS_DIR, `${file}.invalid`);
-    fs.renameSync(from, to);
+    renameSyncWithRetry(from, to);
     console.error(`[snapshots] Quarantined a snapshot that failed verification: ${file} -> ${path.basename(to)}`);
   } catch (renameErr) {
     console.error(`[snapshots] Could not quarantine failed snapshot file ${file}:`, renameErr.message);
