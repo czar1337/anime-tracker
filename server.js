@@ -803,7 +803,10 @@ async function ensureCountersFile() {
 
   if (!existing) {
     const library = readLibrary();
-    const baseline = Counters.seedBaselineFromEntries(library.entries);
+    const { tuning } = await loadEventModules();
+    const baseline = Counters.seedBaselineFromEntries(library.entries, {
+      episodeDurationFallbackMinutes: tuning.TIME_SEMANTICS.episodeDurationFallbackMinutes,
+    });
     const file = await recomputeCountersFromLog({ baseline });
     console.log(
       `[counters] Seeded lifetime baseline from ${library.entries?.length || 0} existing entries: ` +

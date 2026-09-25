@@ -11,6 +11,7 @@ import { Themes } from './themes.js';
 import { Preferences } from './preferences.js';
 import { Atmosphere } from './atmosphere.js';
 import { computeLibraryStats } from './statsLogic.js';
+import { EventHistory } from './eventHistory.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsExport.js';
 import { BackupClient } from './backupClient.js';
 import { EventLog } from './eventLog.js';
@@ -1686,7 +1687,7 @@ function setStatsShareStatus(text) {
 async function openStatsShareOverlay() {
   openOverlay('stats-share-overlay');
   setStatsShareStatus('');
-  const stats = computeLibraryStats(Store.getEntries(), Store.getCounts());
+  const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents() });
   const canvas = document.getElementById('stats-share-canvas');
   // Canvas text drawing is synchronous and won't itself wait on a webfont
   // that hasn't finished loading — waiting here (cheap: these fonts are
@@ -1733,7 +1734,7 @@ function bindStatsShareOverlay() {
   });
 
   document.getElementById('stats-share-copy-text-btn').addEventListener('click', async () => {
-    const stats = computeLibraryStats(Store.getEntries(), Store.getCounts());
+    const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents() });
     const text = buildStatsSummaryText(stats);
     if (!navigator.clipboard) {
       setStatsShareStatus('Your browser does not support copying text.');

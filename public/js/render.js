@@ -11,6 +11,8 @@ import { Fonts } from './fonts.js';
 import { FONT_MANIFEST } from './fontManifest.js';
 import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, computeSliderTokens } from './typographySliders.js';
 import { checkContrastAA, parseRgb } from './contrastCheck.js';
+import { computeLibraryStats, episodesWatchedInYear } from './statsLogic.js';
+import { EventHistory } from './eventHistory.js';
 import { buildPalette, hslToRgb, themeInputFromAccent } from './themeBuilder.js';
 import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 import { TasteProfile } from './tasteProfile.js';
@@ -595,9 +597,9 @@ function renderWatchedStatsHeader(list) {
   const scored = entries.filter((e) => e.myScore != null);
   const meanScore = scored.length ? (scored.reduce((s, e) => s + e.myScore, 0) / scored.length).toFixed(1) : '—';
   const thisYear = new Date().getFullYear();
-  const episodesThisYear = entries
-    .filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear)
-    .reduce((sum, e) => sum + (e.episodesWatched || 0), 0);
+  // Episodes actually watched this year on the titles in this list (v3).
+  const ids = new Set(entries.map((e) => String(e.anilistId)));
+  const episodesThisYear = episodesWatchedInYear(EventHistory.allEvents().filter((ev) => ids.has(ev.animeId)), entries, thisYear);
 
   statsHeader.hidden = false;
   statsHeader.innerHTML = `
@@ -939,7 +941,7 @@ function renderHome(container) {
   // Watching count — three numbers, not four (design §09).
   const thisYear = new Date().getFullYear();
   const completedThisYear = Store.getEntries().filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
-  const episodesThisYear = completedThisYear.reduce((s, e) => s + (e.episodesWatched || 0), 0);
+  const episodesThisYear = episodesWatchedInYear(EventHistory.allEvents(), Store.getEntries(), thisYear);
   const scoredThisYear = completedThisYear.filter((e) => e.myScore != null);
   const meanScoreThisYear = scoredThisYear.length ? (scoredThisYear.reduce((s, e) => s + e.myScore, 0) / scoredThisYear.length).toFixed(1) : '—';
   const watchingCount = Store.getCounts().watching;
@@ -1045,8 +1047,9 @@ function renderStatsPage(container) {
     return;
   }
 
-  const totalEpisodes = entries.reduce((s, e) => s + (e.episodesWatched || 0), 0);
-  const totalMinutes = entries.reduce((s, e) => s + (e.episodesWatched || 0) * (e.duration || 0), 0);
+  const libraryStats = computeLibraryStats(entries, counts, new Date(), { events: EventHistory.allEvents() });
+  const totalEpisodes = libraryStats.totalEpisodes;
+  const totalMinutes = libraryStats.totalMinutes;
   const totalHours = Math.round(totalMinutes / 60);
   const totalDays = (totalMinutes / 60 / 24).toFixed(1);
 
@@ -1055,7 +1058,7 @@ function renderStatsPage(container) {
 
   const thisYear = new Date().getFullYear();
   const completedThisYear = entries.filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
-  const episodesThisYear = completedThisYear.reduce((s, e) => s + (e.episodesWatched || 0), 0);
+  const episodesThisYear = libraryStats.episodesThisYear;
 
   const dropEligible = counts.watched + counts.dropped;
   const dropRate = dropEligible ? ((counts.dropped / dropEligible) * 100).toFixed(1) : '0';
@@ -1064,8 +1067,8 @@ function renderStatsPage(container) {
   for (const e of entries) if (e.format) formatCounts[e.format] = (formatCounts[e.format] || 0) + 1;
   const formatData = Object.entries(formatCounts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
 
-  const genreCounts = {};
-  for (const e of entries) for (const g of e.genres || []) genreCounts[g] = (genreCounts[g] || 0) + 1;
+  // Completed titles only (v3): a long Watchlist no longer dominates the chart.
+  const genreCounts = libraryStats.genreCounts;
   const genreData = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([label, value]) => ({ label, value }));
 
   const scoreDist = Array.from({ length: 10 }, (_, i) => ({ label: String(i + 1), value: 0 }));

@@ -13,6 +13,7 @@ import { TasteProfile } from './tasteProfile.js';
 import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
+import { EventHistory } from './eventHistory.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 
@@ -421,6 +422,8 @@ async function boot() {
   // lifetime before recording anything new.
   EventLog.initEventLog({ post: (events) => Api.postEvents(events) });
   EventLog.record('app_opened');
+  // Statistics reads real activity from the log (v3); loads in the background.
+  EventHistory.loadEventHistory().then((ok) => ok && refreshCurrentViewWhenIdle());
   EventLog.flush().catch(() => {}); // best effort; retried on the next flush
   initEventFlushLifecycle();
 

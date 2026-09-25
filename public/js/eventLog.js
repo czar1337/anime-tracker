@@ -270,6 +270,14 @@ let sessionId = null;
 let outbox = null;
 let initialized = false;
 let keepalivePost = () => {};
+// Every event recorded since this page loaded, kept after it has been flushed,
+// so views that read activity (Statistics) stay current without re-fetching the
+// whole log from the server after every action.
+const sessionEvents = [];
+
+export function recordedThisSession() {
+  return sessionEvents.slice();
+}
 
 // Wired once from app.js's boot(). `post` is injected rather than importing
 // api.js here, so this module stays dependency-light and unit-testable.
@@ -291,6 +299,7 @@ export function record(type, fields = {}) {
   try {
     const event = buildEvent(type, fields, { ulid, sessionId, now: () => new Date() });
     outbox.add(event);
+    sessionEvents.push(event);
     return event;
   } catch (err) {
     console.error('[eventLog] Could not record event:', type, err && err.message);
@@ -335,6 +344,7 @@ export function currentSessionId() {
 
 export const EventLog = {
   initEventLog,
+  recordedThisSession,
   record,
   recordForEntry,
   flush,

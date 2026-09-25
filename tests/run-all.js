@@ -1672,15 +1672,16 @@ async function run() {
     assert.equal(isProgressCorrection({ from: 5, to: 6 }), false);
   });
 
-  await test('seedBaselineFromEntries matches statsLogic.js exactly (duration || 0, no invented fallback)', () => {
+  await test('seedBaselineFromEntries uses the one duration rule: API duration, else the tuning fallback by format (v3)', () => {
     const entries = [
       { episodesWatched: 25, duration: 24, listStatus: 'watched' },
       { episodesWatched: 12, duration: 24, listStatus: 'watching' },
-      { episodesWatched: 3, duration: null, listStatus: 'watched' }, // null duration contributes 0 minutes
+      { episodesWatched: 3, duration: null, format: 'TV', listStatus: 'watched' }, // falls back to 24
+      { episodesWatched: 1, duration: null, format: 'MOVIE', listStatus: 'watching' }, // falls back to 100
     ];
-    const baseline = seedBaselineFromEntries(entries);
-    assert.equal(baseline.totalEpisodes, 40);
-    assert.equal(baseline.totalMinutes, 25 * 24 + 12 * 24);
+    const baseline = seedBaselineFromEntries(entries, { episodeDurationFallbackMinutes: { tv: 24, film: 100 } });
+    assert.equal(baseline.totalEpisodes, 41);
+    assert.equal(baseline.totalMinutes, 25 * 24 + 12 * 24 + 3 * 24 + 100);
     assert.equal(baseline.totalCompleted, 2);
   });
 
@@ -2299,8 +2300,8 @@ async function run() {
 
   await test('computeLibraryStats: episodes/minutes/days derive from episodesWatched * duration', () => {
     const entries = [
-      { episodesWatched: 12, duration: 24, myScore: 8, genres: ['Action'] },
-      { episodesWatched: 10, duration: 24, myScore: 6, genres: ['Action', 'Comedy'] },
+      { episodesWatched: 12, duration: 24, myScore: 8, genres: ['Action'], listStatus: 'watched' },
+      { episodesWatched: 10, duration: 24, myScore: 6, genres: ['Action', 'Comedy'], listStatus: 'watched' },
     ];
     const stats = computeLibraryStats(entries, { watched: 2, dropped: 0 }, new Date('2026-01-01'));
     assert.equal(stats.totalEpisodes, 22);

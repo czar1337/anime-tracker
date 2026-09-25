@@ -27,6 +27,13 @@ async function getLibrary() {
   return { data: body, etag: res.headers.get('ETag') };
 }
 
+// The whole event log (v3: Statistics reads real watch activity from it).
+async function getEvents() {
+  const res = await fetch('/api/events');
+  if (!res.ok) throw new Error('Failed to load the event log');
+  return res.json();
+}
+
 async function getVersionInfo() {
   const res = await fetch('/api/version');
   if (!res.ok) throw new Error('Failed to check version');
@@ -600,6 +607,7 @@ async function fetchAnimeDetail(anilistId) {
 
 export const Api = {
   getLibrary,
+  getEvents,
   saveLibrary,
   postEvents,
   getVersionInfo,
