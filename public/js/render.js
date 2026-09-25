@@ -13,6 +13,7 @@ import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, com
 import { checkContrastAA, parseRgb } from './contrastCheck.js';
 import { computeLibraryStats, episodesWatchedInYear } from './statsLogic.js';
 import { EventHistory } from './eventHistory.js';
+import { titlesInOrder } from './titles.js';
 import { buildPalette, hslToRgb, themeInputFromAccent } from './themeBuilder.js';
 import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 import { TasteProfile } from './tasteProfile.js';
@@ -348,14 +349,14 @@ function cardBodyForList(entry, list, isSeasonRow = false) {
   `;
 }
 
-// English title primary/large, Japanese romaji secondary/small/faded below —
-// falls back to whichever title is available if only one exists. Clicking
-// the title opens the detail overlay for anilistId (handled in events.js,
-// which checks for this action before anything else the click might bubble
-// into, e.g. a franchise card's toggle-group).
-function titleBlockHtml(titleEnglish, titleRomaji, anilistId) {
-  const primary = titleEnglish || titleRomaji;
-  const secondary = titleEnglish && titleRomaji && titleRomaji !== titleEnglish ? titleRomaji : null;
+// The preferred-language title primary/large, the next different title
+// secondary/small/faded below (titles.js: the same rule the A→Z sort uses, so
+// what you see is what it is sorted by). Clicking the title opens the detail
+// overlay for anilistId (handled in events.js, which checks for this action
+// before anything else the click might bubble into, e.g. a franchise card's
+// toggle-group).
+function titleBlockHtml(item, anilistId) {
+  const [primary, secondary] = titlesInOrder(item, Store.state.preferences.titleLanguage);
   return `
     <div class="card-title-block" data-action="show-detail" data-detail-id="${anilistId}" title="View details">
       <div class="card-title" title="${escapeHtml(primary)}">${escapeHtml(primary)}</div>
@@ -404,7 +405,7 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
         ${list === 'watching' && !selectMode ? `<button class="plus" data-action="increment" aria-label="Mark next episode watched" title="Mark next episode watched">＋</button>` : ''}
       </div>
       <div class="card-body">
-        ${titleBlockHtml(entry.titleEnglish, entry.titleRomaji, entry.anilistId)}
+        ${titleBlockHtml(entry, entry.anilistId)}
         <div class="card-meta">
           ${entry.year ? `<span>${entry.year}</span>` : ''}
           ${entry.totalEpisodes ? `<span>${entry.totalEpisodes} ep</span>` : ''}
@@ -453,7 +454,7 @@ function franchiseCardHtml(group, list, index = 0) {
           <span class="card-format-badge">${group.length} seasons</span>
         </div>
         <div class="card-body">
-          ${titleBlockHtml(primary.titleEnglish, primary.titleRomaji, primary.anilistId)}
+          ${titleBlockHtml(primary, primary.anilistId)}
           <div class="card-meta">
             ${primary.year ? `<span>${primary.year}</span>` : ''}
             <span>${totalEpisodes ? `${totalWatched}/${totalEpisodes}` : totalWatched} ep</span>
@@ -1683,7 +1684,7 @@ function scheduleCardHtml(item, index = 0) {
         ${m.format ? `<span class="card-format-badge">${escapeHtml(m.format)}</span>` : ''}
       </div>
       <div class="card-body">
-        ${titleBlockHtml(m.title.english, m.title.romaji, m.id)}
+        ${titleBlockHtml({ titleEnglish: m.title?.english, titleRomaji: m.title?.romaji, titleNative: m.title?.native }, m.id)}
         <div class="card-meta">
           ${(m.genres || []).length ? `<span>${escapeHtml(m.genres.slice(0, 3).join(', '))}</span>` : ''}
         </div>

@@ -2,6 +2,7 @@
 // source of truth across restarts; this module is the source of truth within
 // a running session and is kept in sync via api.saveLibrary (debounced).
 
+import { displayTitle } from './titles.js';
 import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
 import { createTagId, createListId, normalizeName, isDuplicateTagName, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partitionAiringLast, compareValues } from './sortLogic.js';
@@ -561,7 +562,9 @@ function groupSortValue(group, sortKey) {
     case 'popularity':
       return primary.popularity;
     case 'title':
-      return primary.titleRomaji;
+      // The title the card actually shows (v3 Phase 1 item 18), lower-cased so
+      // "the" and "The" sort together.
+      return displayTitle(primary, state.preferences.titleLanguage).toLowerCase();
     case 'date':
       return dateSortValue(primary.year, primary.season);
     case 'episodeCount':
