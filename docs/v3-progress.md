@@ -8,8 +8,8 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | Phase | Branch | Status | Next step |
 |---|---|---|---|
 | 0 Verify, decide, plan | `v3/0-plan` | done | — |
-| 1 Safety and correctness | `v3/1-foundation-safety` | in progress | items 1-19 committed (+ cold-start interrupt fix); next: token-baseline regen, full suites, perf, browser check, CHANGELOG, checkpoint review. Regression proofs run against a pristine v2.3.0 copy in the scratch dir (`git archive 86b4f9c` + tests via `git show`) |
-| 2 Render engine and structure | `v3/2-render-engine` | not started | |
+| 1 Safety and correctness | `v3/1-foundation-safety` | done | — |
+| 2 Render engine and structure | `v3/2-render-engine` | not started | core/store.js, then the library grid |
 | 3 Design system and motion | `v3/3-design-motion` | not started | |
 | 4 Flow and screens | `v3/4-flow-screens` | not started | |
 | 5 Features | `v3/5-features` | not started | |
@@ -42,6 +42,40 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
   11; the snapshot CSRF gap; the reduced-motion bug also hides `.schedule-day`).
 - **Independent review (fresh subagent):** found the Discover §1 item 10 row checking the wrong claim, missing rows (mobile header, 3:2 crop, Settings rebuild, a11y, shimmer loops, all of Phase 7), thin acceptance criteria for Phases 1, 3, 4 and 5, missing Phase 6 preference migrations, and rules weakened in the new CLAUDE.md. All fixed before merge. The brief/spec commit (`de8335d`) landed on `main` before the phase branch, as the run instructions asked.
 - **Deferred:** nothing.
+
+## Checkpoint 1 (2026-09-26)
+
+- **Changed:** all 19 items of brief Phase 1, plus one found on the way: the
+  cold-start dialog opened over whatever the user was doing seconds after boot
+  (also the cause of the intermittent e2e failures seen in v2). Every item has a
+  regression test, and every one of those was run against a pristine v2.3.0 copy
+  and fails there (the pure-function unit tests for new modules excepted, which
+  have an HTTP-level twin that fails on v2.3.0).
+- **Tests before → after:** unit 442 → 442 + 79 `node:test` (new `tests/unit/`,
+  run by `npm test`); e2e 161 passed + 1 skipped → 189 passed + 1 skipped.
+- **Perf (`npm run perf`):** library render 2,000 entries p95 1,203 → **605 ms**
+  (budget 200, Phase 2); snapshot + verify 101 → 93 ms; warm Discover 4,593 →
+  **5,006 ms** (budget 400, Phase 2/6; within run-to-run noise of the baseline).
+- **Browser check:** `node scripts/capture-evidence.js 1`: Watching, Watched,
+  Schedule, Discover and Stats at 1440 and 390 px with reduced motion off and on,
+  no page or console errors, every card fully visible. Screenshots and the report
+  in `docs/v3-evidence/1/`. Synthetic library only (the evidence is committed).
+- **Exe:** built with `node scripts/build-exe.js` and smoke-tested on a scratch
+  data dir: boots, token enforced (403 without, 200 with), CSP served.
+- **Real-library dry run** (fresh copy, never the real dir): boots at schema 14,
+  222 entries, all snapshots listed; the first save prunes backups 157 → 52 per
+  the new tiers (all existing backups are from July/August, so the newest 50 plus
+  the newest per month remain). No schema migration in this phase.
+- **Independent review:** found 2 HIGH (a pid reused after a crash could lock the
+  app out; a tab open across a server restart could never save), 5 MEDIUM
+  (same-minute backup coalescing also skipped restore/import pre-images; a retry
+  could overlap an in-flight save; restore silently quarantined bad events;
+  stats cutoff inconsistent between views; whole log sent to the browser) and
+  several LOW. All fixed (`3232201`, `3a7c8bb`), each with a test.
+- **Findings that turned out wrong:** none beyond Checkpoint 0's list. Item 10
+  was confirmed only for cover retry and airing refresh, as recorded there.
+- **Deferred:** nothing. Server-side error strings (JSON `error` fields) are not
+  in the copy registry; the client maps the ones users see (see plan).
 
 ## Evidence index
 

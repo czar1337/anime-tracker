@@ -124,6 +124,33 @@ snapshots) and `pinnedReason`; old snapshots stay valid.
   previous session; left untouched (`git worktree remove` is on the never-run list) and
   excluded from every repo scan.
 
+- **Instance lock liveness is a heartbeat, not the pid alone.** Windows reuses
+  pids, so after a crash a pid-only check could keep the app from ever starting
+  again. The holder refreshes the lock every 5 s and a lock not refreshed for 20 s
+  is stale. A holder that finds its lock taken over (only possible after it
+  stopped refreshing, e.g. a long sleep) exits rather than share the folder.
+- **The write token refreshes itself.** A tab open across a server restart
+  re-reads the token once from the server's page on a 403 `badToken` and retries;
+  the library's If-Match check still prevents overwriting a newer save.
+- **A backup import without a `schemaVersion` is stamped schema 1** on the client
+  before it is sent (the field arrived in schema 2), so rejecting unversioned PUTs
+  does not break importing the oldest backups.
+- **"Episodes this year" before the log existed.** The event log began in August
+  2026 (P1.5). Titles completed this year before the log's first event keep their
+  full episode count, since the log cannot know about them; everything after the
+  log began is counted from events.
+- **Cold start never interrupts.** Not in the brief's list; found while fixing the
+  flaky e2e tests. If the user has clicked or typed, or a dialog is open, the
+  boot-time cold start becomes a toast with a "Pick shows" action.
+- **Server error strings stay out of the copy registry.** The registry is a
+  client module; server JSON `error` texts are diagnostics, and the ones a user can
+  see are mapped client-side (as `save.locked` already was). Phase 4 moves the
+  remaining user-visible ones behind registry keys as their screens are rebuilt.
+- **New unit tests use `node:test` under `tests/unit/` from Phase 1 on**, run by
+  `npm test` next to `tests/run-all.js`, so the Phase 7 split starts early and the
+  5,196-line file stops growing. The harness also drains server stdout already
+  (a Phase 7 item that was cheap and removed a hang risk now).
+
 ## Later (out of scope for v3.0)
 
 - Two-way AniList OAuth sync (v3.1).
