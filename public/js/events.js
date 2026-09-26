@@ -10,9 +10,6 @@ import { Notifications } from './notifications.js';
 import { Themes } from './themes.js';
 import { Preferences } from './preferences.js';
 import { Atmosphere } from './atmosphere.js';
-import { computeLibraryStats } from './statsLogic.js';
-import { EventHistory } from './eventHistory.js';
-import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsExport.js';
 import { BackupClient } from './backupClient.js';
 import { EventLog } from './eventLog.js';
 import { isViewStatePreference } from './eventTypes.js';
@@ -31,6 +28,7 @@ import { forget as forgetRendered } from './core/reconcile.js';
 import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs } from './core/dialog.js';
 import { trapTab } from './core/focus.js';
 import { toggleNoteOpen } from './views/library/model.js';
+import { bindStatsActions } from './views/stats/actions.js';
 
 // Every destructive/lossy toast passes this as its onExpire — a no-op today
 // (see achievementHook.js), wired for real once P7A implements the engine.
@@ -1655,79 +1653,6 @@ function bindBackupOverlay() {
 }
 
 // ---------------------------------------------------------------------------
-// Statistics: shareable stats card overlay
-// ---------------------------------------------------------------------------
-
-function setStatsShareStatus(text) {
-  document.getElementById('stats-share-status').textContent = text || '';
-}
-
-async function openStatsShareOverlay() {
-  openOverlay('stats-share-overlay');
-  setStatsShareStatus('');
-  const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
-  const canvas = document.getElementById('stats-share-canvas');
-  // Canvas text drawing is synchronous and won't itself wait on a webfont
-  // that hasn't finished loading — waiting here (cheap: these fonts are
-  // already requested by the page's own CSS, almost always resolved by the
-  // time anyone opens this overlay) keeps the rendered card from ever
-  // silently falling back to a generic system font.
-  if (document.fonts?.ready) await document.fonts.ready;
-  drawStatsCard(canvas, stats);
-}
-
-function bindStatsShareOverlay() {
-  document.getElementById('stats-view').addEventListener('click', (e) => {
-    if (e.target.closest('#stats-share-trigger')) openStatsShareOverlay();
-  });
-
-  document.getElementById('stats-share-download-btn').addEventListener('click', async () => {
-    const canvas = document.getElementById('stats-share-canvas');
-    try {
-      const blob = await canvasToPngBlob(canvas);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `anime-tracker-stats-${new Date().toISOString().slice(0, 10)}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setStatsShareStatus(`Could not create image: ${err.message}`);
-    }
-  });
-
-  document.getElementById('stats-share-copy-image-btn').addEventListener('click', async () => {
-    const canvas = document.getElementById('stats-share-canvas');
-    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
-      setStatsShareStatus('Your browser does not support copying images — use "Download image" instead.');
-      return;
-    }
-    try {
-      const blob = await canvasToPngBlob(canvas);
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      setStatsShareStatus('Image copied to clipboard.');
-    } catch (err) {
-      setStatsShareStatus(`Could not copy image: ${err.message}`);
-    }
-  });
-
-  document.getElementById('stats-share-copy-text-btn').addEventListener('click', async () => {
-    const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
-    const text = buildStatsSummaryText(stats);
-    if (!navigator.clipboard) {
-      setStatsShareStatus('Your browser does not support copying text.');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      setStatsShareStatus('Text copied to clipboard.');
-    } catch (err) {
-      setStatsShareStatus(`Could not copy text: ${err.message}`);
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Episode notifications settings overlay
 // ---------------------------------------------------------------------------
 
@@ -3273,7 +3198,7 @@ export function initEvents({ initialList, persistFn }) {
   bindSearchOverlay();
   bindBackupOverlay();
   bindNotificationsOverlay();
-  bindStatsShareOverlay();
+  bindStatsActions();
   bindKeyboardShortcuts();
   bindOverlayCloseButtons();
   bindOverlayBackdropClose();

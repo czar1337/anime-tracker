@@ -11,7 +11,7 @@ import { Fonts } from './fonts.js';
 import { FONT_MANIFEST } from './fontManifest.js';
 import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, computeSliderTokens } from './typographySliders.js';
 import { checkContrastAA, parseRgb } from './contrastCheck.js';
-import { computeLibraryStats, episodesWatchedInYear } from './statsLogic.js';
+import { episodesWatchedInYear } from './statsLogic.js';
 import { EventHistory } from './eventHistory.js';
 import { titlesInOrder } from './titles.js';
 import { buildPalette, hslToRgb, themeInputFromAccent } from './themeBuilder.js';
@@ -22,6 +22,8 @@ import { MOOD_REGISTRY } from './moodRegistry.js';
 import { partitionSpoilerTags, truncateSynopsis } from './detailLogic.js';
 import * as LibraryModel from './views/library/model.js';
 import * as LibraryView from './views/library/view.js';
+import { renderStatsPage } from './views/stats/view.js';
+import { animateProgressBars } from './views/shared/animate.js';
 
 const { isSelectMode, toggleSelectMode, clearSelection, toggleSelected, getSelectedIds, visibleIds, selectRange, selectAllVisible, toggleGroupExpanded } = LibraryModel;
 const { coverSrc, cardHtml, titleBlockHtml, scoreStripHtml, statusRowHtml, QUICK_MOVE_LISTS } = LibraryView;
@@ -144,50 +146,6 @@ function toggleDetailSynopsis() {
 // don't end up with a multi-second cascade before the last row settles).
 function staggerDelayMs(index) {
   return Math.min(index, 12) * 45;
-}
-
-// Progress bars (episode progress on Watching cards, stat bars on the
-// Statistics page) are rendered at width:0 with the real value stashed in
-// data-target-width — flipping it to the target on the next frame (rather
-// than rendering it directly) is what makes the width transition actually
-// play on mount instead of the bar just appearing already full.
-function animateProgressBars(root = document) {
-  requestAnimationFrame(() => {
-    root.querySelectorAll('[data-target-width]').forEach((el) => {
-      el.style.width = `${el.dataset.targetWidth}%`;
-    });
-  });
-}
-
-// Counts up a .stat-value from 0 to its real value instead of just
-// appearing — data-count-target holds the exact final display string (may
-// have a decimal point and/or a trailing "%"), which also lets this bail
-// out cleanly for the non-numeric "—" (no scored entries yet) case.
-function animateCountUp(root = document) {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    root.querySelectorAll('.stat-value[data-count-target]').forEach((el) => {
-      el.textContent = el.dataset.countTarget;
-    });
-    return;
-  }
-  const DURATION_MS = 600;
-  root.querySelectorAll('.stat-value[data-count-target]').forEach((el) => {
-    const target = el.dataset.countTarget;
-    const match = target.match(/^(-?\d+(?:\.\d+)?)(.*)$/);
-    if (!match) { el.textContent = target; return; }
-    const [, numStr, suffix] = match;
-    const end = parseFloat(numStr);
-    const decimals = (numStr.split('.')[1] || '').length;
-    const start = performance.now();
-    function tick(now) {
-      const t = Math.min((now - start) / DURATION_MS, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      el.textContent = (end * eased).toFixed(decimals) + suffix;
-      if (t < 1) requestAnimationFrame(tick);
-      else el.textContent = target; // exact final string, not a rounded approximation
-    }
-    requestAnimationFrame(tick);
-  });
 }
 
 function renderGrid(list) {
@@ -493,13 +451,6 @@ function renderBulkMoreMenu(container, list) {
   container.innerHTML = bulkMoreMenuHtml(list);
 }
 
-const LIST_META = {
-  watching: { label: 'Watching', icon: '▶' },
-  watchlist: { label: 'Watchlist', icon: '☰' },
-  watched: { label: 'Watched', icon: '✓' },
-  dropped: { label: 'Dropped', icon: '✕' },
-};
-
 // Picks which Watching entry the hero features and in which mode — a
 // series with an unseen aired episode wins (mode "new"), otherwise
 // whichever has the highest completion ratio ("calm": design/moonlit-
@@ -648,149 +599,6 @@ function renderAll(list) {
   renderFilterBar(list);
   renderAiringStatus(list);
   return renderGrid(list);
-}
-
-function barChartHtml(data, { formatValue = (v) => v } = {}) {
-  if (data.length === 0) return '<p class="card-meta">Nothing to show yet.</p>';
-  const max = Math.max(...data.map((d) => d.value), 1);
-  return data
-    .map(
-      (d) => `
-    <div class="stat-bar-row">
-      <span class="stat-bar-label" title="${escapeHtml(d.label)}">${escapeHtml(d.label)}</span>
-      <div class="stat-bar-track"><div class="stat-bar-fill" style="width:0%" data-target-width="${(d.value / max) * 100}"></div></div>
-      <span class="stat-bar-value">${formatValue(d.value)}</span>
-    </div>`
-    )
-    .join('');
-}
-
-function miniListHtml(entries) {
-  return entries
-    .map(
-      (e, i) => `
-    <div class="stat-mini-row">
-      <span class="stat-mini-rank">${i + 1}</span>
-      <img class="stat-mini-cover" src="${coverSrc(e)}" alt="" loading="lazy">
-      <div class="stat-mini-info">
-        <div class="stat-mini-title">${escapeHtml(e.titleEnglish || e.titleRomaji)}</div>
-        <div class="card-meta">${e.myScore != null ? `★ ${e.myScore}` : ''} ${e.episodesWatched ? `· ${e.episodesWatched} ep` : ''}</div>
-      </div>
-    </div>`
-    )
-    .join('');
-}
-
-function renderStatsPage(container) {
-  const entries = Store.getEntries();
-  const counts = Store.getCounts();
-
-  if (entries.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <h2>No stats yet</h2>
-        <p>Add some anime to your library and your statistics will show up here.</p>
-      </div>`;
-    return;
-  }
-
-  const libraryStats = computeLibraryStats(entries, counts, new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
-  const totalEpisodes = libraryStats.totalEpisodes;
-  const totalMinutes = libraryStats.totalMinutes;
-  const totalHours = Math.round(totalMinutes / 60);
-  const totalDays = (totalMinutes / 60 / 24).toFixed(1);
-
-  const scored = entries.filter((e) => e.myScore != null);
-  const meanScore = scored.length ? (scored.reduce((s, e) => s + e.myScore, 0) / scored.length).toFixed(2) : '—';
-
-  const thisYear = new Date().getFullYear();
-  const completedThisYear = entries.filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
-  const episodesThisYear = libraryStats.episodesThisYear;
-
-  const dropEligible = counts.watched + counts.dropped;
-  const dropRate = dropEligible ? ((counts.dropped / dropEligible) * 100).toFixed(1) : '0';
-
-  const formatCounts = {};
-  for (const e of entries) if (e.format) formatCounts[e.format] = (formatCounts[e.format] || 0) + 1;
-  const formatData = Object.entries(formatCounts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
-
-  // Completed titles only (v3): a long Watchlist no longer dominates the chart.
-  const genreCounts = libraryStats.genreCounts;
-  const genreData = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([label, value]) => ({ label, value }));
-
-  const scoreDist = Array.from({ length: 10 }, (_, i) => ({ label: String(i + 1), value: 0 }));
-  for (const e of scored) scoreDist[e.myScore - 1].value += 1;
-
-  const decadeCounts = {};
-  for (const e of entries) if (e.year) { const dec = `${Math.floor(e.year / 10) * 10}s`; decadeCounts[dec] = (decadeCounts[dec] || 0) + 1; }
-  const decadeData = Object.entries(decadeCounts).sort((a, b) => a[0].localeCompare(b[0])).map(([label, value]) => ({ label, value }));
-
-  const topRated = [...scored].sort((a, b) => b.myScore - a.myScore || (b.averageScore || 0) - (a.averageScore || 0)).slice(0, 10);
-  const mostEpisodes = [...entries].sort((a, b) => (b.episodesWatched || 0) - (a.episodesWatched || 0)).slice(0, 10);
-
-  container.innerHTML = `
-    <div class="home-hero stats-hero">
-      <div>
-        <h2>Statistics</h2>
-        <p>Every number your library has to offer.</p>
-      </div>
-      <button class="text-btn primary" id="stats-share-trigger">Share stats</button>
-    </div>
-
-    <div class="home-stats">
-      <div class="stat"><span class="stat-value" data-count-target="${entries.length}">0</span><span class="stat-label">Titles</span></div>
-      <div class="stat"><span class="stat-value" data-count-target="${totalEpisodes}">0</span><span class="stat-label">Episodes watched</span></div>
-      <div class="stat"><span class="stat-value" data-count-target="${totalDays}">0</span><span class="stat-label">Days watched (${totalHours} h)</span></div>
-      <div class="stat"><span class="stat-value" data-count-target="${meanScore}">${meanScore === '—' ? '—' : '0.00'}</span><span class="stat-label">Mean score</span></div>
-      <div class="stat"><span class="stat-value" data-count-target="${completedThisYear.length}">0</span><span class="stat-label">Completed in ${thisYear}</span></div>
-      <div class="stat"><span class="stat-value" data-count-target="${episodesThisYear}">0</span><span class="stat-label">Episodes in ${thisYear}</span></div>
-      <div class="stat"><span class="stat-value" data-count-target="${dropRate}%">0%</span><span class="stat-label">Drop rate</span></div>
-      <div class="stat"><span class="stat-value" data-count-target="${Store.allGenres().length}">0</span><span class="stat-label">Genres explored</span></div>
-    </div>
-
-    <div class="home-tiles">
-      ${Store.LISTS.map(
-        (list) => `
-        <button class="home-tile" data-nav="${list}">
-          <span class="home-tile-icon">${LIST_META[list].icon}</span>
-          <span class="home-tile-count">${counts[list]}</span>
-          <span class="home-tile-label">${LIST_META[list].label}</span>
-        </button>`
-      ).join('')}
-    </div>
-
-    <div class="stats-grid-2col">
-      <div class="stats-section stats-section--score">
-        <h3>Score distribution</h3>
-        ${barChartHtml(scoreDist)}
-      </div>
-      <div class="stats-section stats-section--format">
-        <h3>By format</h3>
-        ${barChartHtml(formatData)}
-      </div>
-      <div class="stats-section stats-section--genre">
-        <h3>Top genres</h3>
-        ${barChartHtml(genreData)}
-      </div>
-      <div class="stats-section stats-section--decade">
-        <h3>By decade</h3>
-        ${barChartHtml(decadeData)}
-      </div>
-    </div>
-
-    <div class="stats-grid-2col">
-      <div class="stats-section">
-        <h3>Top rated</h3>
-        <div class="stat-mini-list">${topRated.length ? miniListHtml(topRated) : '<p class="card-meta">Score something in Watched to see it here.</p>'}</div>
-      </div>
-      <div class="stats-section">
-        <h3>Most episodes watched</h3>
-        <div class="stat-mini-list">${miniListHtml(mostEpisodes)}</div>
-      </div>
-    </div>
-  `;
-  animateProgressBars(container);
-  animateCountUp(container);
 }
 
 function relativeAgeText(generatedAt) {
