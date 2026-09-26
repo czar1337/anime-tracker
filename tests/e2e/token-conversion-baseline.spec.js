@@ -288,7 +288,7 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     // on top of it — cancelled via Escape without ever typing the phrase or
     // confirming, so nothing is actually reset and no further save fires.
     await page.click('#reset-everything-btn');
-    await page.waitForSelector('#confirm-overlay:not([hidden])');
+    await page.waitForSelector('#confirm-overlay[open]');
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'confirm-dialog', '#confirm-overlay'));
     await page.keyboard.press('Escape');
@@ -305,7 +305,7 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     // sub-tab bodies would have sat at zero coverage despite the panel
     // itself "having been opened" via the default tab.
     await page.click('#shortcuts-trigger');
-    await page.waitForSelector('#shortcuts-overlay:not([hidden])');
+    await page.waitForSelector('#shortcuts-overlay[open]');
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'help-basics', '#shortcuts-overlay'));
     await page.click('.help-tabs [data-help-tab="keyboard"]');
@@ -336,8 +336,8 @@ test('token conversion baseline: every scene\'s computed styles match the checke
 
     await page.click('#backup-menu-trigger');
     await page.waitForTimeout(150);
-    const backupOverlay = page.locator('.overlay:not([hidden])');
-    if (await backupOverlay.count()) Object.assign(captured, await captureScene(page, 'backup-overlay', '.overlay:not([hidden])'));
+    const backupOverlay = page.locator('.overlay[open]');
+    if (await backupOverlay.count()) Object.assign(captured, await captureScene(page, 'backup-overlay', '.overlay[open]'));
     await page.keyboard.press('Escape');
 
     // Import steps (.steps, .step, .step-line) — reset() renders step 1's

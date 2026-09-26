@@ -11406,7 +11406,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "home::div.overlay#1": {
+  "home::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -11474,7 +11474,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#2": {
+  "home::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -11559,7 +11559,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "home::div.overlay#3": {
+  "home::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -11644,7 +11644,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#4": {
+  "home::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -11848,7 +11848,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "home::div.overlay#5": {
+  "home::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -12154,7 +12154,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "home::div.overlay#6": {
+  "home::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -12222,7 +12222,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#7": {
+  "home::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -12409,7 +12409,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#8": {
+  "home::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -12494,7 +12494,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#9": {
+  "home::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -12647,7 +12647,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#10": {
+  "home::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -12749,7 +12749,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "home::div.overlay#11": {
+  "home::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -12834,7 +12834,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#12": {
+  "home::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -12919,7 +12919,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#13": {
+  "home::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -13055,7 +13055,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#14": {
+  "home::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -13208,7 +13208,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#15": {
+  "home::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -13378,7 +13378,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "home::div.overlay#16": {
+  "home::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -13548,7 +13548,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#17": {
+  "home::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -13633,7 +13633,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#18": {
+  "home::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -14041,7 +14041,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.overlay#19": {
+  "home::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -24802,7 +24802,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watching::div.overlay#1": {
+  "tab-watching::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -24870,7 +24870,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#2": {
+  "tab-watching::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -24955,7 +24955,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "tab-watching::div.overlay#3": {
+  "tab-watching::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25040,7 +25040,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#4": {
+  "tab-watching::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25244,7 +25244,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "tab-watching::div.overlay#5": {
+  "tab-watching::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25550,7 +25550,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watching::div.overlay#6": {
+  "tab-watching::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25618,7 +25618,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#7": {
+  "tab-watching::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25805,7 +25805,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#8": {
+  "tab-watching::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25890,7 +25890,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#9": {
+  "tab-watching::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26043,7 +26043,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#10": {
+  "tab-watching::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26145,7 +26145,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watching::div.overlay#11": {
+  "tab-watching::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26230,7 +26230,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#12": {
+  "tab-watching::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26315,7 +26315,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#13": {
+  "tab-watching::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26451,7 +26451,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#14": {
+  "tab-watching::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26604,7 +26604,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#15": {
+  "tab-watching::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26774,7 +26774,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "tab-watching::div.overlay#16": {
+  "tab-watching::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26944,7 +26944,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#17": {
+  "tab-watching::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -27029,7 +27029,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#18": {
+  "tab-watching::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -27437,7 +27437,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.overlay#19": {
+  "tab-watching::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -35580,7 +35580,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watchlist::div.overlay#1": {
+  "tab-watchlist::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -35648,7 +35648,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#2": {
+  "tab-watchlist::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -35733,7 +35733,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "tab-watchlist::div.overlay#3": {
+  "tab-watchlist::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -35818,7 +35818,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#4": {
+  "tab-watchlist::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36022,7 +36022,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "tab-watchlist::div.overlay#5": {
+  "tab-watchlist::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36328,7 +36328,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watchlist::div.overlay#6": {
+  "tab-watchlist::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36396,7 +36396,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#7": {
+  "tab-watchlist::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36583,7 +36583,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#8": {
+  "tab-watchlist::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36668,7 +36668,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#9": {
+  "tab-watchlist::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36821,7 +36821,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#10": {
+  "tab-watchlist::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36923,7 +36923,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watchlist::div.overlay#11": {
+  "tab-watchlist::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37008,7 +37008,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#12": {
+  "tab-watchlist::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37093,7 +37093,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#13": {
+  "tab-watchlist::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37229,7 +37229,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#14": {
+  "tab-watchlist::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37382,7 +37382,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#15": {
+  "tab-watchlist::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37552,7 +37552,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "tab-watchlist::div.overlay#16": {
+  "tab-watchlist::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37722,7 +37722,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#17": {
+  "tab-watchlist::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37807,7 +37807,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#18": {
+  "tab-watchlist::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -38215,7 +38215,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.overlay#19": {
+  "tab-watchlist::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -46800,7 +46800,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watched::div.overlay#1": {
+  "tab-watched::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -46868,7 +46868,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#2": {
+  "tab-watched::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -46953,7 +46953,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "tab-watched::div.overlay#3": {
+  "tab-watched::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47038,7 +47038,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#4": {
+  "tab-watched::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47242,7 +47242,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "tab-watched::div.overlay#5": {
+  "tab-watched::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47548,7 +47548,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watched::div.overlay#6": {
+  "tab-watched::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47616,7 +47616,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#7": {
+  "tab-watched::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47803,7 +47803,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#8": {
+  "tab-watched::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47888,7 +47888,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#9": {
+  "tab-watched::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48041,7 +48041,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#10": {
+  "tab-watched::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48143,7 +48143,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watched::div.overlay#11": {
+  "tab-watched::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48228,7 +48228,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#12": {
+  "tab-watched::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48313,7 +48313,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#13": {
+  "tab-watched::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48449,7 +48449,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#14": {
+  "tab-watched::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48602,7 +48602,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#15": {
+  "tab-watched::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48772,7 +48772,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "tab-watched::div.overlay#16": {
+  "tab-watched::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48942,7 +48942,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#17": {
+  "tab-watched::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -49027,7 +49027,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#18": {
+  "tab-watched::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -49435,7 +49435,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.overlay#19": {
+  "tab-watched::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -57782,7 +57782,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-dropped::div.overlay#1": {
+  "tab-dropped::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -57850,7 +57850,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#2": {
+  "tab-dropped::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -57935,7 +57935,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "tab-dropped::div.overlay#3": {
+  "tab-dropped::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58020,7 +58020,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#4": {
+  "tab-dropped::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58224,7 +58224,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "tab-dropped::div.overlay#5": {
+  "tab-dropped::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58530,7 +58530,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-dropped::div.overlay#6": {
+  "tab-dropped::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58598,7 +58598,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#7": {
+  "tab-dropped::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58785,7 +58785,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#8": {
+  "tab-dropped::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58870,7 +58870,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#9": {
+  "tab-dropped::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59023,7 +59023,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#10": {
+  "tab-dropped::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59125,7 +59125,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-dropped::div.overlay#11": {
+  "tab-dropped::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59210,7 +59210,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#12": {
+  "tab-dropped::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59295,7 +59295,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#13": {
+  "tab-dropped::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59431,7 +59431,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#14": {
+  "tab-dropped::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59584,7 +59584,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#15": {
+  "tab-dropped::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59754,7 +59754,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "tab-dropped::div.overlay#16": {
+  "tab-dropped::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59924,7 +59924,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#17": {
+  "tab-dropped::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -60009,7 +60009,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#18": {
+  "tab-dropped::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -60417,7 +60417,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.overlay#19": {
+  "tab-dropped::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -68798,7 +68798,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "schedule::div.overlay#1": {
+  "schedule::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -68866,7 +68866,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#2": {
+  "schedule::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -68951,7 +68951,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "schedule::div.overlay#3": {
+  "schedule::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69036,7 +69036,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#4": {
+  "schedule::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69240,7 +69240,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "schedule::div.overlay#5": {
+  "schedule::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69546,7 +69546,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "schedule::div.overlay#6": {
+  "schedule::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69614,7 +69614,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#7": {
+  "schedule::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69801,7 +69801,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#8": {
+  "schedule::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69886,7 +69886,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#9": {
+  "schedule::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70039,7 +70039,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#10": {
+  "schedule::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70141,7 +70141,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "schedule::div.overlay#11": {
+  "schedule::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70226,7 +70226,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#12": {
+  "schedule::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70311,7 +70311,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#13": {
+  "schedule::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70447,7 +70447,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#14": {
+  "schedule::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70600,7 +70600,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#15": {
+  "schedule::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70770,7 +70770,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "schedule::div.overlay#16": {
+  "schedule::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70940,7 +70940,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#17": {
+  "schedule::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -71025,7 +71025,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#18": {
+  "schedule::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -71433,7 +71433,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.overlay#19": {
+  "schedule::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -79814,7 +79814,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "discover::div.overlay#1": {
+  "discover::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -79882,7 +79882,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#2": {
+  "discover::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -79967,7 +79967,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "discover::div.overlay#3": {
+  "discover::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80052,7 +80052,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#4": {
+  "discover::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80256,7 +80256,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "discover::div.overlay#5": {
+  "discover::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80562,7 +80562,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "discover::div.overlay#6": {
+  "discover::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80630,7 +80630,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#7": {
+  "discover::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80817,7 +80817,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#8": {
+  "discover::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80902,7 +80902,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#9": {
+  "discover::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81055,7 +81055,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#10": {
+  "discover::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81157,7 +81157,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "discover::div.overlay#11": {
+  "discover::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81242,7 +81242,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#12": {
+  "discover::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81327,7 +81327,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#13": {
+  "discover::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81463,7 +81463,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#14": {
+  "discover::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81616,7 +81616,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#15": {
+  "discover::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81786,7 +81786,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "discover::div.overlay#16": {
+  "discover::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81956,7 +81956,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#17": {
+  "discover::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -82041,7 +82041,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#18": {
+  "discover::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -82449,7 +82449,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.overlay#19": {
+  "discover::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -94281,7 +94281,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "statistics::div.overlay#1": {
+  "statistics::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -94349,7 +94349,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#2": {
+  "statistics::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -94434,7 +94434,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "statistics::div.overlay#3": {
+  "statistics::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -94519,7 +94519,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#4": {
+  "statistics::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -94723,7 +94723,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "statistics::div.overlay#5": {
+  "statistics::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95029,7 +95029,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "statistics::div.overlay#6": {
+  "statistics::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95097,7 +95097,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#7": {
+  "statistics::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95284,7 +95284,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#8": {
+  "statistics::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95369,7 +95369,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#9": {
+  "statistics::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95522,7 +95522,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#10": {
+  "statistics::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95624,7 +95624,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "statistics::div.overlay#11": {
+  "statistics::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95709,7 +95709,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#12": {
+  "statistics::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95794,7 +95794,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#13": {
+  "statistics::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95930,7 +95930,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#14": {
+  "statistics::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -96083,7 +96083,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#15": {
+  "statistics::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -96253,7 +96253,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "statistics::div.overlay#16": {
+  "statistics::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -96423,7 +96423,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#17": {
+  "statistics::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -96508,7 +96508,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#18": {
+  "statistics::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -96916,7 +96916,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.overlay#19": {
+  "statistics::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -111366,7 +111366,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watching-franchise-expanded::div.overlay#1": {
+  "tab-watching-franchise-expanded::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -111434,7 +111434,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#2": {
+  "tab-watching-franchise-expanded::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -111519,7 +111519,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "tab-watching-franchise-expanded::div.overlay#3": {
+  "tab-watching-franchise-expanded::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -111604,7 +111604,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#4": {
+  "tab-watching-franchise-expanded::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -111808,7 +111808,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "tab-watching-franchise-expanded::div.overlay#5": {
+  "tab-watching-franchise-expanded::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112114,7 +112114,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watching-franchise-expanded::div.overlay#6": {
+  "tab-watching-franchise-expanded::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112182,7 +112182,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#7": {
+  "tab-watching-franchise-expanded::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112369,7 +112369,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#8": {
+  "tab-watching-franchise-expanded::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112454,7 +112454,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#9": {
+  "tab-watching-franchise-expanded::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112607,7 +112607,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#10": {
+  "tab-watching-franchise-expanded::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112709,7 +112709,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watching-franchise-expanded::div.overlay#11": {
+  "tab-watching-franchise-expanded::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112794,7 +112794,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#12": {
+  "tab-watching-franchise-expanded::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112879,7 +112879,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#13": {
+  "tab-watching-franchise-expanded::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -113015,7 +113015,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#14": {
+  "tab-watching-franchise-expanded::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -113168,7 +113168,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#15": {
+  "tab-watching-franchise-expanded::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -113338,7 +113338,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "tab-watching-franchise-expanded::div.overlay#16": {
+  "tab-watching-franchise-expanded::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -113508,7 +113508,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#17": {
+  "tab-watching-franchise-expanded::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -113593,7 +113593,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#18": {
+  "tab-watching-franchise-expanded::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -114001,7 +114001,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.overlay#19": {
+  "tab-watching-franchise-expanded::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -127890,7 +127890,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watching-select-mode::div.overlay#1": {
+  "tab-watching-select-mode::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -127958,7 +127958,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#2": {
+  "tab-watching-select-mode::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128043,7 +128043,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "tab-watching-select-mode::div.overlay#3": {
+  "tab-watching-select-mode::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128128,7 +128128,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#4": {
+  "tab-watching-select-mode::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128332,7 +128332,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "tab-watching-select-mode::div.overlay#5": {
+  "tab-watching-select-mode::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128638,7 +128638,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watching-select-mode::div.overlay#6": {
+  "tab-watching-select-mode::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128706,7 +128706,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#7": {
+  "tab-watching-select-mode::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128893,7 +128893,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#8": {
+  "tab-watching-select-mode::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128978,7 +128978,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#9": {
+  "tab-watching-select-mode::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129131,7 +129131,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#10": {
+  "tab-watching-select-mode::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129233,7 +129233,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watching-select-mode::div.overlay#11": {
+  "tab-watching-select-mode::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129318,7 +129318,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#12": {
+  "tab-watching-select-mode::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129403,7 +129403,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#13": {
+  "tab-watching-select-mode::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129539,7 +129539,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#14": {
+  "tab-watching-select-mode::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129692,7 +129692,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#15": {
+  "tab-watching-select-mode::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129862,7 +129862,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "tab-watching-select-mode::div.overlay#16": {
+  "tab-watching-select-mode::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -130032,7 +130032,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#17": {
+  "tab-watching-select-mode::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -130117,7 +130117,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#18": {
+  "tab-watching-select-mode::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -130525,7 +130525,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.overlay#19": {
+  "tab-watching-select-mode::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145162,7 +145162,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watching-episode-edit::div.overlay#1": {
+  "tab-watching-episode-edit::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145230,7 +145230,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#2": {
+  "tab-watching-episode-edit::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145315,7 +145315,7 @@
     "rowGap": "2px",
     "columnGap": "2px"
   },
-  "tab-watching-episode-edit::div.overlay#3": {
+  "tab-watching-episode-edit::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145400,7 +145400,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#4": {
+  "tab-watching-episode-edit::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145604,7 +145604,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "tab-watching-episode-edit::div.overlay#5": {
+  "tab-watching-episode-edit::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145910,7 +145910,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watching-episode-edit::div.overlay#6": {
+  "tab-watching-episode-edit::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145978,7 +145978,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#7": {
+  "tab-watching-episode-edit::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146165,7 +146165,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#8": {
+  "tab-watching-episode-edit::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146250,7 +146250,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#9": {
+  "tab-watching-episode-edit::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146403,7 +146403,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#10": {
+  "tab-watching-episode-edit::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146505,7 +146505,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "tab-watching-episode-edit::div.overlay#11": {
+  "tab-watching-episode-edit::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146590,7 +146590,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#12": {
+  "tab-watching-episode-edit::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146675,7 +146675,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#13": {
+  "tab-watching-episode-edit::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146811,7 +146811,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#14": {
+  "tab-watching-episode-edit::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146964,7 +146964,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#15": {
+  "tab-watching-episode-edit::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -147134,7 +147134,7 @@
     "rowGap": "7px",
     "columnGap": "7px"
   },
-  "tab-watching-episode-edit::div.overlay#16": {
+  "tab-watching-episode-edit::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -147304,7 +147304,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#17": {
+  "tab-watching-episode-edit::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -147389,7 +147389,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#18": {
+  "tab-watching-episode-edit::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -147797,7 +147797,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.overlay#19": {
+  "tab-watching-episode-edit::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -147984,7 +147984,7 @@
     "rowGap": "8px",
     "columnGap": "8px"
   },
-  "settings::div.overlay#1": {
+  "settings::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -154988,7 +154988,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "settings-new-tag-form::div.overlay#1": {
+  "settings-new-tag-form::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -162247,7 +162247,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "settings-list-entries::div.overlay#1": {
+  "settings-list-entries::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -169540,7 +169540,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "confirm-dialog::div.overlay#1": {
+  "confirm-dialog::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -169710,7 +169710,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "help-basics::div.overlay#1": {
+  "help-basics::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -170271,7 +170271,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "help-keyboard::div.overlay#1": {
+  "help-keyboard::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -170832,7 +170832,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "help-questions::div.overlay#1": {
+  "help-questions::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -171546,7 +171546,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "search-overlay::div.overlay#1": {
+  "search-overlay::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -171750,7 +171750,7 @@
     "rowGap": "9px",
     "columnGap": "9px"
   },
-  "search-overlay-empty::div.overlay#1": {
+  "search-overlay-empty::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -172039,7 +172039,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "backup-overlay::div.overlay#1": {
+  "backup-overlay::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -172277,7 +172277,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "import-steps::div.overlay#1": {
+  "import-steps::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -190688,7 +190688,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "mobile-nav-menu::div.overlay#1": {
+  "mobile-nav-menu::dialog.overlay#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -192439,7 +192439,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#2": {
+  "mobile-nav-menu::dialog.overlay#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -192864,7 +192864,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#3": {
+  "mobile-nav-menu::dialog.overlay#3": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -192949,7 +192949,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#4": {
+  "mobile-nav-menu::dialog.overlay#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -193238,7 +193238,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#5": {
+  "mobile-nav-menu::dialog.overlay#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -193544,7 +193544,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "mobile-nav-menu::div.overlay#6": {
+  "mobile-nav-menu::dialog.overlay#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -193612,7 +193612,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#7": {
+  "mobile-nav-menu::dialog.overlay#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -193799,7 +193799,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#8": {
+  "mobile-nav-menu::dialog.overlay#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201092,7 +201092,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#9": {
+  "mobile-nav-menu::dialog.overlay#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201245,7 +201245,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#10": {
+  "mobile-nav-menu::dialog.overlay#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201347,7 +201347,7 @@
     "rowGap": "12px",
     "columnGap": "12px"
   },
-  "mobile-nav-menu::div.overlay#11": {
+  "mobile-nav-menu::dialog.overlay#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201432,7 +201432,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#12": {
+  "mobile-nav-menu::dialog.overlay#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201517,7 +201517,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#13": {
+  "mobile-nav-menu::dialog.overlay#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201653,7 +201653,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#14": {
+  "mobile-nav-menu::dialog.overlay#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -202367,7 +202367,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#15": {
+  "mobile-nav-menu::dialog.overlay#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -202605,7 +202605,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#16": {
+  "mobile-nav-menu::dialog.overlay#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -202775,7 +202775,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#17": {
+  "mobile-nav-menu::dialog.overlay#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -202860,7 +202860,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#18": {
+  "mobile-nav-menu::dialog.overlay#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -203421,7 +203421,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.overlay#19": {
+  "mobile-nav-menu::dialog.overlay#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",

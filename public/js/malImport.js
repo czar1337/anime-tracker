@@ -2,6 +2,7 @@ import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
 import { EventLog } from './eventLog.js';
+import { openDialog, closeDialog, onDialogClose } from './core/dialog.js';
 
 const STATUS_MAP = {
   Watching: 'watching',
@@ -188,18 +189,18 @@ export function initMalImport() {
 
   document.getElementById('import-trigger').addEventListener('click', () => {
     reset();
-    overlay.hidden = false;
+    openDialog(overlay);
   });
   cancelBtn.addEventListener('click', () => {
     importGeneration += 1;
-    overlay.hidden = true;
+    closeDialog(overlay);
   });
 
-  // Covers every other way the overlay can close (Esc key closes all
-  // .overlay elements generically) so a stale run can never resurface later.
-  new MutationObserver(() => {
-    if (overlay.hidden) importGeneration += 1;
-  }).observe(overlay, { attributes: true, attributeFilter: ['hidden'] });
+  // Covers every other way the overlay can close (Escape, the backdrop,
+  // another overlay opening) so a stale run can never resurface later.
+  onDialogClose(overlay, () => {
+    importGeneration += 1;
+  });
 
   fileInput.addEventListener('change', async () => {
     const myGeneration = importGeneration;
@@ -311,7 +312,7 @@ export function initMalImport() {
   });
 
   doneCloseBtn.addEventListener('click', () => {
-    overlay.hidden = true;
+    closeDialog(overlay);
   });
 
   doneAnotherBtn.addEventListener('click', () => {
@@ -327,7 +328,7 @@ export function initMalImport() {
     // fire app.js's own "Imported N entries" toast with a confusing negative count.
     document.dispatchEvent(new CustomEvent('covers-updated'));
     Render.showToast(`Removed ${removed.length} titles from this import.`);
-    overlay.hidden = true;
+    closeDialog(overlay);
   });
 }
 

@@ -28,6 +28,8 @@ import { TasteProfile } from './tasteProfile.js';
 import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
 import { forget as forgetRendered } from './core/reconcile.js';
+import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs } from './core/dialog.js';
+import { trapTab } from './core/focus.js';
 import { toggleNoteOpen } from './views/library/model.js';
 
 // Every destructive/lossy toast passes this as its onExpire — a no-op today
@@ -164,40 +166,13 @@ function isTypingTarget(el) {
 }
 
 // design/moonlit-shrine-design-system.md §13: "All overlays trap focus,
-// restore it on close, and close on esc." lastFocusedBeforeOverlay captures
-// whatever had focus right before an overlay opened (a button, a card, the
-// body) so closeAllOverlays can hand focus back to exactly that element
-// rather than leaving it on <body> (or, worse, on a now-hidden control).
-let lastFocusedBeforeOverlay = null;
-
-function getFocusable(container) {
-  return Array.from(
-    container.querySelectorAll('a[href], button:not([disabled]), textarea, input:not([type="hidden"]), select, [tabindex]:not([tabindex="-1"])')
-  ).filter((el) => el.offsetParent !== null);
-}
-
-// Cycles Tab/Shift+Tab inside whichever overlay is currently open instead of
-// letting focus escape into the (visually hidden, but still in the DOM)
-// page behind it. Bound once, globally — cheap no-op whenever no overlay is
-// open, so it doesn't need to be wired/unwired per overlay.
+// restore it on close, and close on esc." Overlays are native modal dialogs
+// (core/dialog.js): the page behind is inert, focus returns to where it came
+// from (or to the same card by id), and Tab wraps inside the open one instead
+// of leaving for the browser's own UI.
 function trapOverlayFocus(e) {
   if (e.key !== 'Tab') return;
-  const overlay = document.querySelector('.overlay:not([hidden])');
-  if (!overlay) return;
-  const focusable = getFocusable(overlay);
-  if (focusable.length === 0) {
-    e.preventDefault();
-    return;
-  }
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (e.shiftKey && document.activeElement === first) {
-    e.preventDefault();
-    last.focus();
-  } else if (!e.shiftKey && document.activeElement === last) {
-    e.preventDefault();
-    first.focus();
-  }
+  trapTab(e, openDialogs().at(-1));
 }
 
 // Shared confirm dialog for destructive actions (design system §8: "confirm
@@ -240,15 +215,9 @@ function confirmDialog({ title, body, confirmLabel, onConfirm, requireTypedPhras
   if (requireTypedPhrase) typeInput.focus();
 }
 
-// Shared by openOverlay and closeAllOverlays — hides every overlay and
-// resets search-specific state, but never touches focus. Kept separate so
-// openOverlay can capture "what had focus before this overlay opened"
-// *before* clearing any previously-open overlay, instead of that capture
-// immediately getting wiped by closeAllOverlays' own end-of-function reset
-// (which happened when openOverlay called the combined version — the two
-// would race over the same variable and the capture always lost).
-function hideAllOverlaysOnly() {
-  document.querySelectorAll('.overlay').forEach((o) => (o.hidden = true));
+// Search-specific state that any overlay opening or closing resets: a
+// fix-match in progress is abandoned and an in-flight search goes stale.
+function resetSearchState() {
   replaceTargetId = null;
   searchGeneration += 1; // any in-flight search response becomes stale and gets ignored
   const input = document.getElementById('search-input');
@@ -256,22 +225,13 @@ function hideAllOverlaysOnly() {
 }
 
 function openOverlay(id) {
-  const focusBefore = document.activeElement;
-  hideAllOverlaysOnly();
-  lastFocusedBeforeOverlay = focusBefore;
-  const overlay = document.getElementById(id);
-  overlay.hidden = false;
-  const focusable = getFocusable(overlay);
-  (focusable[0] || overlay).focus();
+  resetSearchState();
+  openDialog(id);
 }
 
 function closeAllOverlays() {
-  const wasOpen = Array.from(document.querySelectorAll('.overlay')).some((o) => !o.hidden);
-  hideAllOverlaysOnly();
-  if (wasOpen && lastFocusedBeforeOverlay && document.body.contains(lastFocusedBeforeOverlay)) {
-    lastFocusedBeforeOverlay.focus();
-  }
-  lastFocusedBeforeOverlay = null;
+  closeAllDialogs();
+  resetSearchState();
 }
 
 // Re-renders whatever is currently on screen (home/stats dashboard or a list) after a mutation.
@@ -1816,19 +1776,11 @@ function bindOverlayCloseButtons() {
 }
 
 // Post-2.2.0 feedback: clicking the dimmed backdrop behind any overlay's
-// panel closes it, the same as its own × button or Escape — previously
-// the only way out was the X. One delegated listener on every `.overlay`
-// (each is itself the full-screen backdrop; `.overlay-panel` is the
-// centered content box inside it) rather than one per overlay, so a
-// future overlay picks this up for free. `e.target === overlay` is what
-// distinguishes an actual backdrop click from a click that merely bubbled
-// up from something inside the panel.
+// panel closes it, the same as its own × button or Escape. core/dialog.js
+// wires both (a click whose target is the dialog itself landed outside
+// .overlay-panel; Escape is the dialog's native cancel event).
 function bindOverlayBackdropClose() {
-  document.querySelectorAll('.overlay').forEach((overlay) => {
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeAllOverlays();
-    });
-  });
+  initDialogs({ onDismiss: () => closeAllOverlays() });
 }
 
 // P5A.3's scorer debug panel. Async (a fresh corpus-cache fetch per open,
@@ -1836,8 +1788,7 @@ function bindOverlayBackdropClose() {
 // cached) — closes first if already open, so a stale "loading" state can
 // never linger from a previous open's own slower fetch.
 async function toggleScorerDebugPanel() {
-  const overlay = document.getElementById('scorer-debug-overlay');
-  if (!overlay.hidden) {
+  if (isDialogOpen('scorer-debug-overlay')) {
     closeAllOverlays();
     return;
   }
@@ -2074,13 +2025,18 @@ function bindKeyboardShortcuts() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (document.querySelector('.overlay:not([hidden])')) closeAllOverlays();
+      if (isAnyDialogOpen()) closeAllOverlays();
       else if (Render.isSelectMode()) {
         Render.toggleSelectMode();
         refreshGridOnly();
       }
       return;
     }
+
+    // v3 Phase 2: page shortcuts are off while an overlay is open (the page
+    // behind it is inert). The one exception is "d", which also closes the
+    // scorer debug panel it opens.
+    if (isAnyDialogOpen() && !(e.key === 'd' && isDialogOpen('scorer-debug-overlay'))) return;
 
     if (isTypingTarget(e.target)) return;
 
@@ -2108,13 +2064,18 @@ function bindKeyboardShortcuts() {
       return;
     }
 
+    // Keys that open an overlay are consumed: focus moves into the overlay on
+    // keydown, and the key's own default action (typing it, or Enter
+    // activating the newly focused close button) would then land there.
     if (e.key === 'n') {
+      e.preventDefault();
       openOverlay('search-overlay');
       document.getElementById('search-input').focus();
       return;
     }
 
     if (e.key === '?') {
+      e.preventDefault();
       openHelp();
       return;
     }
@@ -2155,6 +2116,7 @@ function bindKeyboardShortcuts() {
     }
 
     if (e.key === 'Enter' && document.activeElement.matches('.card')) {
+      e.preventDefault();
       Detail.showDetail(Number(document.activeElement.dataset.id));
       return;
     }

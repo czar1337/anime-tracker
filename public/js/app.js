@@ -14,6 +14,7 @@ import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
 import { EventHistory } from './eventHistory.js';
+import { openDialog, closeDialog, isAnyDialogOpen } from './core/dialog.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 
@@ -172,7 +173,7 @@ document.getElementById('recovery-backup-list').addEventListener('click', async 
   statusEl.hidden = true;
   try {
     await Api.restoreBackup(file);
-    overlay.hidden = true;
+    closeDialog(overlay, { restore: false });
     await boot();
   } catch (err) {
     statusEl.textContent = `Restore failed: ${err.message}. Try a different backup, or check the data/backups folder directly.`;
@@ -185,7 +186,7 @@ async function showRecoveryScreen(err) {
   document.getElementById('recovery-detail').textContent = err.detail || err.message;
   document.getElementById('recovery-status').hidden = true;
   Render.renderBackupList(document.getElementById('recovery-backup-list'), err.backups);
-  overlay.hidden = false;
+  openDialog(overlay);
 }
 
 // For states with no safe in-app remedy (two conflicting data folders, or a
@@ -219,7 +220,7 @@ function showBlockedScreen(err) {
     document.getElementById('blocked-title').textContent = 'Anime Tracker cannot start';
     detail.innerHTML = `<p>${esc(err.message)}</p>`;
   }
-  overlay.hidden = false;
+  openDialog(overlay);
 }
 
 async function showVersionBanner() {
@@ -469,7 +470,7 @@ async function boot() {
         // This resolves seconds after boot. It must never throw a modal over
         // someone who has already started using the app (v3 Phase 1).
         await openColdStartOnboarding({
-          mayInterrupt: () => !userHasInteracted && !document.querySelector('.overlay:not([hidden])'),
+          mayInterrupt: () => !userHasInteracted && !isAnyDialogOpen(),
         });
       }
     })

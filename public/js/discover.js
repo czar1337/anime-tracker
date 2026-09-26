@@ -434,8 +434,7 @@ export function initDiscover({ persistFn } = {}) {
 
     if (e.target.closest('#dismissed-trigger')) {
       Render.renderDismissedOverlay(document.getElementById('dismissed-content'));
-      document.querySelectorAll('.overlay').forEach((o) => (o.hidden = true));
-      document.getElementById('dismissed-overlay').hidden = false;
+      openOverlay('dismissed-overlay');
       return;
     }
 

@@ -2138,6 +2138,23 @@ kbd {
 #empty-state .row { justify-content: center; }
 
 /* ---------- Overlays ---------- */
+/* Overlays are native <dialog>s opened with showModal() (v3 Phase 2,
+   core/dialog.js). The dialog box itself is the full-screen dimmed backdrop,
+   as the old <div class="overlay"> was, so the UA's own dialog box styling and
+   ::backdrop are neutralised. A closed dialog must stay display:none: the
+   author rule below would otherwise override the UA's. */
+dialog.overlay {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+  overflow: auto;
+}
+dialog.overlay::backdrop { background: transparent; }
+.overlay:not([open]) { display: none; }
 .overlay {
   position: fixed;
   inset: 0;

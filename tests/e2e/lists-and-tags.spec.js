@@ -191,7 +191,7 @@ test('Settings panel: create, rename and delete a tag, with scrub-on-delete', as
     // Delete requires confirmation (destructive-action rule) and scrubs the
     // tag off every entry that had it.
     await page.click('[data-action="delete-tag"]');
-    await page.waitForSelector('#confirm-overlay:not([hidden])');
+    await page.waitForSelector('#confirm-overlay[open]');
     await expect(page.locator('#confirm-body')).toContainText('Your entries and everything else about them stay exactly as they are');
     await page.click('#confirm-danger-btn');
     await page.waitForTimeout(600);
@@ -231,7 +231,7 @@ test('Settings panel: create, rename and delete a custom list, and "show entries
     await expect(page.locator('.manager-row .nm').last()).toHaveText('Renamed List');
 
     await page.click('[data-action="delete-list"]');
-    await page.waitForSelector('#confirm-overlay:not([hidden])');
+    await page.waitForSelector('#confirm-overlay[open]');
     await expect(page.locator('#confirm-body')).toContainText('Your entries stay in your library');
     await page.click('#confirm-danger-btn');
     await page.waitForTimeout(600);

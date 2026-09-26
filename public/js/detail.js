@@ -2,6 +2,7 @@ import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
 import { openOverlay } from './events.js';
+import { isDialogOpen, onDialogClose } from './core/dialog.js';
 
 const cache = new Map(); // anilistId -> AniList Media detail object
 let generation = 0; // bumped whenever the overlay closes, invalidating any in-flight fetch
@@ -43,12 +44,11 @@ export async function showDetail(anilistId) {
 }
 
 export function initDetail() {
-  const overlay = document.getElementById('detail-overlay');
   // Covers every way the overlay can close (× button, Escape, opening a
   // different overlay) so a stale fetch can never resurface later.
-  new MutationObserver(() => {
-    if (overlay.hidden) generation += 1;
-  }).observe(overlay, { attributes: true, attributeFilter: ['hidden'] });
+  onDialogClose('detail-overlay', () => {
+    generation += 1;
+  });
 }
 
 // Re-renders the detail overlay in place (no re-open, no focus/scroll
@@ -59,9 +59,8 @@ export function initDetail() {
 // yet (still loading — the loading render will pick up the fresh local
 // entry on its own once the fetch resolves).
 export function refreshDetailIfOpen(anilistId) {
-  const overlay = document.getElementById('detail-overlay');
   const content = document.getElementById('detail-content');
-  if (!content || overlay.hidden) return;
+  if (!content || !isDialogOpen('detail-overlay')) return;
   if (Number(content.dataset.anilistId) !== anilistId) return;
   if (!cache.has(anilistId)) return;
   renderNow({ status: 'ready', media: cache.get(anilistId), localEntry: Store.getEntry(anilistId) });
