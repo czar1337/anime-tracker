@@ -71,6 +71,15 @@ export function morph(from, to) {
   return from;
 }
 
+// Morphs `container`'s children to `markup` (an html`` result or string), for
+// a region rendered as one block (the Watching hero) that should still keep
+// its nodes, focus and loaded images across re-renders.
+export function morphInto(container, markup) {
+  const next = container.cloneNode(false);
+  next.innerHTML = String(markup);
+  morphChildren(container, next);
+}
+
 function morphChildren(fromParent, toParent) {
   const toChildren = [...toParent.childNodes];
   let fromChild = fromParent.firstChild;
