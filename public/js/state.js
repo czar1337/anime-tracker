@@ -3,6 +3,7 @@
 // a running session and is kept in sync via api.saveLibrary (debounced).
 
 import { displayTitle } from './titles.js';
+import { createRevisionStore, memoize } from './core/store.js';
 import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
 import { createTagId, createListId, normalizeName, isDuplicateTagName, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partitionAiringLast, compareValues } from './sortLogic.js';
@@ -34,6 +35,16 @@ const state = {
 // another tab saved in the meantime) is rejected by the server instead of
 // silently overwriting whatever that other tab wrote.
 let currentEtag = null;
+
+// v3 Phase 2: every mutation below calls touch(), which bumps the revision and
+// notifies subscribers once per batch. Views subscribe to what they show; memos
+// key on the revision. entriesById replaces the linear find() getEntry used to do.
+const core = createRevisionStore();
+const touch = () => core.touch();
+let entriesById = new Map();
+function reindex() {
+  entriesById = new Map(state.entries.map((e) => [e.anilistId, e]));
+}
 
 // Top-level library.json fields this module actively models. Anything else
 // the server sends is preserved verbatim in `unknownTopLevelFields` below and
@@ -74,6 +85,8 @@ function setLibrary(data, etag = null) {
   }
   ensurePreferenceShape();
   if (etag) currentEtag = etag;
+  reindex();
+  touch();
 }
 
 function getEtag() {
@@ -109,10 +122,12 @@ function getDismissedItems() {
 function addDismissedItem(anilistId, { title = null, coverImage = null } = {}) {
   if (state.dismissedItems.some((d) => d.anilistId === anilistId)) return;
   state.dismissedItems.push({ anilistId, title, coverImage });
+  touch();
 }
 
 function removeDismissedItem(anilistId) {
   state.dismissedItems = state.dismissedItems.filter((d) => d.anilistId !== anilistId);
+  touch();
 }
 
 function getEntries() {
@@ -120,7 +135,7 @@ function getEntries() {
 }
 
 function getEntry(anilistId) {
-  return state.entries.find((e) => e.anilistId === anilistId);
+  return entriesById.get(anilistId);
 }
 
 function getEntriesByList(list) {
@@ -184,6 +199,8 @@ function addEntry(entry) {
     completedAt: entry.listStatus === 'watched' ? nowIso() : null,
   };
   state.entries.push(full);
+  entriesById.set(full.anilistId, full);
+  touch();
   return full;
 }
 
@@ -192,6 +209,7 @@ function updateEntry(anilistId, patch) {
   if (!entry) return null;
   const before = { ...entry };
   Object.assign(entry, patch, { updatedAt: nowIso() });
+  touch();
   return { before, after: { ...entry } };
 }
 
@@ -220,6 +238,8 @@ function removeEntry(anilistId) {
   const idx = state.entries.findIndex((e) => e.anilistId === anilistId);
   if (idx === -1) return null;
   const [removed] = state.entries.splice(idx, 1);
+  entriesById.delete(anilistId);
+  touch();
   return removed;
 }
 
@@ -246,6 +266,7 @@ function createTag(name, colorId = DEFAULT_TAG_COLOR_ID) {
   if (!normalized || isDuplicateTagName(state.tags, normalized)) return null;
   const tag = { id: createTagId(), name: normalized, color: colorId, createdAt: nowIso() };
   state.tags.push(tag);
+  touch();
   return tag;
 }
 
@@ -255,6 +276,7 @@ function renameTag(id, name) {
   const normalized = normalizeName(name);
   if (!normalized || isDuplicateTagName(state.tags, normalized, id)) return null;
   tag.name = normalized;
+  touch();
   return tag;
 }
 
@@ -262,6 +284,7 @@ function recolorTag(id, colorId) {
   const tag = state.tags.find((t) => t.id === id);
   if (!tag) return null;
   tag.color = colorId;
+  touch();
   return tag;
 }
 
@@ -280,6 +303,7 @@ function deleteTag(id) {
       entry.tagIds = entry.tagIds.filter((tagId) => tagId !== id);
     }
   }
+  touch();
   return true;
 }
 
@@ -294,6 +318,7 @@ function toggleEntryTag(anilistId, tagId) {
   const has = entry.tagIds.includes(tagId);
   entry.tagIds = has ? entry.tagIds.filter((id) => id !== tagId) : [...entry.tagIds, tagId];
   entry.updatedAt = nowIso();
+  touch();
   return { entryId: anilistId, tagId, member: !has };
 }
 
@@ -311,6 +336,7 @@ function addEntryTag(anilistId, tagId) {
   if (changed) {
     entry.tagIds = [...entry.tagIds, tagId];
     entry.updatedAt = nowIso();
+    touch();
   }
   return { entryId: anilistId, tagId, changed };
 }
@@ -323,6 +349,7 @@ function removeEntryTag(anilistId, tagId) {
   if (changed) {
     entry.tagIds = entry.tagIds.filter((id) => id !== tagId);
     entry.updatedAt = nowIso();
+    touch();
   }
   return { entryId: anilistId, tagId, changed };
 }
@@ -332,6 +359,7 @@ function createCustomList(name) {
   if (!normalized) return null;
   const list = { id: createListId(), name: normalized, createdAt: nowIso(), updatedAt: nowIso() };
   state.customLists.push(list);
+  touch();
   return list;
 }
 
@@ -342,6 +370,7 @@ function renameCustomList(id, name) {
   if (!normalized) return null;
   list.name = normalized;
   list.updatedAt = nowIso();
+  touch();
   return list;
 }
 
@@ -360,6 +389,7 @@ function deleteCustomList(id) {
       entry.customListIds = entry.customListIds.filter((listId) => listId !== id);
     }
   }
+  touch();
   return true;
 }
 
@@ -370,6 +400,7 @@ function toggleEntryCustomList(anilistId, listId) {
   const has = entry.customListIds.includes(listId);
   entry.customListIds = has ? entry.customListIds.filter((id) => id !== listId) : [...entry.customListIds, listId];
   entry.updatedAt = nowIso();
+  touch();
   return { entryId: anilistId, listId, member: !has };
 }
 
@@ -386,6 +417,7 @@ function addEntryToCustomList(anilistId, listId) {
   if (changed) {
     entry.customListIds = [...entry.customListIds, listId];
     entry.updatedAt = nowIso();
+    touch();
   }
   return { entryId: anilistId, listId, changed };
 }
@@ -398,6 +430,7 @@ function removeEntryFromCustomList(anilistId, listId) {
   if (changed) {
     entry.customListIds = entry.customListIds.filter((id) => id !== listId);
     entry.updatedAt = nowIso();
+    touch();
   }
   return { entryId: anilistId, listId, changed };
 }
@@ -432,6 +465,8 @@ function replaceEntryMedia(oldId, media) {
     updatedAt: nowIso(),
   };
   state.entries[idx] = updated;
+  reindex();
+  touch();
   return updated;
 }
 
@@ -442,6 +477,8 @@ function restoreEntrySnapshot(snapshot) {
   } else {
     state.entries[idx] = snapshot;
   }
+  entriesById.set(snapshot.anilistId, snapshot);
+  touch();
 }
 
 function setPreference(path, value) {
@@ -449,6 +486,7 @@ function setPreference(path, value) {
   let obj = state.preferences;
   for (let i = 0; i < path.length - 1; i++) obj = obj[path[i]];
   obj[path[path.length - 1]] = value;
+  touch();
 }
 
 // Clusters entries that belong to the same title (seasons/OVAs/specials)
@@ -527,6 +565,13 @@ function seasonLabel(group, index) {
 let unseenLookup = null;
 function registerUnseenLookup(fn) {
   unseenLookup = fn;
+  unseenVersion += 1;
+}
+
+// Airing data (unseen counts) changed: sorted views that depend on it are stale.
+function airingChanged() {
+  unseenVersion += 1;
+  touch();
 }
 
 // A franchise group's total episode count: null (unknown/still airing) the
@@ -606,12 +651,26 @@ const LIST_RECOMMENDED_KEY = { watching: 'dateAdded', watchlist: 'dateAdded', wa
 const titleFilters = { watching: '', watchlist: '', watched: '', dropped: '' };
 function setTitleFilter(list, text) {
   titleFilters[list] = text;
+  touch();
 }
 function getTitleFilter(list) {
   return titleFilters[list];
 }
 
+// v3 Phase 2: called by the grid, the filter chips, select-all and the bulk bar,
+// up to four times per render in v2. Memoized on everything the result depends
+// on: the store revision (any entry/tag change), this list's filters and sort,
+// its title filter, the title language (it decides the title sort key) and the
+// airing data (it decides the unseen-episodes sort key).
+let unseenVersion = 0;
+const groupedMemo = memoize((list) => computeGroupedFilteredSorted(list), { size: 8 });
 function getGroupedFilteredSorted(list) {
+  const p = state.preferences;
+  const key = `${core.revision}|${unseenVersion}|${list}|${JSON.stringify([p.filters[list], p.sort[list], p.sortDir[list], titleFilters[list], p.titleLanguage])}`;
+  return groupedMemo(key, list);
+}
+
+function computeGroupedFilteredSorted(list) {
   const filters = state.preferences.filters[list];
   const rawSortKey = state.preferences.sort[list];
   const sortKey = rawSortKey === 'recommended' ? LIST_RECOMMENDED_KEY[list] || 'dateAdded' : rawSortKey;
@@ -662,8 +721,14 @@ function getGroupedFilteredSorted(list) {
   // silently") — partitionAiringLast is a no-op {sortable: groups, airing:
   // []} for every other sort key, so this is safe to call unconditionally.
   const { sortable, airing } = partitionAiringLast(groups, sortKey, isGroupAiringUnknown);
-  const sortFn = (a, b) => compareValues(groupSortValue(a, sortKey), groupSortValue(b, sortKey), sortKey, sortDir);
-  const result = [...sortable].sort(sortFn).concat([...airing].sort(sortFn));
+  // Sort keys are computed once per group, not inside the comparator (v2
+  // recomputed them on every comparison, including a date sort per group).
+  const byKey = (list) =>
+    list
+      .map((g) => ({ g, k: groupSortValue(g, sortKey) }))
+      .sort((a, b) => compareValues(a.k, b.k, sortKey, sortDir))
+      .map((x) => x.g);
+  const result = byKey(sortable).concat(byKey(airing));
   // Not part of the array's own data, just a convenience for the one caller
   // (render.js's grid) that needs to know where to draw the trailing
   // section's heading — every other caller (e.g. a plain filtered count)
@@ -710,6 +775,12 @@ function allAiringStatuses() {
 export const Store = {
   LISTS,
   state,
+  get revision() {
+    return core.revision;
+  },
+  subscribe: (selector, callback) => core.subscribe(selector, callback),
+  touch,
+  airingChanged,
   setLibrary,
   getEtag,
   setEtag,
