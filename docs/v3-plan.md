@@ -151,6 +151,48 @@ snapshots) and `pinnedReason`; old snapshots stay valid.
   5,196-line file stops growing. The harness also drains server stdout already
   (a Phase 7 item that was cheap and removed a hang risk now).
 
+Phase 2:
+
+- **What the render budgets measure.** "2,000-entry library render under 200 ms" is
+  measured as the app's own render: from the start of the first grid render (library
+  loaded) to the first painted frame with cards, from performance marks in `app.js`.
+  v2's number was wall time from navigation until all 2,000 cards existed, which
+  mostly measured Chromium starting a page, a ~300 ms IPv6-to-IPv4 fallback on every
+  `localhost` connection (fixed, see below) and the module waterfall. `npm run perf`
+  still prints navigation-to-first-paint (206 ms) and navigation-to-all-cards (324 ms,
+  v2.3.0: 1,203 ms) next to it. Warm Discover is likewise measured from opening the
+  tab to the first painted shelf.
+- **The server also listens on `::1`.** Windows resolves `localhost` to `::1` first;
+  with only `127.0.0.1` bound, every browser connection waited ~310 ms. Found while
+  profiling the render budget. Still loopback only, and it also stops another local
+  program from taking `[::1]:PORT`.
+- **Only the first screen of cards animates in.** 2,000 simultaneous entrance
+  animations cost more style and paint time than the whole render. Cards created by
+  later chunks (off screen) appear without an entrance; off-screen cards also use
+  `content-visibility: auto`.
+- **Discover and Settings templates moved unchanged.** They live in
+  `views/discover` and `views/settings` now, but keep their manual `escapeHtml`
+  instead of being rewritten to `html```: Phase 6 rebuilds Discover per the spec and
+  Phases 3-4 rework Settings, so a conversion now would be done twice. Library, Home,
+  detail, Schedule and Statistics are on `html```.
+- **View modules receive shared plumbing as a context.** Settings and library actions
+  get `persist`, the confirm dialog, overlays and re-render functions from `events.js`
+  (`initLibraryActions(context)`, `bindSettingsActions(context)`), so moving them did
+  not duplicate any of it. `events.js` keeps navigation, search, shortcuts and boot.
+- **Pure server modules stay at the repo root for now.** `datadir.js`, `migrations.js`,
+  `snapshots.js`, `httpSecurity.js` and the other dependency-free modules keep their
+  paths (unit tests and `run-all.js` require them there); `src/` holds the server
+  itself. Moving them under `src/lib/` is part of the Phase 7 repo cleanup.
+- **esbuild without its install script.** npm's allow-scripts policy skips esbuild's
+  postinstall; the JS API finds the `@esbuild/win32-x64` binary package without it, so
+  nothing was approved or changed.
+- **Exe smoke test uses a test-only no-browser switch.** `ANIME_TRACKER_TEST_NO_BROWSER=1`
+  (same `ANIME_TRACKER_TEST_*` convention as the fault flags) keeps `scripts/smoke-exe.js`
+  from opening a tab in the tester's browser.
+- **Enter on a card now opens the series.** The shortcut existed but the same keypress
+  activated the detail overlay's newly focused close button, so it never worked; keys
+  that open an overlay are consumed. Page shortcuts are off while an overlay is open.
+
 ## Later (out of scope for v3.0)
 
 - Two-way AniList OAuth sync (v3.1).

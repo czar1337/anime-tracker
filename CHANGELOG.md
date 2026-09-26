@@ -26,6 +26,16 @@ Entries are added phase by phase and rewritten into final release notes at the e
 - Cover downloads accept AniList images only, up to 5 MB.
 - Internal: settings changed by dragging a slider or colour picker are now recorded in the activity log once, with the real before and after values; an unreadable request gets a clear error instead of a server error.
 
+### Speed and smoothness
+
+- **The app opens and responds much faster.** A 2,000-title library now appears in about a quarter of the time (all cards in about 0.3 s instead of 1.2 s), and Discover opens in about 0.13 s instead of several seconds.
+- **Marking an episode, rating or editing a note only updates that one card.** The rest of the list no longer redraws, so progress bars don't regrow from zero, the +1 pulse is actually visible, and keyboard focus stays where it was. Changing the sort order moves cards instead of rebuilding them, and only newly added cards animate in.
+- **Every window (series details, search, settings, confirmations) is now a proper dialog.** The page behind it can't be clicked or tabbed into, Escape and a click outside close it, and focus goes back to the card you came from. Keyboard shortcuts no longer fire behind an open window.
+- **Fix: pressing Enter on a focused card now opens the series.** It used to close again immediately.
+- **Fix: "Jump to episode" in the series details now counts in Statistics.** Episodes marked that way were missing from "Episodes this year" and the lifetime totals.
+- **Fix: a cover image address with a quote in it could break the page's styling.**
+- Internal: the server is split into modules under `src/`, all files are written through one safe-save routine, the exe is built with esbuild, and there is an exe smoke test (`scripts/smoke-exe.js`).
+
 ## 2.3.0
 
 Two new features requested after trying 2.2.2 for real, plus a note on the rest of that feedback round.
