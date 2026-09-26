@@ -78,6 +78,68 @@ test('opening one overlay from another closes the first, and focus still returns
   }
 });
 
+test('real Escape presses never close the recovery screen', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card');
+    await page.evaluate(async () => {
+      const { openDialog } = await import('/js/core/dialog.js');
+      openDialog('recovery-overlay');
+    });
+    // Chromium makes a repeated Escape's cancel event non-cancelable when there
+    // was no user activation in between (Escape itself does not count).
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => document.getElementById('recovery-overlay').open)).toBe(true);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('an Undo toast raised inside the detail overlay is visible and works', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await mockDetail(page);
+    await page.goto(server.url);
+    await page.locator(`.card[data-id="${ID}"] [data-action="show-detail"]`).click();
+    const dialog = page.locator('#detail-overlay');
+    await expect(dialog.locator('[data-action="detail-mark-next"]').first()).toBeVisible();
+    await dialog.locator('.detail-foot [data-action="detail-mark-next"]').click();
+    const undo = page.getByRole('button', { name: 'Undo' });
+    await expect(undo).toBeVisible();
+    expect(await undo.evaluate((el) => el.closest('dialog') === document.getElementById('detail-overlay'))).toBe(true);
+    await undo.click();
+    await expect.poll(async () => (await (await fetch(`${server.url}/api/library`)).json()).entries[0].episodesWatched).toBe(5);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('every overlay has an accessible name when open', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card');
+    const unnamed = await page.evaluate(async () => {
+      const { openDialog, closeAllDialogs } = await import('/js/core/dialog.js');
+      const missing = [];
+      // The detail overlay names itself after the series it renders (covered above).
+      for (const d of document.querySelectorAll('dialog.overlay:not(#detail-overlay)')) {
+        openDialog(d, { focus: false });
+        await new Promise((r) => setTimeout(r, 0));
+        const byId = d.getAttribute('aria-labelledby') && document.getElementById(d.getAttribute('aria-labelledby'));
+        // Headings such as the confirm dialog's are filled in just before it opens.
+        if (!d.getAttribute('aria-label') && !byId) missing.push(d.id);
+        closeAllDialogs({ force: true, restore: false });
+      }
+      return missing;
+    });
+    expect(unnamed).toEqual([]);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('a click on the backdrop closes a dismissable overlay but never the recovery screen', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {

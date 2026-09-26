@@ -154,14 +154,27 @@ snapshots) and `pinnedReason`; old snapshots stay valid.
 Phase 2:
 
 - **What the render budgets measure.** "2,000-entry library render under 200 ms" is
-  measured as the app's own render: from the start of the first grid render (library
-  loaded) to the first painted frame with cards, from performance marks in `app.js`.
-  v2's number was wall time from navigation until all 2,000 cards existed, which
-  mostly measured Chromium starting a page, a ~300 ms IPv6-to-IPv4 fallback on every
-  `localhost` connection (fixed, see below) and the module waterfall. `npm run perf`
-  still prints navigation-to-first-paint (206 ms) and navigation-to-all-cards (324 ms,
-  v2.3.0: 1,203 ms) next to it. Warm Discover is likewise measured from opening the
-  tab to the first painted shelf.
+  measured as the app's own render of all 2,000 cards: from the start of the first grid
+  render (library loaded) until the latest render pass has placed every card, from
+  performance marks in `app.js` (p95 183 ms). v2's number was wall time from
+  navigation until all cards existed, which mostly measured Chromium starting a page, a
+  ~300 ms IPv6-to-IPv4 fallback on every `localhost` connection (fixed, see below) and
+  the module waterfall; `npm run perf` still prints that number (335 ms, v2.3.0:
+  1,203 ms) and the time to the first painted cards (70 ms). Warm Discover is measured
+  from opening the tab (as soon as the library shows, no idle wait) to the first
+  painted shelf, and a run fails if the corpus was not fetched after the tab opened,
+  so the number always includes building the shelves. (The independent review found
+  the first version of this, render to first paint and a 500 ms idle wait before
+  opening Discover, too flattering; both were tightened.)
+- **Store subscriptions are available but not wired in yet.** `core/store.js` has the
+  revision counter (used by the memoised lists), `subscribe(selector)` and
+  `patchCommand`; views are still re-rendered by the actions that change them, as in
+  v2. Phase 4 rebuilds the screens and moves them onto subscriptions then, rather than
+  rewiring the old screens twice.
+- **Toasts move into the open dialog.** A modal dialog makes everything outside it
+  inert and draws above it, which put an Undo toast raised inside the detail overlay
+  out of reach. `keepAboveDialogs()` moves the toast area into the topmost open dialog
+  and back.
 - **The server also listens on `::1`.** Windows resolves `localhost` to `::1` first;
   with only `127.0.0.1` bound, every browser connection waited ~310 ms. Found while
   profiling the render budget. Still loopback only, and it also stops another local

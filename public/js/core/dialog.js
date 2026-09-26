@@ -11,11 +11,36 @@
 // card by id when it is still on screen.
 //
 // A dialog marked data-dismissable="false" (the recovery and blocked screens)
-// ignores Escape and backdrop clicks and is only closed by code.
+// ignores Escape and backdrop clicks and is only closed by code. It also carries
+// closedby="none", and is reopened if the browser closes it anyway: Chromium
+// makes a repeated Escape's `cancel` event non-cancelable when there was no user
+// activation in between, so preventDefault() alone lets a second Escape through.
+//
+// Elements registered with keepAboveDialogs() (the toast area) move into the
+// topmost open dialog and back: a modal dialog makes everything outside it
+// inert and draws over it, which would put an Undo toast out of reach.
 
 import { focusFirst, captureReturnTarget, restoreFocus } from './focus.js';
 
 let returnTarget = null;
+const closingByCode = new WeakSet();
+const portals = []; // { el, parent, next }
+
+export function keepAboveDialogs(el) {
+  if (el && !portals.some((p) => p.el === el)) portals.push({ el, parent: el.parentNode, next: el.nextSibling });
+  syncPortals();
+}
+
+function syncPortals() {
+  const top = openDialogs().at(-1);
+  for (const p of portals) {
+    if (top) {
+      if (p.el.parentNode !== top) top.appendChild(p.el);
+    } else if (p.el.parentNode !== p.parent) {
+      p.parent.insertBefore(p.el, p.next && p.next.parentNode === p.parent ? p.next : null);
+    }
+  }
+}
 
 function resolve(dialogOrId) {
   return typeof dialogOrId === 'string' ? document.getElementById(dialogOrId) : dialogOrId;
@@ -45,7 +70,7 @@ const watched = new WeakSet();
 function applyLabel(dialog) {
   if (dialog.hasAttribute('aria-label')) return;
   const current = dialog.getAttribute('aria-labelledby');
-  const heading = dialog.querySelector('h1, h2, h3');
+  const heading = dialog.querySelector('h1, h2, h3, h4');
   if (current && heading && heading.id === current) return;
   if (!heading) {
     if (current && !dialog.querySelector(`#${CSS.escape(current)}`)) dialog.removeAttribute('aria-labelledby');
@@ -62,7 +87,13 @@ function ensureLabel(dialog) {
 }
 
 function closeElement(dialog) {
-  if (dialog.open) dialog.close();
+  if (!dialog.open) return;
+  closingByCode.add(dialog);
+  try {
+    dialog.close();
+  } finally {
+    closingByCode.delete(dialog);
+  }
 }
 
 // Opens one overlay, closing any other. The focus to return to is captured
@@ -73,8 +104,10 @@ export function openDialog(dialogOrId, { focus = true } = {}) {
   if (!dialog) return null;
   if (!isAnyDialogOpen()) returnTarget = captureReturnTarget(document.activeElement);
   for (const other of openDialogs()) if (other !== dialog) closeElement(other);
+  wire(dialog);
   ensureLabel(dialog);
   if (!dialog.open) dialog.showModal();
+  syncPortals();
   if (focus) focusFirst(dialog);
   return dialog;
 }
@@ -101,21 +134,37 @@ export function closeAllDialogs({ restore = true, force = false } = {}) {
   return open.length > 0;
 }
 
-// Wires Escape (the native `cancel` event) and backdrop clicks for every
-// overlay. `onClose` runs for every close however it happened (code, Escape,
-// backdrop), which is where callers reset per-overlay state.
+// Escape (the native `cancel` event) and backdrop clicks. Every dialog is wired
+// on first open as well as by initDialogs(), because the recovery screen can
+// open before the rest of the app has initialised.
+let dismiss = () => closeAllDialogs();
+const wired = new WeakSet();
+function wire(dialog) {
+  if (wired.has(dialog)) return;
+  wired.add(dialog);
+  dialog.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    if (isDismissable(dialog)) dismiss();
+  });
+  // The dialog box itself is the full-screen backdrop; .overlay-panel is the
+  // content. A click whose target is the dialog landed outside the panel.
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog && isDismissable(dialog)) dismiss();
+  });
+  dialog.addEventListener('close', () => {
+    if (!isDismissable(dialog) && !closingByCode.has(dialog)) {
+      dialog.showModal(); // the browser closed a screen that must stay
+      focusFirst(dialog);
+    }
+    syncPortals();
+  });
+}
+
+// `onDismiss` is what Escape and a backdrop click do (events.js also resets
+// search state).
 export function initDialogs({ onDismiss } = {}) {
-  for (const dialog of document.querySelectorAll('dialog.overlay')) {
-    dialog.addEventListener('cancel', (e) => {
-      e.preventDefault();
-      if (isDismissable(dialog)) (onDismiss || (() => closeAllDialogs()))();
-    });
-    // The dialog box itself is the full-screen backdrop; .overlay-panel is the
-    // content. A click whose target is the dialog landed outside the panel.
-    dialog.addEventListener('click', (e) => {
-      if (e.target === dialog && isDismissable(dialog)) (onDismiss || (() => closeAllDialogs()))();
-    });
-  }
+  if (onDismiss) dismiss = onDismiss;
+  for (const dialog of document.querySelectorAll('dialog.overlay')) wire(dialog);
 }
 
 // Runs `callback` whenever the dialog closes, however it closes.

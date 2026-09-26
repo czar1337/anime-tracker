@@ -17,6 +17,7 @@ import { partitionSpoilerTags, truncateSynopsis } from '../../detailLogic.js';
 import { html, cls, cssUrl } from '../../core/html.js';
 import { scoreStripHtml, statusRowHtml } from '../library/view.js';
 import { formatEnumLabel } from '../shared/format.js';
+import { morphInto } from '../../core/reconcile.js';
 import { detailState } from './model.js';
 
 // design/HANDOVER.md §14 "More than 50 episodes": squares up to 50; past that,
@@ -152,6 +153,7 @@ function metaCell(label, value) {
 }
 
 export function renderDetailOverlay(container, state) {
+  const shownId = container.dataset.anilistId;
   delete container.dataset.anilistId;
   if (state.status === 'loading') {
     container.innerHTML = String(html`<div class="empty-state"><h2>Loading…</h2><p>Fetching details from AniList.</p></div>`);
@@ -178,7 +180,7 @@ export function renderDetailOverlay(container, state) {
   const metaBits = [formatEnumLabel(m.format), formatEnumLabel(m.status), m.episodes ? `${m.episodes} ep` : null, m.duration ? `${m.duration} min/ep` : null].filter(Boolean);
   const finished = local && local.totalEpisodes && local.episodesWatched >= local.totalEpisodes;
 
-  container.innerHTML = String(html`
+  const markup = html`
     <div class="detail-side">
       <div class="detail-cover" style="background-image:${cssUrl(Api.bestCoverUrl(m) || '')}"></div>
       <div class="detail-score">
@@ -230,5 +232,10 @@ export function renderDetailOverlay(container, state) {
           <button class="btn btn-quiet" data-action="detail-already-watched">${copy('discoverFeedback.alreadyWatched')}</button>
           <button class="btn btn-quiet" data-action="close-overlay">Close</button>
         </div>`}
-    </div>`);
+    </div>`;
+  // The same series re-rendered after an action inside the overlay (a score,
+  // a status, a tag) is morphed in place, so focus and scroll stay where they
+  // were; a different series is a fresh render.
+  if (shownId === String(m.id)) morphInto(container, markup);
+  else container.innerHTML = String(markup);
 }

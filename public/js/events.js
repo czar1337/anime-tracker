@@ -14,7 +14,7 @@ import { notifyAchievementEngine } from './achievementHook.js';
 import { TasteProfile } from './tasteProfile.js';
 import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
-import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs } from './core/dialog.js';
+import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs, keepAboveDialogs } from './core/dialog.js';
 import { trapTab } from './core/focus.js';
 import { bindStatsActions } from './views/stats/actions.js';
 import {
@@ -659,6 +659,8 @@ function bindOverlayCloseButtons() {
 // .overlay-panel; Escape is the dialog's native cancel event).
 function bindOverlayBackdropClose() {
   initDialogs({ onDismiss: () => closeAllOverlays() });
+  // Toasts (Undo above all) stay reachable while an overlay is open.
+  keepAboveDialogs(document.getElementById('toast-container'));
 }
 
 // P5A.3's scorer debug panel. Async (a fresh corpus-cache fetch per open,

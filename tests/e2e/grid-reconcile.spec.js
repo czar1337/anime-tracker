@@ -91,6 +91,57 @@ test('changing the sort moves cards without recreating them or replaying their e
   }
 });
 
+test('a +1 far down a 2,000-entry grid updates at once and keeps its pulse', async ({ page }) => {
+  const server = await startFixtureServer(PERF_FIXTURE);
+  try {
+    await page.goto(server.url);
+    await allCardsRendered(page, 2000);
+    const card = page.locator('#grid > .card').nth(700);
+    await card.scrollIntoViewIfNeeded();
+    const before = await card.locator('.progress-label').textContent();
+    // Click and read back in the same task: the card must already be updated.
+    const after = await card.evaluate((el) => {
+      el.querySelector('[data-action="increment"]').click();
+      return el.querySelector('.progress-label').textContent;
+    });
+    expect(after).not.toBe(before);
+    await page.waitForTimeout(150); // past any chunk frames
+    await expect(card.locator('.plus')).toHaveClass(/pulse/);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('keyboard focus stays on a card that moves, and inside it when its controls change', async ({ page }) => {
+  const server = await startFixtureServer(PERF_FIXTURE);
+  try {
+    await page.goto(server.url);
+    await allCardsRendered(page, 2000);
+    await page.selectOption('#sort-select', 'progressPercent');
+    await page.waitForTimeout(200);
+    const id = await page.locator('#grid > .card').nth(30).getAttribute('data-id');
+    const card = page.locator(`#grid > .card[data-id="${id}"]`);
+    await card.focus();
+    // A few +1s move the card up the progress sort.
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Space');
+    const moved = await page.evaluate((cardId) => {
+      const cards = [...document.querySelectorAll('#grid > .card')];
+      return { index: cards.findIndex((c) => c.dataset.id === cardId), focused: document.activeElement?.dataset?.id };
+    }, id);
+    expect(moved.index, 'the card moved in the sort').not.toBe(30);
+    expect(moved.focused).toBe(id);
+
+    // Entering select mode replaces the card's corner controls.
+    await card.hover();
+    await card.locator('[data-action="quick-select"]').focus();
+    await page.keyboard.press('Space');
+    await expect(page.locator('#bulk-action-bar')).toBeVisible();
+    expect(await page.evaluate((cardId) => Boolean(document.activeElement?.closest(`.card[data-id="${cardId}"]`)), id)).toBe(true);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('the first screen of a 2,000-entry grid is in the DOM before the rest', async ({ page }) => {
   const server = await startFixtureServer(PERF_FIXTURE);
   try {

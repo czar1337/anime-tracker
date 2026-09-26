@@ -164,7 +164,8 @@ module.exports = function register({ route, prefix }) {
       sendJson(res, 400, { error: 'Body must include a cursor {page, complete}.' });
       return;
     }
-    const existing = readCorpusCache();
+    // Read-only use of the kept parse (the merge below builds a new object).
+    const existing = corpusSnapshot()?.parsed || readCorpusCache();
     const data = {
       generatedAt: body.generatedAt || new Date().toISOString(),
       cursor: body.cursor,

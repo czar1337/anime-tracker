@@ -171,7 +171,7 @@
   </dialog>
 
   <!-- Search overlay -->
-  <dialog id="search-overlay" class="overlay">
+  <dialog id="search-overlay" class="overlay" aria-label="Search AniList">
     <div class="overlay-panel search-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <div class="search-input-row">
@@ -210,7 +210,7 @@
   </dialog>
 
   <!-- Discover: dismissed ("Not interested") items, with undo -->
-  <dialog id="dismissed-overlay" class="overlay">
+  <dialog id="dismissed-overlay" class="overlay" aria-label="Not interested">
     <div class="overlay-panel import-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <div id="dismissed-content"></div>
@@ -289,7 +289,7 @@
   <!-- P5B.4's "Pick for me" — a randomiser over the Watchlist, same
        render-on-demand split as discover-filters-body above (its genre
        dropdown depends on runtime library data). -->
-  <dialog id="pick-for-me-overlay" class="overlay">
+  <dialog id="pick-for-me-overlay" class="overlay" aria-label="Pick for me">
     <div class="overlay-panel" style="max-width:480px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2 id="pick-for-me-title"></h2>
@@ -345,7 +345,7 @@
   <!-- Corrupt-data recovery banner (shown instead of app if library.json
        unreadable). design system §16: "New design, deliberately plain" —
        no accent fills, no glow; the .tag.warn pill is the only colour. -->
-  <dialog id="recovery-overlay" class="overlay" data-dismissable="false">
+  <dialog id="recovery-overlay" class="overlay" data-dismissable="false" closedby="none">
     <div class="overlay-panel">
       <span class="tag warn safety-tag">Nothing has been changed</span>
       <h2>Your library file could not be read</h2>
@@ -364,7 +364,7 @@
        by a newer app version). Purely informational — no action buttons,
        since guessing which data is "right" or auto-modifying files is
        exactly what must not happen here. -->
-  <dialog id="blocked-overlay" class="overlay" data-dismissable="false">
+  <dialog id="blocked-overlay" class="overlay" data-dismissable="false" closedby="none">
     <div class="overlay-panel">
       <span class="tag warn safety-tag">Needs a decision from you</span>
       <h2 id="blocked-title"></h2>

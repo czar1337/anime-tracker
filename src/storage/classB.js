@@ -168,7 +168,7 @@ const CLASS_B_STORE_FILES = {
 // standard `ensureClassBWriteQuota`'s whole deficit calculation already
 // runs on.
 function corpusEvictableBytes() {
-  const cache = readCorpusCache();
+  const cache = corpusSnapshot()?.parsed || readCorpusCache(); // read-only here
   const entryIds = Object.keys(cache.entries);
   if (entryIds.length === 0) return 0;
   const libraryIds = new Set((readLibrary().entries || []).map((e) => String(e.anilistId)));

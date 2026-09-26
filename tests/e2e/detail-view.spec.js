@@ -58,6 +58,14 @@ test('jump to episode records the progress as an event, and the cover URL cannot
     expect(style.startsWith('background-image:url("')).toBe(true);
     expect(bg).not.toBe('rgb(255, 0, 0)');
 
+    // An action inside the overlay re-renders it in place: focus stays on the
+    // control that was used (v2.3.0 rebuilt the overlay and dropped focus).
+    const dot = dialog.locator('.score-dot[data-score="8"]');
+    await dot.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog.locator('.detail-score b')).toHaveText('8');
+    expect(await dot.evaluate((el) => document.activeElement === el)).toBe(true);
+
     const jump = dialog.locator('[data-action="detail-jump-episode"]');
     await jump.fill('30');
     await jump.press('Enter');

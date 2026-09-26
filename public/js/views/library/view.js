@@ -39,11 +39,13 @@ function coverMediaHtml(src) {
 // What an unseen-episodes badge last showed per title, so the badge pops only
 // when the number just went up (a new episode aired), never on an unrelated
 // re-render and never when it goes down.
-const lastUnseenByCardId = new Map();
+// The class stays until the count changes again (a CSS animation plays once
+// when the class is added), so an unrelated re-render does not touch the card.
+const lastUnseenByCardId = new Map(); // id -> { count, pop }
 function unseenPopClass(anilistId, unseen) {
   const prev = lastUnseenByCardId.get(anilistId);
-  lastUnseenByCardId.set(anilistId, unseen);
-  return prev !== undefined && unseen > prev ? 'pop' : '';
+  if (!prev || prev.count !== unseen) lastUnseenByCardId.set(anilistId, { count: unseen, pop: Boolean(prev) && unseen > prev.count });
+  return lastUnseenByCardId.get(anilistId).pop ? 'pop' : '';
 }
 
 export function scoreStripHtml(entry) {

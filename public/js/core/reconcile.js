@@ -17,6 +17,7 @@
 //  - the value of a focused input/textarea/select is never overwritten.
 
 import { toElement } from './html.js';
+import { captureReturnTarget, restoreFocus } from './focus.js';
 
 const lastHtml = new WeakMap();
 
@@ -125,6 +126,11 @@ function parseMany(markups) {
 function runRange(pass, items, from, to) {
   const { container, existing, options } = pass;
   const { key, render, onCreate } = options;
+  // Moving a focused element (insertBefore) or replacing it drops focus to
+  // <body>. Focus inside the list is put back afterwards: on the same element,
+  // or on its card when the element itself was replaced.
+  const active = document.activeElement;
+  const focusBefore = active && active !== document.body && container.contains(active) ? captureReturnTarget(active) : null;
   const slots = [];
   const fresh = [];
   for (let i = from; i < to; i++) {
@@ -170,6 +176,7 @@ function runRange(pass, items, from, to) {
     pass.placed.push(el);
   }
   if (onCreate) for (const el of created) onCreate(el);
+  if (focusBefore && document.activeElement !== focusBefore.el) restoreFocus(focusBefore);
 }
 
 function endPass(pass, keepUnmatched) {
@@ -198,34 +205,75 @@ export function forget(node) {
   for (let n = node; n; n = n.parentElement) lastHtml.delete(n);
 }
 
-// Same as reconcileList, but only the first `firstCount` items synchronously and
-// the rest in chunks on later frames, so a large list paints its first screen
-// immediately. Elements beyond the first screen that are already there stay put
-// until their chunk reaches them (nothing flashes away); leftovers are removed
-// after the last chunk. A newer call on the same container cancels chunks still
-// pending from an older one.
+// The index at which a range starting at `from` would create more than
+// `budget` new elements. Existing elements cost little (a string compare, or a
+// morph), so only creation is budgeted.
+function rangeEnd(pass, items, from, budget) {
+  const { key } = pass.options;
+  let fresh = 0;
+  let i = from;
+  for (; i < items.length; i++) {
+    if (!pass.existing.has(String(key(items[i], i)))) {
+      if (fresh >= budget) break;
+      fresh += 1;
+    }
+  }
+  return i;
+}
+
+// Same as reconcileList, but creating at most `firstCount` new elements
+// synchronously and the rest in chunks of `chunkSize` on later frames, so a
+// large list paints its first screen immediately. Elements that already exist
+// are updated in the same synchronous pass however many there are, so a change
+// to one item (a +1) lands at once wherever the item is, and nothing done to
+// the element right after (a pulse class) is undone by a later chunk.
+// Elements not in `items` are removed after the last chunk. A newer call on
+// the same container cancels chunks still pending from an older one.
+//
+// Resolves true when this pass completed, false when a newer one superseded
+// it. whenSettled(container) resolves when the latest pass has completed.
 const pendingChunks = new WeakMap();
+const settledWaiters = new WeakMap();
+
+function finish(container, token) {
+  if (pendingChunks.get(container) !== token) return;
+  pendingChunks.delete(container);
+  const waiters = settledWaiters.get(container) || [];
+  settledWaiters.delete(container);
+  for (const resolve of waiters) resolve();
+}
+
+export function whenSettled(container) {
+  if (!pendingChunks.has(container)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const list = settledWaiters.get(container) || [];
+    list.push(resolve);
+    settledWaiters.set(container, list);
+  });
+}
+
 export function reconcileListChunked(container, items, options = {}, { firstCount = 60, chunkSize = 400 } = {}) {
   const token = {};
   pendingChunks.set(container, token);
   const pass = beginPass(container, options);
-  const first = Math.min(firstCount, items.length);
-  runRange(pass, items, 0, first);
-  if (first >= items.length) {
+  let done = rangeEnd(pass, items, 0, firstCount);
+  runRange(pass, items, 0, done);
+  if (done >= items.length) {
     endPass(pass, options.keepUnmatched);
-    return Promise.resolve();
+    finish(container, token);
+    return Promise.resolve(true);
   }
   return new Promise((resolve) => {
-    let done = first;
     const step = () => {
-      if (pendingChunks.get(container) !== token) return resolve();
-      const to = Math.min(items.length, done + chunkSize);
+      if (pendingChunks.get(container) !== token) return resolve(false);
+      const to = rangeEnd(pass, items, done, chunkSize);
       runRange(pass, items, done, to);
       done = to;
       if (done < items.length) requestAnimationFrame(step);
       else {
         endPass(pass, options.keepUnmatched);
-        resolve();
+        finish(container, token);
+        resolve(true);
       }
     };
     requestAnimationFrame(step);
