@@ -972,6 +972,37 @@ function writeCorpusCacheAtomic(data) {
     fs.closeSync(fd);
   }
   renameSyncWithRetry(CORPUS_CACHE_TMP_FILE, CORPUS_CACHE_FILE);
+  corpusMemo = null;
+}
+
+// v3 Phase 2: the corpus is several MB and read far more often than written
+// (every Discover build, every status poll). The file's text and parse are
+// kept per file signature (inode, size, mtime), and GET /api/corpus answers
+// If-None-Match with 304 so an unchanged corpus is neither re-sent nor
+// re-parsed by the browser. Writes clear the memo explicitly as well.
+let corpusMemo = null;
+function corpusFileSignature() {
+  try {
+    const st = fs.statSync(CORPUS_CACHE_FILE);
+    return `${st.ino}-${st.size}-${Math.round(st.mtimeMs * 1000)}`;
+  } catch {
+    return null;
+  }
+}
+function corpusSnapshot() {
+  const sig = corpusFileSignature();
+  if (!sig) return null;
+  if (corpusMemo && corpusMemo.sig === sig) return corpusMemo;
+  let text;
+  let parsed;
+  try {
+    text = fs.readFileSync(CORPUS_CACHE_FILE, 'utf8');
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  corpusMemo = { sig, etag: `"corpus-${sig}"`, text, parsed, entryCount: Object.keys(parsed.entries || {}).length };
+  return corpusMemo;
 }
 
 function readCorpusCache() {
@@ -2493,18 +2524,36 @@ const server = http.createServer(async (req, res) => {
     // every boot to decide whether to resume a seed; at corpus scale that
     // must not cost a multi-MB fetch just to read the cursor.
     if (pathname === '/api/corpus/status' && req.method === 'GET') {
-      const cache = readCorpusCache();
+      const snap = corpusSnapshot();
+      const cache = snap ? snap.parsed : readCorpusCache();
       sendJson(res, 200, {
         generatedAt: cache.generatedAt,
         cursor: cache.cursor,
         targetSize: cache.targetSize,
-        entryCount: Object.keys(cache.entries).length,
+        entryCount: snap ? snap.entryCount : Object.keys(cache.entries || {}).length,
       });
       return;
     }
 
     if (pathname === '/api/corpus' && req.method === 'GET') {
-      sendJson(res, 200, readCorpusCache());
+      const snap = corpusSnapshot();
+      if (!snap) {
+        sendJson(res, 200, readCorpusCache());
+        return;
+      }
+      if (req.headers['if-none-match'] === snap.etag) {
+        res.writeHead(304, { ETag: snap.etag, 'Cache-Control': 'no-store', ...HttpSecurity.securityHeaders() });
+        res.end();
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Length': Buffer.byteLength(snap.text),
+        'Cache-Control': 'no-store',
+        ETag: snap.etag,
+        ...HttpSecurity.securityHeaders(),
+      });
+      res.end(snap.text);
       return;
     }
 

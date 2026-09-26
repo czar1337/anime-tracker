@@ -69,9 +69,22 @@ const discoverState = {
 let buildInFlight = null; // shared promise so an auto-build and a manual refresh can't both run at once
 let buildGeneration = 0; // bumped whenever a stale in-flight build's result should be ignored
 
+// Performance marks for scripts/perf.js's warm-Discover budget: set when the tab
+// opens, and at the first painted frame after that with real shelf cards.
+let awaitingFirstPaintMark = false;
+function markOpened() {
+  performance.mark('discover:open');
+  awaitingFirstPaintMark = true;
+}
+
 function renderNow() {
   const container = document.getElementById('discover-view');
-  if (container) Render.renderDiscoverPage(container, getDiscoverState());
+  if (!container) return;
+  Render.renderDiscoverPage(container, getDiscoverState());
+  if (awaitingFirstPaintMark && !container.hidden && container.querySelector('.discover-card')) {
+    awaitingFirstPaintMark = false;
+    requestAnimationFrame(() => setTimeout(() => performance.mark('discover:first-paint'), 0));
+  }
 }
 
 // Strips a card by anilistId from every shelf it might appear in — a
@@ -556,8 +569,16 @@ export function initDiscover({ persistFn } = {}) {
   pollCorpusStatus();
 }
 
+// Showing the tab: render what is there now, rebuild only if stale.
+export function openView() {
+  markOpened();
+  renderNow();
+  ensureFreshOnOpen();
+}
+
 export const Discover = {
   initDiscover,
+  openView,
   getDiscoverState,
   ensureFreshOnOpen,
   buildScorerDebugRows,

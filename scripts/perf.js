@@ -168,12 +168,19 @@ async function measureDiscoverLoadOnce(corpusSize) {
     page.on('request', (req) => {
       if (req.url().includes('graphql.anilist.co')) aniListRequests.push(req.url());
     });
-    const start = Date.now();
+    // v3 Phase 2: measured from opening the tab to the first painted frame with
+    // shelf cards (performance marks in discover.js). v2 timed navigation to
+    // the first card, which counted the whole page load as "Discover".
     await page.goto(server.url, { waitUntil: 'commit' });
     await page.waitForSelector('.card, .empty');
+    await page.waitForTimeout(500); // the app settles (background fetches) as a user's would before they switch tabs
     await page.click('[data-tab="discover"]');
     await page.waitForSelector('.discover-card, .shelf-empty', { timeout: 15000 });
-    const elapsed = Date.now() - start;
+    await page.waitForFunction(() => performance.getEntriesByName('discover:first-paint').length, null, { timeout: 15000 });
+    const elapsed = await page.evaluate(() => {
+      const opened = performance.getEntriesByName('discover:open').at(-1).startTime;
+      return Math.round(performance.getEntriesByName('discover:first-paint')[0].startTime - opened);
+    });
     if (aniListRequests.length) throw new Error(`Discover load made ${aniListRequests.length} AniList request(s) — budget requires zero.`);
     return elapsed;
   } finally {

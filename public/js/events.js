@@ -375,8 +375,7 @@ function showDiscoverView() {
   playViewEnter(el);
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'discover')));
   updateTabPill();
-  Render.renderDiscoverPage(el, Discover.getDiscoverState());
-  Discover.ensureFreshOnOpen();
+  Discover.openView();
 }
 
 function showScheduleView() {
