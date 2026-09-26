@@ -1,12 +1,13 @@
-import { Store } from './state.js';
-import { Api } from './api.js';
-import { Render } from './render.js';
-import { Airing } from './airing.js';
-import { pickSeeds, buildGenreProfile, filterOwned, applyMediaFilters, poolStudios, poolFormats } from './recommendLogic.js';
-import { rankUpcoming } from './scheduleLogic.js';
-import { EventLog } from './eventLog.js';
-import { copy } from './copy.js';
-import { FeedbackLoop } from './feedbackLoop.js';
+import { Store } from '../../state.js';
+import { Api } from '../../api.js';
+import { Render } from '../../render.js';
+import { Airing } from '../../airing.js';
+import { pickSeeds, buildGenreProfile, filterOwned, applyMediaFilters, poolStudios, poolFormats } from '../../recommendLogic.js';
+import { rankUpcoming } from '../../scheduleLogic.js';
+import { EventLog } from '../../eventLog.js';
+import { copy } from '../../copy.js';
+import { FeedbackLoop } from '../../feedbackLoop.js';
+import { renderSchedulePage } from './view.js';
 
 const PAGE_SIZE = 20;
 const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on manual refresh
@@ -48,7 +49,7 @@ function filterLiveItems(items) {
 
 function renderNow() {
   const container = document.getElementById('schedule-view');
-  if (container) Render.renderSchedulePage(container, getScheduleState());
+  if (container) renderSchedulePage(container, getScheduleState());
 }
 
 async function computeUpcoming() {

@@ -1,7 +1,6 @@
 import { Store } from './state.js';
 import { Airing } from './airing.js';
 import { COLOR_THEMES } from './themes.js';
-import { formatReleaseDate } from './scheduleLogic.js';
 import { Preferences } from './preferences.js';
 import { Api } from './api.js';
 import { copy } from './copy.js';
@@ -24,6 +23,8 @@ import * as LibraryModel from './views/library/model.js';
 import * as LibraryView from './views/library/view.js';
 import { renderStatsPage } from './views/stats/view.js';
 import { animateProgressBars } from './views/shared/animate.js';
+import { renderSchedulePage } from './views/schedule/view.js';
+import { staggerDelayMs, relativeAgeText, formatEnumLabel, coverOrInitialHtml } from './views/shared/format.js';
 
 const { isSelectMode, toggleSelectMode, clearSelection, toggleSelected, getSelectedIds, visibleIds, selectRange, selectAllVisible, toggleGroupExpanded } = LibraryModel;
 const { coverSrc, cardHtml, titleBlockHtml, scoreStripHtml, statusRowHtml, QUICK_MOVE_LISTS } = LibraryView;
@@ -140,12 +141,6 @@ function toggleDetailSpoilers() {
 
 function toggleDetailSynopsis() {
   detailSynopsisExpanded = !detailSynopsisExpanded;
-}
-
-// index drives the entrance-animation stagger (capped so very long lists
-// don't end up with a multi-second cascade before the last row settles).
-function staggerDelayMs(index) {
-  return Math.min(index, 12) * 45;
 }
 
 function renderGrid(list) {
@@ -601,14 +596,6 @@ function renderAll(list) {
   return renderGrid(list);
 }
 
-function relativeAgeText(generatedAt) {
-  if (!generatedAt) return null;
-  const hours = (Date.now() - new Date(generatedAt).getTime()) / 3_600_000;
-  if (hours < 1) return 'Updated just now';
-  if (hours < 24) return `Updated ${Math.round(hours)}h ago`;
-  const days = Math.round(hours / 24);
-  return `Updated ${days} day${days === 1 ? '' : 's'} ago`;
-}
 
 // P5A.4: one card per shelf row. `cardData` is whatever
 // shelvesLogic.js's buildShelves() produced: {anilistId, candidate, because,
@@ -763,30 +750,6 @@ function shelfHtml(shelf) {
       <div class="shelf-row">${shelf.cards.map((c, i) => shelfCardHtml(shelf, c, i)).join('')}</div>
       ${canExpand ? `<button class="text-btn shelf-view-more" data-action="discover-view-more" data-shelf-id="${escapeHtml(shelf.id)}">${copy('discoverFeedback.viewMore')}</button>` : ''}
     </section>`;
-}
-
-// Shared by Discover and Schedule — both filter over the same { media }
-// item shape (see recommendLogic.js's applyMediaFilters), so one markup
-// generator with an id prefix avoids duplicating it twice. Regenerated in
-// full on every render, so callers must bind these via event delegation
-// rather than direct listeners. Discover itself stopped calling this at
-// P5A.4 (shelves have no format/studio filter bar of their own — P5B.3's
-// own future "Advanced filters" job) — Schedule's own renderSchedulePage
-// is still a real caller.
-function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios, showReset) {
-  if (!availableFormats.length && !availableStudios.length) return '';
-  return `
-    <div class="filter-group discover-media-filter">
-      <select id="${prefix}-format-filter" class="sel" aria-label="Filter by format">
-        <option value="">All formats</option>
-        ${availableFormats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(formatEnumLabel(f))}</option>`).join('')}
-      </select>
-      <select id="${prefix}-studio-filter" class="sel" aria-label="Filter by studio">
-        <option value="">All studios</option>
-        ${availableStudios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
-      </select>
-      ${showReset ? `<button class="text-btn" id="${prefix}-reset-filters">Reset filters</button>` : ''}
-    </div>`;
 }
 
 // P5A.1's minimal progress signal for the background corpus seed. Also
@@ -1103,129 +1066,6 @@ function renderDiscoverPage(container, viewState) {
   container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}${shelves.map(shelfHtml).join('')}`;
 }
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function isSameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-// Compact 7-day strip of what's airing next for your Watching list — pure
-// presentation over data airing.js/airingLogic.js already maintain for the
-// unseen-episode badges, so this can never disagree with them.
-function weekStripHtml(week) {
-  const today = new Date();
-  return `
-    <div class="schedule-week">
-      ${week
-        .map(({ date, items }, i) => `
-        <div class="schedule-day ${isSameDay(date, today) ? 'is-today' : ''}" style="animation-delay:${staggerDelayMs(i)}ms">
-          <div class="schedule-day-label">
-            <span class="schedule-day-name">${isSameDay(date, today) ? 'Today' : DAY_NAMES[date.getDay()]}</span>
-            <span class="schedule-day-date">${date.getMonth() + 1}/${date.getDate()}</span>
-          </div>
-          <div class="schedule-day-items">
-            ${items.length
-              ? items
-                  .map(
-                    (it) => `
-              <button class="schedule-item ${it.alreadyAired ? 'already-aired' : ''}" data-action="show-detail" data-detail-id="${it.anilistId}" title="${escapeHtml(it.title)} — episode ${it.episode}${it.alreadyAired ? ', already aired' : ''}">
-                <span class="schedule-item-title">${escapeHtml(it.title)}</span>
-                <span class="schedule-item-ep">${it.alreadyAired ? 'Already aired' : `Ep ${it.episode}`}</span>
-              </button>`
-                  )
-                  .join('')
-              : `<p class="schedule-day-empty">Nothing airing</p>`}
-          </div>
-        </div>`
-        )
-        .join('')}
-    </div>`;
-}
-
-// v3 Phase 1 item 13: AniList can return a title with no coverImage at all.
-// Design system §9: a missing cover is the first letter on a flat panel, never an
-// empty box, and never a TypeError that aborts the whole render.
-function coverOrInitialHtml(url, title) {
-  if (url) return `<img src="${escapeHtml(url)}" alt="" loading="lazy">`;
-  const initial = (String(title || '').trim()[0] || '?').toUpperCase();
-  return `<span class="cover-initial" aria-hidden="true">${escapeHtml(initial)}</span>`;
-}
-
-function scheduleCardHtml(item, index = 0) {
-  const m = item.media;
-  return `
-    <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelayMs(index)}ms">
-      <div class="card-cover-wrap">
-        <div class="skeleton"></div>
-        ${coverOrInitialHtml(m.coverImage?.large, m.title?.english || m.title?.romaji)}
-        ${m.format ? `<span class="card-format-badge">${escapeHtml(m.format)}</span>` : ''}
-      </div>
-      <div class="card-body">
-        ${titleBlockHtml({ titleEnglish: m.title?.english, titleRomaji: m.title?.romaji, titleNative: m.title?.native }, m.id)}
-        <div class="card-meta">
-          ${(m.genres || []).length ? `<span>${escapeHtml(m.genres.slice(0, 3).join(', '))}</span>` : ''}
-        </div>
-        <p class="discover-because schedule-release-date">Releases ${escapeHtml(formatReleaseDate(m.startDate))}</p>
-        <div class="discover-actions">
-          <button class="text-btn primary" data-action="schedule-add">Add to Watchlist</button>
-          <button class="text-btn" data-action="schedule-dismiss">Not interested</button>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function renderSchedulePage(container, viewState) {
-  const { status, items, visibleCount, generatedAt, offline, progressText, week, availableFormats = [], availableStudios = [], filters = {} } = viewState;
-  const age = relativeAgeText(generatedAt);
-
-  const banner = `
-    <div class="discover-hero">
-      <div class="home-hero">
-        <h2>Schedule</h2>
-        <p>When your shows air next, and what's coming up worth watching for.</p>
-      </div>
-      <div class="discover-controls">
-        ${age ? `<span class="discover-age">${escapeHtml(age)}${offline ? ' · offline, showing cached results' : ''}</span>` : ''}
-        <button class="text-btn primary" id="schedule-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${status === 'loading' ? 'Refreshing…' : 'Refresh'}</button>
-      </div>
-    </div>
-    ${mediaFilterBarHtml('schedule', filters, availableFormats, availableStudios, Boolean(filters.format || filters.studio))}`;
-
-  const thisWeekSection = `
-    <div class="schedule-section">
-      <h3>This week</h3>
-      ${weekStripHtml(week)}
-    </div>`;
-
-  let comingSoonBody;
-  if (status === 'loading' && items.length === 0) {
-    comingSoonBody = `<div class="empty-state"><h2>Finding what's coming up…</h2><p>Talking to AniList…</p></div>`;
-  } else if (status === 'error' && items.length === 0) {
-    comingSoonBody = `<div class="empty-state"><h2>Could not load upcoming releases</h2><p>${escapeHtml(progressText || 'Check your internet connection and try refreshing.')}</p></div>`;
-  } else if (items.length === 0) {
-    comingSoonBody = `<div class="empty-state"><h2>Nothing new to show right now</h2><p>You've already added or dismissed everything we found. Try refreshing later.</p></div>`;
-  } else {
-    const visibleItems = items.slice(0, visibleCount);
-    const loadMore = visibleCount < items.length
-      ? `<div class="discover-load-more-row">
-          <span class="discover-count">Showing ${visibleCount} of ${items.length}</span>
-          <button class="text-btn" id="schedule-load-more-btn">Load more</button>
-        </div>`
-      : '';
-    comingSoonBody = `<div class="card-grid discover-grid">${visibleItems.map((item, i) => scheduleCardHtml(item, i)).join('')}</div>${loadMore}`;
-  }
-
-  container.innerHTML = `
-    ${banner}
-    ${thisWeekSection}
-    <div class="schedule-section">
-      <h3>Coming soon</h3>
-      ${comingSoonBody}
-    </div>
-  `;
-}
-
 // No "Hidden N days ago" here — dismissedItems doesn't (and shouldn't)
 // store a timestamp; that's a library.json shape change for a nice-to-have
 // display detail, not something worth touching the storage format for.
@@ -1497,13 +1337,6 @@ function stepsHtml(current, labels) {
 // which reads as a typo. Acronyms get an explicit label; anything else
 // (including status enums like RELEASING, which also go through this
 // helper) falls back to the generic title-case.
-const FORMAT_ACRONYMS = { TV: 'TV', TV_SHORT: 'TV Short', OVA: 'OVA', ONA: 'ONA' };
-function formatEnumLabel(value) {
-  if (!value) return null;
-  if (FORMAT_ACRONYMS[value]) return FORMAT_ACRONYMS[value];
-  return value.toLowerCase().split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
-}
-
 function formatFuzzyDate(d) {
   if (!d || !d.year) return null;
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

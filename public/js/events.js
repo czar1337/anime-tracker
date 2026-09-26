@@ -3,7 +3,7 @@ import { Api } from './api.js';
 import { Render } from './render.js';
 import { Discover } from './discover.js';
 import { FeedbackLoop } from './feedbackLoop.js';
-import { Schedule } from './schedule.js';
+import { Schedule } from './views/schedule/actions.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 import { Notifications } from './notifications.js';

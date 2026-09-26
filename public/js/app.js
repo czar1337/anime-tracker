@@ -5,7 +5,7 @@ import { initEvents, refreshCurrentView, refreshCurrentViewWhenIdle, repositionT
 import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './discover.js';
-import { Schedule } from './schedule.js';
+import { Schedule } from './views/schedule/actions.js';
 import { Detail } from './detail.js';
 import { Airing } from './airing.js';
 import { Corpus } from './corpus.js';
