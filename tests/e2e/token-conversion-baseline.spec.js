@@ -61,8 +61,19 @@ async function captureScene(page, sceneName, rootSelector) {
       const counts = new Map();
       const out = {};
       const all = [root, ...root.querySelectorAll('*')];
+      // How many backups exist depends on whether the scene's saves cross a
+      // minute boundary (saves within a minute share one backup since v3
+      // Phase 1). The rows are identical in style, so only the first counts.
+      const firstBackupRow = root.querySelector('.backup-row');
       for (const el of all) {
-        const cls = [...el.classList].sort().join('.');
+        const row = el.closest('.backup-row');
+        if (row && row !== firstBackupRow) continue;
+        // Transient decoration is skipped: `enter` (a just-created grid card),
+        // `pulse` (the +1 button) and ripple spans. Since v3 Phase 2 the grid
+        // keeps its nodes across renders, so whether these are still present
+        // depends on timing.
+        if (el.classList.contains('rip')) continue;
+        const cls = [...el.classList].filter((c) => c !== 'enter' && c !== 'pulse').sort().join('.');
         const sig = `${el.tagName.toLowerCase()}${cls ? '.' + cls : ''}`;
         const n = (counts.get(sig) || 0) + 1;
         counts.set(sig, n);
@@ -283,7 +294,7 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     // on top of it — cancelled via Escape without ever typing the phrase or
     // confirming, so nothing is actually reset and no further save fires.
     await page.click('#reset-everything-btn');
-    await page.waitForSelector('#confirm-overlay:not([hidden])');
+    await page.waitForSelector('#confirm-overlay[open]');
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'confirm-dialog', '#confirm-overlay'));
     await page.keyboard.press('Escape');
@@ -300,7 +311,7 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     // sub-tab bodies would have sat at zero coverage despite the panel
     // itself "having been opened" via the default tab.
     await page.click('#shortcuts-trigger');
-    await page.waitForSelector('#shortcuts-overlay:not([hidden])');
+    await page.waitForSelector('#shortcuts-overlay[open]');
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'help-basics', '#shortcuts-overlay'));
     await page.click('.help-tabs [data-help-tab="keyboard"]');
@@ -331,8 +342,8 @@ test('token conversion baseline: every scene\'s computed styles match the checke
 
     await page.click('#backup-menu-trigger');
     await page.waitForTimeout(150);
-    const backupOverlay = page.locator('.overlay:not([hidden])');
-    if (await backupOverlay.count()) Object.assign(captured, await captureScene(page, 'backup-overlay', '.overlay:not([hidden])'));
+    const backupOverlay = page.locator('.overlay[open]');
+    if (await backupOverlay.count()) Object.assign(captured, await captureScene(page, 'backup-overlay', '.overlay[open]'));
     await page.keyboard.press('Escape');
 
     // Import steps (.steps, .step, .step-line) — reset() renders step 1's

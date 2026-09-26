@@ -209,12 +209,16 @@ test('a malformed short code is rejected with a toast, and the live appearance i
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
     await openSettings(page);
-    const before = await getAppearance(server);
+    // The v4 fixture is normalised on load, and a later save may write that
+    // normalised shape (unset fields as explicit nulls). Unset and null mean the
+    // same appearance, so they compare equal here.
+    const withoutNulls = (value) => JSON.parse(JSON.stringify(value, (_k, v) => (v === null ? undefined : v)));
+    const before = withoutNulls(await getAppearance(server));
 
     await page.fill('#appearance-import-code-input', 'not-a-valid-code-at-all!!!');
     await page.locator('[data-action="import-appearance-code"]').click();
     await expect(page.locator('#toast-container')).toContainText('not valid');
-    expect(await getAppearance(server)).toEqual(before);
+    expect(withoutNulls(await getAppearance(server))).toEqual(before);
   } finally {
     await server.stop();
   }

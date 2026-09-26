@@ -281,3 +281,14 @@ export const ACHIEVEMENTS = {
 export const LISTS_AND_TAGS = {
   maxNameLength: 60,
 };
+
+// v3 Phase 2: interface timing that is a product choice, not a constant.
+//  titleFilterDebounceMs: the grid follows the list title filter this long
+//  after the last keystroke (the text itself is stored at once).
+//  gridFirstChunk / gridChunkSize: the library grid renders this many cards
+//  synchronously, then the rest in chunks of this size on later frames.
+export const UI_TIMING = {
+  titleFilterDebounceMs: 120,
+  gridFirstChunk: 60,
+  gridChunkSize: 400,
+};

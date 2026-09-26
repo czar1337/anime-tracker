@@ -96,7 +96,7 @@ test('destructive-action copy is identical in every tier, including madara', asy
     await openApp(page, server.url);
     await openSettings(page);
     await page.click('#reset-everything-btn');
-    await page.waitForSelector('#confirm-overlay:not([hidden])');
+    await page.waitForSelector('#confirm-overlay[open]');
 
     // The spec is explicit: do not make a joke out of a destructive action in
     // ANY tier. Even in Madara the reset dialog is the plain warning.
@@ -118,7 +118,7 @@ test('the restore dialog now discloses that cover images are not included', asyn
     await openSettings(page);
     // Boot created a verified pinned snapshot, so its restore button is enabled.
     await page.click('#snapshot-list button.backup-row:not([disabled])');
-    await page.waitForSelector('#confirm-overlay:not([hidden])');
+    await page.waitForSelector('#confirm-overlay[open]');
 
     const body = page.locator('#confirm-body');
     // The pre-existing sentence...

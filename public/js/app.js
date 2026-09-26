@@ -4,9 +4,9 @@ import { Render } from './render.js';
 import { initEvents, refreshCurrentView, refreshCurrentViewWhenIdle, repositionTabPill, openColdStartOnboarding, pauseRouteDwell, resumeRouteDwell } from './events.js';
 import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
-import { Discover } from './discover.js';
-import { Schedule } from './schedule.js';
-import { Detail } from './detail.js';
+import { Discover } from './views/discover/actions.js';
+import { Schedule } from './views/schedule/actions.js';
+import { Detail } from './views/detail/actions.js';
 import { Airing } from './airing.js';
 import { Corpus } from './corpus.js';
 import { TasteProfile } from './tasteProfile.js';
@@ -14,6 +14,8 @@ import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
 import { EventHistory } from './eventHistory.js';
+import { openDialog, closeDialog, isAnyDialogOpen } from './core/dialog.js';
+import { whenSettled } from './core/reconcile.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 
@@ -172,7 +174,7 @@ document.getElementById('recovery-backup-list').addEventListener('click', async 
   statusEl.hidden = true;
   try {
     await Api.restoreBackup(file);
-    overlay.hidden = true;
+    closeDialog(overlay, { restore: false });
     await boot();
   } catch (err) {
     statusEl.textContent = `Restore failed: ${err.message}. Try a different backup, or check the data/backups folder directly.`;
@@ -185,7 +187,7 @@ async function showRecoveryScreen(err) {
   document.getElementById('recovery-detail').textContent = err.detail || err.message;
   document.getElementById('recovery-status').hidden = true;
   Render.renderBackupList(document.getElementById('recovery-backup-list'), err.backups);
-  overlay.hidden = false;
+  openDialog(overlay);
 }
 
 // For states with no safe in-app remedy (two conflicting data folders, or a
@@ -219,7 +221,7 @@ function showBlockedScreen(err) {
     document.getElementById('blocked-title').textContent = 'Anime Tracker cannot start';
     detail.innerHTML = `<p>${esc(err.message)}</p>`;
   }
-  overlay.hidden = false;
+  openDialog(overlay);
 }
 
 async function showVersionBanner() {
@@ -444,7 +446,16 @@ async function boot() {
   Schedule.initSchedule({ persistFn: persist });
   Detail.initDetail();
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
+  // Performance marks for scripts/perf.js (the 2,000-entry render budget): from
+  // the start of the first render to the first painted frame that has cards
+  // (a task queued from rAF runs after that frame is painted), and to the
+  // last chunk being in place.
+  performance.mark('library:render-start');
   Render.renderAll(initialList);
+  requestAnimationFrame(() => setTimeout(() => performance.mark('library:first-paint'), 0));
+  // Only when the latest render pass has placed every card (a newer render
+  // during the first chunks would otherwise end an older pass early).
+  whenSettled(document.getElementById('grid')).then(() => performance.mark('library:complete'));
   Atmosphere.initAtmosphere();
   Preferences.initReducedMotionWatch();
   repositionTabPill(); // real tab-count text is in now, which can shift tab widths from initEvents' earlier "0" placeholder measurement
@@ -462,7 +473,7 @@ async function boot() {
         // This resolves seconds after boot. It must never throw a modal over
         // someone who has already started using the app (v3 Phase 1).
         await openColdStartOnboarding({
-          mayInterrupt: () => !userHasInteracted && !document.querySelector('.overlay:not([hidden])'),
+          mayInterrupt: () => !userHasInteracted && !isAnyDialogOpen(),
         });
       }
     })

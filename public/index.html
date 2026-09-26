@@ -141,37 +141,37 @@
   </main>
 
   <!-- Anime detail overlay -->
-  <div id="detail-overlay" class="overlay" hidden>
+  <dialog id="detail-overlay" class="overlay">
     <div class="overlay-panel detail-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <div id="detail-content"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Mobile navigation menu, behind the header's hamburger button (hidden
        on wide viewports, where the tab row already works). -->
-  <div id="nav-menu-overlay" class="overlay" hidden>
+  <dialog id="nav-menu-overlay" class="overlay">
     <div class="overlay-panel nav-menu-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Menu</h2>
       <nav id="nav-menu-list" class="nav-menu-list"></nav>
     </div>
-  </div>
+  </dialog>
 
   <!-- P4.4: the rest of the bulk verbs beyond the bar's own move/delete
        (score, progress, tags, lists, mark completed, export) — populated
        per-open by Render.renderBulkMoreMenu(), same reasoning as the nav
        menu above. -->
-  <div id="bulk-more-overlay" class="overlay" hidden>
+  <dialog id="bulk-more-overlay" class="overlay">
     <div class="overlay-panel bulk-more-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>More actions</h2>
       <div id="bulk-more-content"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Search overlay -->
-  <div id="search-overlay" class="overlay" hidden>
+  <dialog id="search-overlay" class="overlay" aria-label="Search AniList">
     <div class="overlay-panel search-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <div class="search-input-row">
@@ -184,10 +184,10 @@
       <div id="search-status" class="search-status"></div>
       <div id="search-results" class="search-results"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Screenshot-to-add overlay (offline OCR) -->
-  <div id="screenshot-overlay" class="overlay" hidden>
+  <dialog id="screenshot-overlay" class="overlay">
     <div class="overlay-panel screenshot-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Add anime from screenshot</h2>
@@ -207,18 +207,18 @@
         </div>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Discover: dismissed ("Not interested") items, with undo -->
-  <div id="dismissed-overlay" class="overlay" hidden>
+  <dialog id="dismissed-overlay" class="overlay" aria-label="Not interested">
     <div class="overlay-panel import-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <div id="dismissed-content"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Statistics: shareable stats card overlay -->
-  <div id="stats-share-overlay" class="overlay" hidden>
+  <dialog id="stats-share-overlay" class="overlay">
     <div class="overlay-panel stats-share-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Share your stats</h2>
@@ -232,23 +232,23 @@
       </div>
       <p id="stats-share-status" class="notifications-status"></p>
     </div>
-  </div>
+  </dialog>
 
   <!-- Settings panel: theme, text size, text weight, decoration, original
        titles. Replaces the old theme-picker-only overlay (same trigger,
        same id, new contents — see events.js's bindThemePicker). -->
-  <div id="theme-picker-overlay" class="overlay" hidden>
+  <dialog id="theme-picker-overlay" class="overlay">
     <div class="overlay-panel" style="max-width:760px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Settings</h2>
       <div id="settings-body"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- P5A.2 cold-start taste onboarding: ~30 diverse corpus covers, tap to
        mark liked. Skippable, re-runnable from Settings (events.js's
        bindColdStartOverlay/openColdStartOnboarding). -->
-  <div id="cold-start-overlay" class="overlay" hidden>
+  <dialog id="cold-start-overlay" class="overlay">
     <div class="overlay-panel" style="max-width:760px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>What do you like?</h2>
@@ -259,46 +259,46 @@
         <button id="cold-start-submit-btn" class="btn btn-primary sm rip-host">Done</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- P5A.3's scorer debug panel — hidden dev toggle (press 'd' while on
        the Discover tab), never a normal Settings row. Scores whatever
        Discover is currently showing against the corpus + taste profile;
        real ranking integration is P5A.4's/P5B.1's own job. -->
-  <div id="scorer-debug-overlay" class="overlay" hidden>
+  <dialog id="scorer-debug-overlay" class="overlay">
     <div class="overlay-panel" style="max-width:640px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Scorer debug</h2>
       <p class="notifications-description">Score breakdown for what Discover is showing right now. Press "d" again to close.</p>
       <div id="scorer-debug-body" class="scorer-debug-body"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- P5B.3's Advanced Filters panel — dropdown option lists depend on
        runtime corpus data (which studios/sources/tags actually exist), so
        the body is rendered dynamically by render.js, same split
        theme-picker-overlay's #settings-body already uses. -->
-  <div id="discover-filters-overlay" class="overlay" hidden>
+  <dialog id="discover-filters-overlay" class="overlay">
     <div class="overlay-panel" style="max-width:640px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Advanced filters</h2>
       <div id="discover-filters-body"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- P5B.4's "Pick for me" — a randomiser over the Watchlist, same
        render-on-demand split as discover-filters-body above (its genre
        dropdown depends on runtime library data). -->
-  <div id="pick-for-me-overlay" class="overlay" hidden>
+  <dialog id="pick-for-me-overlay" class="overlay" aria-label="Pick for me">
     <div class="overlay-panel" style="max-width:480px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2 id="pick-for-me-title"></h2>
       <div id="pick-for-me-body"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Episode notifications settings overlay -->
-  <div id="notifications-overlay" class="overlay" hidden>
+  <dialog id="notifications-overlay" class="overlay">
     <div class="overlay-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Episode notifications</h2>
@@ -309,12 +309,12 @@
       </label>
       <p id="notifications-status" class="notifications-status"></p>
     </div>
-  </div>
+  </dialog>
 
   <!-- Help panel: three tabs (The basics / Keyboard / Questions), behind
        the ? button. Replaces the old shortcuts-only cheat-sheet (same
        trigger, same id — see events.js's bindKeyboardShortcuts). -->
-  <div id="shortcuts-overlay" class="overlay" hidden>
+  <dialog id="shortcuts-overlay" class="overlay">
     <div class="overlay-panel" style="max-width:720px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Help</h2>
@@ -325,10 +325,10 @@
       </div>
       <div id="help-body"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Backup & restore overlay -->
-  <div id="backup-overlay" class="overlay" hidden>
+  <dialog id="backup-overlay" class="overlay">
     <div class="overlay-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Backup &amp; restore</h2>
@@ -340,12 +340,12 @@
       <h3>Recent automatic backups</h3>
       <ul id="backup-list" class="backup-list"></ul>
     </div>
-  </div>
+  </dialog>
 
   <!-- Corrupt-data recovery banner (shown instead of app if library.json
        unreadable). design system §16: "New design, deliberately plain" —
        no accent fills, no glow; the .tag.warn pill is the only colour. -->
-  <div id="recovery-overlay" class="overlay" hidden>
+  <dialog id="recovery-overlay" class="overlay" data-dismissable="false" closedby="none">
     <div class="overlay-panel">
       <span class="tag warn safety-tag">Nothing has been changed</span>
       <h2>Your library file could not be read</h2>
@@ -357,23 +357,23 @@
       <ul id="recovery-backup-list" class="backup-list"></ul>
       <p id="recovery-status" class="safety-detail" hidden></p>
     </div>
-  </div>
+  </dialog>
 
   <!-- Blocked-state overlay: shown instead of the app for situations with no
        safe in-app remedy (two conflicting data folders, or a library saved
        by a newer app version). Purely informational — no action buttons,
        since guessing which data is "right" or auto-modifying files is
        exactly what must not happen here. -->
-  <div id="blocked-overlay" class="overlay" hidden>
+  <dialog id="blocked-overlay" class="overlay" data-dismissable="false" closedby="none">
     <div class="overlay-panel">
       <span class="tag warn safety-tag">Needs a decision from you</span>
       <h2 id="blocked-title"></h2>
       <div id="blocked-detail" class="safety-body"></div>
     </div>
-  </div>
+  </dialog>
 
   <!-- MAL import overlay -->
-  <div id="import-overlay" class="overlay" hidden>
+  <dialog id="import-overlay" class="overlay">
     <div class="overlay-panel import-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Import from MyAnimeList</h2>
@@ -401,12 +401,12 @@
         </div>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <!-- Confirm dialog: shared by every destructive action. design system §8:
        "confirm dialog for anything destructive that always names what is
        kept." Populated per-use by events.js's confirmDialog(). -->
-  <div id="confirm-overlay" class="overlay" hidden>
+  <dialog id="confirm-overlay" class="overlay">
     <div class="overlay-panel dialog">
       <h4 id="confirm-title"></h4>
       <p id="confirm-body"></p>
@@ -419,7 +419,7 @@
         <button id="confirm-cancel-btn" class="btn btn-quiet" data-action="close-overlay">Keep it</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 

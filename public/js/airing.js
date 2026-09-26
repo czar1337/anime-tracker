@@ -73,6 +73,7 @@ async function loadCacheFromServer() {
     const cache = await Api.getAiringCache();
     cacheEntries = cache.entries || {};
     generatedAt = cache.generatedAt || null;
+    Store.airingChanged(); // unseen counts feed a sort key
   } catch {
     // No cache reachable yet (fresh install / server hiccup) — badges just
     // won't show until a refresh succeeds. Never a crash.
@@ -134,6 +135,7 @@ export async function refreshNow() {
       const newlyAired = hadPriorCache ? detectNewlyAired(cacheEntries, nextEntries, Store.getEntriesByList('watching')) : [];
       cacheEntries = nextEntries;
       generatedAt = new Date().toISOString();
+      Store.airingChanged();
       await persistCache();
       document.dispatchEvent(new CustomEvent('airing-updated'));
       if (newlyAired.length) Notifications.notifyNewEpisodes(newlyAired);

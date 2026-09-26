@@ -2,6 +2,7 @@ import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
 import { EventLog } from './eventLog.js';
+import { openDialog, closeDialog, onDialogClose } from './core/dialog.js';
 import { cleanLines, titleSimilarity, MATCH_THRESHOLD } from './screenshotLogic.js';
 
 // Tesseract.js is vendored locally (public/vendor/tesseract) so OCR runs
@@ -164,26 +165,25 @@ export function initScreenshotImport() {
 
   document.getElementById('screenshot-trigger').addEventListener('click', () => {
     reset();
-    overlay.hidden = false;
-    document.getElementById('search-overlay').hidden = true;
+    openDialog(overlay); // closes the search overlay it is opened from
   });
   cancelBtn.addEventListener('click', () => {
     generation += 1; // abandon any in-flight OCR/matching immediately
-    overlay.hidden = true;
+    closeDialog(overlay);
   });
 
-  // Covers every way the overlay can close (cancel button, Esc key, clicking
-  // another header action) so a stale OCR run can never resurface later.
-  new MutationObserver(() => {
-    if (overlay.hidden) generation += 1;
-  }).observe(overlay, { attributes: true, attributeFilter: ['hidden'] });
+  // Covers every way the overlay can close (cancel button, Escape, the
+  // backdrop, another overlay) so a stale OCR run can never resurface later.
+  onDialogClose(overlay, () => {
+    generation += 1;
+  });
 
   fileInput.addEventListener('change', () => processFiles([...fileInput.files]));
 
   // Let the user just screenshot + Ctrl-V straight into the overlay instead
   // of having to save the file and use the upload dialog.
   document.addEventListener('paste', (e) => {
-    if (overlay.hidden || uploadStep.hidden) return;
+    if (!overlay.open || uploadStep.hidden) return;
     const items = [...(e.clipboardData?.items || [])];
     const imageFiles = items
       .filter((item) => item.type.startsWith('image/'))
@@ -277,7 +277,7 @@ export function initScreenshotImport() {
       added += 1;
       toDownload.push({ anilistId: media.id, url: Api.bestCoverUrl(media) });
     }
-    overlay.hidden = true;
+    closeDialog(overlay);
     document.dispatchEvent(new CustomEvent('library-imported', { detail: { added } }));
     // Bounded concurrency: firing every download at once (previous behavior)
     // can flood the connection on a large batch and silently fail most of

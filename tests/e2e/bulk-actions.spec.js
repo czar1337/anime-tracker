@@ -49,7 +49,7 @@ async function selectByCheckbox(page, ids) {
 
 async function openMoreMenu(page) {
   await page.click('[data-action="open-bulk-more"]');
-  await page.waitForSelector('#bulk-more-overlay:not([hidden])');
+  await page.waitForSelector('#bulk-more-overlay[open]');
 }
 
 async function libraryEntries(server) {

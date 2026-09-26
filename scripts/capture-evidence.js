@@ -127,6 +127,11 @@ async function main() {
           }
           await page.waitForSelector(view.ready, { timeout: 8000 }).catch(() => problems.push(`${label}/${view.name}: never became ready (${view.ready})`));
           await page.waitForTimeout(reducedMotion === 'reduce' ? 150 : 900);
+      // Content that arrives late (Discover builds its shelves after opening)
+      // is still entering at a fixed delay; wait for finite animations to end.
+      await page
+        .waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity), null, { timeout: 5000 })
+        .catch(() => {});
           const hidden = await page.$$eval('.card, .discover-card, .schedule-day', (els) => els.filter((el) => el.offsetParent && Number(getComputedStyle(el).opacity) < 0.99).length);
           if (hidden > 0) problems.push(`${label}/${view.name}: ${hidden} card(s) not fully visible`);
           await page.screenshot({ path: path.join(OUT, `${view.name}-${label}.png`), fullPage: false });

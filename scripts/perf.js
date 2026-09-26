@@ -68,16 +68,28 @@ function buildWarmCorpus(size) {
   return entries;
 }
 
+// v3 Phase 2: the budget is the app's own render of all 2,000 entries: from the
+// start of the first grid render (library loaded) until every card is in the
+// DOM (the latest render pass settled), from performance marks app.js sets.
+// Also reported: render start to the first painted frame, and, comparable to
+// v2's number, navigation to all cards (which adds page start-up and module
+// loading).
 async function measureOnce() {
   const server = await startFixtureServer(FIXTURE);
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
-    const start = Date.now();
     await page.goto(server.url, { waitUntil: 'commit' });
     await page.waitForFunction(() => document.querySelectorAll('#grid .card').length >= 2000, null, { timeout: 15000 });
-    const elapsed = Date.now() - start;
-    return elapsed;
+    await page.waitForFunction(() => performance.getEntriesByName('library:first-paint').length && performance.getEntriesByName('library:complete').length, null, { timeout: 15000 });
+    return await page.evaluate(() => {
+      const t = (name) => performance.getEntriesByName(name)[0].startTime;
+      return {
+        render: Math.round(t('library:complete') - t('library:render-start')),
+        firstPaint: Math.round(t('library:first-paint') - t('library:render-start')),
+        navToAllCards: Math.round(t('library:complete')),
+      };
+    });
   } finally {
     await browser.close();
     await server.stop();
@@ -156,12 +168,26 @@ async function measureDiscoverLoadOnce(corpusSize) {
     page.on('request', (req) => {
       if (req.url().includes('graphql.anilist.co')) aniListRequests.push(req.url());
     });
-    const start = Date.now();
+    // v3 Phase 2: measured from opening the tab to the first painted frame with
+    // shelf cards (performance marks in discover.js). v2 timed navigation to
+    // the first card, which counted the whole page load as "Discover".
     await page.goto(server.url, { waitUntil: 'commit' });
     await page.waitForSelector('.card, .empty');
+    // No idle wait: the tab is opened as soon as the library shows, so the
+    // measurement includes the corpus fetch, parse and scoring.
     await page.click('[data-tab="discover"]');
     await page.waitForSelector('.discover-card, .shelf-empty', { timeout: 15000 });
-    const elapsed = Date.now() - start;
+    await page.waitForFunction(() => performance.getEntriesByName('discover:first-paint').length, null, { timeout: 15000 });
+    const { elapsed, corpusFetchedAfterOpen } = await page.evaluate(() => {
+      const opened = performance.getEntriesByName('discover:open').at(-1).startTime;
+      return {
+        elapsed: Math.round(performance.getEntriesByName('discover:first-paint')[0].startTime - opened),
+        corpusFetchedAfterOpen: performance.getEntriesByType('resource').some((r) => r.name.endsWith('/api/corpus') && r.startTime >= opened),
+      };
+    });
+    // The number must include building the shelves (corpus fetch, parse,
+    // scoring), not just painting shelves built earlier in the background.
+    if (!corpusFetchedAfterOpen) throw new Error('Discover shelves were already built before the tab opened; this run measured rendering only.');
     if (aniListRequests.length) throw new Error(`Discover load made ${aniListRequests.length} AniList request(s) — budget requires zero.`);
     return elapsed;
   } finally {
@@ -173,15 +199,21 @@ async function measureDiscoverLoadOnce(corpusSize) {
 async function main() {
   console.log(`Measuring "Library list render, 2,000 entries" over ${ITERATIONS} runs...`);
   const samples = [];
+  const firstPaint = [];
+  const navAll = [];
   for (let i = 0; i < ITERATIONS; i += 1) {
-    const ms = await measureOnce();
-    samples.push(ms);
-    console.log(`  run ${i + 1}/${ITERATIONS}: ${ms}ms`);
+    const m = await measureOnce();
+    samples.push(m.render);
+    firstPaint.push(m.firstPaint);
+    navAll.push(m.navToAllCards);
+    console.log(`  run ${i + 1}/${ITERATIONS}: render of all 2,000 cards ${m.render}ms (first cards painted after ${m.firstPaint}ms; navigation to all cards ${m.navToAllCards}ms)`);
   }
   const sorted = [...samples].sort((a, b) => a - b);
   const p95 = percentile(sorted, 95);
+  const p95Of = (xs) => percentile([...xs].sort((a, b) => a - b), 95);
   console.log('');
-  console.log(`p95 first-paint time (2,000 entries): ${p95}ms`);
+  console.log(`p95 render, all 2,000 entries: ${p95}ms`);
+  console.log(`  (p95 first cards painted: ${p95Of(firstPaint)}ms; navigation to all cards, v2.3.0's measure: ${p95Of(navAll)}ms)`);
   console.log(`Budget (Tuning table): ${BUDGET_MS}ms`);
   console.log(p95 <= BUDGET_MS ? 'PASS — within budget.' : 'OVER BUDGET.');
 

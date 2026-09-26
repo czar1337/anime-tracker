@@ -3,7 +3,8 @@
 // every file under public/ (including the vendored OCR engine) embedded via
 // Node's Single Executable Applications (SEA) support. Run with:
 //   node scripts/build-exe.js
-// Requires Node >= 20 with SEA support, and `postject` (fetched on demand via npx).
+// Requires Node >= 20 with SEA support, the esbuild devDependency, and `postject`
+// (fetched on demand via npx).
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -21,58 +22,30 @@ const APP_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 
 const EXE_PATH = path.join(OUT_DIR, `AnimeTracker-${APP_VERSION}.exe`);
 
 // Node's SEA main script can only require() built-in modules — a plain
-// require('./datadir.js') throws ERR_UNKNOWN_BUILTIN_MODULE at runtime once
-// packaged, even though it works fine in normal `node server.js` dev mode.
-// Rather than pull in a bundler (this project stays zero-dependency), inline
-// these two small local modules into a standalone copy of server.js that's
-// used only as the SEA build's entry point. The real server.js — the one
-// `npm start` and the tests use — is untouched.
-// Order matters: a module later in this list may itself require() an earlier
-// one (snapshots.js requires datadir.js, for canonicalJSON()) — see the
-// cross-module replacement below, which only works if the module being
-// depended on has already been assigned its var by the time the dependent
-// module's own IIFE runs.
-const LOCAL_MODULES = [
-  { requireLine: "require('./datadir.js')", file: 'datadir.js', varName: '__datadirModule' },
-  { requireLine: "require('./migrations.js')", file: 'migrations.js', varName: '__migrationsModule' },
-  { requireLine: "require('./snapshots.js')", file: 'snapshots.js', varName: '__snapshotsModule' },
-  // P1.2: libraryEtag.js requires datadir.js (canonicalJSON), so it must stay
-  // after datadir.js in this list. writeLock.js/classBEviction.js/
-  // diskQuota.js have no local requires of their own.
-  { requireLine: "require('./libraryEtag.js')", file: 'libraryEtag.js', varName: '__libraryEtagModule' },
-  { requireLine: "require('./writeLock.js')", file: 'writeLock.js', varName: '__writeLockModule' },
-  { requireLine: "require('./classBEviction.js')", file: 'classBEviction.js', varName: '__classBEvictionModule' },
-  { requireLine: "require('./diskQuota.js')", file: 'diskQuota.js', varName: '__diskQuotaModule' },
-  { requireLine: "require('./httpSecurity.js')", file: 'httpSecurity.js', varName: '__httpSecurityModule' },
-  { requireLine: "require('./instanceLock.js')", file: 'instanceLock.js', varName: '__instanceLockModule' },
-  { requireLine: "require('./coverDownload.js')", file: 'coverDownload.js', varName: '__coverDownloadModule' },
-  { requireLine: "require('./fsRetry.js')", file: 'fsRetry.js', varName: '__fsRetryModule' },
-  { requireLine: "require('./backupRetention.js')", file: 'backupRetention.js', varName: '__backupRetentionModule' },
-];
-
-function inlineLocalModules(serverSource) {
-  let combined = '';
-  for (const mod of LOCAL_MODULES) {
-    let source = fs.readFileSync(path.join(ROOT, mod.file), 'utf8');
-    // A local module can itself require() another local module — replace
-    // those the same way server.js's own require lines get replaced below,
-    // so the inlined body never contains a literal require('./x.js') that
-    // would throw ERR_UNKNOWN_BUILTIN_MODULE once packaged.
-    for (const other of LOCAL_MODULES) {
-      if (other === mod) continue;
-      source = source.split(other.requireLine).join(other.varName);
-    }
-    const body = source.replace(/module\.exports\s*=/, 'return');
-    combined += `const ${mod.varName} = (function () {\n${body}\n})();\n`;
-  }
-  let patched = serverSource;
-  for (const mod of LOCAL_MODULES) {
-    if (!patched.includes(mod.requireLine)) {
-      throw new Error(`Expected to find "${mod.requireLine}" in server.js — did it get refactored? Update build-exe.js's LOCAL_MODULES to match.`);
-    }
-    patched = patched.replace(mod.requireLine, mod.varName);
-  }
-  return combined + patched;
+// require('./src/main.js') throws ERR_UNKNOWN_BUILTIN_MODULE once packaged,
+// even though it works in normal `node server.js` dev mode. v3 Phase 2:
+// esbuild (a pinned devDependency, never shipped) bundles server.js and every
+// local module it requires into one CommonJS file used only as the SEA entry
+// point; node: built-ins stay external. v2 used a hand-written inliner with a
+// list of root modules that had to be kept in step with every new file.
+// Dynamic import() of data: URLs (src/services/browserModules.js) is left as
+// it is: those load at runtime from the embedded assets.
+function bundleServer() {
+  const esbuild = require('esbuild');
+  esbuild.buildSync({
+    entryPoints: [path.join(ROOT, 'server.js')],
+    outfile: BUNDLED_MAIN_PATH,
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    target: `node${process.versions.node.split('.')[0]}`,
+    legalComments: 'none',
+    logLevel: 'warning',
+  });
+  const bundled = fs.readFileSync(BUNDLED_MAIN_PATH, 'utf8');
+  // A require() of anything but a built-in would fail inside the exe.
+  const stray = [...bundled.matchAll(/\brequire\((['"])([^'"]+)\1\)/g)].map((m) => m[2]).filter((id) => !id.startsWith('node:'));
+  if (stray.length) throw new Error(`The bundle still requires non-built-in modules: ${[...new Set(stray)].join(', ')}`);
 }
 
 function walk(dir, out) {
@@ -112,9 +85,8 @@ function main() {
   }
   console.log(`  ${files.length + configFileCount + 1} files embedded.`);
 
-  console.log('Inlining datadir.js / migrations.js into a standalone SEA entry point...');
-  const bundledSource = inlineLocalModules(fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8'));
-  fs.writeFileSync(BUNDLED_MAIN_PATH, bundledSource);
+  console.log('Bundling server.js and src/ into a standalone SEA entry point (esbuild)...');
+  bundleServer();
 
   const seaConfig = {
     main: BUNDLED_MAIN_PATH,

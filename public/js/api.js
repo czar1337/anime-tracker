@@ -180,9 +180,20 @@ async function getCorpusStatus() {
 // The full corpus — every pruned entry. Not used by this substep's own seed
 // loop (which only ever needs the lightweight status above); this is the
 // read path for whichever future substep (P5A.2 onward) scores against it.
+//
+// v3 Phase 2: the parsed corpus is kept with its ETag; an unchanged corpus
+// comes back as a 304 and the same object is returned (callers treat it as
+// read-only). A failed or odd response never reuses a stale copy silently
+// beyond what the server confirmed.
+let corpusCacheCopy = null; // { etag, data }
 async function getCorpusCache() {
-  const res = await fetch('/api/corpus');
-  return res.json();
+  const headers = corpusCacheCopy ? { 'If-None-Match': corpusCacheCopy.etag } : {};
+  const res = await fetch('/api/corpus', { headers, cache: 'no-store' });
+  if (res.status === 304 && corpusCacheCopy) return corpusCacheCopy.data;
+  const data = await res.json();
+  const etag = res.headers.get('etag');
+  corpusCacheCopy = res.ok && etag ? { etag, data } : null;
+  return data;
 }
 
 // Deliberately NOT the same "PUT replaces the whole blob" shape
