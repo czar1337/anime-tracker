@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/run-all.js && node --test \"tests/unit/**/*.test.js\"",
+    "test": "node scripts/check-css-tokens.js --values-only && node tests/run-all.js && node --test \"tests/unit/**/*.test.js\"",
+    "check:css": "node scripts/check-css-tokens.js",
     "test:e2e:install": "playwright install chromium",
     "test:e2e": "playwright test",
     "perf": "node scripts/perf.js",

@@ -5,13 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="anime-tracker-token" content="__ANIME_TRACKER_WRITE_TOKEN__">
 <title>Anime Tracker</title>
-<link rel="stylesheet" href="/fonts/inter.css">
-<link rel="stylesheet" href="/fonts/sora.css">
-<!-- Moonlit Shrine typefaces (design/moonlit-shrine-design-system.md §4).
-     inter.css/sora.css stay linked for now — --font-heading (see styles.css's
-     Phase 1 bridge block) still falls back to Sora/Inter for a couple of
-     components sized below Mincho's 17px floor. Removed once Phase 2
-     migrates every consumer to --display/--ui and nothing references them. -->
+<!-- Moonlit Shrine typefaces (design/moonlit-shrine-design-system.md §4). The
+     other picker families (Inter among them) load on demand (fontLoader.js). -->
 <link rel="stylesheet" href="/fonts/zen-old-mincho.css">
 <link rel="stylesheet" href="/fonts/schibsted-grotesk.css">
 <!-- P3.1: the Japanese fallback backbone, always registered regardless of

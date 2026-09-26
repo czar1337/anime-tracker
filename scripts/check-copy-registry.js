@@ -181,7 +181,7 @@ function checkDenylist(registry, tiers) {
 // all resolve through copy(). Pre-v2 files are deliberately absent: their copy
 // stays where it is until a future opt-in migration, one area per commit.
 // ---------------------------------------------------------------------------
-const V2_OWNED_FILES = ['backupClient.js', 'copy.js', 'copyRegistry.js', 'eventLog.js', 'eventTypes.js', 'eventCounters.js', 'tokens.js', 'settingsSchema.js'];
+const V2_OWNED_FILES = ['backupClient.js', 'copy.js', 'copyRegistry.js', 'eventLog.js', 'eventTypes.js', 'eventCounters.js', 'settingsSchema.js'];
 
 // The four sinks through which a string reaches the user, per the sweep.
 const SINK_PATTERN = /(Render\.showToast|Render\.showError|setSaveIndicator|confirmDialog)\s*\(/g;
