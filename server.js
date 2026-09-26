@@ -2720,6 +2720,22 @@ server.on('error', (err) => {
   process.exit(1);
 });
 
+// v3 Phase 2: the browser is opened at http://localhost:PORT, and "localhost"
+// resolves to ::1 first on Windows. With only 127.0.0.1 bound, every new
+// connection waited about 300ms for the IPv6 attempt to fail before falling
+// back. The same handler also listens on the IPv6 loopback, which also means no
+// other local program can take [::1]:PORT and receive the browser's requests.
+// Still loopback-only on both. A machine without IPv6 just keeps the IPv4
+// listener.
+function listenOnIpv6Loopback() {
+  const v6 = http.createServer((req, res) => server.emit('request', req, res));
+  v6.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') console.error(`[server] [::1]:${PORT} is taken by another program; "localhost" may reach it instead of this app. Use http://127.0.0.1:${PORT}.`);
+    else if (err.code !== 'EADDRNOTAVAIL' && err.code !== 'EAFNOSUPPORT') console.error('[server] IPv6 loopback listener failed:', err.message);
+  });
+  v6.listen(PORT, '::1');
+}
+
 // Bound to localhost only — there's no authentication on any endpoint, so
 // binding to all interfaces (Node's default) would let anyone else on the
 // same network read and modify the whole library.
@@ -2767,6 +2783,7 @@ server.on('error', (err) => {
     return;
   }
   server.listen(PORT, '127.0.0.1', () => {
+    listenOnIpv6Loopback();
     console.log(`Anime Tracker running at http://localhost:${PORT}`);
     if (libraryState.corrupt) {
       console.log('WARNING: library.json is corrupt. Open the app to restore from a backup.');
