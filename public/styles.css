@@ -951,6 +951,11 @@ kbd {
    ever runs. Reduced motion turns every animation off, so visibility must never
    depend on an animation finishing. */
 
+/* The library grid is reconciled, not rebuilt: its cards persist across
+   renders and moving one would restart its animation. Only cards that were
+   just created carry .enter (views/library/view.js). */
+#grid > .card:not(.enter), #grid > .franchise-card:not(.enter) { animation: none; }
+
 @keyframes cardEnter {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1292,6 +1297,9 @@ kbd {
   background: linear-gradient(transparent 50%, color-mix(in srgb, var(--card) 92%, black));
   pointer-events: none;
 }
+/* Library cards wrap the image and its skeleton so a re-render can leave a
+   loaded image alone (views/library/view.js, data-morph-key). */
+.card-cover-wrap .cover-media { position: absolute; inset: 0; }
 .card-cover-wrap img {
   width: 100%;
   height: 100%;

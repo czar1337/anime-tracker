@@ -62,7 +62,12 @@ async function captureScene(page, sceneName, rootSelector) {
       const out = {};
       const all = [root, ...root.querySelectorAll('*')];
       for (const el of all) {
-        const cls = [...el.classList].sort().join('.');
+        // Transient decoration is skipped: `enter` (a just-created grid card),
+        // `pulse` (the +1 button) and ripple spans. Since v3 Phase 2 the grid
+        // keeps its nodes across renders, so whether these are still present
+        // depends on timing.
+        if (el.classList.contains('rip')) continue;
+        const cls = [...el.classList].filter((c) => c !== 'enter' && c !== 'pulse').sort().join('.');
         const sig = `${el.tagName.toLowerCase()}${cls ? '.' + cls : ''}`;
         const n = (counts.get(sig) || 0) + 1;
         counts.set(sig, n);

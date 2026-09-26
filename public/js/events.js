@@ -27,6 +27,8 @@ import { triggerDownload } from './download.js';
 import { TasteProfile } from './tasteProfile.js';
 import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
+import { forget as forgetRendered } from './core/reconcile.js';
+import { toggleNoteOpen } from './views/library/model.js';
 
 // Every destructive/lossy toast passes this as its onExpire — a no-op today
 // (see achievementHook.js), wired for real once P7A implements the engine.
@@ -443,13 +445,15 @@ function handleIncrement(card, id) {
   if (entry.totalEpisodes && before >= entry.totalEpisodes) return;
   Store.updateEntry(id, { episodesWatched: entry.episodesWatched + 1 });
   recordProgressEvent(entry, before, before + 1);
-  const btn = card?.querySelector('.plus');
+  refreshGridOnly();
+  // After the re-render: the card node survives it (keyed reconcile), and a
+  // class added before it would be removed again by the morph.
+  const btn = card?.isConnected ? card.querySelector('.plus') : null;
   if (btn) {
     btn.classList.remove('pulse');
     void btn.offsetWidth;
     btn.classList.add('pulse');
   }
-  refreshGridOnly();
   Render.renderTabCounts();
   Detail.refreshDetailIfOpen(id);
   persist();
@@ -497,6 +501,9 @@ function handleEditEpisode(card, id) {
   if (entry.totalEpisodes) input.max = String(entry.totalEpisodes);
   input.value = String(entry.episodesWatched);
   label.replaceWith(input);
+  // The card's DOM no longer matches its template: make the next render put
+  // the label back even if nothing about the entry changed.
+  forgetRendered(card);
   input.focus();
   input.select();
 
@@ -1127,9 +1134,13 @@ function bindGridEvents() {
     else if (action === 'delete') confirmDelete(id);
     else if (action === 'fix-match') handleFixMatch(id);
     else if (action === 'toggle-notes') {
+      // Open/closed is view state (views/library/model.js), so a re-render
+      // keeps an open note open.
+      const open = toggleNoteOpen(id);
       const field = card.querySelector('.notes-field');
-      field.hidden = !field.hidden;
-      if (!field.hidden) field.focus();
+      field.hidden = !open;
+      actionEl.setAttribute('aria-expanded', String(open));
+      if (open) field.focus();
     }
   });
 
@@ -3267,7 +3278,7 @@ function bindCoverImageLoad() {
     'load',
     (e) => {
       const img = e.target;
-      if (!(img instanceof HTMLImageElement) || !img.parentElement?.classList.contains('card-cover-wrap')) return;
+      if (!(img instanceof HTMLImageElement) || !img.closest('.card-cover-wrap')) return;
       img.classList.add('loaded');
       const skeleton = img.previousElementSibling;
       if (skeleton?.classList.contains('skeleton')) skeleton.remove();

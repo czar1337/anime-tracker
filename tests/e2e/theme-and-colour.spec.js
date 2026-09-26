@@ -209,6 +209,9 @@ test('a malformed short code is rejected with a toast, and the live appearance i
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
     await openSettings(page);
+    // The v4 fixture is normalised on load and the app saves that shape once;
+    // compare against the settled value, not one read before that save lands.
+    await expect.poll(async () => 'gradientColor1' in ((await getAppearance(server)).background || {})).toBe(true);
     const before = await getAppearance(server);
 
     await page.fill('#appearance-import-code-input', 'not-a-valid-code-at-all!!!');

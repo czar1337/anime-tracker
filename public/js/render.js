@@ -20,6 +20,12 @@ import { TasteProfile } from './tasteProfile.js';
 import { RECOMMENDATIONS } from '../../config/tuning.js';
 import { MOOD_REGISTRY } from './moodRegistry.js';
 import { partitionSpoilerTags, truncateSynopsis } from './detailLogic.js';
+import * as LibraryModel from './views/library/model.js';
+import * as LibraryView from './views/library/view.js';
+
+const { isSelectMode, toggleSelectMode, clearSelection, toggleSelected, getSelectedIds, visibleIds, selectRange, selectAllVisible, toggleGroupExpanded } = LibraryModel;
+const { coverSrc, cardHtml, titleBlockHtml, scoreStripHtml, statusRowHtml, QUICK_MOVE_LISTS } = LibraryView;
+const selectedIds = LibraryModel.selectedIds;
 
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('empty-state');
@@ -92,25 +98,6 @@ function infoHintHtml(text) {
   return `<span class="info-hint" tabindex="0" role="button" aria-label="${escapeHtml(text)}">?<span class="info-hint-bubble">${escapeHtml(text)}</span></span>`;
 }
 
-function coverSrc(entry) {
-  return entry.coverFile ? `/data/covers/${entry.coverFile.split('/').pop()}` : '';
-}
-
-// Tracks which franchise groups are expanded across re-renders (re-rendering
-// rebuilds the grid HTML from scratch, so this state can't live in the DOM).
-const expandedGroups = new Set();
-
-// Bulk-select state — same reasoning as expandedGroups: transient UI state
-// that a full re-render would otherwise wipe out.
-let selectMode = false;
-const selectedIds = new Set();
-// The last plain or Ctrl/Cmd click on a checkbox, i.e. the fixed end a
-// Shift+click range extends from. Left in place across a Shift+click (so a
-// second Shift+click still extends from the same anchor) and cleared
-// whenever select mode itself turns off, since there's nothing left to
-// extend a range from once selection is gone.
-let selectionAnchorId = null;
-
 // P1.7's inline "+ New tag"/"+ New list" forms in the detail overlay —
 // module-level so a refresh after toggling a tag/list membership (which
 // re-renders the whole overlay from scratch) doesn't collapse a form the user
@@ -153,321 +140,10 @@ function toggleDetailSynopsis() {
   detailSynopsisExpanded = !detailSynopsisExpanded;
 }
 
-function isSelectMode() {
-  return selectMode;
-}
-
-function toggleSelectMode() {
-  selectMode = !selectMode;
-  if (!selectMode) {
-    selectedIds.clear();
-    selectionAnchorId = null;
-  }
-}
-
-function clearSelection() {
-  selectMode = false;
-  selectedIds.clear();
-  selectionAnchorId = null;
-}
-
-function toggleSelected(anilistId) {
-  if (selectedIds.has(anilistId)) selectedIds.delete(anilistId);
-  else selectedIds.add(anilistId);
-  selectionAnchorId = anilistId;
-}
-
-function getSelectedIds() {
-  return [...selectedIds];
-}
-
-// Flattens the exact same filtered/sorted view the grid itself just
-// rendered from (never the list's raw, unfiltered entries) into an ordered
-// array of ids — the one true source of "what's currently visible, in
-// what order" that both Shift+click ranges and Ctrl/Cmd+A need to agree
-// with, so a range or select-all can never reach past what's on screen. A
-// collapsed franchise group's own seasons are excluded — their checkboxes
-// sit under a hidden .franchise-seasons block a plain click can't reach
-// either, so "visible" has to mean the same thing for both entry points.
-function visibleIds(list) {
-  return Store.getGroupedFilteredSorted(list)
-    .flatMap((g) => (g.length === 1 || expandedGroups.has(groupKey(g)) ? g : []))
-    .map((e) => e.anilistId);
-}
-
-// Shift+click: extends the selection from the last anchored click (plain or
-// Ctrl/Cmd) through the clicked card, inclusive of both ends. A first
-// Shift+click with no prior anchor (e.g. select mode was just entered and
-// nothing else was clicked yet) falls back to selecting just the one id,
-// since there's no other end to draw a range from.
-function selectRange(anilistId, list) {
-  const ids = visibleIds(list);
-  const anchorIndex = ids.indexOf(selectionAnchorId);
-  const clickedIndex = ids.indexOf(anilistId);
-  if (anchorIndex === -1 || clickedIndex === -1) {
-    selectedIds.add(anilistId);
-    return;
-  }
-  const [start, end] = anchorIndex <= clickedIndex ? [anchorIndex, clickedIndex] : [clickedIndex, anchorIndex];
-  for (let i = start; i <= end; i++) selectedIds.add(ids[i]);
-}
-
-// Ctrl/Cmd+A: every currently filtered/visible id, never the whole list —
-// the spec is explicit that "select all" must mean "all shown", not "all
-// in my library". Enters select mode first if it wasn't already on, since
-// selecting everything implies wanting to see what got selected.
-function selectAllVisible(list) {
-  if (!selectMode) selectMode = true;
-  for (const id of visibleIds(list)) selectedIds.add(id);
-}
-
-function groupKey(group) {
-  return group.map((e) => e.anilistId).sort((a, b) => a - b).join(',');
-}
-
-function toggleGroupExpanded(key) {
-  if (expandedGroups.has(key)) expandedGroups.delete(key);
-  else expandedGroups.add(key);
-}
-
-function scoreStripHtml(entry) {
-  let dots = '';
-  for (let i = 1; i <= 10; i++) {
-    dots += `<button class="score-dot ${entry.myScore >= i ? 'filled' : ''}" data-action="set-score" data-score="${i}" title="${i}" aria-label="Score ${i}">${i}</button>`;
-  }
-  return `<div class="score-strip" role="group" aria-label="Score">${dots}</div>`;
-}
-
-const QUICK_MOVE_LISTS = [
-  { key: 'watching', label: 'Watching', short: 'Watch' },
-  { key: 'watchlist', label: 'Watchlist', short: 'List' },
-  { key: 'watched', label: 'Watched', short: 'Done' },
-  { key: 'dropped', label: 'Dropped', short: 'Drop' },
-];
-
-function statusRowHtml(entry) {
-  return `
-    <div class="quick-move" role="group" aria-label="Move to list">
-      ${QUICK_MOVE_LISTS.map(
-        (l) => `<button class="quick-move-btn ${entry.listStatus === l.key ? 'active' : ''}" data-action="set-status" data-status="${l.key}" title="Move to ${l.label}" aria-label="Move to ${l.label}">${l.short}</button>`
-      ).join('')}
-    </div>`;
-}
-
-// Compact single-control equivalents of scoreStripHtml/statusRowHtml — used
-// only inside .season-row (see cardBodyForList's isSeasonRow param), where a
-// 10-button score strip plus a 4-button status row was most of what made
-// the expanded franchise view feel oversized in the first place.
-function scoreSelectHtml(entry) {
-  const options = Array.from({ length: 10 }, (_, i) => i + 1)
-    .map((i) => `<option value="${i}" ${entry.myScore === i ? 'selected' : ''}>★ ${i}</option>`)
-    .join('');
-  return `
-    <select class="filter-select season-select" data-action="set-score-select" aria-label="Score">
-      <option value="" ${entry.myScore == null ? 'selected' : ''}>Not rated</option>
-      ${options}
-    </select>`;
-}
-
-function statusSelectHtml(entry) {
-  return `
-    <select class="filter-select season-select" data-action="set-status-select" aria-label="Move to list">
-      ${QUICK_MOVE_LISTS.map((l) => `<option value="${l.key}" ${entry.listStatus === l.key ? 'selected' : ''}>${l.label}</option>`).join('')}
-    </select>`;
-}
-
-const PENCIL_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-const TRASH_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
-
-// Cards are torn down and rebuilt (innerHTML) on every grid render, so this
-// module-level map — not the DOM — is what remembers "what unseen count did
-// this title last show" across renders, letting the badge only pop when the
-// number actually just increased (a new episode aired), never on an
-// unrelated re-render (sort change, editing a different card, etc.) and
-// never when it decreases (marking episodes watched is the user's own
-// action, not a "something happened" event worth a pop).
-const lastUnseenByCardId = new Map();
-function unseenPopClass(anilistId, unseen) {
-  const prev = lastUnseenByCardId.get(anilistId);
-  lastUnseenByCardId.set(anilistId, unseen);
-  return prev !== undefined && unseen > prev ? ' pop' : '';
-}
-
-function cardBodyForList(entry, list, isSeasonRow = false) {
-  if (list === 'watching') {
-    const total = entry.totalEpisodes;
-    const pct = total ? Math.min(100, (entry.episodesWatched / total) * 100) : 0;
-    const showCompletionPrompt = total && entry.episodesWatched >= total;
-    const unseen = Airing.getUnseenCount(entry.anilistId);
-    // P4.2: forward-looking ("next untracked episode airs in...") — a
-    // separate concept from unseen (backward-looking, "already aired but
-    // not watched"), so both can show at once; null (no known future
-    // airing time) renders nothing, never a guess.
-    const countdown = Airing.getNextEpisodeCountdown(entry.anilistId);
-    return `
-      <div class="progress-row">
-        <div class="progress-track"><div class="progress-fill" style="width:0%" data-target-width="${pct}"></div></div>
-        <button class="progress-label" data-action="edit-episode" title="Click to type an exact episode number">${entry.episodesWatched}${total ? `/${total}` : ''}</button>
-      </div>
-      ${unseen > 0 ? `<div class="unseen-badge${unseenPopClass(entry.anilistId, unseen)}" title="Aired but not marked watched yet">${unseen} new episode${unseen === 1 ? '' : 's'}</div>` : ''}
-      ${countdown ? `<div class="countdown-badge">${escapeHtml(copy('airing.nextEpisodeCountdown', undefined, countdown))}</div>` : ''}
-      ${showCompletionPrompt ? `
-        <div class="completion-prompt">
-          <span>Finished! Move to Watched?</span>
-          ${isSeasonRow ? scoreSelectHtml(entry) : scoreStripHtml(entry)}
-          <button class="text-btn primary" data-action="complete" style="align-self:flex-start;padding:6px var(--sp-3);">Move to Watched</button>
-        </div>` : ''}
-      ${isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry)}
-    `;
-  }
-  if (list === 'watched') {
-    // Finished state (design/moonlit-shrine-design-system.md §8): a
-    // support-coloured, always-full progress bar alongside the episode
-    // count text — colour is never the only signal that a series is done.
-    return `
-      <div class="progress-row watched-progress-row">
-        <div class="progress-track"><div class="progress-fill" style="width:0%" data-target-width="100"></div></div>
-        <button class="progress-label" data-action="edit-episode" title="Click to correct the episode count">${entry.episodesWatched}${entry.totalEpisodes ? `/${entry.totalEpisodes}` : ''}</button>
-      </div>
-      ${isSeasonRow
-        ? `<div class="season-controls-row">${scoreSelectHtml(entry)}${statusSelectHtml(entry)}</div>`
-        : `${scoreStripHtml(entry)}${statusRowHtml(entry)}`}
-    `;
-  }
-  if (list === 'watchlist') {
-    return `
-      <div class="card-meta"><span>${entry.averageScore ? `★ ${entry.averageScore}` : 'No score'}</span></div>
-      ${isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry)}
-    `;
-  }
-  // Dropped (default branch) — reduced opacity (applied to the whole card,
-  // see cardHtml) plus this tag, never opacity alone.
-  const droppedTag = list === 'dropped' ? `<span class="tag drop">Dropped</span>` : '';
-  return `
-    ${droppedTag}
-    ${isSeasonRow ? `<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry)}
-  `;
-}
-
-// The preferred-language title primary/large, the next different title
-// secondary/small/faded below (titles.js: the same rule the A→Z sort uses, so
-// what you see is what it is sorted by). Clicking the title opens the detail
-// overlay for anilistId (handled in events.js, which checks for this action
-// before anything else the click might bubble into, e.g. a franchise card's
-// toggle-group).
-function titleBlockHtml(item, anilistId) {
-  const [primary, secondary] = titlesInOrder(item, Store.state.preferences.titleLanguage);
-  return `
-    <div class="card-title-block" data-action="show-detail" data-detail-id="${anilistId}" title="View details">
-      <div class="card-title" title="${escapeHtml(primary)}">${escapeHtml(primary)}</div>
-      ${secondary ? `<div class="card-title-sub" title="${escapeHtml(secondary)}">${escapeHtml(secondary)}</div>` : ''}
-    </div>
-  `;
-}
-
 // index drives the entrance-animation stagger (capped so very long lists
 // don't end up with a multi-second cascade before the last row settles).
 function staggerDelayMs(index) {
   return Math.min(index, 12) * 45;
-}
-
-// seasonLabel is only passed when rendering inside an expanded franchise
-// group (see franchiseCardHtml) — it switches on the compact horizontal
-// .season-row layout and swaps the raw format badge ("TV") for the
-// sequence-aware one ("S2"), while every action (score, status, progress,
-// notes, delete...) stays wired exactly as on a standalone card.
-function cardHtml(entry, list, index = 0, seasonLabel = null) {
-  const src = coverSrc(entry);
-  const isSelected = selectedIds.has(entry.anilistId);
-  // Finished/dropped are card-wide modifiers (opacity, progress colour —
-  // see cardBodyForList and the .card.finished/.card.dropped rules), not
-  // just a property of whatever cardBodyForList renders for this list.
-  const isFinished = list === 'watched' || (list === 'watching' && entry.totalEpisodes && entry.episodesWatched >= entry.totalEpisodes);
-  const isDropped = list === 'dropped';
-  const isNew = list === 'watching' && Airing.getUnseenCount(entry.anilistId) > 0;
-  return `
-    <article class="card ${seasonLabel ? 'season-row' : ''} ${isSelected ? 'selected' : ''} ${isFinished ? 'finished' : ''} ${isDropped ? 'dropped' : ''}" data-id="${entry.anilistId}" tabindex="0" style="animation-delay:${staggerDelayMs(index)}ms">
-      <svg class="hold-ring" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle></svg>
-      <div class="card-cover-wrap">
-        <div class="skeleton"></div>
-        ${src ? `<img src="${src}" alt="" loading="lazy">` : ''}
-        ${isNew ? `<span class="dot" title="New episode"></span>` : ''}
-        ${seasonLabel
-          ? `<span class="card-format-badge season-badge">${escapeHtml(seasonLabel)}</span>`
-          : entry.format ? `<span class="card-format-badge">${escapeHtml(entry.format)}</span>` : ''}
-        ${selectMode
-          ? `<label class="card-select-box" title="Select"><input type="checkbox" data-action="toggle-select" ${isSelected ? 'checked' : ''}></label>`
-          : `<div class="card-corner-actions">
-              <button class="corner-btn" data-action="fix-match" title="Fix wrong match" aria-label="Fix wrong match">${PENCIL_SVG}</button>
-              <button class="corner-btn danger" data-action="delete" title="Remove from library" aria-label="Remove from library">${TRASH_SVG}</button>
-              <label class="corner-btn quick-select-box" title="Select"><input type="checkbox" data-action="quick-select" aria-label="Select"></label>
-            </div>`}
-        ${list === 'watching' && !selectMode ? `<button class="plus" data-action="increment" aria-label="Mark next episode watched" title="Mark next episode watched">＋</button>` : ''}
-      </div>
-      <div class="card-body">
-        ${titleBlockHtml(entry, entry.anilistId)}
-        <div class="card-meta">
-          ${entry.year ? `<span>${entry.year}</span>` : ''}
-          ${entry.totalEpisodes ? `<span>${entry.totalEpisodes} ep</span>` : ''}
-        </div>
-        ${cardBodyForList(entry, list, Boolean(seasonLabel))}
-        ${cardTagChipsHtml(entry)}
-        <button class="notes-toggle" data-action="toggle-notes">${entry.notes ? 'Edit note' : '+ Add note'}</button>
-        <textarea class="notes-field" data-action="edit-notes" placeholder="Personal notes…" hidden>${escapeHtml(entry.notes)}</textarea>
-      </div>
-    </article>
-  `;
-}
-
-// P1.7: read-only on the card — tag ASSIGNMENT happens from the detail view,
-// where every entry can already be opened, so cards don't gain two more
-// buttons apiece. Renders nothing at all for the untagged majority (the
-// default), so "an existing user sees zero visual change" holds exactly as it
-// does for every other new v2 preference/feature.
-function cardTagChipsHtml(entry) {
-  if (!entry.tagIds || entry.tagIds.length === 0) return '';
-  const tags = Store.getTags();
-  const chips = entry.tagIds
-    .map((id) => tags.find((t) => t.id === id))
-    .filter(Boolean)
-    .map((t) => `<span class="tag-chip" style="background:${tagColorHex(t.color)}22;color:${tagColorHex(t.color)}">${escapeHtml(t.name)}</span>`)
-    .join('');
-  return chips ? `<div class="card-tag-chips">${chips}</div>` : '';
-}
-
-function franchiseCardHtml(group, list, index = 0) {
-  const primary = group[0];
-  const key = groupKey(group);
-  const expanded = expandedGroups.has(key);
-  const src = coverSrc(primary);
-  const totalWatched = group.reduce((s, e) => s + (e.episodesWatched || 0), 0);
-  const totalEpisodes = group.every((e) => e.totalEpisodes) ? group.reduce((s, e) => s + e.totalEpisodes, 0) : null;
-  const scored = group.filter((e) => e.myScore != null);
-  const avgScore = scored.length ? (scored.reduce((s, e) => s + e.myScore, 0) / scored.length).toFixed(1) : null;
-
-  return `
-    <div class="franchise-card ${expanded ? 'expanded' : ''}" data-group-key="${key}" style="animation-delay:${staggerDelayMs(index)}ms">
-      <div class="franchise-summary" data-action="toggle-group">
-        <div class="card-cover-wrap">
-          <div class="skeleton"></div>
-          ${src ? `<img src="${src}" alt="" loading="lazy">` : ''}
-          <span class="card-format-badge">${group.length} seasons</span>
-        </div>
-        <div class="card-body">
-          ${titleBlockHtml(primary, primary.anilistId)}
-          <div class="card-meta">
-            ${primary.year ? `<span>${primary.year}</span>` : ''}
-            <span>${totalEpisodes ? `${totalWatched}/${totalEpisodes}` : totalWatched} ep</span>
-            ${avgScore ? `<span>★ ${avgScore} avg</span>` : ''}
-          </div>
-          <button class="text-btn franchise-toggle-label" data-action="toggle-group">${expanded ? 'Hide seasons ▲' : `Show ${group.length} seasons ▾`}</button>
-        </div>
-      </div>
-      <div class="franchise-seasons" ${expanded ? '' : 'hidden'}>
-        ${group.map((e, i) => cardHtml(e, list, i, Store.seasonLabel(group, i))).join('')}
-      </div>
-    </div>
-  `;
 }
 
 // Progress bars (episode progress on Watching cards, stat bars on the
@@ -521,37 +197,7 @@ function renderGrid(list) {
   // #list-view (shared by all four list tabs, not swapped per tab).
   if (list === 'watching') renderWatchingHero();
   else document.getElementById('watching-hero').hidden = true;
-  const groups = Store.getGroupedFilteredSorted(list);
-  if (groups.length === 0) {
-    grid.hidden = true;
-    emptyState.hidden = false;
-    const info = EMPTY_STATES[list];
-    emptyState.innerHTML = `
-      <h2>${info.title}</h2>
-      <p>${info.body}</p>
-      <div class="row">
-        <button class="btn btn-primary rip-host" data-action="open-search">Add series</button>
-        <button class="btn btn-quiet" data-action="open-import">Import</button>
-      </div>
-    `;
-    return;
-  }
-  grid.hidden = false;
-  emptyState.hidden = true;
-  const cardsHtml = groups.map((g, i) => (g.length === 1 ? cardHtml(g[0], list, i) : franchiseCardHtml(g, list, i)));
-  // P4.1: progressPercent/episodesRemaining partition still-airing (unknown
-  // episode count) groups to the end (state.js's getGroupedFilteredSorted,
-  // via sortLogic.js's partitionAiringLast) — spec: "surface them in a
-  // labelled group at the end rather than dropping them silently". The
-  // heading spans the full grid row (.grid-section-heading's own
-  // grid-column: 1/-1) rather than living in its own separate container,
-  // so it stays part of the same continuous card flow.
-  const airingCount = groups.airingCount || 0;
-  if (airingCount > 0) {
-    cardsHtml.splice(cardsHtml.length - airingCount, 0, `<div class="grid-section-heading">${escapeHtml(copy('sort.stillAiringHeading'))}</div>`);
-  }
-  grid.innerHTML = cardsHtml.join('');
-  animateProgressBars(grid);
+  return LibraryView.renderGrid(list, grid, emptyState);
 }
 
 // Only pops when the number shown actually changes — a plain re-render
@@ -742,9 +388,9 @@ function bulkBarCountText(selectedCount, visibleCount) {
 }
 
 function renderBulkActionBar(list) {
-  if (selectModeBtn) selectModeBtn.setAttribute('aria-pressed', String(selectMode));
+  if (selectModeBtn) selectModeBtn.setAttribute('aria-pressed', String(isSelectMode()));
   if (!bulkActionBarEl) return;
-  if (!selectMode) {
+  if (!isSelectMode()) {
     bulkActionBarEl.hidden = true;
     return;
   }
@@ -953,7 +599,7 @@ function renderHome(container) {
       <div>
         <div class="disc-head"><h3>Pick up where you left off</h3><span class="rule"></span></div>
         ${continuing.length
-          ? `<div class="card-grid home-pickup">${continuing.map((e, i) => cardHtml(e, 'watching', i)).join('')}</div>`
+          ? `<div class="card-grid home-pickup">${continuing.map((e) => cardHtml(e, 'watching')).join('')}</div>`
           : `<p class="card-meta">Nothing in progress.</p>`}
       </div>
       <div>
@@ -1001,7 +647,7 @@ function renderAll(list) {
   renderWatchedStatsHeader(list);
   renderFilterBar(list);
   renderAiringStatus(list);
-  renderGrid(list);
+  return renderGrid(list);
 }
 
 function barChartHtml(data, { formatValue = (v) => v } = {}) {

@@ -29,19 +29,27 @@ function syncAttributes(from, to) {
   }
 }
 
-function syncFormState(from, to) {
-  if (from === document.activeElement) return;
-  if (from instanceof HTMLInputElement) {
-    if (from.type === 'checkbox' || from.type === 'radio') {
-      if (from.checked !== to.hasAttribute('checked')) from.checked = to.hasAttribute('checked');
-    } else if (from.value !== (to.getAttribute('value') ?? '')) {
-      from.value = to.getAttribute('value') ?? '';
-    }
-  } else if (from instanceof HTMLTextAreaElement) {
-    if (from.value !== to.value) from.value = to.value;
-  } else if (from instanceof HTMLSelectElement) {
-    const wanted = [...to.options].find((o) => o.hasAttribute('selected'))?.value;
-    if (wanted !== undefined && from.value !== wanted) from.value = wanted;
+// The value a form control's template asks for. Read before the children are
+// morphed, because morphing moves `to`'s child nodes (a textarea's text, a
+// select's options) into `from`.
+function wantedFormState(to) {
+  if (to instanceof HTMLInputElement) {
+    return to.type === 'checkbox' || to.type === 'radio' ? { checked: to.hasAttribute('checked') } : { value: to.getAttribute('value') ?? '' };
+  }
+  if (to instanceof HTMLTextAreaElement) return { value: to.textContent };
+  if (to instanceof HTMLSelectElement) {
+    const selected = [...to.options].find((o) => o.hasAttribute('selected')) || to.options[0];
+    return selected ? { value: selected.getAttribute('value') ?? selected.textContent } : null;
+  }
+  return null;
+}
+
+function applyFormState(from, wanted) {
+  if (!wanted || from === document.activeElement) return;
+  if ('checked' in wanted) {
+    if (from.checked !== wanted.checked) from.checked = wanted.checked;
+  } else if (from.value !== wanted.value) {
+    from.value = wanted.value;
   }
 }
 
@@ -56,9 +64,10 @@ export function morph(from, to) {
   }
   const key = to.getAttribute?.('data-morph-key');
   if (key !== null && key !== undefined && from.getAttribute('data-morph-key') === key) return from;
+  const wanted = wantedFormState(to);
   syncAttributes(from, to);
   morphChildren(from, to);
-  syncFormState(from, to);
+  applyFormState(from, wanted);
   return from;
 }
 
@@ -127,6 +136,13 @@ export function reconcileList(container, items, { key, render, onCreate, keepUnm
     }
   }
   return wanted;
+}
+
+// Code that changes a reconciled element's DOM directly (swapping a label for an
+// input, say) calls this so the next reconcile morphs the element back to its
+// template even if the template output did not change.
+export function forget(node) {
+  for (let n = node; n; n = n.parentElement) lastHtml.delete(n);
 }
 
 // Same as reconcileList, but only the first `firstCount` items synchronously and
