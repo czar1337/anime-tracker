@@ -2,6 +2,7 @@
 // source of truth across restarts; this module is the source of truth within
 // a running session and is kept in sync via api.saveLibrary (debounced).
 
+import { displayTitle } from './titles.js';
 import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
 import { createTagId, createListId, normalizeName, isDuplicateTagName, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partitionAiringLast, compareValues } from './sortLogic.js';
@@ -192,6 +193,27 @@ function updateEntry(anilistId, patch) {
   const before = { ...entry };
   Object.assign(entry, patch, { updatedAt: nowIso() });
   return { before, after: { ...entry } };
+}
+
+// v3 Phase 1 item 9: what an Undo may put back. Only the fields the action's
+// own patch changed, and only where the entry still holds the value that patch
+// set: if the user edited that field again inside the undo window, their later
+// edit wins. v2 re-applied a full copy of the entry from before the action,
+// which also reverted every other edit made in the meantime (a note, a score).
+function computeRevertPatch(current, patch, before) {
+  const revert = {};
+  for (const key of Object.keys(patch || {})) {
+    if (JSON.stringify(current?.[key]) === JSON.stringify(patch[key])) revert[key] = before?.[key];
+  }
+  return revert;
+}
+
+function revertEntryPatch(anilistId, patch, before) {
+  const entry = getEntry(anilistId);
+  if (!entry) return {};
+  const revert = computeRevertPatch(entry, patch, before);
+  if (Object.keys(revert).length > 0) updateEntry(anilistId, revert);
+  return revert;
 }
 
 function removeEntry(anilistId) {
@@ -540,7 +562,9 @@ function groupSortValue(group, sortKey) {
     case 'popularity':
       return primary.popularity;
     case 'title':
-      return primary.titleRomaji;
+      // The title the card actually shows (v3 Phase 1 item 18), lower-cased so
+      // "the" and "The" sort together.
+      return displayTitle(primary, state.preferences.titleLanguage).toLowerCase();
     case 'date':
       return dateSortValue(primary.year, primary.season);
     case 'episodeCount':
@@ -696,6 +720,8 @@ export const Store = {
   getCounts,
   addEntry,
   updateEntry,
+  revertEntryPatch,
+  computeRevertPatch,
   removeEntry,
   replaceEntryMedia,
   restoreEntrySnapshot,

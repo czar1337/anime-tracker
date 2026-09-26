@@ -101,12 +101,19 @@ test('the server refuses events missing any client-frozen field, and unknown typ
       const broken = makeEvent('01CCC');
       delete broken[field];
       const res = await postEvents(server.url, [broken]);
-      expect(res.status, `missing ${field} must be rejected`).toBe(400);
+      // v3: a well-formed batch is answered 200 and each bad event is reported,
+      // so the client can drop it instead of re-sending the batch forever.
+      expect(res.status, `missing ${field}`).toBe(200);
+      const body = await res.json();
+      expect(body.acceptedIds, `missing ${field} must be rejected`).toEqual([]);
+      expect(body.rejected.length).toBe(1);
     }
     const unknown = await postEvents(server.url, [makeEvent('01DDD', { type: 'not_a_real_type' })]);
-    expect(unknown.status).toBe(400);
-    // Nothing from any rejected batch reached disk.
+    expect((await unknown.json()).rejectedIds).toEqual(['01DDD']);
+    // Nothing rejected reached the log; all of it is kept in the quarantine file.
     expect(readLog(server.dataDir).length).toBe(0);
+    const quarantined = fs.readFileSync(path.join(server.dataDir, 'events.rejected.jsonl'), 'utf8').trim().split('\n');
+    expect(quarantined.length).toBe(8);
   } finally {
     await server.stop();
   }
@@ -466,6 +473,38 @@ test('a snapshot written BEFORE P1.5 (no eventLog/counters stores) is still list
     const after = await (await fetch(`${server.url}/api/events`)).json();
     expect(after.events.map((e) => e.id)).toEqual(['01LEGACY000000000000000001']);
     expect(after.counters.fromLog.totalEpisodes).toBe(4);
+  } finally {
+    await server.stop();
+  }
+});
+
+// v3 Phase 1 item 4.
+test('one bad event does not block the rest of the batch, and does not poison the good ids', async () => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    const res = await postEvents(server.url, [makeEvent('01GOOD1'), makeEvent('01BAD', { type: 'nope' }), makeEvent('01GOOD2', { ts: 1700000000500 })]);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.acceptedIds).toEqual(['01GOOD1', '01GOOD2']);
+    expect(body.rejectedIds).toEqual(['01BAD']);
+    expect(readLog(server.dataDir).map((e) => e.id)).toEqual(['01GOOD1', '01GOOD2']);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('an event whose write failed is not acknowledged, and a retry really appends it', async () => {
+  const server = await startFixtureServer(FIXTURE, { env: { ANIME_TRACKER_TEST_FAIL_EVENT_WRITES: '1' } });
+  try {
+    const failed = await postEvents(server.url, [makeEvent('01RETRY')]);
+    expect(failed.status).toBe(500);
+    expect(readLog(server.dataDir).length).toBe(0);
+    const retry = await postEvents(server.url, [makeEvent('01RETRY')]);
+    expect(retry.status).toBe(200);
+    const body = await retry.json();
+    expect(body.acceptedIds).toEqual(['01RETRY']);
+    expect(body.duplicateIds, 'the retry must not be mistaken for an already-stored duplicate').toEqual([]);
+    expect(readLog(server.dataDir).map((e) => e.id)).toEqual(['01RETRY']);
   } finally {
     await server.stop();
   }

@@ -11,6 +11,7 @@ import { Themes } from './themes.js';
 import { Preferences } from './preferences.js';
 import { Atmosphere } from './atmosphere.js';
 import { computeLibraryStats } from './statsLogic.js';
+import { EventHistory } from './eventHistory.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from './statsExport.js';
 import { BackupClient } from './backupClient.js';
 import { EventLog } from './eventLog.js';
@@ -84,6 +85,21 @@ function recordSettingChange(key, from, to) {
   // primitives, correct for a plain object with no functions/undefined.
   if (JSON.stringify(from) === JSON.stringify(to)) return;
   EventLog.record('settings_changed', { key, from: from ?? null, to: to ?? null });
+}
+
+// v3 Phase 1 item 11: drag controls (sliders, colour pickers) write the Store on
+// every 'input' tick for live preview, so by 'change' time the Store already
+// holds the final value and "before" read then equals "after": v2 logged
+// nothing for any of them. The value at the start of the gesture is captured on
+// its first tick instead, and one event is logged when the gesture settles.
+const gestureStartValues = new Map();
+function beginSettingGesture(key, currentValue) {
+  if (!gestureStartValues.has(key)) gestureStartValues.set(key, currentValue === undefined ? undefined : JSON.parse(JSON.stringify(currentValue)));
+}
+function endSettingGesture(key, settledValue) {
+  const from = gestureStartValues.has(key) ? gestureStartValues.get(key) : settledValue;
+  gestureStartValues.delete(key);
+  recordSettingChange(key, from, settledValue);
 }
 
 // ---------------------------------------------------------------------------
@@ -401,10 +417,30 @@ function recordProgressEvent(entry, from, to) {
   });
 }
 
+// v3 Phase 1 item 9: episode undo is relative to the CURRENT value, not a jump
+// back to the number before the action, so an edit made inside the undo window
+// (another +1, a typed episode number) is not thrown away.
+function undoEpisodeStep(id, step) {
+  const entry = Store.getEntry(id);
+  if (!entry) return;
+  const current = entry.episodesWatched;
+  let target = current - step;
+  if (target < 0) target = 0;
+  // Clamp only upward moves, and never below a count that is already past the
+  // total (older data allowed that): undoing a decrement must not lower it.
+  if (entry.totalEpisodes && target > current) target = Math.min(target, Math.max(entry.totalEpisodes, current));
+  if (target === current) return;
+  Store.updateEntry(id, { episodesWatched: target });
+  recordProgressEvent(entry, current, target);
+}
+
 function handleIncrement(card, id) {
   const entry = Store.getEntry(id);
   if (!entry) return;
   const before = entry.episodesWatched;
+  // v3 Phase 1 item 12: never past the known total (the typed-number path
+  // already clamped; +1, Space, the hero and the detail button did not).
+  if (entry.totalEpisodes && before >= entry.totalEpisodes) return;
   Store.updateEntry(id, { episodesWatched: entry.episodesWatched + 1 });
   recordProgressEvent(entry, before, before + 1);
   const btn = card?.querySelector('.plus');
@@ -422,11 +458,10 @@ function handleIncrement(card, id) {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, { episodesWatched: before });
       // An undo is itself a real transition, recorded as one rather than
       // erased — the log is append-only, so the honest record is
       // "advanced, then went back", not silence.
-      recordProgressEvent(entry, before + 1, before);
+      undoEpisodeStep(id, +1);
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -495,8 +530,7 @@ function handleDecrement(id) {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, { episodesWatched: before });
-      recordProgressEvent(entry, before - 1, before);
+      undoEpisodeStep(id, -1);
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -521,8 +555,8 @@ function handleSetScore(id, score) {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, { myScore: beforeScore });
-      EventLog.recordForEntry('score_set', id, { from: newScore, to: beforeScore });
+      const reverted = Store.revertEntryPatch(id, { myScore: newScore }, { myScore: beforeScore });
+      if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: newScore, to: beforeScore });
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -588,11 +622,11 @@ function handleSetStatus(id, newStatus) {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      Store.updateEntry(id, fullBefore);
-      EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
-      if (patch.episodesWatched !== undefined && patch.episodesWatched !== fullBefore.episodesWatched) {
-        recordProgressEvent(entry, patch.episodesWatched, fullBefore.episodesWatched);
-      }
+      // Only the fields this move changed (status, and the fast-forwarded
+      // progress/completion date), and only if still untouched since.
+      const reverted = Store.revertEntryPatch(id, patch, fullBefore);
+      if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
+      if ('episodesWatched' in reverted) recordProgressEvent(entry, patch.episodesWatched, fullBefore.episodesWatched);
       refreshView();
       Detail.refreshDetailIfOpen(id);
       persist();
@@ -657,11 +691,9 @@ function handleBulkMove(newStatus) {
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       changes.forEach(({ id, before, patch }) => {
-        Store.updateEntry(id, before);
-        EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before.listStatus });
-        if (patch.episodesWatched !== undefined && patch.episodesWatched !== before.episodesWatched) {
-          recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
-        }
+        const reverted = Store.revertEntryPatch(id, patch, before);
+        if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before.listStatus });
+        if ('episodesWatched' in reverted) recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
       });
       refreshView();
       Render.renderTabCounts();
@@ -712,8 +744,8 @@ function handleBulkSetScore(score) {
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       changes.forEach(({ id, before }) => {
-        Store.updateEntry(id, before);
-        EventLog.recordForEntry('score_set', id, { from: score, to: before.myScore });
+        const reverted = Store.revertEntryPatch(id, { myScore: score }, before);
+        if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: score, to: before.myScore });
       });
       refreshView();
       persist();
@@ -742,8 +774,8 @@ function handleBulkClearScore() {
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       changes.forEach(({ id, before }) => {
-        Store.updateEntry(id, before);
-        EventLog.recordForEntry('score_set', id, { from: null, to: before.myScore });
+        const reverted = Store.revertEntryPatch(id, { myScore: null }, before);
+        if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: null, to: before.myScore });
       });
       refreshView();
       persist();
@@ -777,10 +809,7 @@ function handleBulkIncrement() {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      changes.forEach(({ id, before, entry }) => {
-        Store.updateEntry(id, { episodesWatched: before });
-        recordProgressEvent(entry, before + 1, before);
-      });
+      changes.forEach(({ id }) => undoEpisodeStep(id, +1));
       refreshView();
       Render.renderTabCounts();
       persist();
@@ -809,10 +838,7 @@ function handleBulkDecrement() {
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      changes.forEach(({ id, before, entry }) => {
-        Store.updateEntry(id, { episodesWatched: before });
-        recordProgressEvent(entry, before - 1, before);
-      });
+      changes.forEach(({ id }) => undoEpisodeStep(id, -1));
       refreshView();
       Render.renderTabCounts();
       persist();
@@ -940,11 +966,9 @@ function handleBulkMarkCompleted() {
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
       changes.forEach(({ id, before, patch }) => {
-        Store.updateEntry(id, before);
-        EventLog.recordForEntry('status_changed', id, { from: 'watched', to: before.listStatus });
-        if (patch.episodesWatched !== undefined && patch.episodesWatched !== before.episodesWatched) {
-          recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
-        }
+        const reverted = Store.revertEntryPatch(id, patch, before);
+        if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: 'watched', to: before.listStatus });
+        if ('episodesWatched' in reverted) recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
       });
       refreshView();
       Render.renderTabCounts();
@@ -1033,12 +1057,6 @@ function bindGridEvents() {
   // Delegate on the whole app so cards rendered in the grid AND the home
   // dashboard's "continue watching" strip both get the same interactions.
   const root = document.getElementById('app');
-
-  // Once the entrance animation finishes, hand transform back to the hover
-  // rule — see the .settled CSS comment for why this is needed at all.
-  root.addEventListener('animationend', (e) => {
-    if (e.animationName === 'cardEnter') e.target.classList.add('settled');
-  });
 
   root.addEventListener('click', (e) => {
     // Checked before toggle-group: a title inside a franchise card's summary
@@ -1611,7 +1629,10 @@ function bindBackupOverlay() {
       const text = await file.text();
       const data = JSON.parse(text);
       if (!Array.isArray(data.entries)) throw new Error('File does not look like a library backup.');
-      await Api.saveLibrary(data, Store.getEtag());
+      // The server requires an explicit schemaVersion (v3). A backup file with
+      // none is by definition schema 1: the field arrived in schema 2.
+      if (data.schemaVersion === undefined) data.schemaVersion = 1;
+      await Api.saveLibrary(data, Store.getEtag(), { kind: 'import' });
       // Re-fetch rather than trust the pre-upload local copy: the server may
       // have just migrated it (an old exported file can carry an old
       // schemaVersion — server.js's migrateIncomingLibrary, P1.3), so what
@@ -1668,7 +1689,7 @@ function setStatsShareStatus(text) {
 async function openStatsShareOverlay() {
   openOverlay('stats-share-overlay');
   setStatsShareStatus('');
-  const stats = computeLibraryStats(Store.getEntries(), Store.getCounts());
+  const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
   const canvas = document.getElementById('stats-share-canvas');
   // Canvas text drawing is synchronous and won't itself wait on a webfont
   // that hasn't finished loading — waiting here (cheap: these fonts are
@@ -1715,7 +1736,7 @@ function bindStatsShareOverlay() {
   });
 
   document.getElementById('stats-share-copy-text-btn').addEventListener('click', async () => {
-    const stats = computeLibraryStats(Store.getEntries(), Store.getCounts());
+    const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
     const text = buildStatsSummaryText(stats);
     if (!navigator.clipboard) {
       setStatsShareStatus('Your browser does not support copying text.');
@@ -1827,9 +1848,23 @@ function openHelp() {
 // corpus has something to show) and by the Settings panel's own "Redo the
 // quick picker" button — the exact same function either way, since opening
 // it never itself changes any preference; only Done/Skip below do that.
-async function openColdStartOnboarding() {
+// `mayInterrupt` (the boot auto-trigger passes one): building the candidates can
+// take seconds (their covers come from AniList), so whether it is still fine to
+// open a modal is decided after that, not before. If the user has started doing
+// something in the meantime, they get a toast they can act on instead of a
+// dialog opening over whatever they were in the middle of.
+async function openColdStartOnboarding({ mayInterrupt } = {}) {
   coldStartCandidates = await TasteProfile.buildColdStartCandidates();
   if (!coldStartCandidates.length) return; // corpus not ready yet — nothing to show
+  if (mayInterrupt && !mayInterrupt()) {
+    Render.showToast(copy('coldStart.prompt'), {
+      actionLabel: copy('coldStart.promptAction'),
+      onAction: () => openColdStartOnboarding(),
+      duration: 15000,
+      trackUndo: false,
+    });
+    return;
+  }
   coldStartPickedIds = new Set();
   openOverlay('cold-start-overlay');
   Render.renderColdStartOverlay(document.getElementById('cold-start-grid'), coldStartCandidates, coldStartPickedIds);
@@ -2898,6 +2933,7 @@ function bindSettingsPanel() {
       const step = Number(e.target.value);
       Preferences.setSliderStep(sliderKey, step);
       const prefKey = `${sliderKey}Step`;
+      beginSettingGesture(prefKey, Store.state.preferences[prefKey]);
       Store.setPreference([prefKey], step);
       persist();
       const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
@@ -2908,9 +2944,8 @@ function bindSettingsPanel() {
       const step = Number(e.target.value);
       Preferences.setDecorationStep(step);
       Atmosphere.resyncDensity();
-      const beforeSetting = Store.state.preferences.decorationStep;
+      beginSettingGesture('decorationStep', Store.state.preferences.decorationStep);
       Store.setPreference(['decorationStep'], step);
-      recordSettingChange('decorationStep', beforeSetting, step);
       persist();
       const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
       if (readout) readout.textContent = String(step);
@@ -2926,6 +2961,7 @@ function bindSettingsPanel() {
       const slotKey = accentInput.dataset.slot;
       const hex = accentInput.value;
       const appearance = Store.state.preferences.appearance;
+      beginSettingGesture('appearance', appearance);
       const currentBase = appearance[slotKey].base;
       const nextAppearance = { ...appearance, [slotKey]: { ...appearance[slotKey], type: 'custom', accent: hex } };
       Store.setPreference(['appearance'], nextAppearance);
@@ -2948,6 +2984,7 @@ function bindSettingsPanel() {
       const slotKey = baseInput.dataset.slot;
       const hex = baseInput.value;
       const appearance = Store.state.preferences.appearance;
+      beginSettingGesture('appearance', appearance);
       const nextAppearance = { ...appearance, [slotKey]: { ...appearance[slotKey], type: 'custom', base: hex } };
       Store.setPreference(['appearance'], nextAppearance);
       Themes.applyAppearance(nextAppearance);
@@ -2964,6 +3001,7 @@ function bindSettingsPanel() {
     if (opacityInput) {
       const opacity = Number(opacityInput.value);
       const appearance = Store.state.preferences.appearance;
+      beginSettingGesture('appearance', appearance);
       const nextAppearance = { ...appearance, background: { ...appearance.background, opacity } };
       Store.setPreference(['appearance'], nextAppearance);
       Themes.applyAppearance(nextAppearance);
@@ -2981,6 +3019,7 @@ function bindSettingsPanel() {
       const slot = gradientColorInput.dataset.gradientSlot === '1' ? 'gradientColor1' : 'gradientColor2';
       const hex = gradientColorInput.value;
       const appearance = Store.state.preferences.appearance;
+      beginSettingGesture('appearance', appearance);
       const nextAppearance = { ...appearance, background: { ...appearance.background, [slot]: hex } };
       Store.setPreference(['appearance'], nextAppearance);
       Themes.applyAppearance(nextAppearance);
@@ -3001,13 +3040,22 @@ function bindSettingsPanel() {
   // slider interaction. Re-focusing the recreated element by its own
   // data-slider attribute is what keeps arrows/Home/End usable across
   // consecutive key presses, the spec's explicit requirement.
+  // A drag control closed without a change event (a colour picker dismissed)
+  // must not leave its start value behind for the next gesture's "from".
+  body.addEventListener('focusout', (e) => {
+    const t = e.target;
+    if (t.dataset?.slider) endSettingGesture(`${t.dataset.slider}Step`, Store.state.preferences[`${t.dataset.slider}Step`]);
+    else if (t.id === 'decoration-step-slider') endSettingGesture('decorationStep', Store.state.preferences.decorationStep);
+    else if (t.closest?.('[data-action="set-custom-accent"], [data-action="set-custom-base"], [data-action="set-background-opacity"], [data-action="set-background-gradient-color"]'))
+      endSettingGesture('appearance', Store.state.preferences.appearance);
+  });
+
   body.addEventListener('change', (e) => {
     const sliderKey = e.target.dataset.slider;
     if (sliderKey) {
       const step = Number(e.target.value);
       const prefKey = `${sliderKey}Step`;
-      const before = Store.state.preferences[prefKey];
-      recordSettingChange(prefKey, before, step);
+      endSettingGesture(prefKey, step);
       repaintSettings();
       body.querySelector(`[data-slider="${sliderKey}"]`)?.focus();
       return;
@@ -3018,8 +3066,7 @@ function bindSettingsPanel() {
     // logs the settled value and repaints to refresh the contrast
     // confirmation line and swatch state.
     if (e.target.closest('[data-action="set-custom-accent"]')) {
-      const appearance = Store.state.preferences.appearance;
-      recordSettingChange('appearance', appearance, appearance);
+      endSettingGesture('appearance', Store.state.preferences.appearance);
       repaintSettings();
       return;
     }
@@ -3030,8 +3077,7 @@ function bindSettingsPanel() {
     // lightweight 'input' handler doesn't repaint), same as the accent
     // input right above.
     if (e.target.closest('[data-action="set-custom-base"]')) {
-      const appearance = Store.state.preferences.appearance;
-      recordSettingChange('appearance', appearance, appearance);
+      endSettingGesture('appearance', Store.state.preferences.appearance);
       repaintSettings();
       return;
     }
@@ -3039,8 +3085,7 @@ function bindSettingsPanel() {
     // Value is already applied+persisted by the 'input' handler above;
     // this just logs the settled value once the drag ends.
     if (e.target.closest('[data-action="set-background-opacity"]')) {
-      const appearance = Store.state.preferences.appearance;
-      recordSettingChange('appearance', appearance, appearance);
+      endSettingGesture('appearance', Store.state.preferences.appearance);
       return;
     }
 
@@ -3049,9 +3094,13 @@ function bindSettingsPanel() {
     // colour" reset button appears (it's conditional on a custom colour
     // now being set, which the lightweight 'input' handler doesn't repaint).
     if (e.target.closest('[data-action="set-background-gradient-color"]')) {
-      const appearance = Store.state.preferences.appearance;
-      recordSettingChange('appearance', appearance, appearance);
+      endSettingGesture('appearance', Store.state.preferences.appearance);
       repaintSettings();
+      return;
+    }
+
+    if (e.target.id === 'decoration-step-slider') {
+      endSettingGesture('decorationStep', Store.state.preferences.decorationStep);
       return;
     }
 
@@ -3095,6 +3144,35 @@ function bindHelpPanel() {
 // view that is — same logic refreshView() already uses internally.
 export function refreshCurrentView() {
   refreshView();
+}
+
+// v3 Phase 1 item 10: refreshes nobody asked for (airing data arriving, covers
+// downloaded in the background) re-render the grid, which destroys an episode
+// number or a card note being typed. Those wait until focus leaves the field
+// (after its own blur/commit handler has run), then run once.
+let backgroundRefreshPending = false;
+function isEditingInView() {
+  const el = document.activeElement;
+  return Boolean(isTypingTarget(el) && el.closest('#app') && !el.closest('.overlay'));
+}
+
+export function refreshCurrentViewWhenIdle() {
+  if (!isEditingInView()) {
+    refreshView();
+    return;
+  }
+  if (backgroundRefreshPending) return;
+  backgroundRefreshPending = true;
+  const retry = () => {
+    if (!backgroundRefreshPending) return;
+    backgroundRefreshPending = false;
+    refreshCurrentViewWhenIdle();
+  };
+  // After the blur handlers (a note commits on blur) and after focus has
+  // actually moved somewhere. Some browsers fire no focusout when the focused
+  // field is removed, so a periodic re-check backs it up.
+  document.addEventListener('focusout', () => setTimeout(retry, 0), { once: true });
+  setTimeout(retry, 3000);
 }
 
 // Exported so detail.js can route its open through the same focus-capture/
@@ -3180,10 +3258,29 @@ function bindRipple() {
   });
 }
 
+// Cover images fade in over their skeleton once loaded. This used to be an
+// inline onload= attribute on every <img>, which a `script-src 'self'` CSP
+// forbids; `load` does not bubble, so one capture-phase listener on the document
+// sees every image instead (v3 Phase 1 item 2).
+function bindCoverImageLoad() {
+  document.addEventListener(
+    'load',
+    (e) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement) || !img.parentElement?.classList.contains('card-cover-wrap')) return;
+      img.classList.add('loaded');
+      const skeleton = img.previousElementSibling;
+      if (skeleton?.classList.contains('skeleton')) skeleton.remove();
+    },
+    true
+  );
+}
+
 export function initEvents({ initialList, persistFn }) {
   activeList = initialList;
   currentView = initialList;
   persist = persistFn;
+  bindCoverImageLoad();
   bindTabs();
   bindHome();
   bindNavMenu();

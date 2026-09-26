@@ -886,8 +886,7 @@ kbd {
   flex-direction: column;
   transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4), background var(--d-4);
   position: relative;
-  opacity: 0;
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) both;
+  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
 }
 .card:hover, .card:focus-within {
   transform: translateY(-5px);
@@ -946,12 +945,11 @@ kbd {
   right: 0;
 }
 
-/* animation's `both` fill-mode holds its end-state (transform:translateY(0))
-   on the element forever once it finishes — which silently outranks the
-   hover rule's transform, since a running/held CSS animation always wins
-   over a stylesheet rule for the same property. render.js adds this class
-   on animationend so hover can take transform back over afterward. */
-.card.settled, .discover-card.settled, .franchise-card.settled { animation: none; opacity: 1; }
+/* Entrance animations use `backwards` fill: the `from` keyframe applies during the
+   stagger delay, nothing is held once the animation ends (so the hover rule owns
+   `transform` again), and an element is fully visible whether or not the animation
+   ever runs. Reduced motion turns every animation off, so visibility must never
+   depend on an animation finishing. */
 
 @keyframes cardEnter {
   from { opacity: 0; transform: translateY(16px); }
@@ -975,8 +973,7 @@ kbd {
   background: var(--card);
   padding: 14px;
   transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4);
-  opacity: 0;
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) both;
+  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
 }
 .discover-card:hover {
   transform: translateY(-4px);
@@ -1188,8 +1185,7 @@ kbd {
   overflow: hidden;
   position: relative;
   transition: border-color var(--d-4), transform var(--d-4) var(--e-out), box-shadow var(--d-4), background var(--d-4);
-  opacity: 0;
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) both;
+  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
 }
 .franchise-card:hover {
   border-color: var(--line-lit);
@@ -1231,8 +1227,7 @@ kbd {
   flex-direction: column;
   gap: var(--sp-2);
   padding: 0 var(--sp-4) var(--sp-4);
-  opacity: 0;
-  animation: cardEnter 0.35s ease-out both;
+  animation: cardEnter 0.35s ease-out backwards;
 }
 
 .season-row {
@@ -1997,8 +1992,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  opacity: 0;
-  animation: cardEnter 0.5s cubic-bezier(.16,1,.3,1) both;
+  animation: cardEnter 0.5s cubic-bezier(.16,1,.3,1) backwards;
 }
 .schedule-day.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .schedule-day-label {
@@ -2403,6 +2397,18 @@ kbd {
   transition: border-color var(--d-2);
 }
 .search-result:hover { border-color: var(--line-lit); }
+/* Missing cover (design system §9): the first letter, faint, on a flat panel. */
+.cover-initial {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-elevated);
+  color: color-mix(in srgb, var(--text) 22%, transparent);
+  font: var(--t-display-m);
+}
+.search-result .cover-initial { width: 44px; height: 60px; flex-shrink: 0; border-radius: var(--radius-xs); }
+
 .search-result img {
   width: 44px;
   height: 60px;

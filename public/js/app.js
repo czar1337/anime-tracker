@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { initEvents, refreshCurrentView, repositionTabPill, openColdStartOnboarding, pauseRouteDwell, resumeRouteDwell } from './events.js';
+import { initEvents, refreshCurrentView, refreshCurrentViewWhenIdle, repositionTabPill, openColdStartOnboarding, pauseRouteDwell, resumeRouteDwell } from './events.js';
 import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './discover.js';
@@ -13,6 +13,7 @@ import { TasteProfile } from './tasteProfile.js';
 import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
+import { EventHistory } from './eventHistory.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 
@@ -20,6 +21,14 @@ let saveDebounceTimer = null;
 let retryTimer = null;
 let hasUnsavedChanges = false; // true from persist() until a save actually succeeds
 let saveInFlight = false;
+// v3 Phase 1 item 7: one PUT in flight at a time. A save requested while one is
+// in flight only sets `saveQueued`; the follow-up goes out after the reply, with
+// the ETag that reply returned. v2 sent the second PUT with the pre-reply ETag,
+// so the server 409'd the user's own edit.
+let saveQueued = false;
+// Set by persist(), cleared when a save starts. Tells a finished save whether
+// the Store changed after its body was taken.
+let dirtySinceSend = false;
 
 function setSaveIndicator(state, text) {
   const el = document.getElementById('save-indicator');
@@ -45,8 +54,25 @@ async function reloadAfterConflict() {
   Render.clearError();
 }
 
+function requestSave() {
+  if (saveInFlight) {
+    saveQueued = true;
+    return;
+  }
+  attemptSave(0);
+}
+
+function runQueuedSave() {
+  if (!saveQueued) return false;
+  saveQueued = false;
+  attemptSave(0);
+  return true;
+}
+
 async function attemptSave(attempt = 0) {
+  clearTimeout(retryTimer); // at most one pending retry, never alongside a send
   saveInFlight = true;
+  dirtySinceSend = false;
   setSaveIndicator('saving', 'Saving');
   // Events flush alongside every save, but through their OWN endpoint and
   // deliberately NOT awaited into this function's success path (P1.5). The two
@@ -60,12 +86,15 @@ async function attemptSave(attempt = 0) {
     const result = await Api.saveLibrary(Store.toJSON(), Store.getEtag());
     Store.setEtag(result.etag);
     saveInFlight = false;
+    Render.clearError();
+    if (runQueuedSave()) return;
+    if (dirtySinceSend) return; // persist()'s own debounce will send the rest
     hasUnsavedChanges = false;
     setSaveIndicator('saved', 'Saved');
-    Render.clearError();
   } catch (err) {
     saveInFlight = false;
     if (err.conflict) {
+      saveQueued = false;
       setSaveIndicator('failed', copy('save.indicator.conflict'));
       Render.showToast(
         copy('save.conflict.body'),
@@ -101,17 +130,27 @@ async function attemptSave(attempt = 0) {
     // etag either succeeds normally or (if the lock-holder itself changed
     // the library, e.g. a restore) surfaces as a conflict on the very next
     // attempt, handled above.
+    // A queued request folds into this retry: the retry sends the Store's
+    // current state anyway.
+    saveQueued = false;
     const delay = attempt < 3 ? 1500 * (attempt + 1) : 5000;
-    retryTimer = setTimeout(() => attemptSave(attempt + 1), delay);
+    retryTimer = setTimeout(() => {
+      if (saveInFlight) {
+        saveQueued = true; // a newer save is already out; it sends the current state
+        return;
+      }
+      attemptSave(attempt + 1);
+    }, delay);
   }
 }
 
 function persist() {
   hasUnsavedChanges = true;
+  dirtySinceSend = true;
   setSaveIndicator('saving', 'Saving');
   clearTimeout(saveDebounceTimer);
   clearTimeout(retryTimer);
-  saveDebounceTimer = setTimeout(() => attemptSave(0), 300);
+  saveDebounceTimer = setTimeout(requestSave, 300);
 }
 
 // Best-effort guard against closing the tab while a save is still pending —
@@ -288,7 +327,7 @@ async function retryMissingCovers() {
       .map((e) => ({ anilistId: e.anilistId, url: urlById.get(e.anilistId) }));
     await downloadCoversLimited(toDownload);
     persist();
-    refreshCurrentView();
+    refreshCurrentViewWhenIdle();
     if (i + COVER_RETRY_BATCH_SIZE < missing.length) await sleep(800);
   }
 }
@@ -323,6 +362,13 @@ function initEventFlushLifecycle() {
     pauseRouteDwell();
     EventLog.flushKeepalive();
   });
+}
+
+// Set by the first click or key press after the page loads. Only used to decide
+// whether a late, unrequested dialog (cold start) may still open on its own.
+let userHasInteracted = false;
+for (const type of ['pointerdown', 'keydown']) {
+  document.addEventListener(type, () => (userHasInteracted = true), { capture: true, once: true });
 }
 
 async function boot() {
@@ -383,6 +429,8 @@ async function boot() {
   // lifetime before recording anything new.
   EventLog.initEventLog({ post: (events) => Api.postEvents(events) });
   EventLog.record('app_opened');
+  // Statistics reads real activity from the log (v3); loads in the background.
+  EventHistory.loadEventHistory().then((ok) => ok && refreshCurrentViewWhenIdle());
   EventLog.flush().catch(() => {}); // best effort; retried on the next flush
   initEventFlushLifecycle();
 
@@ -411,7 +459,11 @@ async function boot() {
   TasteProfile.initTasteProfile({ persistFn: persist })
     .then(async () => {
       if (await TasteProfile.maybeAutoTriggerColdStart(Store.state.preferences)) {
-        await openColdStartOnboarding();
+        // This resolves seconds after boot. It must never throw a modal over
+        // someone who has already started using the app (v3 Phase 1).
+        await openColdStartOnboarding({
+          mayInterrupt: () => !userHasInteracted && !document.querySelector('.overlay:not([hidden])'),
+        });
       }
     })
     .catch(() => {});
@@ -422,12 +474,13 @@ async function boot() {
     Render.showToast(`Imported ${e.detail.added} entries from MyAnimeList.`);
   });
 
+  // Background data: never re-render under someone typing (v3 Phase 1 item 10).
   document.addEventListener('airing-updated', () => {
-    refreshCurrentView();
+    refreshCurrentViewWhenIdle();
   });
 
   document.addEventListener('covers-updated', () => {
-    refreshCurrentView();
+    refreshCurrentViewWhenIdle();
     persist();
   });
 

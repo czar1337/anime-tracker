@@ -11,6 +11,9 @@ import { Fonts } from './fonts.js';
 import { FONT_MANIFEST } from './fontManifest.js';
 import { DEFAULT_STEP, MAX_STEP, getEffectiveMax, getCollapsedWeightOptions, computeSliderTokens } from './typographySliders.js';
 import { checkContrastAA, parseRgb } from './contrastCheck.js';
+import { computeLibraryStats, episodesWatchedInYear } from './statsLogic.js';
+import { EventHistory } from './eventHistory.js';
+import { titlesInOrder } from './titles.js';
 import { buildPalette, hslToRgb, themeInputFromAccent } from './themeBuilder.js';
 import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 import { TasteProfile } from './tasteProfile.js';
@@ -346,14 +349,14 @@ function cardBodyForList(entry, list, isSeasonRow = false) {
   `;
 }
 
-// English title primary/large, Japanese romaji secondary/small/faded below —
-// falls back to whichever title is available if only one exists. Clicking
-// the title opens the detail overlay for anilistId (handled in events.js,
-// which checks for this action before anything else the click might bubble
-// into, e.g. a franchise card's toggle-group).
-function titleBlockHtml(titleEnglish, titleRomaji, anilistId) {
-  const primary = titleEnglish || titleRomaji;
-  const secondary = titleEnglish && titleRomaji && titleRomaji !== titleEnglish ? titleRomaji : null;
+// The preferred-language title primary/large, the next different title
+// secondary/small/faded below (titles.js: the same rule the A→Z sort uses, so
+// what you see is what it is sorted by). Clicking the title opens the detail
+// overlay for anilistId (handled in events.js, which checks for this action
+// before anything else the click might bubble into, e.g. a franchise card's
+// toggle-group).
+function titleBlockHtml(item, anilistId) {
+  const [primary, secondary] = titlesInOrder(item, Store.state.preferences.titleLanguage);
   return `
     <div class="card-title-block" data-action="show-detail" data-detail-id="${anilistId}" title="View details">
       <div class="card-title" title="${escapeHtml(primary)}">${escapeHtml(primary)}</div>
@@ -387,7 +390,7 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
       <svg class="hold-ring" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle></svg>
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
-        ${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">` : ''}
+        ${src ? `<img src="${src}" alt="" loading="lazy">` : ''}
         ${isNew ? `<span class="dot" title="New episode"></span>` : ''}
         ${seasonLabel
           ? `<span class="card-format-badge season-badge">${escapeHtml(seasonLabel)}</span>`
@@ -402,7 +405,7 @@ function cardHtml(entry, list, index = 0, seasonLabel = null) {
         ${list === 'watching' && !selectMode ? `<button class="plus" data-action="increment" aria-label="Mark next episode watched" title="Mark next episode watched">＋</button>` : ''}
       </div>
       <div class="card-body">
-        ${titleBlockHtml(entry.titleEnglish, entry.titleRomaji, entry.anilistId)}
+        ${titleBlockHtml(entry, entry.anilistId)}
         <div class="card-meta">
           ${entry.year ? `<span>${entry.year}</span>` : ''}
           ${entry.totalEpisodes ? `<span>${entry.totalEpisodes} ep</span>` : ''}
@@ -447,11 +450,11 @@ function franchiseCardHtml(group, list, index = 0) {
       <div class="franchise-summary" data-action="toggle-group">
         <div class="card-cover-wrap">
           <div class="skeleton"></div>
-          ${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">` : ''}
+          ${src ? `<img src="${src}" alt="" loading="lazy">` : ''}
           <span class="card-format-badge">${group.length} seasons</span>
         </div>
         <div class="card-body">
-          ${titleBlockHtml(primary.titleEnglish, primary.titleRomaji, primary.anilistId)}
+          ${titleBlockHtml(primary, primary.anilistId)}
           <div class="card-meta">
             ${primary.year ? `<span>${primary.year}</span>` : ''}
             <span>${totalEpisodes ? `${totalWatched}/${totalEpisodes}` : totalWatched} ep</span>
@@ -595,9 +598,9 @@ function renderWatchedStatsHeader(list) {
   const scored = entries.filter((e) => e.myScore != null);
   const meanScore = scored.length ? (scored.reduce((s, e) => s + e.myScore, 0) / scored.length).toFixed(1) : '—';
   const thisYear = new Date().getFullYear();
-  const episodesThisYear = entries
-    .filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear)
-    .reduce((sum, e) => sum + (e.episodesWatched || 0), 0);
+  // Episodes actually watched this year on the titles in this list (v3).
+  const ids = new Set(entries.map((e) => String(e.anilistId)));
+  const episodesThisYear = episodesWatchedInYear(EventHistory.allEvents().filter((ev) => ids.has(ev.animeId)), entries, thisYear, { logStartTs: EventHistory.logStartTs() });
 
   statsHeader.hidden = false;
   statsHeader.innerHTML = `
@@ -939,7 +942,7 @@ function renderHome(container) {
   // Watching count — three numbers, not four (design §09).
   const thisYear = new Date().getFullYear();
   const completedThisYear = Store.getEntries().filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
-  const episodesThisYear = completedThisYear.reduce((s, e) => s + (e.episodesWatched || 0), 0);
+  const episodesThisYear = episodesWatchedInYear(EventHistory.allEvents(), Store.getEntries(), thisYear, { logStartTs: EventHistory.logStartTs() });
   const scoredThisYear = completedThisYear.filter((e) => e.myScore != null);
   const meanScoreThisYear = scoredThisYear.length ? (scoredThisYear.reduce((s, e) => s + e.myScore, 0) / scoredThisYear.length).toFixed(1) : '—';
   const watchingCount = Store.getCounts().watching;
@@ -1045,8 +1048,9 @@ function renderStatsPage(container) {
     return;
   }
 
-  const totalEpisodes = entries.reduce((s, e) => s + (e.episodesWatched || 0), 0);
-  const totalMinutes = entries.reduce((s, e) => s + (e.episodesWatched || 0) * (e.duration || 0), 0);
+  const libraryStats = computeLibraryStats(entries, counts, new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
+  const totalEpisodes = libraryStats.totalEpisodes;
+  const totalMinutes = libraryStats.totalMinutes;
   const totalHours = Math.round(totalMinutes / 60);
   const totalDays = (totalMinutes / 60 / 24).toFixed(1);
 
@@ -1055,7 +1059,7 @@ function renderStatsPage(container) {
 
   const thisYear = new Date().getFullYear();
   const completedThisYear = entries.filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
-  const episodesThisYear = completedThisYear.reduce((s, e) => s + (e.episodesWatched || 0), 0);
+  const episodesThisYear = libraryStats.episodesThisYear;
 
   const dropEligible = counts.watched + counts.dropped;
   const dropRate = dropEligible ? ((counts.dropped / dropEligible) * 100).toFixed(1) : '0';
@@ -1064,8 +1068,8 @@ function renderStatsPage(container) {
   for (const e of entries) if (e.format) formatCounts[e.format] = (formatCounts[e.format] || 0) + 1;
   const formatData = Object.entries(formatCounts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
 
-  const genreCounts = {};
-  for (const e of entries) for (const g of e.genres || []) genreCounts[g] = (genreCounts[g] || 0) + 1;
+  // Completed titles only (v3): a long Watchlist no longer dominates the chart.
+  const genreCounts = libraryStats.genreCounts;
   const genreData = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([label, value]) => ({ label, value }));
 
   const scoreDist = Array.from({ length: 10 }, (_, i) => ({ label: String(i + 1), value: 0 }));
@@ -1661,17 +1665,26 @@ function weekStripHtml(week) {
     </div>`;
 }
 
+// v3 Phase 1 item 13: AniList can return a title with no coverImage at all.
+// Design system §9: a missing cover is the first letter on a flat panel, never an
+// empty box, and never a TypeError that aborts the whole render.
+function coverOrInitialHtml(url, title) {
+  if (url) return `<img src="${escapeHtml(url)}" alt="" loading="lazy">`;
+  const initial = (String(title || '').trim()[0] || '?').toUpperCase();
+  return `<span class="cover-initial" aria-hidden="true">${escapeHtml(initial)}</span>`;
+}
+
 function scheduleCardHtml(item, index = 0) {
   const m = item.media;
   return `
     <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelayMs(index)}ms">
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
-        <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy" onload="this.classList.add('loaded');this.previousElementSibling.remove()">
+        ${coverOrInitialHtml(m.coverImage?.large, m.title?.english || m.title?.romaji)}
         ${m.format ? `<span class="card-format-badge">${escapeHtml(m.format)}</span>` : ''}
       </div>
       <div class="card-body">
-        ${titleBlockHtml(m.title.english, m.title.romaji, m.id)}
+        ${titleBlockHtml({ titleEnglish: m.title?.english, titleRomaji: m.title?.romaji, titleNative: m.title?.native }, m.id)}
         <div class="card-meta">
           ${(m.genres || []).length ? `<span>${escapeHtml(m.genres.slice(0, 3).join(', '))}</span>` : ''}
         </div>
@@ -1773,7 +1786,7 @@ function renderSearchResults(container, results, ownedIds, { replaceMode = false
       const native = showNative && m.title.native && m.title.native !== primary ? m.title.native : null;
       return `
       <div class="search-result" data-anilist-id="${m.id}">
-        <img src="${escapeHtml(m.coverImage.large)}" alt="" loading="lazy">
+        ${coverOrInitialHtml(m.coverImage?.large, primary)}
         <div class="search-result-info">
           <div class="search-result-title">${escapeHtml(primary)}</div>
           ${secondary ? `<div class="search-result-title-sub">${escapeHtml(secondary)}</div>` : ''}

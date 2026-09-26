@@ -4,7 +4,27 @@
 
 Entries are added phase by phase and rewritten into final release notes at the end.
 
-- Internal: the v3 plan is in place (`docs/v3-plan.md`), with every issue from the external review re-checked against the code first (`docs/v3-verification.md`). No change to the app yet.
+- Internal: the v3 plan is in place (`docs/v3-plan.md`), with every issue from the external review re-checked against the code first (`docs/v3-verification.md`).
+
+### Safety and correctness
+
+- **Fix: with "reduce motion" turned on in Windows, the library looked empty.** Cards, Discover cards and schedule days only became visible through their entrance animation, which reduced motion switches off. They are now always visible; the animation only adds movement.
+- **Other websites can no longer talk to the app.** The app answers only requests addressed to itself on your computer, refuses writes coming from other sites, and every change needs a key that only the app's own page knows. This closes a hole where a web page in another tab could have read or changed your library.
+- **Starting the app twice is now harmless.** A second copy stops before touching anything and opens the running one instead. Before, it could rewrite files in the data folder first.
+- **Before upgrading your library to a new format, the app now takes a checked backup snapshot of the old version and keeps it permanently.** If that snapshot can't be verified, nothing is changed.
+- **Two quick edits no longer show "changed elsewhere".** Saves now go out one at a time.
+- **Undo only undoes what the action did.** Undoing "Moved to Watched" no longer reverts a note or score you changed in the meantime, and undoing +1 steps back from the current count instead of jumping back.
+- **+1 stops at the last episode** instead of counting past the total.
+- **Typing is no longer interrupted** when airing data or covers arrive in the background.
+- **The "What do you like?" picker no longer pops up over whatever you are doing.** If you have already started using the app, it is offered as a small prompt instead.
+- **Fix: a rebuild of Discover could be lost** when you changed a filter while it was still loading, leaving it on "Refreshing…".
+- **Fix: one bad activity record could stop all later ones from being saved.** Activity is now confirmed only once it is on disk.
+- **Fix: a show without a cover image could break the Schedule and search lists.** It now shows its first letter.
+- **Backups keep more history.** The last 50, plus one per day for a month, plus one per month forever, instead of the last 150 saves. Saves within the same minute share one backup. The first time you save after updating, older backups beyond these tiers are pruned once.
+- **Statistics: "Episodes this year" now counts episodes you actually watched this year**, not the full length of every series you finished this year. Top genres count finished series only, and episodes with an unknown length count with the standard 24-minute (100 for films) estimate everywhere.
+- **Sorting by title follows the title you see** (English by default, or your chosen title language), and library cards now respect the title-language setting too.
+- Cover downloads accept AniList images only, up to 5 MB.
+- Internal: settings changed by dragging a slider or colour picker are now recorded in the activity log once, with the real before and after values; an unreadable request gets a clear error instead of a server error.
 
 ## 2.3.0
 

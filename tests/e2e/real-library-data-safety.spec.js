@@ -62,7 +62,9 @@ test('a copy of the real library can be safely exercised for P1.2 behavior witho
   const before = fingerprintRealData(realDir);
 
   const tempCopyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-real-copy-'));
-  fs.cpSync(realDir, tempCopyDir, { recursive: true }); // read from realDir, write only to tempCopyDir
+  // The copy leaves out a running app's single-instance lock, which would otherwise
+  // make the test server refuse to start against the copy.
+  fs.cpSync(realDir, tempCopyDir, { recursive: true, filter: (src) => path.basename(src) !== ".lock" }); // read from realDir, write only to tempCopyDir
 
   const server = await startFixtureServer(undefined, {
     dataDir: tempCopyDir,

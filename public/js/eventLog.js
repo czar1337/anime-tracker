@@ -232,9 +232,13 @@ export function createOutbox({ storage, post, maxEvents = OUTBOX_MAX_EVENTS }) {
     try {
       const result = await post(batch);
       const acceptedIds = new Set(result?.acceptedIds || batch.map((e) => e.id));
-      pending = pending.filter((e) => !acceptedIds.has(e.id));
+      // v3: the server reports invalid events separately (and keeps them in its
+      // own quarantine file). Re-sending them could never succeed, and before
+      // this one bad event kept the whole outbox from ever draining.
+      const rejectedIds = new Set(result?.rejectedIds || []);
+      pending = pending.filter((e) => e && e.id && !acceptedIds.has(e.id) && !rejectedIds.has(e.id));
       persistPending();
-      return { flushed: acceptedIds.size };
+      return { flushed: acceptedIds.size, rejected: rejectedIds.size };
     } catch {
       return { flushed: 0, retained: pending.length };
     } finally {
@@ -266,6 +270,14 @@ let sessionId = null;
 let outbox = null;
 let initialized = false;
 let keepalivePost = () => {};
+// Every event recorded since this page loaded, kept after it has been flushed,
+// so views that read activity (Statistics) stay current without re-fetching the
+// whole log from the server after every action.
+const sessionEvents = [];
+
+export function recordedThisSession() {
+  return sessionEvents.slice();
+}
 
 // Wired once from app.js's boot(). `post` is injected rather than importing
 // api.js here, so this module stays dependency-light and unit-testable.
@@ -287,6 +299,7 @@ export function record(type, fields = {}) {
   try {
     const event = buildEvent(type, fields, { ulid, sessionId, now: () => new Date() });
     outbox.add(event);
+    sessionEvents.push(event);
     return event;
   } catch (err) {
     console.error('[eventLog] Could not record event:', type, err && err.message);
@@ -331,6 +344,7 @@ export function currentSessionId() {
 
 export const EventLog = {
   initEventLog,
+  recordedThisSession,
   record,
   recordForEntry,
   flush,

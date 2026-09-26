@@ -69,6 +69,17 @@ export const COPY_REGISTRY = {
     madara: (p) => `Could not reload: ${p.message}`,
   },
 
+  // v3 Phase 1: cold start offered without interrupting someone mid-task.
+  'coldStart.prompt': {
+    familyFriendly: 'Pick a few shows you like and Discover gets personal.',
+    standard: 'Pick a few shows you like and Discover gets personal.',
+    madara: 'Pick a few shows you like and Discover gets personal.',
+  },
+  'coldStart.promptAction': {
+    familyFriendly: 'Pick shows',
+    standard: 'Pick shows',
+    madara: 'Pick shows',
+  },
   // The 423 surface. Client-resolved from the server's `locked: true` flag —
   // see copy.js's header for why the tier is resolved on this side.
   'save.locked': {

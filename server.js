@@ -27,6 +27,11 @@ const { computeLibraryEtag } = require('./libraryEtag.js');
 const { createWriteLock, LockTimeoutError } = require('./writeLock.js');
 const { CLASS_B_STORES, planEviction, selectCorpusEvictionCandidates } = require('./classBEviction.js');
 const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuota.js');
+const HttpSecurity = require('./httpSecurity.js');
+const { acquireInstanceLock } = require('./instanceLock.js');
+const { downloadImage, isAllowedCoverUrl } = require('./coverDownload.js');
+const BackupRetention = require('./backupRetention.js');
+const { renameSyncWithRetry } = require('./fsRetry.js');
 
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
@@ -34,6 +39,10 @@ const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuo
 // Test/harness override only (P0.4): lets a test server run on a free port
 // alongside a real running instance without EADDRINUSE. Unset in normal use.
 const PORT = Number(process.env.ANIME_TRACKER_PORT) || 4321;
+// v3: a per-launch random token that every write must carry. Only a page served
+// by this process can know it (it is injected into index.html), which is what
+// stops a page in another tab from writing here. See httpSecurity.js.
+const WRITE_TOKEN = HttpSecurity.createWriteToken();
 const IS_SEA = sea.isSea();
 const APP_ROOT = IS_SEA ? path.dirname(process.execPath) : __dirname;
 const PUBLIC_DIR = path.join(__dirname, 'public'); // only meaningful outside SEA mode
@@ -69,8 +78,8 @@ const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
 // P1.5's two new Class A stores. Both live in their own files rather than
 // inside library.json:
 //  - events.jsonl is append-only and grows indefinitely (the spec forbids
-//    pruning it), so it must never enter rotateBackup()'s 150-copy rotation.
-//    Its redundancy is the <=4 snapshots, which DO include it per rule 3.
+//    pruning it), so it must never enter rotateBackup()'s backup rotation.
+//    Its redundancy is the snapshots, which DO include it per rule 3.
 //  - counters.json is a materialized fold of the log plus a historical
 //    baseline, so keeping it separate makes `total = baseline + fold(log)` a
 //    checkable, self-healing invariant instead of just "fails together with
@@ -78,12 +87,11 @@ const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
 const EVENTS_FILE = path.join(DATA_DIR, 'events.jsonl');
 const COUNTERS_FILE = path.join(DATA_DIR, 'counters.json');
 const COUNTERS_TMP_FILE = path.join(DATA_DIR, 'counters.json.tmp');
-// A single unusually active session (a big import, a bulk cover-recovery
-// run) can create dozens of backups in a few hours — at 30, that safety net
-// can be completely cycled through in a single day, pruning away anything
-// old enough to matter. Backups are tiny (a personal library.json, not
-// media), so a much larger cap costs negligible disk space.
-const MAX_BACKUPS = 150;
+const EVENTS_REJECTED_FILE = path.join(DATA_DIR, 'events.rejected.jsonl');
+// Backup retention is tiered (the newest 50, one per day for 30 days, one per
+// month) and saves within one minute share one backup: see backupRetention.js.
+// v2 kept the newest 150 by count, so one busy session could push out every
+// older backup.
 const SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
 const APP_VERSION = readAppVersion();
 const RAW_VERSION_URL = 'https://raw.githubusercontent.com/czar1337/anime-tracker/main/version.json';
@@ -102,9 +110,40 @@ function readAppVersion() {
 }
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+// v3 Phase 1 item 3: the single-instance lock is the first write to DATA_DIR,
+// before the legacy migration, the integrity check (which can migrate the
+// schema), counters or any snapshot. A second copy of the app pointed at the same
+// folder therefore stops here without touching anything, instead of finding out
+// through EADDRINUSE after it has already written. See instanceLock.js.
+const instanceLock = acquireInstanceLock(DATA_DIR, { port: PORT });
+if (!instanceLock.acquired) {
+  const holder = instanceLock.holder || {};
+  const holderUrl = `http://localhost:${holder.port || PORT}`;
+  console.error(`Anime Tracker is already running for ${DATA_DIR} (pid ${holder.pid ?? 'unknown'}). Nothing was changed.`);
+  if (IS_SEA) {
+    console.error(`Opening ${holderUrl} in your browser instead of starting a second copy.`);
+    openBrowser(holderUrl);
+    process.exit(0);
+  }
+  process.exit(1);
+}
+process.on('exit', () => instanceLock.release());
+// Keeps the lock fresh while running. If another copy ever takes it over (only
+// possible after this one stopped refreshing it, e.g. a long system sleep), this
+// one stops rather than have two copies write the same folder.
+instanceLock.startHeartbeat(() => {
+  console.error('[startup] Another copy of Anime Tracker took over this data folder; stopping this one.');
+  process.exit(0);
+});
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => process.exit(0));
+}
 const migrationResult = migrateLegacyDataDir(LEGACY_DATA_DIR, DATA_DIR);
 if (migrationResult.action === 'migrated') {
   console.log(`[migration] Moved data from ${migrationResult.oldDir} to ${migrationResult.newDir}.`);
+  if (migrationResult.skipped?.length) {
+    console.error(`[migration] ${migrationResult.skipped.length} file(s) already existed in the new folder and were left in its .migrating-* subfolder: ${migrationResult.skipped.join(', ')}`);
+  }
 } else if (migrationResult.action === 'migration-failed') {
   console.error('[migration] Failed to migrate legacy data folder, leaving it untouched:', migrationResult.error);
 } else if (migrationResult.action === 'skip-corrupt-source') {
@@ -243,14 +282,34 @@ function checkStartupIntegrity() {
   }
 
   if (compat === 'migrate') {
-    try {
-      const migrated = migrate(data, SCHEMA_VERSION);
-      writeLibraryAtomic(migrated); // backs up the pre-migration file, then atomically writes the migrated one
-      console.log(`[startup] Migrated library.json from schemaVersion ${dataVersion} to ${SCHEMA_VERSION}.`);
-    } catch (err) {
-      libraryState = { corrupt: true, error: `Migration from schemaVersion ${dataVersion} failed: ${err.message}`, tooNew: false, dataVersion };
-      console.error('[startup] Migration failed, library.json left untouched:', err.message);
-    }
+    // v3 Phase 1 item 6: not migrated here. The migration runs in the async
+    // startup sequence (runPendingMigration), after a verified snapshot pinned to
+    // this schema version exists. v2 migrated first and only took its pinned
+    // snapshot afterwards, so the only pre-image was an unverified backup copy
+    // that rotation could prune.
+    pendingMigration = { data, dataVersion };
+  }
+}
+
+let pendingMigration = null;
+
+// Runs before counters and the pinned snapshot, before listen(). Throws (and the
+// startup sequence refuses to start) if the pre-migration snapshot cannot be
+// built and verified: nothing is migrated without one.
+async function runPendingMigration() {
+  if (!pendingMigration) return;
+  const { data, dataVersion } = pendingMigration;
+  pendingMigration = null;
+  const label = `pre-migration-${dataVersion}-to-${SCHEMA_VERSION}`;
+  const snap = await createSnapshotNow({ pinned: true, label });
+  console.log(`[startup] Took verified snapshot ${snap.file} of schemaVersion ${dataVersion} before migrating (pinned, never pruned).`);
+  try {
+    const migrated = migrate(data, SCHEMA_VERSION);
+    writeLibraryAtomic(migrated); // also backs up the pre-migration file
+    console.log(`[startup] Migrated library.json from schemaVersion ${dataVersion} to ${SCHEMA_VERSION}.`);
+  } catch (err) {
+    libraryState = { corrupt: true, error: `Migration from schemaVersion ${dataVersion} failed: ${err.message}`, tooNew: false, dataVersion };
+    console.error('[startup] Migration failed, library.json left untouched:', err.message);
   }
 }
 
@@ -306,16 +365,22 @@ function listBackups() {
 }
 
 function pruneBackups() {
-  const backups = listBackups();
-  const toDelete = backups.slice(MAX_BACKUPS);
+  const toDelete = BackupRetention.selectBackupsToPrune(listBackups());
   for (const file of toDelete) {
     fs.unlinkSync(path.join(BACKUPS_DIR, file));
   }
 }
 
-function rotateBackup() {
+function rotateBackup({ coalesce = false } = {}) {
   if (!fs.existsSync(LIBRARY_FILE)) return;
-  const stamp = timestampForBackup(new Date());
+  const now = new Date();
+  // Saves are debounced to ~300 ms, so an evening of edits used to mean hundreds
+  // of backups. The first backup of a minute (the state before that minute's
+  // first save) is kept; later saves in the same minute do not add one.
+  // Only ordinary saves coalesce: a restore, import, migration or reset always
+  // keeps its own pre-image, because its error text and recovery rely on it.
+  if (coalesce && BackupRetention.shouldCoalesce(listBackups(), now)) return;
+  const stamp = timestampForBackup(now);
   let name = `library-${stamp}.json`;
   let n = 1;
   while (fs.existsSync(path.join(BACKUPS_DIR, name))) {
@@ -329,11 +394,11 @@ function rotateBackup() {
 // Writes `data` to library.json atomically: write to a .tmp file, fsync it,
 // then rename over the real file. A crash at any point leaves the original
 // library.json (or the .tmp file) intact — never a half-written file.
-function writeLibraryAtomic(data, { skipBackup = false } = {}) {
+function writeLibraryAtomic(data, { skipBackup = false, coalesceBackup = false } = {}) {
   if (libraryState.corrupt) {
     throw new Error('Refusing to save: library.json is corrupt on disk. Restore a backup first.');
   }
-  if (!skipBackup) rotateBackup();
+  if (!skipBackup) rotateBackup({ coalesce: coalesceBackup });
 
   const json = JSON.stringify(data, null, 2);
   const fd = fs.openSync(LIBRARY_TMP_FILE, 'w');
@@ -343,7 +408,7 @@ function writeLibraryAtomic(data, { skipBackup = false } = {}) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(LIBRARY_TMP_FILE, LIBRARY_FILE);
+  renameSyncWithRetry(LIBRARY_TMP_FILE, LIBRARY_FILE);
   libraryState = { corrupt: false, error: null, tooNew: false, dataVersion: null };
 }
 
@@ -466,6 +531,14 @@ function eventBodyHashById() {
 // Appends validated events, deduping by id. Returns what actually happened per
 // event so the client can drain its outbox precisely.
 //
+// v3 Phase 1 item 4: nothing is acknowledged before it is on disk. Events are
+// validated and staged first; the dedup index and body hashes are committed only
+// after the append has been fsync'd. A write failure throws with the index left
+// untouched (and invalidated, so the next call re-reads what really reached the
+// file), so a retry is appended rather than wrongly reported as a duplicate. An
+// invalid event no longer rejects the whole batch: it is reported in "rejected",
+// kept in events.rejected.jsonl for inspection, and the valid ones still land.
+//
 // Callers must hold the write lock: this is a read-modify-write (dedup, then
 // append), and Windows offers no atomic-append guarantee worth relying on.
 async function appendEvents(incoming) {
@@ -475,7 +548,10 @@ async function appendEvents(incoming) {
   const accepted = [];
   const duplicates = [];
   const collisions = [];
-  const lines = [];
+  const rejected = [];
+  const staged = []; // { event, hash }
+  const stagedHashById = new Map();
+  let stagedMaxTs = eventLogMaxTs;
 
   for (const raw of incoming) {
     // The server NEVER fills in id/ts/tzOffset/localDay/sessionId. They are
@@ -483,24 +559,31 @@ async function appendEvents(incoming) {
     // spec's Stockholm/Tokyo paragraph. An event that sat in an outbox across a
     // flight or a DST change would otherwise get a silently wrong localDay,
     // with no way to detect it afterwards.
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      rejected.push({ id: null, reason: 'Event is not an object.', raw });
+      continue;
+    }
     if (!EventLogShared.hasRequiredEventFields(raw)) {
-      throw new EventValidationError('Event is missing one or more required fields (id, schemaVersion, type, ts, tzOffset, localDay, sessionId).');
+      rejected.push({ id: raw.id ?? null, reason: 'Event is missing one or more required fields (id, schemaVersion, type, ts, tzOffset, localDay, sessionId).', raw });
+      continue;
     }
     if (!EventLogShared.isKnownEventType(raw.type)) {
-      throw new EventValidationError(`Unknown event type: ${raw.type}`);
+      rejected.push({ id: raw.id, reason: 'Unknown event type: ' + raw.type, raw });
+      continue;
     }
 
     const event = { ...raw };
     // meta.clockSkew is the ONE field the server may add, because only it knows
     // the on-disk maximum ts. The event is still appended in arrival order and
     // the log is never reordered; readers sort by ts.
-    if (Number.isFinite(event.ts) && eventLogMaxTs > 0 && event.ts < eventLogMaxTs) {
+    if (Number.isFinite(event.ts) && stagedMaxTs > 0 && event.ts < stagedMaxTs) {
       event.meta = { ...(event.meta || {}), clockSkew: true };
     }
 
-    if (index.has(event.id)) {
-      const existing = bodyHashes.get(event.id);
-      if (existing && existing === eventBodyHash(event)) {
+    const known = stagedHashById.has(event.id) || index.has(event.id);
+    if (known) {
+      const existingHash = stagedHashById.get(event.id) ?? bodyHashes.get(event.id);
+      if (existingHash && existingHash === eventBodyHash(event)) {
         // Genuine idempotent retry (an outbox re-flush): a no-op that reports
         // success, exactly as the spec requires.
         duplicates.push(event.id);
@@ -510,31 +593,67 @@ async function appendEvents(incoming) {
       // duplicate would swallow a real event forever, so append it under a
       // fresh id and make the anomaly visible instead.
       const originalId = event.id;
-      event.id = `${originalId}-COLLISION-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+      event.id = originalId + '-COLLISION-' + crypto.randomBytes(6).toString('hex').toUpperCase();
       event.meta = { ...(event.meta || {}), idCollision: originalId };
       collisions.push({ originalId, appendedAs: event.id });
-      console.error(`[events] Event id collision with a different body: ${originalId} appended as ${event.id}.`);
+      console.error('[events] Event id collision with a different body: ' + originalId + ' appended as ' + event.id + '.');
     }
 
-    lines.push(JSON.stringify(event));
-    index.add(event.id);
-    bodyHashes.set(event.id, eventBodyHash(event));
-    if (Number.isFinite(event.ts) && event.ts > eventLogMaxTs) eventLogMaxTs = event.ts;
-    accepted.push(event);
+    const hash = eventBodyHash(event);
+    staged.push({ event, hash });
+    stagedHashById.set(event.id, hash);
+    if (Number.isFinite(event.ts) && event.ts > stagedMaxTs) stagedMaxTs = event.ts;
   }
 
-  if (lines.length > 0) {
-    const fd = fs.openSync(EVENTS_FILE, 'a');
+  if (staged.length > 0) {
     try {
-      fs.writeSync(fd, lines.join('\n') + '\n');
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
+      if (TEST_FAIL_EVENT_WRITES.remaining > 0) {
+        TEST_FAIL_EVENT_WRITES.remaining -= 1;
+        throw new Error('Forced event-log write failure (test-only).');
+      }
+      const fd = fs.openSync(EVENTS_FILE, 'a');
+      try {
+        fs.writeSync(fd, staged.map((x) => JSON.stringify(x.event)).join('\n') + '\n');
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch (err) {
+      // Whatever part of the write reached the file (if any) is re-read, and a
+      // torn tail recovered, on the next call. Nothing here was acknowledged.
+      eventIdIndex = null;
+      eventBodyHashByIdCache = null;
+      eventLogMaxTs = 0;
+      throw err;
     }
+    for (const { event, hash } of staged) {
+      index.add(event.id);
+      bodyHashes.set(event.id, hash);
+      accepted.push(event);
+    }
+    eventLogMaxTs = stagedMaxTs;
   }
 
-  return { accepted, duplicates, collisions };
+  if (rejected.length > 0) quarantineRejectedEvents(rejected);
+
+  return { accepted, duplicates, collisions, rejected };
 }
+
+// Rejected events are never simply dropped: they go to their own append-only
+// file next to the log (never read back into it), so a client bug that produced
+// them can be diagnosed and nothing a user did silently vanishes.
+function quarantineRejectedEvents(rejected) {
+  try {
+    const lines = rejected.map((r) => JSON.stringify({ receivedAt: new Date().toISOString(), reason: r.reason, event: r.raw })).join('\n') + '\n';
+    fs.appendFileSync(EVENTS_REJECTED_FILE, lines);
+  } catch (err) {
+    console.error('[events] Could not record rejected events:', err.message);
+  }
+}
+
+// Test-only fault injection (same convention as the ANIME_TRACKER_TEST_* flags
+// below): fail the next N event-log appends. Unset in normal use.
+const TEST_FAIL_EVENT_WRITES = { remaining: Number(process.env.ANIME_TRACKER_TEST_FAIL_EVENT_WRITES) || 0 };
 
 class EventValidationError extends Error {
   constructor(message) {
@@ -562,7 +681,7 @@ function writeCountersAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(COUNTERS_TMP_FILE, COUNTERS_FILE);
+  renameSyncWithRetry(COUNTERS_TMP_FILE, COUNTERS_FILE);
 }
 
 // Recomputes `fromLog` by folding the whole log, and rewrites counters.json.
@@ -603,7 +722,7 @@ function archiveEventLogForReset() {
   const stamp = timestampForBackup(new Date());
   const archived = `${EVENTS_FILE}.${stamp}.archived`;
   try {
-    fs.renameSync(EVENTS_FILE, archived);
+    renameSyncWithRetry(EVENTS_FILE, archived);
   } catch (err) {
     console.error('[events] Could not archive events.jsonl during reset:', err.message);
     return null;
@@ -654,7 +773,10 @@ async function applyRestoreSideEffects(sideEffects) {
       const index = ensureEventIdIndex();
       const missing = effect.records.filter((r) => r && r.id && !index.has(r.id));
       if (missing.length > 0) {
-        const { accepted } = await appendEvents(missing);
+        const { accepted, rejected } = await appendEvents(missing);
+        if (rejected.length > 0) {
+          throw new Error(`${rejected.length} event(s) in the snapshot failed validation; nothing was restored.`);
+        }
         console.log(`[events] Restore unioned ${accepted.length} event(s) from the snapshot into events.jsonl (nothing truncated).`);
       }
     }
@@ -696,7 +818,10 @@ async function ensureCountersFile() {
 
   if (!existing) {
     const library = readLibrary();
-    const baseline = Counters.seedBaselineFromEntries(library.entries);
+    const { tuning } = await loadEventModules();
+    const baseline = Counters.seedBaselineFromEntries(library.entries, {
+      episodeDurationFallbackMinutes: tuning.TIME_SEMANTICS.episodeDurationFallbackMinutes,
+    });
     const file = await recomputeCountersFromLog({ baseline });
     console.log(
       `[counters] Seeded lifetime baseline from ${library.entries?.length || 0} existing entries: ` +
@@ -764,7 +889,7 @@ function writeRecsCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(RECS_CACHE_TMP_FILE, RECS_CACHE_FILE);
+  renameSyncWithRetry(RECS_CACHE_TMP_FILE, RECS_CACHE_FILE);
 }
 
 function readRecsCache() {
@@ -788,7 +913,7 @@ function writeUpcomingCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(UPCOMING_CACHE_TMP_FILE, UPCOMING_CACHE_FILE);
+  renameSyncWithRetry(UPCOMING_CACHE_TMP_FILE, UPCOMING_CACHE_FILE);
 }
 
 function readUpcomingCache() {
@@ -811,7 +936,7 @@ function writeAiringCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(AIRING_CACHE_TMP_FILE, AIRING_CACHE_FILE);
+  renameSyncWithRetry(AIRING_CACHE_TMP_FILE, AIRING_CACHE_FILE);
 }
 
 function readAiringCache() {
@@ -845,7 +970,7 @@ function writeCorpusCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(CORPUS_CACHE_TMP_FILE, CORPUS_CACHE_FILE);
+  renameSyncWithRetry(CORPUS_CACHE_TMP_FILE, CORPUS_CACHE_FILE);
 }
 
 function readCorpusCache() {
@@ -870,7 +995,7 @@ function writeTasteProfileCacheAtomic(data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(TASTE_PROFILE_CACHE_TMP_FILE, TASTE_PROFILE_CACHE_FILE);
+  renameSyncWithRetry(TASTE_PROFILE_CACHE_TMP_FILE, TASTE_PROFILE_CACHE_FILE);
 }
 
 function readTasteProfileCache() {
@@ -1189,7 +1314,7 @@ function writeSnapshotFileAtomic(file, data) {
   } finally {
     fs.closeSync(fd);
   }
-  fs.renameSync(tmpPath, finalPath);
+  renameSyncWithRetry(tmpPath, finalPath);
 }
 
 // Lightweight metadata (file/createdAt/pinned only) for pruning decisions —
@@ -1240,7 +1365,7 @@ function quarantineSnapshotFile(file) {
   try {
     const from = path.join(SNAPSHOTS_DIR, file);
     const to = path.join(SNAPSHOTS_DIR, `${file}.invalid`);
-    fs.renameSync(from, to);
+    renameSyncWithRetry(from, to);
     console.error(`[snapshots] Quarantined a snapshot that failed verification: ${file} -> ${path.basename(to)}`);
   } catch (renameErr) {
     console.error(`[snapshots] Could not quarantine failed snapshot file ${file}:`, renameErr.message);
@@ -1264,10 +1389,10 @@ function buildClassASources() {
   return { library: readLibrary(), eventLog: readEventLog(), counters: readCountersFile() || {} };
 }
 
-async function createSnapshotNow({ pinned = false } = {}) {
+async function createSnapshotNow({ pinned = false, label } = {}) {
   const { CLASS_A_STORES } = await loadExportRegistryModule();
   const sources = buildClassASources();
-  const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, sources, { pinned });
+  const snapshot = Snapshots.buildSnapshotStores(CLASS_A_STORES, sources, { pinned, label });
   const selfCheck = Snapshots.verifySnapshotStores(snapshot, CLASS_A_STORES);
   if (!selfCheck.valid) {
     // Nothing was written yet, so there's nothing to clean up here.
@@ -1292,7 +1417,7 @@ async function createSnapshotNow({ pinned = false } = {}) {
     throw new Error(`Snapshot written to disk failed verification on read-back: ${err.message}`);
   }
   if (!pinned) pruneSnapshots();
-  return { file, createdAt: snapshot.createdAt, pinned: snapshot.pinned };
+  return { file, createdAt: snapshot.createdAt, pinned: snapshot.pinned, label: snapshot.label };
 }
 
 // Runs once at startup, before the server accepts any connection. Creates the
@@ -1412,6 +1537,7 @@ function sendJson(res, status, body, extraHeaders = {}) {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(json),
     'Cache-Control': 'no-store', // dynamic data — a cached /api/library response is stale data
+    ...HttpSecurity.securityHeaders(),
     ...extraHeaders,
   });
   res.end(json);
@@ -1424,33 +1550,60 @@ function sendJson(res, status, body, extraHeaders = {}) {
 // multipart). Refusing anything else means a malicious page in another tab
 // can't silently trigger a write here without a real preflight, which fails
 // anyway since this server never sends an Access-Control-Allow-Origin header.
+// v3 Phase 1 item 19: a client error in the body gets the matching status
+// (415 wrong type, 413 too large, 400 malformed) instead of a 500, and an
+// oversized body is drained rather than the socket destroyed, so the client
+// actually receives the 413.
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
 function readJsonBody(req, maxBytes = 10 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const contentType = req.headers['content-type'] || '';
     if (!contentType.toLowerCase().startsWith('application/json')) {
-      reject(new Error('Content-Type must be application/json'));
+      req.resume(); // discard whatever was sent
+      reject(new HttpError(415, 'Content-Type must be application/json'));
+      return;
+    }
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      req.resume();
+      reject(new HttpError(413, 'Request body too large'));
       return;
     }
     let size = 0;
+    let tooLarge = false;
     const chunks = [];
     req.on('data', (chunk) => {
       size += chunk.length;
+      if (tooLarge) {
+        // Keep draining so the 413 can be read, but not forever.
+        if (size > maxBytes * 2) req.destroy();
+        return;
+      }
       if (size > maxBytes) {
-        reject(new Error('Request body too large'));
-        req.destroy();
+        tooLarge = true;
+        chunks.length = 0;
+        reject(new HttpError(413, 'Request body too large'));
         return;
       }
       chunks.push(chunk);
     });
     req.on('end', () => {
+      if (tooLarge) return;
       if (chunks.length === 0) {
         resolve(undefined);
         return;
       }
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-      } catch (err) {
-        reject(new Error('Invalid JSON body'));
+      } catch {
+        reject(new HttpError(400, 'Invalid JSON body'));
       }
     });
     req.on('error', reject);
@@ -1491,6 +1644,7 @@ function serveStatic(req, res, rootDir, urlPath, extraHeaders = {}) {
     res.writeHead(200, {
       'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
       'Content-Length': stat.size,
+      ...HttpSecurity.securityHeaders(),
       ...extraHeaders,
     });
     fs.createReadStream(filePath).pipe(res);
@@ -1513,7 +1667,33 @@ const NO_CACHE_HEADERS = { 'Cache-Control': 'no-store' };
 // /config/ resolve against CONFIG_DIR (dev) / a config/... asset key (SEA)
 // instead of PUBLIC_DIR/public/... — same boundary check, same MIME lookup,
 // same no-cache headers either way, just a second, equally-bounded root.
+// index.html is the one asset that is not served verbatim: it carries this
+// launch's write token and the Content-Security-Policy.
+function serveIndexHtml(res) {
+  let html;
+  try {
+    html = IS_SEA
+      ? Buffer.from(sea.getRawAsset('public/index.html')).toString('utf8')
+      : fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
+  } catch {
+    sendJson(res, 404, { error: 'Not found' });
+    return;
+  }
+  const body = Buffer.from(HttpSecurity.injectWriteToken(html, WRITE_TOKEN), 'utf8');
+  res.writeHead(200, {
+    'Content-Type': MIME_TYPES['.html'],
+    'Content-Length': body.byteLength,
+    ...NO_CACHE_HEADERS,
+    ...HttpSecurity.securityHeaders({ html: true }),
+  });
+  res.end(body);
+}
+
 function serveAppAsset(req, res, urlPath) {
+  if (urlPath === '/index.html') {
+    serveIndexHtml(res);
+    return;
+  }
   const isConfigAsset = urlPath === '/config' || urlPath.startsWith('/config/');
   const rootDir = isConfigAsset ? CONFIG_DIR : PUBLIC_DIR;
   const assetPrefix = isConfigAsset ? 'config' : 'public';
@@ -1538,57 +1718,13 @@ function serveAppAsset(req, res, urlPath) {
     'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
     'Content-Length': buf.byteLength,
     ...NO_CACHE_HEADERS,
+    ...HttpSecurity.securityHeaders(),
   });
   res.end(Buffer.from(buf));
 }
 
-const DOWNLOAD_TIMEOUT_MS = 15000;
-
-function downloadImage(url, destPath, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    const req = https
-      .get(url, { timeout: DOWNLOAD_TIMEOUT_MS }, (response) => {
-        if (
-          [301, 302, 303, 307, 308].includes(response.statusCode) &&
-          response.headers.location &&
-          redirectsLeft > 0
-        ) {
-          response.resume();
-          downloadImage(response.headers.location, destPath, redirectsLeft - 1).then(resolve, reject);
-          return;
-        }
-        if (response.statusCode !== 200) {
-          response.resume();
-          reject(new Error(`Cover download failed with status ${response.statusCode}`));
-          return;
-        }
-        const tmpPath = `${destPath}.tmp`;
-        const fileStream = fs.createWriteStream(tmpPath);
-        response.pipe(fileStream);
-        fileStream.on('finish', () => {
-          fileStream.close((err) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            fs.renameSync(tmpPath, destPath);
-            resolve();
-          });
-        });
-        fileStream.on('error', (err) => {
-          fs.unlink(tmpPath, () => {});
-          reject(err);
-        });
-      })
-      .on('error', reject);
-    // The `timeout` option alone doesn't abort anything — it just fires this
-    // event once the socket's been idle that long. Without destroying the
-    // request here, a stalled connection to the cover CDN would hang the
-    // whole /api/covers request (and whatever awaited it client-side)
-    // forever instead of ever settling.
-    req.on('timeout', () => req.destroy(new Error('Cover download timed out')));
-  });
-}
+// Cover downloads live in coverDownload.js (host allowlist, image/* only, size
+// cap, unique temp file, every failure path cleaned up).
 
 // ---------------------------------------------------------------------------
 // Routing
@@ -1607,6 +1743,11 @@ const CONFLICT_GUARDED_PATHS = new Set([
   '/api/backups/restore',
 ]);
 
+// The port the Host/Origin checks compare against. Equal to PORT today; kept
+// separate so a later ANIME_TRACKER_PORT=0 (bind any free port) can set it from
+// server.address() once listening.
+let boundPort = PORT;
+
 const server = http.createServer(async (req, res) => {
   let url;
   try {
@@ -1616,6 +1757,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   const { pathname } = url;
+
+  const rejection = HttpSecurity.checkRequest(req, { port: boundPort, token: WRITE_TOKEN });
+  if (rejection) {
+    sendJson(res, rejection.status, { error: rejection.error, ...(rejection.badToken ? { badToken: true } : {}) });
+    return;
+  }
 
   try {
     if (CONFLICT_GUARDED_PATHS.has(pathname) && dataDirConflict) {
@@ -1660,6 +1807,13 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       if (!body || typeof body !== 'object' || !Array.isArray(body.entries)) {
         sendJson(res, 400, { error: 'Body must be a library object with an entries array.' });
+        return;
+      }
+      // v3 Phase 1 item 15: required. A body without one used to be read as
+      // schema 1 and run through every migration, which silently emptied the
+      // dismissed list and reset the appearance of current-shape data.
+      if (!Number.isInteger(body.schemaVersion) || body.schemaVersion < 1) {
+        sendJson(res, 400, { error: 'Body must carry an integer schemaVersion.' });
         return;
       }
       // Required, not optional: a P1.2 contract change to this endpoint (see
@@ -1725,7 +1879,9 @@ const server = http.createServer(async (req, res) => {
           }
           throw err;
         }
-        writeLibraryAtomic(toWrite);
+        // An ordinary save coalesces its backup with others in the same minute;
+        // a file import (the client marks it) always gets its own.
+        writeLibraryAtomic(toWrite, { coalesceBackup: req.headers['x-save-kind'] !== 'import' && toWrite === body });
         // P5A.2: coldStartPicks is the one preferences field the taste
         // profile depends on that never flows through /api/events (it's
         // written straight into preferences by the onboarding overlay, the
@@ -1833,6 +1989,7 @@ const server = http.createServer(async (req, res) => {
           createdAt: snapshot.createdAt,
           schemaVersion: snapshot.schemaVersion,
           pinned: Boolean(snapshot.pinned),
+          label: snapshot.label ?? null,
           verified: valid,
           errors,
           // Non-fatal notes, e.g. "this snapshot predates store X" (P1.5).
@@ -2147,7 +2304,7 @@ const server = http.createServer(async (req, res) => {
       }
       const result = await libraryWriteLock.run(async () => {
         try {
-          const { accepted, duplicates, collisions } = await appendEvents(body.events);
+          const { accepted, duplicates, collisions, rejected } = await appendEvents(body.events);
           // Counters advance by folding ONLY the newly-appended events onto the
           // cached total — never by re-folding the whole log, which would grow
           // linearly with history on every single write.
@@ -2197,6 +2354,10 @@ const server = http.createServer(async (req, res) => {
               acceptedIds: [...accepted.map((e) => e.id), ...duplicates],
               duplicateIds: duplicates,
               collisions,
+              // Invalid events the client should stop re-sending. They are kept
+              // server-side in events.rejected.jsonl, never in the log itself.
+              rejectedIds: rejected.map((r) => r.id).filter((id) => id !== null && id !== undefined),
+              rejected: rejected.map((r) => ({ id: r.id, reason: r.reason })),
             },
           };
         } catch (err) {
@@ -2211,10 +2372,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/events' && req.method === 'GET') {
-      // Read path, for the achievement engine (P7A) and for tests. Readers sort
-      // by ts — the log itself is never reordered on disk.
+      // Read path, for Statistics, the achievement engine (P7A) and tests.
+      // Readers sort by ts — the log itself is never reordered on disk.
+      // `?types=a,b` returns only those types (Statistics needs just
+      // episode_watched, not every route_dwell); `firstTs` is always the
+      // earliest timestamp in the WHOLE log, so a filtered reader still knows
+      // when the log began.
       const events = readEventLog();
-      sendJson(res, 200, { events, counters: readCountersFile() });
+      let firstTs = null;
+      for (const e of events) if (Number.isFinite(e?.ts) && (firstTs === null || e.ts < firstTs)) firstTs = e.ts;
+      const types = url.searchParams.get('types');
+      const wanted = types ? new Set(types.split(',').map((t) => t.trim()).filter(Boolean)) : null;
+      sendJson(res, 200, { events: wanted ? events.filter((e) => wanted.has(e?.type)) : events, firstTs, counters: readCountersFile() });
       return;
     }
 
@@ -2378,12 +2547,16 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'Body must include numeric anilistId and url.' });
         return;
       }
+      if (!isAllowedCoverUrl(imageUrl)) {
+        sendJson(res, 400, { error: 'Covers are only downloaded from AniList.' });
+        return;
+      }
       const destPath = path.join(COVERS_DIR, `${anilistId}.jpg`);
       try {
         await downloadImage(imageUrl, destPath);
         sendJson(res, 200, { file: `covers/${anilistId}.jpg` });
       } catch (err) {
-        sendJson(res, 502, { error: `Could not download cover: ${err.message}` });
+        sendJson(res, err.status || 502, { error: `Could not download cover: ${err.message}` });
       }
       return;
     }
@@ -2422,6 +2595,10 @@ const server = http.createServer(async (req, res) => {
 
     sendJson(res, 404, { error: 'Not found' });
   } catch (err) {
+    if (err instanceof HttpError) {
+      sendJson(res, err.status, { error: err.message });
+      return;
+    }
     if (err instanceof LockTimeoutError) {
       // The real-architecture equivalent of the spec's "close other tabs to
       // continue" — a queued save/snapshot/restore/reset waited its full
@@ -2439,10 +2616,17 @@ const server = http.createServer(async (req, res) => {
 
 // Best-effort: opens the user's default browser. Only used in SEA mode,
 // where this .exe is the whole app (no start.bat wrapping it to do this).
+// Detached and unref'd so it survives this process exiting straight after (the
+// second-instance path does exactly that).
 function openBrowser(url) {
-  const { exec } = require('node:child_process');
-  const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
-  exec(cmd, () => {});
+  const { spawn } = require('node:child_process');
+  const [cmd, args] =
+    process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  try {
+    spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  } catch {
+    // best effort
+  }
 }
 
 server.on('error', (err) => {
@@ -2478,6 +2662,16 @@ server.on('error', (err) => {
 // quietly for those (see its own comment) and startup proceeds normally so
 // the user can reach the restore UI.
 (async () => {
+  // v3: the startup order is instance lock (module top) → integrity check
+  // (module top, classify only) → verified pre-migration snapshot → migrate →
+  // counters → pinned snapshot → listen.
+  try {
+    await runPendingMigration();
+  } catch (err) {
+    console.error('[startup] Could not take a verified snapshot before migrating the library. Nothing was changed. Refusing to start.', err.message);
+    process.exit(1);
+    return;
+  }
   // P1.5: seed or self-heal counters.json BEFORE the pinned snapshot, so the
   // very first snapshot already contains a correct counters store rather than
   // an empty one. Deliberately does NOT build the event-log dedup index (that

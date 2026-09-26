@@ -77,24 +77,27 @@ export function emptyCounterTotals() {
   return { totalEpisodes: 0, totalMinutes: 0, totalCompleted: 0 };
 }
 
-// Seeds the historical baseline from library entries. Deliberately uses
-// `duration || 0` — byte-identical to statsLogic.js's own totals — rather than
-// config/tuning.js's episodeDurationFallbackMinutes.
+// Seeds the historical baseline from library entries.
 //
-// Reasoning, which matters: if the seed used a 24-minute fallback and the
-// Statistics page kept using `|| 0`, then the moment any entry has a null
-// duration the app would show TWO DIFFERENT lifetime totals for the same
-// thing, in the same app, with no way to tell which was wrong. Measured
-// against the real library today the two agree exactly (0 of 222 entries have
-// a null duration, so both produce 149,955 minutes), so matching statsLogic.js
-// costs nothing now and prevents a silent divergence later. The tuning
-// fallback applies to the FORWARD path only (see foldEvents below), where
-// there is no existing number to disagree with.
-export function seedBaselineFromEntries(entries) {
+// v3 Phase 1 item 17 settles the v2 backlog's "duration || 0 vs the tuning
+// fallback" question: ONE rule everywhere, the API's per-episode duration where
+// present, else config/tuning.js's episodeDurationFallbackMinutes by format.
+// statsLogic.js's episodeMinutes() applies the same rule, and the forward path
+// below already did, so the Statistics page and lifetime totals can no longer
+// disagree about a title with no duration. The fallback is passed in (this
+// module stays import-free). A baseline that is already stored is Class A and is
+// never recomputed; this only affects a first seed. (Measured on the real
+// library: 0 of 222 entries have no duration, so nothing changes there.)
+export function seedBaselineFromEntries(entries, { episodeDurationFallbackMinutes = {} } = {}) {
   const list = Array.isArray(entries) ? entries : [];
+  const minutesFor = (e) => {
+    const d = Number(e.duration);
+    if (Number.isFinite(d) && d > 0) return d;
+    return Number(episodeDurationFallbackMinutes[durationFallbackKeyForFormat(e.format)]) || 0;
+  };
   return {
     totalEpisodes: list.reduce((sum, e) => sum + (e.episodesWatched || 0), 0),
-    totalMinutes: list.reduce((sum, e) => sum + (e.episodesWatched || 0) * (e.duration || 0), 0),
+    totalMinutes: list.reduce((sum, e) => sum + (e.episodesWatched || 0) * minutesFor(e), 0),
     totalCompleted: list.filter((e) => e.listStatus === 'watched').length,
   };
 }
