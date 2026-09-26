@@ -426,7 +426,9 @@ function undoEpisodeStep(id, step) {
   const current = entry.episodesWatched;
   let target = current - step;
   if (target < 0) target = 0;
-  if (entry.totalEpisodes) target = Math.min(target, entry.totalEpisodes);
+  // Clamp only upward moves, and never below a count that is already past the
+  // total (older data allowed that): undoing a decrement must not lower it.
+  if (entry.totalEpisodes && target > current) target = Math.min(target, Math.max(entry.totalEpisodes, current));
   if (target === current) return;
   Store.updateEntry(id, { episodesWatched: target });
   recordProgressEvent(entry, current, target);
@@ -1630,7 +1632,7 @@ function bindBackupOverlay() {
       // The server requires an explicit schemaVersion (v3). A backup file with
       // none is by definition schema 1: the field arrived in schema 2.
       if (data.schemaVersion === undefined) data.schemaVersion = 1;
-      await Api.saveLibrary(data, Store.getEtag());
+      await Api.saveLibrary(data, Store.getEtag(), { kind: 'import' });
       // Re-fetch rather than trust the pre-upload local copy: the server may
       // have just migrated it (an old exported file can carry an old
       // schemaVersion — server.js's migrateIncomingLibrary, P1.3), so what
@@ -1687,7 +1689,7 @@ function setStatsShareStatus(text) {
 async function openStatsShareOverlay() {
   openOverlay('stats-share-overlay');
   setStatsShareStatus('');
-  const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents() });
+  const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
   const canvas = document.getElementById('stats-share-canvas');
   // Canvas text drawing is synchronous and won't itself wait on a webfont
   // that hasn't finished loading — waiting here (cheap: these fonts are
@@ -1734,7 +1736,7 @@ function bindStatsShareOverlay() {
   });
 
   document.getElementById('stats-share-copy-text-btn').addEventListener('click', async () => {
-    const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents() });
+    const stats = computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
     const text = buildStatsSummaryText(stats);
     if (!navigator.clipboard) {
       setStatsShareStatus('Your browser does not support copying text.');
@@ -3038,6 +3040,16 @@ function bindSettingsPanel() {
   // slider interaction. Re-focusing the recreated element by its own
   // data-slider attribute is what keeps arrows/Home/End usable across
   // consecutive key presses, the spec's explicit requirement.
+  // A drag control closed without a change event (a colour picker dismissed)
+  // must not leave its start value behind for the next gesture's "from".
+  body.addEventListener('focusout', (e) => {
+    const t = e.target;
+    if (t.dataset?.slider) endSettingGesture(`${t.dataset.slider}Step`, Store.state.preferences[`${t.dataset.slider}Step`]);
+    else if (t.id === 'decoration-step-slider') endSettingGesture('decorationStep', Store.state.preferences.decorationStep);
+    else if (t.closest?.('[data-action="set-custom-accent"], [data-action="set-custom-base"], [data-action="set-background-opacity"], [data-action="set-background-gradient-color"]'))
+      endSettingGesture('appearance', Store.state.preferences.appearance);
+  });
+
   body.addEventListener('change', (e) => {
     const sliderKey = e.target.dataset.slider;
     if (sliderKey) {
@@ -3151,18 +3163,16 @@ export function refreshCurrentViewWhenIdle() {
   }
   if (backgroundRefreshPending) return;
   backgroundRefreshPending = true;
-  document.addEventListener(
-    'focusout',
-    () => {
-      // After the blur handlers (a note commits on blur) and after focus has
-      // actually moved somewhere.
-      setTimeout(() => {
-        backgroundRefreshPending = false;
-        refreshCurrentViewWhenIdle();
-      }, 0);
-    },
-    { once: true }
-  );
+  const retry = () => {
+    if (!backgroundRefreshPending) return;
+    backgroundRefreshPending = false;
+    refreshCurrentViewWhenIdle();
+  };
+  // After the blur handlers (a note commits on blur) and after focus has
+  // actually moved somewhere. Some browsers fire no focusout when the focused
+  // field is removed, so a periodic re-check backs it up.
+  document.addEventListener('focusout', () => setTimeout(retry, 0), { once: true });
+  setTimeout(retry, 3000);
 }
 
 // Exported so detail.js can route its open through the same focus-capture/

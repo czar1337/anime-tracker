@@ -141,6 +141,9 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
 const migrationResult = migrateLegacyDataDir(LEGACY_DATA_DIR, DATA_DIR);
 if (migrationResult.action === 'migrated') {
   console.log(`[migration] Moved data from ${migrationResult.oldDir} to ${migrationResult.newDir}.`);
+  if (migrationResult.skipped?.length) {
+    console.error(`[migration] ${migrationResult.skipped.length} file(s) already existed in the new folder and were left in its .migrating-* subfolder: ${migrationResult.skipped.join(', ')}`);
+  }
 } else if (migrationResult.action === 'migration-failed') {
   console.error('[migration] Failed to migrate legacy data folder, leaving it untouched:', migrationResult.error);
 } else if (migrationResult.action === 'skip-corrupt-source') {
@@ -368,13 +371,15 @@ function pruneBackups() {
   }
 }
 
-function rotateBackup() {
+function rotateBackup({ coalesce = false } = {}) {
   if (!fs.existsSync(LIBRARY_FILE)) return;
   const now = new Date();
   // Saves are debounced to ~300 ms, so an evening of edits used to mean hundreds
   // of backups. The first backup of a minute (the state before that minute's
   // first save) is kept; later saves in the same minute do not add one.
-  if (BackupRetention.shouldCoalesce(listBackups(), now)) return;
+  // Only ordinary saves coalesce: a restore, import, migration or reset always
+  // keeps its own pre-image, because its error text and recovery rely on it.
+  if (coalesce && BackupRetention.shouldCoalesce(listBackups(), now)) return;
   const stamp = timestampForBackup(now);
   let name = `library-${stamp}.json`;
   let n = 1;
@@ -389,11 +394,11 @@ function rotateBackup() {
 // Writes `data` to library.json atomically: write to a .tmp file, fsync it,
 // then rename over the real file. A crash at any point leaves the original
 // library.json (or the .tmp file) intact — never a half-written file.
-function writeLibraryAtomic(data, { skipBackup = false } = {}) {
+function writeLibraryAtomic(data, { skipBackup = false, coalesceBackup = false } = {}) {
   if (libraryState.corrupt) {
     throw new Error('Refusing to save: library.json is corrupt on disk. Restore a backup first.');
   }
-  if (!skipBackup) rotateBackup();
+  if (!skipBackup) rotateBackup({ coalesce: coalesceBackup });
 
   const json = JSON.stringify(data, null, 2);
   const fd = fs.openSync(LIBRARY_TMP_FILE, 'w');
@@ -768,7 +773,10 @@ async function applyRestoreSideEffects(sideEffects) {
       const index = ensureEventIdIndex();
       const missing = effect.records.filter((r) => r && r.id && !index.has(r.id));
       if (missing.length > 0) {
-        const { accepted } = await appendEvents(missing);
+        const { accepted, rejected } = await appendEvents(missing);
+        if (rejected.length > 0) {
+          throw new Error(`${rejected.length} event(s) in the snapshot failed validation; nothing was restored.`);
+        }
         console.log(`[events] Restore unioned ${accepted.length} event(s) from the snapshot into events.jsonl (nothing truncated).`);
       }
     }
@@ -1572,8 +1580,12 @@ function readJsonBody(req, maxBytes = 10 * 1024 * 1024) {
     let tooLarge = false;
     const chunks = [];
     req.on('data', (chunk) => {
-      if (tooLarge) return; // keep draining, stop storing
       size += chunk.length;
+      if (tooLarge) {
+        // Keep draining so the 413 can be read, but not forever.
+        if (size > maxBytes * 2) req.destroy();
+        return;
+      }
       if (size > maxBytes) {
         tooLarge = true;
         chunks.length = 0;
@@ -1867,7 +1879,9 @@ const server = http.createServer(async (req, res) => {
           }
           throw err;
         }
-        writeLibraryAtomic(toWrite);
+        // An ordinary save coalesces its backup with others in the same minute;
+        // a file import (the client marks it) always gets its own.
+        writeLibraryAtomic(toWrite, { coalesceBackup: req.headers['x-save-kind'] !== 'import' && toWrite === body });
         // P5A.2: coldStartPicks is the one preferences field the taste
         // profile depends on that never flows through /api/events (it's
         // written straight into preferences by the onboarding overlay, the
@@ -2358,10 +2372,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/events' && req.method === 'GET') {
-      // Read path, for the achievement engine (P7A) and for tests. Readers sort
-      // by ts — the log itself is never reordered on disk.
+      // Read path, for Statistics, the achievement engine (P7A) and tests.
+      // Readers sort by ts — the log itself is never reordered on disk.
+      // `?types=a,b` returns only those types (Statistics needs just
+      // episode_watched, not every route_dwell); `firstTs` is always the
+      // earliest timestamp in the WHOLE log, so a filtered reader still knows
+      // when the log began.
       const events = readEventLog();
-      sendJson(res, 200, { events, counters: readCountersFile() });
+      let firstTs = null;
+      for (const e of events) if (Number.isFinite(e?.ts) && (firstTs === null || e.ts < firstTs)) firstTs = e.ts;
+      const types = url.searchParams.get('types');
+      const wanted = types ? new Set(types.split(',').map((t) => t.trim()).filter(Boolean)) : null;
+      sendJson(res, 200, { events: wanted ? events.filter((e) => wanted.has(e?.type)) : events, firstTs, counters: readCountersFile() });
       return;
     }
 
@@ -2599,7 +2621,7 @@ const server = http.createServer(async (req, res) => {
 function openBrowser(url) {
   const { spawn } = require('node:child_process');
   const [cmd, args] =
-    process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+    process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
   try {
     spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   } catch {

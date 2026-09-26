@@ -65,3 +65,19 @@ test('one duration rule: API value, else the tuning fallback by format', async (
   const stats = computeLibraryStats([{ episodesWatched: 10, duration: null, format: 'TV' }], {});
   assert.equal(stats.totalMinutes, 240, 'v2 counted 0 minutes here');
 });
+
+test('a filtered event list uses the whole log start as its cutoff, not its own first event', async () => {
+  const { episodesWatchedInYear } = await load();
+  // Title 2 was completed in June with no progress events of its own, after
+  // the log began in March (the log's first event belongs to another title).
+  const entries = [{ anilistId: 2, episodesWatched: 12, completedAt: '2026-06-01T12:00:00.000Z' }];
+  const onlyThisList = []; // the Watched header's filter removed the other title's events
+  assert.equal(episodesWatchedInYear(onlyThisList, entries, 2026, { logStartTs: Date.parse('2026-03-01') }), 0);
+});
+
+test('a title with progress events this year is never also counted in full', async () => {
+  const { episodesWatchedInYear } = await load();
+  const entries = [{ anilistId: 1, episodesWatched: 24, completedAt: '2026-02-01T12:00:00.000Z' }];
+  const events = [ev('a', '1', 0, 2, '2026-08-01', Date.parse('2026-08-01'))]; // a rewatch start after the log began
+  assert.equal(episodesWatchedInYear(events, entries, 2026, { logStartTs: Date.parse('2026-08-01') }), 2);
+});

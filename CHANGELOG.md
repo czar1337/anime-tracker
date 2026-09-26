@@ -20,7 +20,7 @@ Entries are added phase by phase and rewritten into final release notes at the e
 - **Fix: a rebuild of Discover could be lost** when you changed a filter while it was still loading, leaving it on "Refreshing…".
 - **Fix: one bad activity record could stop all later ones from being saved.** Activity is now confirmed only once it is on disk.
 - **Fix: a show without a cover image could break the Schedule and search lists.** It now shows its first letter.
-- **Backups keep more history.** The last 50, plus one per day for a month, plus one per month forever, instead of the last 150 saves. Saves within the same minute share one backup. On your next launch, old backups beyond these tiers are pruned once.
+- **Backups keep more history.** The last 50, plus one per day for a month, plus one per month forever, instead of the last 150 saves. Saves within the same minute share one backup. The first time you save after updating, older backups beyond these tiers are pruned once.
 - **Statistics: "Episodes this year" now counts episodes you actually watched this year**, not the full length of every series you finished this year. Top genres count finished series only, and episodes with an unknown length count with the standard 24-minute (100 for films) estimate everywhere.
 - **Sorting by title follows the title you see** (English by default, or your chosen title language), and library cards now respect the title-language setting too.
 - Cover downloads accept AniList images only, up to 5 MB.

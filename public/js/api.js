@@ -28,8 +28,8 @@ async function getLibrary() {
 }
 
 // The whole event log (v3: Statistics reads real watch activity from it).
-async function getEvents() {
-  const res = await fetch('/api/events');
+async function getEvents({ types } = {}) {
+  const res = await fetch(types ? `/api/events?types=${encodeURIComponent(types.join(','))}` : '/api/events');
   if (!res.ok) throw new Error('Failed to load the event log');
   return res.json();
 }
@@ -61,10 +61,12 @@ async function postEvents(events, { keepalive = false } = {}) {
   return body;
 }
 
-async function saveLibrary(data, etag) {
+// `kind: 'import'` marks a whole-library replacement from a file, which the
+// server always backs up on its own rather than sharing a same-minute backup.
+async function saveLibrary(data, etag, { kind } = {}) {
   const res = await writeFetch('/api/library', {
     method: 'PUT',
-    headers: writeHeaders({ 'If-Match': etag }),
+    headers: writeHeaders(kind ? { 'If-Match': etag, 'x-save-kind': kind } : { 'If-Match': etag }),
     body: JSON.stringify(data),
   });
   const body = await res.json();

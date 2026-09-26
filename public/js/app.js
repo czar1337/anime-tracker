@@ -70,6 +70,7 @@ function runQueuedSave() {
 }
 
 async function attemptSave(attempt = 0) {
+  clearTimeout(retryTimer); // at most one pending retry, never alongside a send
   saveInFlight = true;
   dirtySinceSend = false;
   setSaveIndicator('saving', 'Saving');
@@ -133,7 +134,13 @@ async function attemptSave(attempt = 0) {
     // current state anyway.
     saveQueued = false;
     const delay = attempt < 3 ? 1500 * (attempt + 1) : 5000;
-    retryTimer = setTimeout(() => attemptSave(attempt + 1), delay);
+    retryTimer = setTimeout(() => {
+      if (saveInFlight) {
+        saveQueued = true; // a newer save is already out; it sends the current state
+        return;
+      }
+      attemptSave(attempt + 1);
+    }, delay);
   }
 }
 

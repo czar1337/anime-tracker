@@ -600,7 +600,7 @@ function renderWatchedStatsHeader(list) {
   const thisYear = new Date().getFullYear();
   // Episodes actually watched this year on the titles in this list (v3).
   const ids = new Set(entries.map((e) => String(e.anilistId)));
-  const episodesThisYear = episodesWatchedInYear(EventHistory.allEvents().filter((ev) => ids.has(ev.animeId)), entries, thisYear);
+  const episodesThisYear = episodesWatchedInYear(EventHistory.allEvents().filter((ev) => ids.has(ev.animeId)), entries, thisYear, { logStartTs: EventHistory.logStartTs() });
 
   statsHeader.hidden = false;
   statsHeader.innerHTML = `
@@ -942,7 +942,7 @@ function renderHome(container) {
   // Watching count — three numbers, not four (design §09).
   const thisYear = new Date().getFullYear();
   const completedThisYear = Store.getEntries().filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
-  const episodesThisYear = episodesWatchedInYear(EventHistory.allEvents(), Store.getEntries(), thisYear);
+  const episodesThisYear = episodesWatchedInYear(EventHistory.allEvents(), Store.getEntries(), thisYear, { logStartTs: EventHistory.logStartTs() });
   const scoredThisYear = completedThisYear.filter((e) => e.myScore != null);
   const meanScoreThisYear = scoredThisYear.length ? (scoredThisYear.reduce((s, e) => s + e.myScore, 0) / scoredThisYear.length).toFixed(1) : '—';
   const watchingCount = Store.getCounts().watching;
@@ -1048,7 +1048,7 @@ function renderStatsPage(container) {
     return;
   }
 
-  const libraryStats = computeLibraryStats(entries, counts, new Date(), { events: EventHistory.allEvents() });
+  const libraryStats = computeLibraryStats(entries, counts, new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
   const totalEpisodes = libraryStats.totalEpisodes;
   const totalMinutes = libraryStats.totalMinutes;
   const totalHours = Math.round(totalMinutes / 60);

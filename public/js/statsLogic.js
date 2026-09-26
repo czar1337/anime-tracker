@@ -28,9 +28,15 @@ export function episodeMinutes(entry, fallbackByKey = TIME_SEMANTICS.episodeDura
 // title completed this year BEFORE the first logged event cannot be in it; those
 // keep v2's rule (their whole episode count), which is the best information
 // there is for that period.
-export function episodesWatchedInYear(events, entries, year) {
+//
+// `logStartTs` is when the whole log began; callers that pass a filtered event
+// list (one list's titles, one event type) must pass it, or the cutoff would be
+// computed from their subset. A title that has progress events this year is
+// counted from those only, never also in full.
+export function episodesWatchedInYear(events, entries, year, { logStartTs } = {}) {
   const list = Array.isArray(events) ? events : [];
-  let firstEventTs = Infinity;
+  let firstEventTs = Number.isFinite(logStartTs) || logStartTs === Infinity ? logStartTs : Infinity;
+  const computeStart = logStartTs === undefined;
   const netByTitle = new Map();
   const seen = new Set();
   for (const e of list) {
@@ -39,7 +45,7 @@ export function episodesWatchedInYear(events, entries, year) {
       if (seen.has(e.id)) continue;
       seen.add(e.id);
     }
-    if (Number.isFinite(e.ts) && e.ts < firstEventTs) firstEventTs = e.ts;
+    if (computeStart && Number.isFinite(e.ts) && e.ts < firstEventTs) firstEventTs = e.ts;
     if (e.type !== 'episode_watched') continue;
     if (!String(e.localDay || '').startsWith(`${year}-`)) continue;
     const delta = (Number(e.to) || 0) - (Number(e.from) || 0);
@@ -52,6 +58,7 @@ export function episodesWatchedInYear(events, entries, year) {
     if (!entry.completedAt) continue;
     const at = Date.parse(entry.completedAt);
     if (!Number.isFinite(at) || new Date(at).getFullYear() !== year) continue;
+    if (netByTitle.has(String(entry.anilistId))) continue; // counted from its events
     if (at < firstEventTs) total += entry.episodesWatched || 0;
   }
   return total;
@@ -68,7 +75,7 @@ export function genreCountsForCompleted(entries) {
   return counts;
 }
 
-export function computeLibraryStats(entries, counts, now = new Date(), { events = [] } = {}) {
+export function computeLibraryStats(entries, counts, now = new Date(), { events = [], logStartTs } = {}) {
   const totalMinutes = entries.reduce((s, e) => s + (e.episodesWatched || 0) * episodeMinutes(e), 0);
   const totalEpisodes = entries.reduce((s, e) => s + (e.episodesWatched || 0), 0);
   const totalHours = Math.round(totalMinutes / 60);
@@ -79,7 +86,7 @@ export function computeLibraryStats(entries, counts, now = new Date(), { events 
 
   const year = now.getFullYear();
   const completedThisYear = entries.filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === year);
-  const episodesThisYear = episodesWatchedInYear(events, entries, year);
+  const episodesThisYear = episodesWatchedInYear(events, entries, year, { logStartTs });
 
   const dropEligible = (counts.watched || 0) + (counts.dropped || 0);
   const dropRate = dropEligible ? (counts.dropped / dropEligible) * 100 : 0;
