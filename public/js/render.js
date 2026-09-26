@@ -1110,12 +1110,31 @@ function discoverFilterChipsRowHtml(filters) {
 // Store's own allFormats/allStudios/allAiringStatuses already establish
 // for the library — an option nothing in the corpus has is a dead
 // dropdown row.
-function corpusFieldValues(corpusEntries, field) {
-  const set = new Set();
-  for (const c of Object.values(corpusEntries || {})) {
-    if (c[field]) set.add(c[field]);
+//
+// v3 Phase 2: both lists below are computed once per corpus version. The
+// client keeps one parsed corpus object per server ETag (api.js), so the
+// object itself identifies the version.
+const corpusDerived = new WeakMap(); // corpusEntries -> { fields: Map, tagsByFrequency }
+function derivedFor(corpusEntries) {
+  if (!corpusEntries || typeof corpusEntries !== 'object') return { fields: new Map(), tagsByFrequency: null };
+  let d = corpusDerived.get(corpusEntries);
+  if (!d) {
+    d = { fields: new Map(), tagsByFrequency: null };
+    corpusDerived.set(corpusEntries, d);
   }
-  return [...set].sort();
+  return d;
+}
+
+function corpusFieldValues(corpusEntries, field) {
+  const d = derivedFor(corpusEntries);
+  if (!d.fields.has(field)) {
+    const set = new Set();
+    for (const c of Object.values(corpusEntries || {})) {
+      if (c[field]) set.add(c[field]);
+    }
+    d.fields.set(field, [...set].sort());
+  }
+  return d.fields.get(field);
 }
 
 // Mirrors topGenresByFrequency's own "most common N, active ones never
@@ -1123,11 +1142,15 @@ function corpusFieldValues(corpusEntries, field) {
 // corpus-wide tag vocabulary is far larger than the genre list, so a top-N
 // cutoff matters even more here.
 function corpusTagsByFrequency(corpusEntries, n) {
-  const counts = {};
-  for (const c of Object.values(corpusEntries || {})) {
-    for (const t of c.tags || []) counts[t.name] = (counts[t.name] || 0) + 1;
+  const d = derivedFor(corpusEntries);
+  if (!d.tagsByFrequency) {
+    const counts = {};
+    for (const c of Object.values(corpusEntries || {})) {
+      for (const t of c.tags || []) counts[t.name] = (counts[t.name] || 0) + 1;
+    }
+    d.tagsByFrequency = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name]) => name);
   }
-  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name]) => name).slice(0, n);
+  return d.tagsByFrequency.slice(0, n);
 }
 
 let includeTagsExpanded = false;

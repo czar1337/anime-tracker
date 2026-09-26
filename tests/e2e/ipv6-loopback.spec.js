@@ -19,7 +19,7 @@ function ipv6Available() {
   });
 }
 
-test('the server answers on [::1] as well as 127.0.0.1, and on no other address', async () => {
+test('the server answers on [::1] as well as 127.0.0.1', async () => {
   test.skip(!(await ipv6Available()), 'no IPv6 loopback on this machine');
   const server = await startFixtureServer(FIXTURE);
   try {

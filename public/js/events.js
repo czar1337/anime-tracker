@@ -17,7 +17,7 @@ import { BackupClient } from './backupClient.js';
 import { EventLog } from './eventLog.js';
 import { isViewStatePreference } from './eventTypes.js';
 import { copy } from './copy.js';
-import { LISTS_AND_TAGS } from '../../config/tuning.js';
+import { LISTS_AND_TAGS, UI_TIMING } from '../../config/tuning.js';
 import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from './typographySliders.js';
 import { DEFAULT_SORT_DIR } from './sortLogic.js';
 import { notifyAchievementEngine } from './achievementHook.js';
@@ -1322,10 +1322,16 @@ function bindAiringStatus() {
 }
 
 function bindFilterBar() {
+  // v3 Phase 2: the text is stored at once (any render in between shows it),
+  // the grid follows TITLE_FILTER_DEBOUNCE_MS after the last keystroke.
+  let titleFilterTimer = 0;
   document.getElementById('title-filter').addEventListener('input', (e) => {
     Store.setTitleFilter(activeList, e.target.value);
-    Render.renderGrid(activeList);
-    Render.renderFilterBar(activeList); // keeps the Clear-filters visibility in sync
+    clearTimeout(titleFilterTimer);
+    titleFilterTimer = setTimeout(() => {
+      Render.renderGrid(activeList);
+      Render.renderFilterBar(activeList); // keeps the Clear-filters visibility in sync
+    }, UI_TIMING.titleFilterDebounceMs);
   });
 
   document.getElementById('genre-filter').addEventListener('click', (e) => {

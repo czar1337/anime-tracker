@@ -12,6 +12,7 @@ import { tagColorHex } from '../../listsAndTags.js';
 import { titlesInOrder } from '../../titles.js';
 import { html, raw, cls } from '../../core/html.js';
 import { reconcileListChunked } from '../../core/reconcile.js';
+import { UI_TIMING } from '../../../../config/tuning.js';
 import { expandedGroups, openNoteIds, selectedIds, isSelectMode, groupKey } from './model.js';
 
 export const QUICK_MOVE_LISTS = [
@@ -277,7 +278,7 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
       if (createdIndex < ENTER_MAX_ANIMATED) playEnter(el, createdIndex);
       createdIndex++;
     },
-  });
+  }, { firstCount: UI_TIMING.gridFirstChunk, chunkSize: UI_TIMING.gridChunkSize });
 }
 
 // For tests and the list switch in events.js: forget which list the grid shows.
