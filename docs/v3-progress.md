@@ -9,8 +9,8 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 |---|---|---|---|
 | 0 Verify, decide, plan | `v3/0-plan` | done | — |
 | 1 Safety and correctness | `v3/1-foundation-safety` | done | — |
-| 2 Render engine and structure | `v3/2-render-engine` | in progress | Done: core html/reconcile/store/dialog/focus, library grid view, all perf items, budgets met (render 62ms, Discover 135ms). Next: server split into src/ (atomic.js started, uncommitted), esbuild, other views, checkpoint |
-| 3 Design system and motion | `v3/3-design-motion` | not started | |
+| 2 Render engine and structure | `v3/2-render-engine` | done | — |
+| 3 Design system and motion | `v3/3-design-motion` | not started | token cleanup + check-css-tokens.js first |
 | 4 Flow and screens | `v3/4-flow-screens` | not started | |
 | 5 Features | `v3/5-features` | not started | |
 | 6 Discover rebuild | `v3/6-discover` | not started | |
@@ -76,6 +76,45 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
   was confirmed only for cover retry and airing refresh, as recorded there.
 - **Deferred:** nothing. Server-side error strings (JSON `error` fields) are not
   in the copy registry; the client maps the ones users see (see plan).
+
+## Checkpoint 2 (2026-09-26)
+
+- **Changed:** `public/js/core/` (html, reconcile, store, dialog, focus); views in
+  `public/js/views/` (library, home, detail, schedule, stats on `html```; discover
+  and settings moved unchanged, see plan); `render.js` ~3,000 → 827 lines,
+  `events.js` ~3,300 → 1,155; all 19 overlays are native modal dialogs; server split
+  into `src/` with one `writeJsonAtomic`; the exe bundles with esbuild 0.28.2 (exact
+  devDependency); `scripts/smoke-exe.js`. Found on the way and fixed: a ~300 ms
+  IPv6 fallback on every `localhost` connection, Enter on a card closing the detail
+  overlay at once, jump-to-episode not recorded as an event, unescaped cover URLs in
+  `url()`.
+- **Tests before → after:** unit 442 + 79 → 442 + 92; e2e 189 + 1 skipped → 208 + 1
+  skipped. New specs fail on v2.3.0 where the behaviour existed there.
+- **Perf (`npm run perf`, p95):** library render of all 2,000 cards **183 ms**
+  (budget 200; first cards painted 70 ms; navigation to all cards 335 ms, v2.3.0
+  1,203 ms); warm Discover **134 ms** (budget 400, v2.3.0 4,593 ms, zero AniList
+  requests, fails if shelves were prebuilt); snapshot + verify 95 ms. A single +1
+  mutates exactly one card (MutationObserver test on 2,000 entries).
+- **Browser check:** `node scripts/capture-evidence.js 2` at 1440/390 px, reduced
+  motion off and on: no errors, every card visible (`docs/v3-evidence/2/`). The
+  checker now waits for finite animations instead of a fixed delay (one run caught
+  Discover cards mid-entrance).
+- **Exe:** built with esbuild and smoke-tested on a throwaway data folder: 10/10
+  (token, CSP, modulepreload, both loopbacks, event log, verified pinned snapshot).
+- **Real-library dry run** (fresh copy): schema 14, 222 entries (210 watched, 12
+  watching, 161 rated), 16 events, corpus 3,052, 5 snapshots of which 3 verify. The
+  2 that do not (2026-08-02, one pinned) predate the snapshot manifest checksum
+  (`6a7e663`), fail identically on v2.3.0, and are kept untouched; newer verified
+  pinned snapshots exist. No schema change in this phase.
+- **Independent review:** no HIGH; 6 MEDIUM, all fixed in `3f08856` with tests: the
+  recovery screen closed on a second Escape; Undo toasts sat under open dialogs; the
+  +1 pulse was lost past card 60; focus was lost when a card moved; the perf measures
+  were too flattering (now all 2,000 cards, Discover without an idle wait); some
+  dialogs had no accessible name. LOW items fixed: detail overlay rebuilt on every
+  action (now morphed), pop class flipping, corpus re-parses. Recorded instead:
+  store subscriptions are not wired into views yet (Phase 4 rebuilds the screens).
+- **Deferred:** nothing. The clipped sort control ("west f") is a Phase 4 item in the
+  brief.
 
 ## Evidence index
 
