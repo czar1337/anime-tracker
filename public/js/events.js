@@ -4,7 +4,7 @@ import { Render } from './render.js';
 import { Discover } from './discover.js';
 import { FeedbackLoop } from './feedbackLoop.js';
 import { Schedule } from './views/schedule/actions.js';
-import { Detail } from './detail.js';
+import { Detail } from './views/detail/actions.js';
 import { Airing } from './airing.js';
 import { Notifications } from './notifications.js';
 import { Themes } from './themes.js';
@@ -2118,177 +2118,6 @@ function bindHero() {
   });
 }
 
-// The detail overlay's score/status/note/episode controls aren't inside a
-// .card, so they can't go through bindGridEvents' `.closest('.card')`
-// dispatch — this is its own small delegated handler, scoped to
-// #detail-content, reading the open series' id off the data-anilist-id
-// renderDetailOverlay sets on that container.
-function bindDetailOverlay() {
-  const content = document.getElementById('detail-content');
-
-  content.addEventListener('click', (e) => {
-    const id = Number(content.dataset.anilistId);
-    if (!id) return;
-    const actionEl = e.target.closest('[data-action]');
-    if (!actionEl) return;
-    const action = actionEl.dataset.action;
-    if (action === 'set-score') handleSetScore(id, Number(actionEl.dataset.score));
-    else if (action === 'set-status') {
-      // Same drop-confirms rule as the card's own quick-move row (bindGridEvents).
-      if (actionEl.dataset.status === 'dropped') confirmDrop(id);
-      else handleSetStatus(id, actionEl.dataset.status);
-    }
-    else if (action === 'detail-mark-next') handleIncrement(null, id);
-    else if (action === 'detail-drop') confirmDrop(id);
-    else if (action === 'detail-already-watched') {
-      // P5B.4: only reachable when `local` is absent (renderDetailOverlay
-      // only renders this button in that branch), but re-checked here too —
-      // a stale click queued behind an add-from-elsewhere must not double-add.
-      if (Store.getEntry(id)) return;
-      const media = Detail.getCachedMedia(id);
-      if (!media) return;
-      Store.addEntry({
-        anilistId: media.id,
-        titleRomaji: media.title.romaji,
-        titleEnglish: media.title.english,
-        format: media.format,
-        year: media.seasonYear,
-        totalEpisodes: media.episodes,
-        duration: media.duration,
-        genres: media.genres,
-        averageScore: media.averageScore,
-        studio: (media.studios?.nodes || [])[0]?.name || null,
-        airingStatus: media.status || null,
-        listStatus: 'watched',
-        myScore: null,
-        relatedIds: Api.extractRelatedIds(media),
-      });
-      refreshGridOnly();
-      Render.renderTabCounts();
-      Detail.refreshDetailIfOpen(id);
-      persist();
-      Render.showToast(`Marked "${media.title.romaji}" as watched`);
-    }
-    // P1.7: tag/list membership toggles and the two inline create forms.
-    // Every branch re-renders both the card grid (so a chip appears there
-    // immediately too) and the detail view in place, then persists — the
-    // same three-call shape every other detail-view mutation already uses.
-    else if (action === 'toggle-entry-tag') {
-      Store.toggleEntryTag(id, actionEl.dataset.tagId);
-      refreshGridOnly();
-      Detail.refreshDetailIfOpen(id);
-      persist();
-    }
-    else if (action === 'toggle-entry-list') {
-      Store.toggleEntryCustomList(id, actionEl.dataset.listId);
-      refreshGridOnly();
-      Detail.refreshDetailIfOpen(id);
-      persist();
-    }
-    else if (action === 'detail-reveal-spoilers') {
-      Render.toggleDetailSpoilers();
-      Detail.refreshDetailIfOpen(id);
-    }
-    else if (action === 'detail-toggle-synopsis') {
-      Render.toggleDetailSynopsis();
-      Detail.refreshDetailIfOpen(id);
-    }
-    else if (action === 'show-new-tag-form') {
-      Render.toggleDetailNewTagForm(true);
-      Detail.refreshDetailIfOpen(id);
-    }
-    else if (action === 'cancel-new-tag') {
-      Render.toggleDetailNewTagForm(false);
-      Detail.refreshDetailIfOpen(id);
-    }
-    else if (action === 'pick-new-tag-color') {
-      Render.setDetailNewTagColor(actionEl.dataset.colorId);
-      Detail.refreshDetailIfOpen(id);
-    }
-    else if (action === 'confirm-new-tag') {
-      const input = content.querySelector('#detail-new-tag-name');
-      const tag = Store.createTag(input ? input.value : '', Render.getDetailNewTagColor());
-      if (!tag) {
-        // Covers both "empty name" and "duplicate name" — createTag returns
-        // null for either, and the duplicate case is the one worth a message
-        // for; an empty submit is just a no-op click, not an error.
-        if (input && input.value.trim()) Render.showToast(copy('tags.create.duplicateName'));
-        return;
-      }
-      Store.toggleEntryTag(id, tag.id); // creating a tag from an entry's view also applies it
-      Render.toggleDetailNewTagForm(false);
-      refreshGridOnly();
-      Detail.refreshDetailIfOpen(id);
-      persist();
-    }
-    else if (action === 'show-new-list-form') {
-      Render.toggleDetailNewListForm(true);
-      Detail.refreshDetailIfOpen(id);
-    }
-    else if (action === 'cancel-new-list') {
-      Render.toggleDetailNewListForm(false);
-      Detail.refreshDetailIfOpen(id);
-    }
-    else if (action === 'confirm-new-list') {
-      const input = content.querySelector('#detail-new-list-name');
-      const list = Store.createCustomList(input ? input.value : '');
-      if (!list) return; // empty name — no-op, same as the tag form above
-      Store.toggleEntryCustomList(id, list.id);
-      Render.toggleDetailNewListForm(false);
-      refreshGridOnly();
-      Detail.refreshDetailIfOpen(id);
-      persist();
-    }
-  });
-
-  content.addEventListener(
-    'blur',
-    (e) => {
-      if (e.target.dataset && e.target.dataset.action === 'detail-note') {
-        Store.updateEntry(Number(content.dataset.anilistId), { notes: e.target.value });
-        persist();
-      }
-    },
-    true
-  );
-
-  // P1.7: keeps the in-progress tag name in sync with render.js's module
-  // state WITHOUT re-rendering on every keystroke (that would fight the
-  // cursor) — only so that an unrelated re-render (picking a colour swatch)
-  // has something correct to pre-fill the input with, instead of wiping out
-  // whatever the user had already typed. See setDetailNewTagName's comment.
-  content.addEventListener('input', (e) => {
-    if (e.target.id === 'detail-new-tag-name') Render.setDetailNewTagName(e.target.value);
-  });
-
-  content.addEventListener('keydown', (e) => {
-    // P1.7: Enter submits either inline create form, matching how the
-    // episode-jump input (below) and the reset-confirm typed-phrase input
-    // both already treat Enter as "commit" rather than requiring a click.
-    if (e.key === 'Enter' && e.target.id === 'detail-new-tag-name') {
-      e.target.closest('.inline-create-form').querySelector('[data-action="confirm-new-tag"]').click();
-      return;
-    }
-    if (e.key === 'Enter' && e.target.id === 'detail-new-list-name') {
-      e.target.closest('.inline-create-form').querySelector('[data-action="confirm-new-list"]').click();
-      return;
-    }
-    if (!(e.target.dataset && e.target.dataset.action === 'detail-jump-episode' && e.key === 'Enter')) return;
-    const id = Number(content.dataset.anilistId);
-    const entry = Store.getEntry(id);
-    if (!entry) return;
-    let value = parseInt(e.target.value, 10);
-    if (Number.isNaN(value) || value < 0) return;
-    if (entry.totalEpisodes) value = Math.min(value, entry.totalEpisodes);
-    Store.updateEntry(id, { episodesWatched: value });
-    refreshGridOnly();
-    Render.renderTabCounts();
-    Detail.refreshDetailIfOpen(id);
-    persist();
-    e.target.value = '';
-  });
-}
-
 // The bootstrap inline script in index.html already applies the saved (or
 // default) color theme/text-size/text-weight/decor before first paint —
 // this wires up the Settings panel to change any of them afterward, same
@@ -3188,7 +3017,7 @@ export function initEvents({ initialList, persistFn }) {
   bindHome();
   bindNavMenu();
   bindHero();
-  bindDetailOverlay();
+  Detail.bindDetailActions({ handleSetScore, handleSetStatus, confirmDrop, handleIncrement, recordProgressEvent, refreshGridOnly, persist: () => persist() });
   bindGridEvents();
   bindHoldToSelect();
   bindFilterBar();

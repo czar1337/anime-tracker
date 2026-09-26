@@ -6,7 +6,7 @@ import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './discover.js';
 import { Schedule } from './views/schedule/actions.js';
-import { Detail } from './detail.js';
+import { Detail } from './views/detail/actions.js';
 import { Airing } from './airing.js';
 import { Corpus } from './corpus.js';
 import { TasteProfile } from './tasteProfile.js';

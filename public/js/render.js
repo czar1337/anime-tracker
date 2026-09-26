@@ -18,7 +18,6 @@ import { SORT_KEYS, SORT_KEY_ORDER, DEFAULT_SORT_DIR } from './sortLogic.js';
 import { TasteProfile } from './tasteProfile.js';
 import { RECOMMENDATIONS } from '../../config/tuning.js';
 import { MOOD_REGISTRY } from './moodRegistry.js';
-import { partitionSpoilerTags, truncateSynopsis } from './detailLogic.js';
 import * as LibraryModel from './views/library/model.js';
 import * as LibraryView from './views/library/view.js';
 import { renderStatsPage } from './views/stats/view.js';
@@ -99,48 +98,6 @@ function escapeHtml(str) {
 // that :focus already reveals).
 function infoHintHtml(text) {
   return `<span class="info-hint" tabindex="0" role="button" aria-label="${escapeHtml(text)}">?<span class="info-hint-bubble">${escapeHtml(text)}</span></span>`;
-}
-
-// P1.7's inline "+ New tag"/"+ New list" forms in the detail overlay —
-// module-level so a refresh after toggling a tag/list membership (which
-// re-renders the whole overlay from scratch) doesn't collapse a form the user
-// still has open. detail.js's showDetail() resets these via
-// resetDetailCreateForms() on every fresh open of a (possibly different)
-// entry, so they never leak from one entry's detail view into another's.
-let detailShowNewTagForm = false;
-let detailNewTagColorId = DEFAULT_TAG_COLOR_ID;
-// Tracks the name field's in-progress text too, not just whether the form is
-// open. Found in manual testing: picking a colour swatch calls
-// Detail.refreshDetailIfOpen(), which rebuilds #detail-content from scratch —
-// without this, typing a name and THEN picking a colour silently wiped out
-// whatever had just been typed, because the input is live DOM state that a
-// full re-render discards. Kept in sync on every keystroke (see events.js's
-// 'input' listener) rather than only on submit.
-let detailNewTagName = '';
-let detailShowNewListForm = false;
-// P5B.5: spoiler tags stay hidden and the synopsis stays collapsed until the
-// user opts in for THIS open of the overlay — same module-level/reset-on-open
-// shape as the tag/list forms just above, so a re-render from an unrelated
-// mutation (e.g. toggling a tag) doesn't silently re-hide something the user
-// already revealed.
-let detailSpoilersRevealed = false;
-let detailSynopsisExpanded = false;
-
-function resetDetailCreateForms() {
-  detailShowNewTagForm = false;
-  detailNewTagColorId = DEFAULT_TAG_COLOR_ID;
-  detailNewTagName = '';
-  detailShowNewListForm = false;
-  detailSpoilersRevealed = false;
-  detailSynopsisExpanded = false;
-}
-
-function toggleDetailSpoilers() {
-  detailSpoilersRevealed = true;
-}
-
-function toggleDetailSynopsis() {
-  detailSynopsisExpanded = !detailSynopsisExpanded;
 }
 
 function renderGrid(list) {
@@ -1332,276 +1289,6 @@ function stepsHtml(current, labels) {
     .join('')}</div>`;
 }
 
-// AniList's MediaFormat enum mixes real acronyms (TV, OVA, ONA) with plain
-// words (MOVIE, SPECIAL) — naive per-word title-casing turns "TV" into "Tv",
-// which reads as a typo. Acronyms get an explicit label; anything else
-// (including status enums like RELEASING, which also go through this
-// helper) falls back to the generic title-case.
-function formatFuzzyDate(d) {
-  if (!d || !d.year) return null;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  if (d.month) return `${months[d.month - 1]}${d.day ? ' ' + d.day : ''}, ${d.year}`;
-  return String(d.year);
-}
-
-// state.status: 'loading' | 'error' | 'ready'. state.localEntry is the
-// Store entry if this anime is already in the library (undefined for
-// Discover-only candidates), used to show personal status/score alongside
-// the AniList data. description(asHtml:false) from AniList is plain text
-// (its own lightweight markdown, not HTML) — escaped like any other API
-// string, no HTML sanitizer needed.
-// design/HANDOVER.md §14 "More than 50 episodes": squares stay up to 50;
-// past that, a compact bar plus a "jump to episode" field replaces them,
-// with only the last 18 squares still shown as a tail.
-const EPISODE_SQUARE_CAP = 50;
-const EPISODE_SQUARE_TAIL = 18;
-
-function episodeSquareHtml(index, entry) {
-  const cls = index < entry.episodesWatched ? 'f' : index === entry.episodesWatched ? 'n' : '';
-  return `<i class="${cls}"></i>`;
-}
-
-function episodesBlockHtml(entry) {
-  const total = entry.totalEpisodes;
-  const watched = entry.episodesWatched;
-  const knownCount = total || watched;
-  if (knownCount > EPISODE_SQUARE_CAP) {
-    const pct = total ? Math.min(100, (watched / total) * 100) : 100;
-    const tailStart = Math.max(0, watched - EPISODE_SQUARE_TAIL + 1);
-    const tailSquares = Array.from({ length: watched - tailStart + 1 }, (_, i) => episodeSquareHtml(tailStart + i, entry)).join('');
-    const nextEp = Math.min(watched + 1, total || watched + 1);
-    return `
-      <p class="detail-lbl">Episodes</p>
-      <div class="row detail-ep-summary"><span>Progress</span><span class="num">${watched} watched${total ? ` of ${total}` : ' · no total known'}</span></div>
-      <div class="barfallback"><i style="width:${pct}%"></i></div>
-      <div class="row detail-jump-row">
-        <span class="field detail-jump-field">Jump to episode<input type="number" min="0" ${total ? `max="${total}"` : ''} data-action="detail-jump-episode" aria-label="Jump to episode"><kbd>↵</kbd></span>
-        <button class="btn btn-ghost sm rip-host" data-action="detail-mark-next">Mark episode ${nextEp}</button>
-      </div>
-      <div class="row eps detail-eps-tail">${tailSquares}<span class="detail-eps-tail-label">last ${watched - tailStart + 1} shown</span></div>
-    `;
-  }
-  const count = total || watched + 1;
-  const squares = Array.from({ length: count }, (_, i) => episodeSquareHtml(i, entry)).join('');
-  return `<p class="detail-lbl">Episodes</p><div class="eps">${squares}</div>`;
-}
-
-// P5B.5's synopsis "Show more" cutoff — spec-fixed prose, not a product
-// tunable like the Tuning table's named values, so it stays a plain
-// constant here (same treatment as EPISODE_SQUARE_CAP/TAIL just above).
-const DETAIL_SYNOPSIS_COLLAPSE_LENGTH = 180;
-
-// AniList's trailer thumbnail with a play-button overlay that links out to
-// the real video — no embedded iframe/player, matching this zero-dependency
-// app's existing no-third-party-embed posture (no iframe/player precedent
-// anywhere else in the codebase). Absent for the common case of a title
-// with no trailer on AniList.
-function detailTrailerHtml(trailer) {
-  if (!trailer?.thumbnail || !trailer?.id) return '';
-  const site = trailer.site === 'dailymotion' ? 'dailymotion' : 'youtube';
-  const url = site === 'dailymotion' ? `https://www.dailymotion.com/video/${trailer.id}` : `https://www.youtube.com/watch?v=${trailer.id}`;
-  return `
-    <a class="detail-trailer" href="${escapeHtml(url)}" target="_blank" rel="noopener" aria-label="Watch trailer (opens in a new tab)">
-      <img src="${escapeHtml(trailer.thumbnail)}" alt="" loading="lazy">
-      <span class="detail-trailer-play" aria-hidden="true">▶</span>
-    </a>`;
-}
-
-// A second chip row below genres: plain tags always shown, spoiler-flagged
-// ones (AniList's own isGeneralSpoiler/isMediaSpoiler — this app never
-// infers a spoiler itself) hidden behind a reveal button until clicked.
-function detailTagsRowHtml(tags) {
-  const { plain, spoilers } = partitionSpoilerTags(tags);
-  if (!plain.length && !spoilers.length) return '';
-  const plainChips = plain.map((t) => `<span class="detail-genre-chip">${escapeHtml(t.name)}</span>`).join('');
-  const spoilerChips = !spoilers.length
-    ? ''
-    : detailSpoilersRevealed
-    ? spoilers.map((t) => `<span class="detail-genre-chip spoiler">${escapeHtml(t.name)}</span>`).join('')
-    : `<button class="btn btn-quiet sm" data-action="detail-reveal-spoilers">Reveal spoiler tags (${spoilers.length})</button>`;
-  return `<div class="detail-genres detail-tags-row">${plainChips}${spoilerChips}</div>`;
-}
-
-function detailSynopsisHtml(description) {
-  if (!description) return `<p class="card-meta">No synopsis available.</p>`;
-  const { truncated, isTruncated } = truncateSynopsis(description, DETAIL_SYNOPSIS_COLLAPSE_LENGTH);
-  if (!isTruncated || detailSynopsisExpanded) {
-    return `<div class="detail-description">${escapeHtml(description)}${
-      isTruncated ? ` <button class="text-btn" data-action="detail-toggle-synopsis">Show less</button>` : ''
-    }</div>`;
-  }
-  return `<div class="detail-description">${escapeHtml(truncated)}… <button class="text-btn" data-action="detail-toggle-synopsis">Show more</button></div>`;
-}
-
-function renderDetailOverlay(container, state) {
-  delete container.dataset.anilistId;
-  if (state.status === 'loading') {
-    container.innerHTML = `<div class="empty-state"><h2>Loading…</h2><p>Fetching details from AniList.</p></div>`;
-    return;
-  }
-  if (state.status === 'error') {
-    container.innerHTML = `<div class="empty-state"><h2>Could not load details</h2><p>${escapeHtml(state.error)}</p></div>`;
-    return;
-  }
-
-  const m = state.media;
-  const local = state.localEntry;
-  container.dataset.anilistId = String(m.id);
-  const primary = m.title.english || m.title.romaji;
-  const secondary = m.title.romaji && m.title.romaji !== primary ? m.title.romaji : null;
-  const showNative = m.title.native && m.title.native !== primary && Preferences.getOriginalTitlesMode() !== 'off';
-  const studios = (m.studios?.nodes || []).map((s) => s.name).join(', ');
-  const aired = formatFuzzyDate(m.startDate);
-  const ended = formatFuzzyDate(m.endDate);
-  const airedRange = aired ? (ended && ended !== aired ? `${aired} – ${ended}` : aired) : null;
-  // AniList's "plain text" description can still contain literal <br> tags
-  // despite asHtml:false — turned into real line breaks before escaping
-  // (everything else in the string is still escaped normally afterward).
-  const description = m.description
-    ? m.description.replace(/<br\s*\/?>/gi, '\n').replace(/\n{3,}/g, '\n\n').trim()
-    : null;
-  const metaBits = [formatEnumLabel(m.format), formatEnumLabel(m.status), m.episodes ? `${m.episodes} ep` : null, m.duration ? `${m.duration} min/ep` : null].filter(Boolean);
-
-  container.innerHTML = `
-    <div class="detail-side">
-      <div class="detail-cover" style="background-image:url('${escapeHtml(Api.bestCoverUrl(m))}')"></div>
-      <div class="detail-score">
-        <b>${local?.myScore != null ? local.myScore : '—'}</b>
-        <span>${local?.myScore != null ? 'your score' : 'not rated'}</span>
-      </div>
-    </div>
-    <div class="detail-body">
-      <h2 class="detail-title">${escapeHtml(primary)}</h2>
-      ${secondary ? `<div class="card-title-sub detail-title-sub">${escapeHtml(secondary)}</div>` : ''}
-      ${showNative ? `<p class="detail-native">${escapeHtml(m.title.native)}</p>` : ''}
-      <div class="detail-meta-row">${metaBits.map(escapeHtml).join(' · ')}</div>
-      <div class="detail-score-row">
-        ${m.averageScore ? `<span>★ ${m.averageScore} AniList</span>` : ''}
-        ${m.popularity ? `<span>${m.popularity.toLocaleString()} on lists</span>` : ''}
-        ${m.favourites ? `<span>${m.favourites.toLocaleString()} favourites</span>` : ''}
-      </div>
-      ${(m.genres || []).length ? `<div class="detail-genres">${m.genres.map((g) => `<span class="detail-genre-chip">${escapeHtml(g)}</span>`).join('')}</div>` : ''}
-      ${detailTagsRowHtml(m.tags)}
-      ${detailTrailerHtml(m.trailer)}
-      ${local ? `<div class="detail-owned-badge">In your ${escapeHtml(local.listStatus)} list</div>` : ''}
-      ${local ? `
-        <div class="detail-section">${episodesBlockHtml(local)}</div>
-        <div class="detail-split">
-          <div><p class="detail-lbl">Score</p>${scoreStripHtml(local)}</div>
-          <div><p class="detail-lbl">Status</p>${statusRowHtml(local)}</div>
-        </div>
-        <div class="detail-section">
-          <p class="detail-lbl">Note</p>
-          <textarea class="detail-note" placeholder="Your notes…" data-action="detail-note">${escapeHtml(local.notes || '')}</textarea>
-        </div>
-        <div class="detail-section">${detailTagsSectionHtml(local)}</div>
-        <div class="detail-section">${detailListsSectionHtml(local)}</div>
-      ` : ''}
-      <div class="detail-meta-grid">
-        ${studios ? `<div><span class="detail-meta-label">Studio</span><span>${escapeHtml(studios)}</span></div>` : ''}
-        ${m.source ? `<div><span class="detail-meta-label">Source</span><span>${escapeHtml(formatEnumLabel(m.source))}</span></div>` : ''}
-        ${airedRange ? `<div><span class="detail-meta-label">Aired</span><span>${escapeHtml(airedRange)}</span></div>` : ''}
-      </div>
-      ${detailSynopsisHtml(description)}
-      ${local ? `
-        <div class="detail-foot">
-          ${local.totalEpisodes && local.episodesWatched >= local.totalEpisodes ? '' : `<button class="btn btn-primary rip-host" data-action="detail-mark-next">Mark episode ${Math.min(local.episodesWatched + 1, local.totalEpisodes || local.episodesWatched + 1)} watched</button>`}
-          <button class="btn btn-quiet" data-action="close-overlay">Close</button>
-          ${local.listStatus === 'dropped' ? '' : `<button class="btn btn-danger" data-action="detail-drop">Drop the series</button>`}
-        </div>
-      ` : `
-        <div class="detail-foot">
-          <button class="btn btn-quiet" data-action="detail-already-watched">${escapeHtml(copy('discoverFeedback.alreadyWatched'))}</button>
-          <button class="btn btn-quiet" data-action="close-overlay">Close</button>
-        </div>
-      `}
-    </div>
-  `;
-}
-
-// P1.7's detail-view Tags section: every registry tag as a toggle chip
-// (membership on THIS entry), plus an inline "+ New tag" form. Assignment
-// lives here rather than on the card, so cards don't gain two more buttons
-// apiece for a feature most entries won't use.
-function detailTagsSectionHtml(local) {
-  const tags = Store.getTags();
-  const chips = tags
-    .map((t) => {
-      const on = (local.tagIds || []).includes(t.id);
-      const hex = tagColorHex(t.color);
-      return `<button class="tag-chip-toggle ${on ? 'on' : ''}" style="color:${hex}" data-action="toggle-entry-tag" data-tag-id="${t.id}"><span class="sw" style="background:${hex}"></span>${escapeHtml(t.name)}</button>`;
-    })
-    .join('');
-  const form = detailShowNewTagForm
-    ? `
-      <div class="inline-create-form">
-        <input type="text" id="detail-new-tag-name" placeholder="${escapeHtml(copy('tags.create.namePlaceholder'))}" maxlength="${LISTS_AND_TAGS.maxNameLength}" value="${escapeHtml(detailNewTagName)}">
-        <div class="color-swatch-grid">
-          ${TAG_COLORS.map((c) => `<button class="${c.id === detailNewTagColorId ? 'on' : ''}" style="background:${c.hex}" data-action="pick-new-tag-color" data-color-id="${c.id}" title="${escapeHtml(c.name)}" aria-label="${escapeHtml(c.name)}"></button>`).join('')}
-        </div>
-        <div class="row">
-          <button class="btn btn-primary sm" data-action="confirm-new-tag">${escapeHtml(copy('tags.create.confirm'))}</button>
-          <button class="btn btn-quiet sm" data-action="cancel-new-tag">${escapeHtml(copy('tags.create.cancel'))}</button>
-        </div>
-      </div>
-    `
-    : `<button class="btn btn-ghost sm rip-host" data-action="show-new-tag-form">${escapeHtml(copy('tags.create.button'))}</button>`;
-  return `
-    <p class="detail-lbl">${escapeHtml(copy('detail.tags.heading'))}</p>
-    <div class="detail-genres">${chips}</div>
-    ${form}
-  `;
-}
-
-// Mirrors detailTagsSectionHtml exactly, minus the colour picker — lists have
-// no colour, only a name.
-function detailListsSectionHtml(local) {
-  const lists = Store.getCustomLists();
-  const chips = lists
-    .map((l) => {
-      const on = (local.customListIds || []).includes(l.id);
-      return `<button class="tag-chip-toggle ${on ? 'on' : ''}" data-action="toggle-entry-list" data-list-id="${l.id}">${escapeHtml(l.name)}</button>`;
-    })
-    .join('');
-  const form = detailShowNewListForm
-    ? `
-      <div class="inline-create-form">
-        <input type="text" id="detail-new-list-name" placeholder="${escapeHtml(copy('lists.create.namePlaceholder'))}" maxlength="${LISTS_AND_TAGS.maxNameLength}">
-        <div class="row">
-          <button class="btn btn-primary sm" data-action="confirm-new-list">${escapeHtml(copy('lists.create.confirm'))}</button>
-          <button class="btn btn-quiet sm" data-action="cancel-new-list">${escapeHtml(copy('lists.create.cancel'))}</button>
-        </div>
-      </div>
-    `
-    : `<button class="btn btn-ghost sm rip-host" data-action="show-new-list-form">${escapeHtml(copy('lists.create.button'))}</button>`;
-  return `
-    <p class="detail-lbl">${escapeHtml(copy('detail.lists.heading'))}</p>
-    <div class="detail-genres">${chips}</div>
-    ${form}
-  `;
-}
-
-function toggleDetailNewTagForm(show) {
-  detailShowNewTagForm = show;
-  if (!show) detailNewTagName = '';
-}
-
-function toggleDetailNewListForm(show) {
-  detailShowNewListForm = show;
-}
-
-function setDetailNewTagColor(colorId) {
-  detailNewTagColorId = colorId;
-}
-
-function setDetailNewTagName(name) {
-  detailNewTagName = name;
-}
-
-function getDetailNewTagColor() {
-  return detailNewTagColorId;
-}
-
 function settingsRowHtml(label, description, body) {
   return `<div class="set-row"><div class="k"><b>${escapeHtml(label)}</b><span>${description}</span></div><div>${body}</div></div>`;
 }
@@ -2320,7 +2007,6 @@ export const Render = {
   renderDiscoverPage,
   renderSchedulePage,
   renderDismissedOverlay,
-  renderDetailOverlay,
   toggleGroupExpanded,
   toggleGenreOverflow,
   isSelectMode,
@@ -2344,12 +2030,6 @@ export const Render = {
   showError,
   clearError,
   escapeHtml,
-  resetDetailCreateForms,
-  toggleDetailNewTagForm,
-  toggleDetailNewListForm,
-  setDetailNewTagColor,
-  setDetailNewTagName,
-  getDetailNewTagColor,
   toggleSettingsNewTagForm,
   setSettingsNewTagColor,
   setSettingsNewTagName,
@@ -2365,6 +2045,4 @@ export const Render = {
   toggleReasonStrip,
   closeReasonStrip,
   renderPickForMePanel,
-  toggleDetailSpoilers,
-  toggleDetailSynopsis,
 };
