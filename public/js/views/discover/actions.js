@@ -1,15 +1,15 @@
-import { Store } from './state.js';
-import { Api } from './api.js';
-import { Corpus } from './corpus.js';
-import { Render } from './render.js';
-import { EventLog, computeLocalDay } from './eventLog.js';
-import { score } from './scorer.js';
-import { TasteProfile } from './tasteProfile.js';
-import { buildShelves, franchiseRelatedIds, DEFAULT_PAGE_SIZE } from './shelvesLogic.js';
-import { RECOMMENDATIONS, TIME_SEMANTICS } from '../../config/tuning.js';
-import { openOverlay } from './events.js';
-import { defaultSettings } from './settingsSchema.js';
-import { FeedbackLoop } from './feedbackLoop.js';
+import { Store } from '../../state.js';
+import { Api } from '../../api.js';
+import { Corpus } from '../../corpus.js';
+import { Render } from '../../render.js';
+import { EventLog, computeLocalDay } from '../../eventLog.js';
+import { score } from '../../scorer.js';
+import { TasteProfile } from '../../tasteProfile.js';
+import { buildShelves, franchiseRelatedIds, DEFAULT_PAGE_SIZE } from '../../shelvesLogic.js';
+import { RECOMMENDATIONS, TIME_SEMANTICS } from '../../../../config/tuning.js';
+import { openOverlay } from '../../events.js';
+import { defaultSettings } from '../../settingsSchema.js';
+import { FeedbackLoop } from '../../feedbackLoop.js';
 
 // P5B.5: one-tap add's toast needs a human label for whichever status the
 // user picked — render.js's own LIST_META isn't exported, so this stays a

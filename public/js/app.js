@@ -4,7 +4,7 @@ import { Render } from './render.js';
 import { initEvents, refreshCurrentView, refreshCurrentViewWhenIdle, repositionTabPill, openColdStartOnboarding, pauseRouteDwell, resumeRouteDwell } from './events.js';
 import { initMalImport } from './malImport.js';
 import { initScreenshotImport } from './screenshotImport.js';
-import { Discover } from './discover.js';
+import { Discover } from './views/discover/actions.js';
 import { Schedule } from './views/schedule/actions.js';
 import { Detail } from './views/detail/actions.js';
 import { Airing } from './airing.js';

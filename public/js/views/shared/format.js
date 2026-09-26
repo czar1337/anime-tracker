@@ -34,3 +34,10 @@ export function coverOrInitialHtml(url, title) {
   const initial = (String(title || '').trim()[0] || '?').toUpperCase();
   return html`<span class="cover-initial" aria-hidden="true">${initial}</span>`;
 }
+
+// A small always-visible "?" badge with a tooltip bubble shown on hover OR
+// focus (keyboard reachable, and persists after a tap on touch, unlike a bare
+// title attribute). tabindex + role make the <span> a real focusable control.
+export function infoHintHtml(text) {
+  return html`<span class="info-hint" tabindex="0" role="button" aria-label="${text}">?<span class="info-hint-bubble">${text}</span></span>`;
+}

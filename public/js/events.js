@@ -1,7 +1,7 @@
 import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
-import { Discover } from './discover.js';
+import { Discover } from './views/discover/actions.js';
 import { FeedbackLoop } from './feedbackLoop.js';
 import { Schedule } from './views/schedule/actions.js';
 import { Detail } from './views/detail/actions.js';
