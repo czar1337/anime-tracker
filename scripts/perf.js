@@ -68,16 +68,28 @@ function buildWarmCorpus(size) {
   return entries;
 }
 
+// v3 Phase 2: the budget is the app's own render, "to first paint": from the
+// start of the first grid render (library loaded) to the first painted frame
+// with cards, read from performance marks app.js sets. v2's number was wall
+// time from navigation until all 2,000 cards existed, which mostly measured
+// Chromium starting a page and the module waterfall. Both are still reported:
+// navigation to first cards painted, and to all 2,000 cards in the DOM.
 async function measureOnce() {
   const server = await startFixtureServer(FIXTURE);
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
-    const start = Date.now();
     await page.goto(server.url, { waitUntil: 'commit' });
     await page.waitForFunction(() => document.querySelectorAll('#grid .card').length >= 2000, null, { timeout: 15000 });
-    const elapsed = Date.now() - start;
-    return elapsed;
+    await page.waitForFunction(() => performance.getEntriesByName('library:first-paint').length && performance.getEntriesByName('library:complete').length, null, { timeout: 15000 });
+    return await page.evaluate(() => {
+      const t = (name) => performance.getEntriesByName(name)[0].startTime;
+      return {
+        render: Math.round(t('library:first-paint') - t('library:render-start')),
+        navToFirstPaint: Math.round(t('library:first-paint')),
+        navToAllCards: Math.round(t('library:complete')),
+      };
+    });
   } finally {
     await browser.close();
     await server.stop();
@@ -173,15 +185,21 @@ async function measureDiscoverLoadOnce(corpusSize) {
 async function main() {
   console.log(`Measuring "Library list render, 2,000 entries" over ${ITERATIONS} runs...`);
   const samples = [];
+  const navFirst = [];
+  const navAll = [];
   for (let i = 0; i < ITERATIONS; i += 1) {
-    const ms = await measureOnce();
-    samples.push(ms);
-    console.log(`  run ${i + 1}/${ITERATIONS}: ${ms}ms`);
+    const m = await measureOnce();
+    samples.push(m.render);
+    navFirst.push(m.navToFirstPaint);
+    navAll.push(m.navToAllCards);
+    console.log(`  run ${i + 1}/${ITERATIONS}: render to first paint ${m.render}ms (navigation to first paint ${m.navToFirstPaint}ms, to all 2,000 cards ${m.navToAllCards}ms)`);
   }
   const sorted = [...samples].sort((a, b) => a - b);
   const p95 = percentile(sorted, 95);
+  const p95Of = (xs) => percentile([...xs].sort((a, b) => a - b), 95);
   console.log('');
-  console.log(`p95 first-paint time (2,000 entries): ${p95}ms`);
+  console.log(`p95 render to first paint (2,000 entries): ${p95}ms`);
+  console.log(`  (for reference, p95 navigation to first paint: ${p95Of(navFirst)}ms; navigation to all cards: ${p95Of(navAll)}ms)`);
   console.log(`Budget (Tuning table): ${BUDGET_MS}ms`);
   console.log(p95 <= BUDGET_MS ? 'PASS — within budget.' : 'OVER BUDGET.');
 

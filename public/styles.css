@@ -955,6 +955,10 @@ kbd {
    renders and moving one would restart its animation. Only cards that were
    just created carry .enter (views/library/view.js). */
 #grid > .card:not(.enter), #grid > .franchise-card:not(.enter) { animation: none; }
+/* Off-screen cards skip style, layout and paint until scrolled near (v3 Phase 2
+   performance budget: 2,000 cards). The intrinsic size is remembered once a
+   card has rendered, so the scrollbar stays stable. */
+#grid > .card, #grid > .franchise-card { content-visibility: auto; contain-intrinsic-size: auto 320px; }
 
 @keyframes cardEnter {
   from { opacity: 0; transform: translateY(16px); }

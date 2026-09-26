@@ -90,22 +90,35 @@ function morphChildren(fromParent, toParent) {
   }
 }
 
-// Brings `container`'s element children in line with `items`.
-//   key(item)          -> stable string id (becomes data-key)
-//   render(item, i)    -> html`` result / string for ONE element
-//   onCreate(el)       -> optional, called for brand-new elements only
-//   keepUnmatched      -> leave keyed children that are not in `items` in place
-//                         after the wanted ones (used between chunks)
-// Children without a data-key are always removed.
-export function reconcileList(container, items, { key, render, onCreate, keepUnmatched = false } = {}) {
+// A reconcile pass over one container. Items are processed in order, in one go
+// (reconcileList) or in ranges across frames (reconcileListChunked); each range
+// only renders its own items. New elements of a range are parsed from one
+// joined string, which is much cheaper than parsing each separately.
+function beginPass(container, options) {
   const existing = new Map();
   for (const child of [...container.children]) {
     const k = child.getAttribute('data-key');
     if (k !== null) existing.set(k, child);
     else child.remove();
   }
-  const wanted = [];
-  for (let i = 0; i < items.length; i++) {
+  return { container, options, existing, cursor: container.firstElementChild, placed: [] };
+}
+
+function parseMany(markups) {
+  const template = document.createElement('template');
+  template.innerHTML = markups.join('');
+  const els = [...template.content.children];
+  // One element per markup is the contract; if a template broke it, parse
+  // them one by one so keys still line up.
+  return els.length === markups.length ? els : markups.map((m) => toElement(m));
+}
+
+function runRange(pass, items, from, to) {
+  const { container, existing, options } = pass;
+  const { key, render, onCreate } = options;
+  const slots = [];
+  const fresh = [];
+  for (let i = from; i < to; i++) {
     const k = String(key(items[i], i));
     const markup = String(render(items[i], i));
     let el = existing.get(k);
@@ -114,28 +127,59 @@ export function reconcileList(container, items, { key, render, onCreate, keepUnm
       if (lastHtml.get(el) !== markup) {
         const next = toElement(markup);
         next.setAttribute('data-key', k);
-        el = morph(el, next);
+        const morphed = morph(el, next);
+        // A different tag replaces the node; keep the cursor on the live one.
+        if (morphed !== el && pass.cursor === el) pass.cursor = morphed;
+        el = morphed;
         lastHtml.set(el, markup);
       }
+      slots.push(el);
     } else {
-      el = toElement(markup);
-      el.setAttribute('data-key', k);
-      lastHtml.set(el, markup);
-      onCreate?.(el);
-    }
-    wanted.push(el);
-  }
-  if (!keepUnmatched) for (const stale of existing.values()) stale.remove();
-  // Order: walk the wanted list and move only what is out of place.
-  let cursor = container.firstElementChild;
-  for (const el of wanted) {
-    if (el === cursor) {
-      cursor = cursor.nextElementSibling;
-    } else {
-      container.insertBefore(el, cursor);
+      const slot = { k, markup, el: null };
+      slots.push(slot);
+      fresh.push(slot);
     }
   }
-  return wanted;
+  if (fresh.length) {
+    const els = parseMany(fresh.map((s) => s.markup));
+    fresh.forEach((s, i) => {
+      s.el = els[i];
+      s.el.setAttribute('data-key', s.k);
+      lastHtml.set(s.el, s.markup);
+    });
+  }
+  // Order: move only what is out of place.
+  const created = [];
+  for (const slot of slots) {
+    const el = slot instanceof Element ? slot : slot.el;
+    if (el === pass.cursor) {
+      pass.cursor = el.nextElementSibling;
+    } else {
+      container.insertBefore(el, pass.cursor);
+    }
+    if (!(slot instanceof Element)) created.push(el);
+    pass.placed.push(el);
+  }
+  if (onCreate) for (const el of created) onCreate(el);
+}
+
+function endPass(pass, keepUnmatched) {
+  if (!keepUnmatched) for (const stale of pass.existing.values()) stale.remove();
+  return pass.placed;
+}
+
+// Brings `container`'s element children in line with `items`.
+//   key(item)          -> stable string id (becomes data-key)
+//   render(item, i)    -> html`` result / string for ONE element
+//   onCreate(el)       -> optional, called for brand-new elements only, once
+//                         they are in the document
+//   keepUnmatched      -> leave keyed children that are not in `items` in place
+//                         after the wanted ones
+// Children without a data-key are always removed.
+export function reconcileList(container, items, options = {}) {
+  const pass = beginPass(container, options);
+  runRange(pass, items, 0, items.length);
+  return endPass(pass, options.keepUnmatched);
 }
 
 // Code that changes a reconciled element's DOM directly (swapping a label for an
@@ -147,27 +191,33 @@ export function forget(node) {
 
 // Same as reconcileList, but only the first `firstCount` items synchronously and
 // the rest in chunks on later frames, so a large list paints its first screen
-// immediately. Nodes already on screen beyond the first screen stay put until
-// their chunk reaches them (nothing flashes away). A newer call cancels chunks
-// still pending from an older one.
+// immediately. Elements beyond the first screen that are already there stay put
+// until their chunk reaches them (nothing flashes away); leftovers are removed
+// after the last chunk. A newer call on the same container cancels chunks still
+// pending from an older one.
 const pendingChunks = new WeakMap();
-export function reconcileListChunked(container, items, options = {}, { firstCount = 60, chunkSize = 250 } = {}) {
+export function reconcileListChunked(container, items, options = {}, { firstCount = 60, chunkSize = 400 } = {}) {
   const token = {};
   pendingChunks.set(container, token);
-  if (items.length <= firstCount) {
-    reconcileList(container, items, options);
+  const pass = beginPass(container, options);
+  const first = Math.min(firstCount, items.length);
+  runRange(pass, items, 0, first);
+  if (first >= items.length) {
+    endPass(pass, options.keepUnmatched);
     return Promise.resolve();
   }
-  reconcileList(container, items.slice(0, firstCount), { ...options, keepUnmatched: true });
   return new Promise((resolve) => {
-    let done = firstCount;
+    let done = first;
     const step = () => {
       if (pendingChunks.get(container) !== token) return resolve();
-      done = Math.min(items.length, done + chunkSize);
-      const last = done >= items.length;
-      reconcileList(container, items.slice(0, done), { ...options, keepUnmatched: !last });
-      if (!last) requestAnimationFrame(step);
-      else resolve();
+      const to = Math.min(items.length, done + chunkSize);
+      runRange(pass, items, done, to);
+      done = to;
+      if (done < items.length) requestAnimationFrame(step);
+      else {
+        endPass(pass, options.keepUnmatched);
+        resolve();
+      }
     };
     requestAnimationFrame(step);
   });

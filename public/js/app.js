@@ -444,7 +444,14 @@ async function boot() {
   Schedule.initSchedule({ persistFn: persist });
   Detail.initDetail();
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
-  Render.renderAll(initialList);
+  // Performance marks for scripts/perf.js (the 2,000-entry render budget): from
+  // the start of the first render to the first painted frame that has cards
+  // (a task queued from rAF runs after that frame is painted), and to the
+  // last chunk being in place.
+  performance.mark('library:render-start');
+  const rendered = Render.renderAll(initialList);
+  requestAnimationFrame(() => setTimeout(() => performance.mark('library:first-paint'), 0));
+  Promise.resolve(rendered).then(() => performance.mark('library:complete'));
   Atmosphere.initAtmosphere();
   Preferences.initReducedMotionWatch();
   repositionTabPill(); // real tab-count text is in now, which can shift tab widths from initEvents' earlier "0" placeholder measurement

@@ -34,6 +34,7 @@ const EXE_PATH = path.join(OUT_DIR, `AnimeTracker-${APP_VERSION}.exe`);
 // module's own IIFE runs.
 const LOCAL_MODULES = [
   { requireLine: "require('./datadir.js')", file: 'datadir.js', varName: '__datadirModule' },
+  { requireLine: "require('./modulePreload.js')", file: 'modulePreload.js', varName: '__modulePreloadModule' },
   { requireLine: "require('./migrations.js')", file: 'migrations.js', varName: '__migrationsModule' },
   { requireLine: "require('./snapshots.js')", file: 'snapshots.js', varName: '__snapshotsModule' },
   // P1.2: libraryEtag.js requires datadir.js (canonicalJSON), so it must stay

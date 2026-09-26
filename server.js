@@ -28,6 +28,7 @@ const { createWriteLock, LockTimeoutError } = require('./writeLock.js');
 const { CLASS_B_STORES, planEviction, selectCorpusEvictionCandidates } = require('./classBEviction.js');
 const { computeReservedFloorBytes, hasSufficientFreeSpace } = require('./diskQuota.js');
 const HttpSecurity = require('./httpSecurity.js');
+const ModulePreload = require('./modulePreload.js');
 const { acquireInstanceLock } = require('./instanceLock.js');
 const { downloadImage, isAllowedCoverUrl } = require('./coverDownload.js');
 const BackupRetention = require('./backupRetention.js');
@@ -1669,6 +1670,29 @@ const NO_CACHE_HEADERS = { 'Cache-Control': 'no-store' };
 // same no-cache headers either way, just a second, equally-bounded root.
 // index.html is the one asset that is not served verbatim: it carries this
 // launch's write token and the Content-Security-Policy.
+// Source of a browser module by URL path (/js/... or /config/...), for the
+// modulepreload list. Embedded assets never change while the exe runs, so SEA
+// mode reads each once; dev mode reads from disk every time (files are edited).
+const moduleSourceCache = new Map();
+function readModuleSource(urlPath) {
+  const isConfig = urlPath.startsWith('/config/');
+  const rel = isConfig ? urlPath.slice('/config'.length) : urlPath;
+  try {
+    if (IS_SEA) return Buffer.from(sea.getRawAsset(`${isConfig ? 'config' : 'public'}${rel}`)).toString('utf8');
+    const rootDir = isConfig ? CONFIG_DIR : PUBLIC_DIR;
+    const filePath = path.join(rootDir, path.normalize(rel));
+    if (!filePath.startsWith(rootDir + path.sep)) return null;
+    return fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+function readModuleSourceCached(urlPath) {
+  if (!IS_SEA) return readModuleSource(urlPath);
+  if (!moduleSourceCache.has(urlPath)) moduleSourceCache.set(urlPath, readModuleSource(urlPath));
+  return moduleSourceCache.get(urlPath);
+}
+
 function serveIndexHtml(res) {
   let html;
   try {
@@ -1679,6 +1703,7 @@ function serveIndexHtml(res) {
     sendJson(res, 404, { error: 'Not found' });
     return;
   }
+  html = ModulePreload.injectModulePreloads(html, '/js/app.js', readModuleSourceCached);
   const body = Buffer.from(HttpSecurity.injectWriteToken(html, WRITE_TOKEN), 'utf8');
   res.writeHead(200, {
     'Content-Type': MIME_TYPES['.html'],

@@ -203,6 +203,7 @@ export function franchiseCardHtml(group, list) {
 // updated does not replay it). The stagger covers the first screen only.
 const ENTER_STAGGER_MS = 45;
 const ENTER_STAGGER_CAP = 12;
+const ENTER_MAX_ANIMATED = 36;
 function playEnter(el, index) {
   el.classList.add('enter');
   el.style.animationDelay = `${Math.min(index, ENTER_STAGGER_CAP) * ENTER_STAGGER_MS}ms`;
@@ -268,8 +269,13 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
         : item.group.length === 1
           ? cardHtml(item.group[0], list)
           : franchiseCardHtml(item.group, list),
+    // Only the first screen animates in: cards created further down (the later
+    // chunks) are off screen, and 2,000 simultaneous animations cost more
+    // style and paint work than the whole render.
     onCreate: (el) => {
-      if (!el.classList.contains('grid-section-heading')) playEnter(el, createdIndex++);
+      if (el.classList.contains('grid-section-heading')) return;
+      if (createdIndex < ENTER_MAX_ANIMATED) playEnter(el, createdIndex);
+      createdIndex++;
     },
   });
 }
