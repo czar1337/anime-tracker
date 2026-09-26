@@ -97,13 +97,14 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
   // Ephemeral-range random port. Tests run with Playwright's workers:1
   // (see playwright.config.js) so collisions are not expected in practice,
   // but a real EADDRINUSE would surface as waitForServer() timing out.
-  const testPort = 41000 + Math.floor(Math.random() * 4000);
+  // A test that restarts a server on the same port passes it in opts.env.
+  const testPort = Number(opts.env?.ANIME_TRACKER_PORT) || 41000 + Math.floor(Math.random() * 4000);
   const child = spawn(process.execPath, [SERVER_PATH], {
     env: {
       ...process.env,
       ANIME_TRACKER_DATA_DIR: dataDir,
-      ANIME_TRACKER_PORT: String(testPort),
       ...(opts.env || {}),
+      ANIME_TRACKER_PORT: String(testPort),
     },
     stdio: 'pipe',
   });

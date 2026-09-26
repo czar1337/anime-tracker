@@ -1,4 +1,4 @@
-import { writeHeaders } from './writeToken.js';
+import { writeHeaders, writeFetch } from './writeToken.js';
 // All network I/O: local server calls (library CRUD, backups, cover
 // downloads) and direct-to-AniList GraphQL search (AniList's endpoint sends
 // permissive CORS headers, so the browser can call it without a proxy).
@@ -50,7 +50,7 @@ async function getVersionInfo() {
 // lost to a library conflict — see server.js's event-log section for why that
 // decoupling matters. Also usable during page teardown via `keepalive`.
 async function postEvents(events, { keepalive = false } = {}) {
-  const res = await fetch('/api/events', {
+  const res = await writeFetch('/api/events', {
     method: 'POST',
     headers: writeHeaders(),
     body: JSON.stringify({ events }),
@@ -62,7 +62,7 @@ async function postEvents(events, { keepalive = false } = {}) {
 }
 
 async function saveLibrary(data, etag) {
-  const res = await fetch('/api/library', {
+  const res = await writeFetch('/api/library', {
     method: 'PUT',
     headers: writeHeaders({ 'If-Match': etag }),
     body: JSON.stringify(data),
@@ -86,7 +86,7 @@ async function listBackups() {
 }
 
 async function restoreBackup(file) {
-  const res = await fetch('/api/backups/restore', {
+  const res = await writeFetch('/api/backups/restore', {
     method: 'POST',
     headers: writeHeaders(),
     body: JSON.stringify({ file }),
@@ -102,7 +102,7 @@ async function getRecommendationsCache() {
 }
 
 async function saveRecommendationsCache(data) {
-  const res = await fetch('/api/recommendations', {
+  const res = await writeFetch('/api/recommendations', {
     method: 'PUT',
     headers: writeHeaders(),
     body: JSON.stringify(data),
@@ -125,7 +125,7 @@ async function getAiringCache() {
 }
 
 async function saveAiringCache(data) {
-  const res = await fetch('/api/airing', {
+  const res = await writeFetch('/api/airing', {
     method: 'PUT',
     headers: writeHeaders(),
     body: JSON.stringify(data),
@@ -148,7 +148,7 @@ async function getUpcomingCache() {
 }
 
 async function saveUpcomingCache(data) {
-  const res = await fetch('/api/upcoming', {
+  const res = await writeFetch('/api/upcoming', {
     method: 'PUT',
     headers: writeHeaders(),
     body: JSON.stringify(data),
@@ -193,7 +193,7 @@ async function getCorpusCache() {
 // `newEntries` into its own on-disk copy instead — see server.js's
 // `PUT /api/corpus` handler.
 async function saveCorpusPage({ cursor, newEntries, targetSize }) {
-  const res = await fetch('/api/corpus', {
+  const res = await writeFetch('/api/corpus', {
     method: 'PUT',
     headers: writeHeaders(),
     body: JSON.stringify({ cursor, newEntries, targetSize, generatedAt: new Date().toISOString() }),
@@ -217,7 +217,7 @@ async function getTasteProfile() {
 }
 
 async function downloadCover(anilistId, url) {
-  const res = await fetch('/api/covers', {
+  const res = await writeFetch('/api/covers', {
     method: 'POST',
     headers: writeHeaders(),
     body: JSON.stringify({ anilistId, url }),

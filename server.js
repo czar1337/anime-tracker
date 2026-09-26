@@ -128,6 +128,13 @@ if (!instanceLock.acquired) {
   process.exit(1);
 }
 process.on('exit', () => instanceLock.release());
+// Keeps the lock fresh while running. If another copy ever takes it over (only
+// possible after this one stopped refreshing it, e.g. a long system sleep), this
+// one stops rather than have two copies write the same folder.
+instanceLock.startHeartbeat(() => {
+  console.error('[startup] Another copy of Anime Tracker took over this data folder; stopping this one.');
+  process.exit(0);
+});
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
   process.on(signal, () => process.exit(0));
 }
