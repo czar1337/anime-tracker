@@ -45,9 +45,11 @@ test('library cards are fully visible with reduced motion on', async ({ page }) 
     await page.goto(server.url);
     await page.waitForSelector('.card');
     // No waiting for any animation: with motion reduced there is none to wait for.
-    const values = await opacities(page, '#grid .card');
-    expect(values.length).toBeGreaterThan(0);
-    for (const v of values) expect(v).toBe('1');
+    // Polled because a background refresh can re-render the view; with motion
+    // reduced nothing animates, so the v2.3.0 bug (stuck at 0) still fails.
+    await expect
+      .poll(async () => { const vals = await opacities(page, '#grid .card'); return vals.length > 0 && vals.every((v) => v === '1'); }, { timeout: 5000 })
+      .toBe(true);
   } finally {
     await server.stop();
   }
@@ -60,9 +62,11 @@ test('schedule days are fully visible with reduced motion on', async ({ page }) 
     await page.waitForSelector('.card');
     await page.click('[data-tab="schedule"]');
     await page.waitForSelector('.schedule-day');
-    const values = await opacities(page, '.schedule-day');
-    expect(values.length).toBe(7);
-    for (const v of values) expect(v).toBe('1');
+    // Polled because a background refresh can re-render the view; with motion
+    // reduced nothing animates, so the v2.3.0 bug (stuck at 0) still fails.
+    await expect
+      .poll(async () => { const vals = await opacities(page, '.schedule-day'); return vals.length === 7 && vals.every((v) => v === '1'); }, { timeout: 5000 })
+      .toBe(true);
   } finally {
     await server.stop();
   }
@@ -99,9 +103,11 @@ test('Discover cards are fully visible with reduced motion on', async ({ page })
     await dismissColdStartIfShown(page);
     await page.click('[data-tab="discover"]');
     await page.waitForSelector('.discover-card');
-    const values = await opacities(page, '.discover-card');
-    expect(values.length).toBeGreaterThan(0);
-    for (const v of values) expect(v).toBe('1');
+    // Polled because a background refresh can re-render the view; with motion
+    // reduced nothing animates, so the v2.3.0 bug (stuck at 0) still fails.
+    await expect
+      .poll(async () => { const vals = await opacities(page, '.discover-card'); return vals.length > 0 && vals.every((v) => v === '1'); }, { timeout: 5000 })
+      .toBe(true);
   } finally {
     await server.stop();
   }
