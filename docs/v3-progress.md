@@ -9,7 +9,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 |---|---|---|---|
 | 0 Verify, decide, plan | `v3/0-plan` | done | — |
 | 1 Safety and correctness | `v3/1-foundation-safety` | done | — |
-| 2 Render engine and structure | `v3/2-render-engine` | not started | core/store.js, then the library grid |
+| 2 Render engine and structure | `v3/2-render-engine` | in progress | core html/reconcile/store done; library grid migrated. Next: perf (modulepreload, first-paint measure, corpus etag), core/dialog.js + focus.js, other views, server split into src/, esbuild |
 | 3 Design system and motion | `v3/3-design-motion` | not started | |
 | 4 Flow and screens | `v3/4-flow-screens` | not started | |
 | 5 Features | `v3/5-features` | not started | |
