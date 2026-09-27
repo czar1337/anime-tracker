@@ -1,0 +1,41 @@
+{
+  "version": "before",
+  "measuredAt": "2026-09-27T10:35:36.121Z",
+  "total": 9,
+  "flows": {
+    "logEpisode": {
+      "interactions": 1,
+      "steps": [
+        "click #grid > .card >> nth=1 >> [data-action=\"increment\"]"
+      ]
+    },
+    "finishSeries": {
+      "interactions": 1,
+      "steps": [
+        "click #grid > .card >> nth=0 >> [data-action=\"increment\"]"
+      ]
+    },
+    "addSeries": {
+      "interactions": 3,
+      "steps": [
+        "click #add-trigger",
+        "type #search-input",
+        "click #search-results [data-add-status=\"watchlist\"]"
+      ]
+    },
+    "rate": {
+      "interactions": 2,
+      "steps": [
+        "click [data-tab=\"watched\"]",
+        "click #grid > .card >> nth=0 >> .score-dot[data-score=\"3\"]"
+      ]
+    },
+    "findSomethingNew": {
+      "interactions": 2,
+      "steps": [
+        "click [data-tab=\"discover\"]",
+        "click .discover-card [data-action=\"discover-add\"]"
+      ]
+    }
+  }
+}
