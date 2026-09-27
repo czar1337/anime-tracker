@@ -48,6 +48,8 @@ const NON_DEFAULT_PREFS = {
   density: 'compact',
   motion: 'reduced',
   decoration: 'low',
+  // v3 Phase 5 (schema 16): background notifications.
+  notifications: { enabled: true, lists: ['watching', 'paused'], quietHours: null },
   appearanceNotice: { version: 15, changes: [{ kind: 'theme', slot: 'dark', from: 'holo-deck', to: 'frost' }], seenAt: '2026-09-27T10:00:00.000Z' },
   savedViews: [
     { id: 'v1', name: 'Short mysteries', list: 'watchlist', filters: { genres: ['Mystery'], format: 'TV', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' }, sort: 'episodes', sortDir: 'asc' },

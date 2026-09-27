@@ -1,0 +1,41 @@
+{
+ "schemaVersion": 16,
+ "entries": 222,
+ "counts": {
+  "watched": 210,
+  "watching": 12
+ },
+ "events": 16,
+ "counters": {
+  "totalEpisodes": 6388
+ },
+ "snapshotsVerified": "4/6",
+ "pinnedLabels": [
+  "pre-migration-14-to-16",
+  null,
+  null,
+  null
+ ],
+ "watchHistory": 76,
+ "watchedWithCompletedAt": 76,
+ "imports": 0,
+ "rewatchCounts": [
+  0
+ ],
+ "startedAt": [
+  null
+ ],
+ "notifications": {
+  "enabled": false,
+  "lists": [
+   "watching"
+  ],
+  "quietHours": {
+   "from": "23:00",
+   "to": "08:00"
+  }
+ },
+ "pausedSort": "dateAdded",
+ "appearanceV3": "moonlit-shrine",
+ "note": "Schema 15 -> 16 dry run on a copy of the real data folder, 2026-09-27. The real folder was only read."
+}

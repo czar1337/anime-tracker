@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 15;
+const CURRENT_SCHEMA_VERSION = 16;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -537,7 +537,55 @@ function migrate_14_to_15(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12, 12: migrate_12_to_13, 13: migrate_13_to_14, 14: migrate_14_to_15 };
+// v3 Phase 5: Paused, rewatches, watch history, imports and background
+// notifications. Additive only:
+// - every entry gains rewatchCount (0) and startedAt (null);
+// - Paused gets its own filters, sort and sort direction (the Watching ones'
+//   defaults), so the list has the same shape as the others;
+// - two new top-level Class A stores, both records keyed by id: watchHistory
+//   (one dated record per watch or rewatch, seeded with one record for every
+//   Watched series that has a completedAt) and imports (one record per import,
+//   for "Revert this import"; empty);
+// - preferences.notifications, computed from the in-browser notifyNewEpisodes
+//   opt-in (which stays as it is).
+// Idempotent: a second run leaves everything as the first left it.
+const PAUSED_DEFAULTS_AT_V16 = {
+  filter: { genres: [], format: '', studio: '', myScoreMin: null, myScoreMax: null, unratedOnly: false, airingStatus: '' },
+  sort: 'dateAdded',
+  sortDir: 'desc',
+};
+
+function migrate_15_to_16(data) {
+  const out = { ...data };
+  out.schemaVersion = 16;
+  out.entries = (data.entries || []).map((e) => ({
+    ...e,
+    rewatchCount: Number.isInteger(e.rewatchCount) && e.rewatchCount >= 0 ? e.rewatchCount : 0,
+    startedAt: typeof e.startedAt === 'string' ? e.startedAt : null,
+  }));
+  if (!Array.isArray(data.watchHistory)) {
+    out.watchHistory = (data.entries || [])
+      .filter((e) => e.listStatus === 'watched' && typeof e.completedAt === 'string')
+      .map((e) => ({ id: `wh-${e.anilistId}-0`, anilistId: e.anilistId, kind: 'watch', startedAt: null, finishedAt: e.completedAt, note: '', createdAt: e.completedAt }));
+  }
+  out.imports = Array.isArray(data.imports) ? data.imports : [];
+  const prefs = out.preferences && typeof out.preferences === 'object' ? { ...out.preferences } : null;
+  if (prefs) {
+    if (prefs.filters && typeof prefs.filters === 'object' && !prefs.filters.paused) prefs.filters = { ...prefs.filters, paused: { ...PAUSED_DEFAULTS_AT_V16.filter } };
+    if (prefs.sort && typeof prefs.sort === 'object' && !prefs.sort.paused) prefs.sort = { ...prefs.sort, paused: PAUSED_DEFAULTS_AT_V16.sort };
+    if (prefs.sortDir && typeof prefs.sortDir === 'object' && !prefs.sortDir.paused) prefs.sortDir = { ...prefs.sortDir, paused: PAUSED_DEFAULTS_AT_V16.sortDir };
+    if (!prefs.notifications || typeof prefs.notifications !== 'object') {
+      prefs.notifications = { enabled: Boolean(prefs.notifyNewEpisodes), lists: ['watching'], quietHours: { from: '23:00', to: '08:00' } };
+    }
+    out.preferences = prefs;
+  }
+  if ((data.entries || []).length !== out.entries.length) {
+    throw new Error('migrate_15_to_16 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12, 12: migrate_12_to_13, 13: migrate_13_to_14, 14: migrate_14_to_15, 15: migrate_15_to_16 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -564,4 +612,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, MIGRATIONS, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_2_to_3, migrate_3_to_4, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 };
+module.exports = { CURRENT_SCHEMA_VERSION, MIGRATIONS, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_2_to_3, migrate_3_to_4, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, migrate_15_to_16, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 };

@@ -293,6 +293,9 @@ function markSelected(view) {
   selectTab(document.querySelectorAll('#section-tabs .tab'), (t) => t.dataset.tab === section);
   if (Store.LISTS.includes(view)) {
     selectTab(document.querySelectorAll('.list-seg'), (s) => s.dataset.list === view);
+    // On a phone the five lists can overflow their row, which scrolls: keep
+    // the selected one in sight.
+    document.getElementById(`list-tab-${view}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     document.getElementById('grid').setAttribute('aria-labelledby', `list-tab-${view}`);
   }
   updateTabPill();
@@ -319,7 +322,7 @@ function updateTabPill() {
 // of travel through the tab order plus a crossfade (styles.css,
 // :active-view-transition-type(tab)). Without View Transitions, or when the
 // view does not change, the view's own fade plays instead.
-const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'schedule', 'discover', 'stats'];
+const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'paused', 'schedule', 'discover', 'stats'];
 let navigationToken = 0;
 function switchView(next, update, viewEl) {
   const from = VIEW_ORDER.indexOf(currentView);

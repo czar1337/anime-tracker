@@ -8,7 +8,8 @@ import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
 import { createTagId, createListId, normalizeName, isDuplicateTagName, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partitionAiringLast, compareValues } from './sortLogic.js';
 
-const LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
+// v3 Phase 5 adds Paused (MAL's On-Hold), last, as the brief orders them.
+const LISTS = ['watching', 'watchlist', 'watched', 'dropped', 'paused'];
 
 // P1.3: defaults/repair moved to settingsSchema.js (the single typed settings
 // object docs/v2-spec.md's P1.3 asks for) — this module is now a thin
@@ -26,6 +27,8 @@ const state = {
   // membership on these objects.
   tags: [],
   customLists: [],
+  watchHistory: [],
+  imports: [],
 };
 
 // Tracks the server's ETag for whatever library content this Store currently
@@ -49,7 +52,7 @@ function reindex() {
 // Top-level library.json fields this module actively models. Anything else
 // the server sends is preserved verbatim in `unknownTopLevelFields` below and
 // handed straight back on save — see setLibrary/toJSON.
-const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dismissedItems', 'tags', 'customLists'];
+const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dismissedItems', 'tags', 'customLists', 'watchHistory', 'imports'];
 
 // Everything the server sent that this build doesn't model, kept so toJSON()
 // can hand it back untouched (docs/v2-spec.md rule 13, "forward
@@ -79,6 +82,10 @@ function setLibrary(data, etag = null) {
   state.dismissedItems = Array.isArray(data.dismissedItems) ? data.dismissedItems : [];
   state.tags = Array.isArray(data.tags) ? data.tags : [];
   state.customLists = Array.isArray(data.customLists) ? data.customLists : [];
+  // v3 Phase 5: dated watch records (one per watch or rewatch) and the imports
+  // that can be reverted from Settings.
+  state.watchHistory = Array.isArray(data.watchHistory) ? data.watchHistory : [];
+  state.imports = Array.isArray(data.imports) ? data.imports : [];
   unknownTopLevelFields = {};
   for (const key of Object.keys(data || {})) {
     if (!KNOWN_TOP_LEVEL_FIELDS.includes(key)) unknownTopLevelFields[key] = data[key];
@@ -108,6 +115,8 @@ function toJSON() {
     dismissedItems: state.dismissedItems,
     tags: state.tags,
     customLists: state.customLists,
+    watchHistory: state.watchHistory,
+    imports: state.imports,
   };
 }
 
@@ -143,7 +152,7 @@ function getEntriesByList(list) {
 }
 
 function getCounts() {
-  const counts = { watching: 0, watchlist: 0, watched: 0, dropped: 0 };
+  const counts = Object.fromEntries(LISTS.map((l) => [l, 0]));
   for (const e of state.entries) {
     if (counts[e.listStatus] !== undefined) counts[e.listStatus] += 1;
   }
@@ -198,6 +207,10 @@ function addEntry(entry) {
     shelfId: entry.shelfId ?? null,
     adventurousness: entry.adventurousness ?? null,
     membersAtSurfacing: entry.membersAtSurfacing ?? null,
+    // v3 Phase 5: how many times it was watched again, and when the first
+    // watch started (an import can bring both).
+    rewatchCount: Number.isInteger(entry.rewatchCount) && entry.rewatchCount > 0 ? entry.rewatchCount : 0,
+    startedAt: isIsoDate(entry.startedAt) ? entry.startedAt : entry.listStatus === 'watching' ? nowIso() : null,
     addedAt: nowIso(),
     updatedAt: nowIso(),
     // An import can bring the real finish date (v3 Phase 5: MAL my_finish_date
@@ -650,11 +663,11 @@ function groupSortValue(group, sortKey) {
 // "Recommended" there, nothing to substitute). Resolved BEFORE any sorting
 // happens, so groupSortValue/compareValues never actually see the literal
 // key 'recommended' for a list.
-const LIST_RECOMMENDED_KEY = { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated' };
+const LIST_RECOMMENDED_KEY = { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'lastUpdated' };
 
 // Free-text title filter is intentionally NOT persisted (like a Ctrl-F, not
 // a lasting preference) — kept as simple in-memory state per list.
-const titleFilters = { watching: '', watchlist: '', watched: '', dropped: '' };
+const titleFilters = Object.fromEntries(LISTS.map((l) => [l, '']));
 function setTitleFilter(list, text) {
   titleFilters[list] = text;
   touch();

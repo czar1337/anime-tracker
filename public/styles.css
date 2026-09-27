@@ -321,7 +321,8 @@ kbd {
 #notifications-trigger { position: relative; }
 .icn-dot { position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
 
-/* Library: the four lists as one segmented control, with counts. */
+/* Library: the five lists as one segmented control, with counts. On a phone
+   the row scrolls sideways, with tighter padding so most of it fits. */
 .library-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .lists-seg {
   display: inline-flex;
@@ -351,6 +352,7 @@ kbd {
 }
 .list-seg:hover { color: var(--text); }
 .list-seg[aria-selected="true"] { background: var(--accent-soft); color: var(--text); }
+@media (max-width: 720px) { .list-seg { padding: var(--sp-2); gap: var(--sp-1); } }
 .saved-views { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .saved-view { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius-pill); overflow: hidden; }
 .saved-view.on { border-color: var(--accent); background: var(--accent-soft); }

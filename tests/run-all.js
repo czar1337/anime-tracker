@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, migrate_15_to_16, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 } = require('../migrations.js');
   // The v2 light themes (migrate_9_to_10's frozen list): a retired light theme must map to a light one.
   const LIGHT_THEME_IDS = new Set(['clean-interface', 'radiant', 'daybreak', 'parchment', 'amberlight', 'rosequartz', 'cinderglass']);
 
@@ -632,6 +632,41 @@ async function run() {
     const once = migrate_14_to_15(v14With({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'preset', id: 'venom' } } }));
     const seen = { ...once, preferences: { ...once.preferences, appearanceNotice: { ...once.preferences.appearanceNotice, seenAt: '2026-09-27T10:00:00.000Z' }, textSize: 4 } };
     assert.deepEqual(migrate_14_to_15(seen), seen);
+  });
+
+  // v3 Phase 5.
+  await test('migration v15->v16: rewatchCount and startedAt on every entry, Paused gets list defaults, the two new stores exist, notifications follow the old opt-in', () => {
+    const v15 = migrate_14_to_15(v14With({}));
+    const before = {
+      ...v15,
+      entries: [
+        { anilistId: 1, listStatus: 'watched', completedAt: '2025-04-02T10:00:00.000Z', episodesWatched: 12 },
+        { anilistId: 2, listStatus: 'watching', completedAt: null, episodesWatched: 3 },
+        { anilistId: 3, listStatus: 'watched', completedAt: null, episodesWatched: 1 },
+      ],
+      preferences: { ...v15.preferences, notifyNewEpisodes: true },
+    };
+    const snapshot = JSON.parse(JSON.stringify(before));
+    const out = migrate_15_to_16(before);
+    assert.equal(out.schemaVersion, 16);
+    assert.deepEqual(out.entries.map((e) => [e.rewatchCount, e.startedAt]), [[0, null], [0, null], [0, null]]);
+    assert.deepEqual(out.watchHistory, [{ id: 'wh-1-0', anilistId: 1, kind: 'watch', startedAt: null, finishedAt: '2025-04-02T10:00:00.000Z', note: '', createdAt: '2025-04-02T10:00:00.000Z' }]);
+    assert.deepEqual(out.imports, []);
+    assert.equal(out.preferences.sort.paused, 'dateAdded');
+    assert.equal(out.preferences.sortDir.paused, 'desc');
+    assert.deepEqual(out.preferences.filters.paused.genres, []);
+    assert.deepEqual(out.preferences.notifications, { enabled: true, lists: ['watching'], quietHours: { from: '23:00', to: '08:00' } });
+    assert.equal(out.preferences.notifyNewEpisodes, true, 'the old field stays');
+    for (const [i, e] of snapshot.entries.entries()) for (const k of Object.keys(e)) assert.deepEqual(out.entries[i][k], e[k], `entry field ${k} changed`);
+    assert.deepEqual(before, snapshot, 'the input is not mutated');
+  });
+
+  await test('migration v15->v16 is idempotent and keeps records and values already there', () => {
+    const v15 = migrate_14_to_15(v14With({}));
+    const once = migrate_15_to_16({ ...v15, entries: [{ anilistId: 1, listStatus: 'watched', completedAt: '2025-01-01T00:00:00.000Z', rewatchCount: 2, startedAt: '2024-12-01T00:00:00.000Z' }] });
+    const edited = { ...once, watchHistory: [...once.watchHistory, { id: 'wh-x', anilistId: 1, kind: 'rewatch', startedAt: null, finishedAt: null, note: 'again', createdAt: 'x' }], preferences: { ...once.preferences, notifications: { enabled: false, lists: ['watchlist'], quietHours: null } } };
+    assert.deepEqual(migrate_15_to_16(edited), edited);
+    assert.deepEqual([once.entries[0].rewatchCount, once.entries[0].startedAt], [2, '2024-12-01T00:00:00.000Z']);
   });
 
   await test("migrate_14_to_15's frozen theme lists match themes.js's live curated set and retired map", async () => {
@@ -2704,7 +2739,7 @@ async function run() {
   await test('buildExport covers every registered store, including P1.5\'s and P1.7\'s new ones', () => {
     const sources = fullSources();
     const result = buildExport(CLASS_A_STORES, sources);
-    assert.deepEqual(Object.keys(result.stores).sort(), ['counters', 'customLists', 'dismissedItems', 'entries', 'eventLog', 'preferences', 'tags']);
+    assert.deepEqual(Object.keys(result.stores).sort(), ['counters', 'customLists', 'dismissedItems', 'entries', 'eventLog', 'imports', 'preferences', 'tags', 'watchHistory']);
     assert.deepEqual(result.stores.entries, sources.library.entries);
     assert.deepEqual(result.stores.preferences, sources.library.preferences);
     assert.deepEqual(result.stores.dismissedItems, sources.library.dismissedItems);
@@ -3084,7 +3119,7 @@ async function run() {
     const realExact = Snapshots.storeIdsWithExactRestoreVerification(CLASS_A_STORES);
     assert.deepEqual(
       realExact.sort(),
-      ['customLists', 'dismissedItems', 'entries', 'preferences', 'tags'],
+      ['customLists', 'dismissedItems', 'entries', 'imports', 'preferences', 'tags', 'watchHistory'],
       'library-backed stores stay byte-exact'
     );
 

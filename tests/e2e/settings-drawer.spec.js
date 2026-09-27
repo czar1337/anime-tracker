@@ -155,7 +155,7 @@ test('the schema 15 migration: a retired theme carries over as its nearest one, 
     expect(before.appearanceV3.dark).toEqual({ type: 'preset', id: 'frost' });
     expect(before.appearance.dark).toEqual({ type: 'preset', id: 'holo-deck' }); // the old field, untouched
     const { snapshots } = await (await fetch(`${server.url}/api/snapshots`)).json();
-    expect(snapshots.some((s) => s.pinned && s.label === 'pre-migration-14-to-15')).toBe(true);
+    expect(snapshots.some((s) => s.pinned && s.label === 'pre-migration-14-to-16')).toBe(true);
 
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');

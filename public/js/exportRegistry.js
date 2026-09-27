@@ -125,6 +125,26 @@ const CLASS_A_STORES = [
     get: (sources) => (Array.isArray(sources.library?.customLists) ? sources.library.customLists : []),
     restoreTarget: { kind: 'libraryField', field: 'customLists' },
   },
+  // v3 Phase 5: two more plain library.json fields, the same shape as tags.
+  // watchHistory holds one dated record per watch or rewatch (the diary);
+  // imports holds one record per import, with what it added and what it
+  // changed, so "Revert this import" works after a reload.
+  {
+    id: 'watchHistory',
+    label: 'Watch history',
+    kind: 'records',
+    recordId: 'id',
+    get: (sources) => (Array.isArray(sources.library?.watchHistory) ? sources.library.watchHistory : []),
+    restoreTarget: { kind: 'libraryField', field: 'watchHistory' },
+  },
+  {
+    id: 'imports',
+    label: 'Imports',
+    kind: 'records',
+    recordId: 'id',
+    get: (sources) => (Array.isArray(sources.library?.imports) ? sources.library.imports : []),
+    restoreTarget: { kind: 'libraryField', field: 'imports' },
+  },
 ];
 
 // Walks `registry` generically — never references a store by name — so adding a

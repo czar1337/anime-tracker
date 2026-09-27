@@ -335,7 +335,7 @@ test('the specific P1.7 regression: a snapshot predating tags/customLists entire
     const body = await res.json();
     expect(body.verified).toBe(true);
     expect(body.migratedTo).toBe(CURRENT_SCHEMA_VERSION);
-    expect(body.skippedStores).toEqual(['tags', 'customLists']);
+    expect(body.skippedStores).toEqual(['tags', 'customLists', 'watchHistory', 'imports']);
 
     const lib = await (await fetch(`${server.url}/api/library`)).json();
     expect(lib.entries.map((e) => e.anilistId)).toEqual([777]);

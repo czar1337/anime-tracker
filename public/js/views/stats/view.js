@@ -16,6 +16,7 @@ const LIST_META = {
   watchlist: { label: 'Watchlist', icon: '☰' },
   watched: { label: 'Watched', icon: '✓' },
   dropped: { label: 'Dropped', icon: '✕' },
+  paused: { label: 'Paused', icon: '❚❚' },
 };
 
 export function barChartHtml(data, { formatValue = (v) => v } = {}) {
