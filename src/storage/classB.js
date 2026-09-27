@@ -20,6 +20,7 @@ const {
   UPCOMING_CACHE_FILE,
   CORPUS_CACHE_FILE,
   TASTE_PROFILE_CACHE_FILE,
+  COVER_HUES_FILE,
 } = require('../config.js');
 
 // The recommendations cache is fully regenerable (just a snapshot of an
@@ -59,6 +60,22 @@ function readUpcomingCache() {
 // write for crash-safety but no backup rotation and no corrupt-refusal.
 function writeAiringCacheAtomic(data) {
   writeJsonAtomic(AIRING_CACHE_FILE, data, { pretty: true });
+}
+
+// v3 Phase 4: cover colours, { entries: { [anilistId]: { color, source } } }.
+// Regenerable, so the same crash-safe write, no backups, corrupt = empty.
+function writeCoverHuesAtomic(data) {
+  writeJsonAtomic(COVER_HUES_FILE, data);
+}
+
+function readCoverHues() {
+  if (!fs.existsSync(COVER_HUES_FILE)) return { entries: {} };
+  try {
+    const data = JSON.parse(fs.readFileSync(COVER_HUES_FILE, 'utf8'));
+    return data && typeof data.entries === 'object' && data.entries !== null && !Array.isArray(data.entries) ? data : { entries: {} };
+  } catch {
+    return { entries: {} };
+  }
 }
 
 function readAiringCache() {
@@ -152,6 +169,7 @@ function readTasteProfileCache() {
 // ---------------------------------------------------------------------------
 
 const CLASS_B_STORE_FILES = {
+  coverHueCache: COVER_HUES_FILE,
   recommendationsCache: RECS_CACHE_FILE,
   tasteProfileCache: TASTE_PROFILE_CACHE_FILE,
   airingCache: AIRING_CACHE_FILE,
@@ -204,6 +222,7 @@ function trimCorpusCache(deficitBytes) {
 // it takes the remaining deficit and trims rather than wiping. Every other
 // resetter ignores that same argument, being plain zero-arg functions.
 const CLASS_B_STORE_RESETTERS = {
+  coverHueCache: () => writeCoverHuesAtomic({ entries: {} }),
   recommendationsCache: () => writeRecsCacheAtomic({ generatedAt: null, items: [] }),
   tasteProfileCache: () =>
     writeTasteProfileCacheAtomic({ generatedAt: null, affinities: null, meanScore: null, scoreStdDev: null, ratedCount: 0, confidence: 0 }),
@@ -285,6 +304,8 @@ module.exports = {
   readUpcomingCache,
   writeAiringCacheAtomic,
   readAiringCache,
+  writeCoverHuesAtomic,
+  readCoverHues,
   writeCorpusCacheAtomic,
   corpusSnapshot,
   readCorpusCache,

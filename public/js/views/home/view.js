@@ -17,6 +17,7 @@ import { html, cls, cssUrl } from '../../core/html.js';
 import { morphInto } from '../../core/reconcile.js';
 import { coverSrc } from '../library/view.js';
 import { HOME } from '../../../../config/tuning.js';
+import { paintAccents } from '../../accent.js';
 
 const title = (entry) => titlesInOrder(entry, Store.state.preferences.titleLanguage)[0];
 
@@ -106,7 +107,10 @@ export function renderWatchingHero() {
   if (!el) return;
   const pick = heroPick();
   el.hidden = !pick;
-  if (pick) morphInto(el, heroHtml(pick, { tall: true }));
+  if (pick) {
+    morphInto(el, heroHtml(pick, { tall: true }));
+    paintAccents(el);
+  }
 }
 
 // One card of the Continue watching rail: the image, the title, the next
@@ -196,4 +200,5 @@ export function renderHome(container) {
     </div>`;
   // Morphed: a +1 on a rail card keeps its image and the rail's scroll.
   morphInto(container, markup);
+  paintAccents(container);
 }

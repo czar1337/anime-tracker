@@ -41,6 +41,8 @@ const AIRING_CACHE_FILE = path.join(DATA_DIR, 'airing-cache.json');
 const UPCOMING_CACHE_FILE = path.join(DATA_DIR, 'upcoming-cache.json');
 const CORPUS_CACHE_FILE = path.join(DATA_DIR, 'corpus-cache.json');
 const TASTE_PROFILE_CACHE_FILE = path.join(DATA_DIR, 'taste-profile-cache.json');
+// v3 Phase 4: each cover's dominant colour, for the dynamic accent (Class B).
+const COVER_HUES_FILE = path.join(DATA_DIR, 'cover-hues.json');
 const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
 // P1.5's two Class A stores outside library.json:
 //  - events.jsonl is append-only and grows indefinitely (the spec forbids
@@ -94,6 +96,7 @@ module.exports = {
   UPCOMING_CACHE_FILE,
   CORPUS_CACHE_FILE,
   TASTE_PROFILE_CACHE_FILE,
+  COVER_HUES_FILE,
   UPDATE_CHECK_FILE,
   EVENTS_FILE,
   COUNTERS_FILE,

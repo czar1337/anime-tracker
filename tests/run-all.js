@@ -3248,7 +3248,8 @@ async function run() {
     // relative position the spec's own rule 4 text names explicitly ("then
     // the taste profile, then the airing store") — without relitigating
     // P1.2's own pre-existing airing-before-upcoming order.
-    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['recommendationsCache', 'tasteProfileCache', 'airingCache', 'upcomingCache', 'corpusCache']);
+    // v3 Phase 4 put the cover colours first: the cheapest to regenerate.
+    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['coverHueCache', 'recommendationsCache', 'tasteProfileCache', 'airingCache', 'upcomingCache', 'corpusCache']);
   });
 
   await test('selectCorpusEvictionCandidates: never selects a library id, even when it has the lowest popularity', () => {

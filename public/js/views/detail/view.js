@@ -20,6 +20,7 @@ import { formatEnumLabel } from '../shared/format.js';
 import { morphInto } from '../../core/reconcile.js';
 import { detailState } from './model.js';
 import { detailSkeletonHtml } from '../shared/skeleton.js';
+import { noteAniListColor, knownColor, colorFor, applyAccent } from '../../accent.js';
 
 // design/HANDOVER.md §14 "More than 50 episodes": squares up to 50; past that,
 // a compact bar plus a "jump to episode" field, with only the last 18 squares
@@ -200,6 +201,8 @@ export function renderDetailOverlay(container, state) {
   const shownId = container.dataset.anilistId;
   delete container.dataset.anilistId;
   container.removeAttribute('aria-busy');
+  const panel = container.closest('.detail-panel');
+  if (state.status !== 'ready') applyAccent(panel, null);
   if (state.status === 'loading') {
     container.setAttribute('aria-busy', 'true');
     container.innerHTML = String(detailSkeletonHtml({ coverNow: Boolean(state.coverNow) }));
@@ -283,4 +286,10 @@ export function renderDetailOverlay(container, state) {
   // were; a different series is a fresh render.
   if (shownId === String(m.id)) morphInto(container, markup);
   else container.innerHTML = String(markup);
+  // The dynamic accent: AniList's colour for this cover, or (for a series in
+  // the library) one read of its local cover.
+  noteAniListColor(m.id, m.coverImage?.color);
+  const known = knownColor(m.id);
+  applyAccent(panel, known);
+  if (!known && local) colorFor(m.id).then((color) => Number(container.dataset.anilistId) === m.id && applyAccent(panel, color));
 }

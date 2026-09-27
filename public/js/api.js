@@ -121,8 +121,24 @@ async function saveRecommendationsCache(data) {
   return body;
 }
 
-async function getAiringCache() {
-  const res = await fetch('/api/airing');
+// v3 Phase 4: cover colours for the dynamic accent (a Class B store).
+async function getCoverHues() {
+  const res = await fetch('/api/cover-hues');
+  return res.json();
+}
+
+async function saveCoverHues(entries) {
+  const res = await writeFetch('/api/cover-hues', { method: 'PUT', headers: writeHeaders(), body: JSON.stringify({ entries }) });
+  const body = await res.json();
+  if (!res.ok) {
+    const err = new Error(body.error || 'Failed to save cover colours');
+    err.quotaExceeded = res.status === 507;
+    throw err;
+  }
+  return body;
+}
+
+async function getAiringCache() {  const res = await fetch('/api/airing');
   return res.json();
 }
 
@@ -595,7 +611,7 @@ query ($id: Int) {
     id
     title { romaji english native }
     description(asHtml: false)
-    coverImage { large extraLarge }
+    coverImage { large extraLarge color }
     bannerImage
     genres
     tags { name isGeneralSpoiler isMediaSpoiler }
@@ -622,6 +638,8 @@ async function fetchAnimeDetail(anilistId) {
 }
 
 export const Api = {
+  getCoverHues,
+  saveCoverHues,
   getLibrary,
   getEvents,
   saveLibrary,
