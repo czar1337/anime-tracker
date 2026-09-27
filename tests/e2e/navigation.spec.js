@@ -151,9 +151,10 @@ test('Import, Backup, Notifications and Help are reached from Settings', async (
   const server = await startFixtureServer(FIXTURE);
   try {
     await open(page, server.url);
-    for (const [command, dialog] of [['import.open', '#import-overlay'], ['backup.open', '#backup-overlay'], ['notifications.open', '#notifications-overlay'], ['help.open', '#shortcuts-overlay']]) {
+    for (const [command, dialog, section] of [['import.open', '#import-overlay', 'data'], ['backup.open', '#backup-overlay', 'data'], ['notifications.open', '#notifications-overlay', 'notifications'], ['help.open', '#shortcuts-overlay', 'help']]) {
       await page.click('#settings-trigger');
-      await page.locator(`#settings-body [data-command="${command}"]`).click();
+      await page.click(`#settings-tab-${section}`);
+      await page.locator(`#settings-panel-${section} [data-command="${command}"]`).click();
       await expect(page.locator(dialog)).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(page.locator(dialog)).toBeHidden();

@@ -42,6 +42,13 @@ const NON_DEFAULT_PREFS = {
   // v3 Phase 4: the library layout and saved filter views, both new Class A
   // preference fields.
   libraryLayout: 'list',
+  // v3 Phase 4 (D2, schema 15): the appearance controls and the one-time notice.
+  appearanceV3: { mode: 'system', light: { type: 'preset', id: 'rosequartz' }, dark: { type: 'custom', accent: '#3ba55d', base: '#101820' } },
+  textSize: 5,
+  density: 'compact',
+  motion: 'reduced',
+  decoration: 'low',
+  appearanceNotice: { version: 15, changes: [{ kind: 'theme', slot: 'dark', from: 'holo-deck', to: 'frost' }], seenAt: '2026-09-27T10:00:00.000Z' },
   savedViews: [
     { id: 'v1', name: 'Short mysteries', list: 'watchlist', filters: { genres: ['Mystery'], format: 'TV', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' }, sort: 'episodes', sortDir: 'asc' },
   ],

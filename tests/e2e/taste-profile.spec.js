@@ -178,6 +178,7 @@ test('skip suppresses the automatic trigger on the next boot, but Settings can s
     await expect(page.locator('#cold-start-overlay')).toBeHidden();
 
     await page.click('#settings-trigger');
+    await page.click('#settings-tab-recommendations');
     await page.click('[data-action="redo-cold-start"]');
     await expect(page.locator('#cold-start-overlay')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.coldstart-tile')).toHaveCount(COLD_START_COUNT);

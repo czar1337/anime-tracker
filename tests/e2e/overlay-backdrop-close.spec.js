@@ -32,13 +32,13 @@ test('clicking an overlay\'s backdrop closes it (Help panel)', async ({ page }) 
   }
 });
 
-test('clicking an overlay\'s backdrop closes it (Settings/theme picker)', async ({ page }) => {
+test('clicking an overlay\'s backdrop closes it (the Settings drawer)', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await page.goto(server.url);
     await page.waitForSelector('#grid .card');
     await page.click('#settings-trigger');
-    const overlay = page.locator('#theme-picker-overlay');
+    const overlay = page.locator('#settings-overlay');
     await expect(overlay).toBeVisible();
 
     await overlay.click({ position: { x: 5, y: 5 } });

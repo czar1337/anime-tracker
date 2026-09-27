@@ -63,8 +63,9 @@ export function trapTab(e, container) {
 // selects a tab). Tabs are activated by clicking them, so every tab keeps one
 // code path.
 export function bindRovingTablist(tablist, tabSelector = '[role="tab"]') {
-  const vertical = tablist.getAttribute('aria-orientation') === 'vertical';
   tablist.addEventListener('keydown', (e) => {
+    // Read on every key press: a tablist can change orientation with the layout.
+    const vertical = tablist.getAttribute('aria-orientation') === 'vertical';
     const tabs = [...tablist.querySelectorAll(tabSelector)].filter(isVisible);
     const i = tabs.indexOf(e.target.closest(tabSelector));
     if (i < 0) return;

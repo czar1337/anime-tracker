@@ -19,17 +19,6 @@ import {
   renderDiscoverFiltersPanel,
   renderDiscoverPage,
 } from './views/discover/view.js';
-import {
-  renderSettingsPanel,
-  toggleSettingsNewTagForm,
-  setSettingsNewTagColor,
-  setSettingsNewTagName,
-  getSettingsNewTagColor,
-  toggleSettingsNewListForm,
-  toggleManagerListExpanded,
-  setFontSearchDraft,
-  fontGridBodyHtml,
-} from './views/settings/view.js';
 import { renderSchedulePage } from './views/schedule/view.js';
 import { relativeAgeText, formatEnumLabel, coverOrInitialHtml } from './views/shared/format.js';
 
@@ -881,7 +870,6 @@ export const Render = {
   renderBulkActionBar,
   renderBulkMoreMenu,
   stepsHtml,
-  renderSettingsPanel,
   renderColdStartOverlay,
   renderScorerDebugPanel,
   renderHelpPanel,
@@ -891,14 +879,6 @@ export const Render = {
   showError,
   clearError,
   escapeHtml,
-  toggleSettingsNewTagForm,
-  setSettingsNewTagColor,
-  setSettingsNewTagName,
-  getSettingsNewTagColor,
-  toggleSettingsNewListForm,
-  toggleManagerListExpanded,
-  setFontSearchDraft,
-  fontGridBodyHtml,
   renderDiscoverFiltersPanel,
   discoverActiveFilterChips,
   toggleIncludeTagsOverflow,

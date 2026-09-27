@@ -11,6 +11,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { CURRENT_SCHEMA_VERSION } = require('../../migrations.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'watching-entry-library.json');
 const ID = 101922;
@@ -57,7 +58,7 @@ async function openDetail(page) {
 
 async function openSettings(page) {
   await page.click('#settings-trigger');
-  await page.waitForSelector('#settings-body');
+  await page.click('#settings-tab-library'); // v3 Phase 4: tags and lists live in the Library section
 }
 
 // v3 Phase 4: cards carry one title and one meta line; tags show in the detail view.
@@ -333,7 +334,7 @@ test('the specific P1.7 regression: a snapshot predating tags/customLists entire
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.verified).toBe(true);
-    expect(body.migratedTo).toBe(14);
+    expect(body.migratedTo).toBe(CURRENT_SCHEMA_VERSION);
     expect(body.skippedStores).toEqual(['tags', 'customLists']);
 
     const lib = await (await fetch(`${server.url}/api/library`)).json();

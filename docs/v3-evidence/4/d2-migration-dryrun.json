@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 15,
+ "entries": 222,
+ "counts": {
+  "watched": 210,
+  "watching": 12
+ },
+ "rated": 161,
+ "events": 16,
+ "counters": {
+  "totalEpisodes": 6388
+ },
+ "snapshots": 6,
+ "snapshotsVerified": 4,
+ "corpusEntries": 3052,
+ "v15": {
+  "appearanceV3": {
+   "mode": "dark",
+   "light": {
+    "type": "preset",
+    "id": "daybreak"
+   },
+   "dark": {
+    "type": "preset",
+    "id": "moonlit-shrine"
+   }
+  },
+  "textSize": 3,
+  "density": "comfortable",
+  "motion": "full",
+  "decoration": "full",
+  "libraryLayout": "grid",
+  "savedViews": 0,
+  "appearanceNotice": {
+   "version": 15,
+   "changes": [
+    {
+     "kind": "background",
+     "from": "gradient"
+    }
+   ],
+   "seenAt": null
+  }
+ },
+ "legacy": {
+  "appearance": {
+   "mode": "dark",
+   "light": {
+    "type": "preset",
+    "id": "daybreak"
+   },
+   "dark": {
+    "type": "preset",
+    "id": "moonlit-shrine"
+   },
+   "background": {
+    "type": "gradient",
+    "opacity": 30
+   }
+  },
+  "steps": {
+   "textSizeStep": 5,
+   "textWeightStep": 5,
+   "lineHeightStep": 5,
+   "letterSpacingStep": 5,
+   "densityStep": 5,
+   "radiusStep": 5,
+   "coverWidthStep": 5,
+   "animationStep": 5,
+   "decorationStep": 5
+  },
+  "decor": "on"
+ },
+ "pinnedLabels": [
+  "pre-migration-14-to-15",
+  null,
+  null,
+  null
+ ],
+ "note": "D2 migration (schema 14 -> 15) dry run on a copy of the real data folder, 2026-09-27. The real folder was only read."
+}

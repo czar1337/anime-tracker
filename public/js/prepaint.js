@@ -31,3 +31,10 @@
 // effect yet — the atmosphere layer it will gate is Phase 4 — but the
 // attribute is applied here now so a saved preference already sticks.
 document.documentElement.dataset.decor = localStorage.getItem('anime-tracker-decor') || 'on';
+// v3 Phase 4 (D2): Motion, before first paint, so a Reduced or Off choice never
+// plays the boot animations first (public/js/preferences.js's setMotion).
+(function () {
+  var motion = localStorage.getItem('anime-tracker-motion');
+  if (motion === 'reduced') document.documentElement.dataset.motion = 'reduced';
+  else if (motion === 'off') document.documentElement.style.setProperty('--motion', '0');
+})();

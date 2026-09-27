@@ -119,7 +119,7 @@ test('a title alone offers Open first; "move" offers the other lists; fuzzy lett
   }
 });
 
-test('commands: "go sch" goes to Schedule, "theme cedar" switches theme', async ({ page }) => {
+test('commands: "go sch" goes to Schedule, "theme jade" switches theme', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await open(page, server.url);
@@ -129,10 +129,10 @@ test('commands: "go sch" goes to Schedule, "theme cedar" switches theme', async 
     await page.keyboard.press('Enter');
     await expect(page.locator('#schedule-view')).toBeVisible();
     await page.keyboard.press('Control+k');
-    await query(page, 'theme cedar');
-    await expect(options(page).first()).toHaveText('Theme: Cedar');
+    await query(page, 'theme jade');
+    await expect(options(page).first()).toHaveText('Theme: Jade');
     await page.keyboard.press('Enter');
-    await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'cedar');
+    await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'jade');
   } finally {
     await server.stop();
   }

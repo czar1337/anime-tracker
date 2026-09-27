@@ -10,7 +10,8 @@ const { startFixtureServer } = require('./harness.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'bulk-actions-library.json');
 
-// A drag: several input ticks, then one change when the pointer is released.
+// A drag: several input ticks, then one change when the pointer (or a colour
+// picker) is released.
 async function drag(page, selector, values) {
   await page.locator(selector).evaluate((el, vals) => {
     for (const v of vals) {
@@ -26,22 +27,22 @@ async function settingsEvents(server, key) {
   return events.filter((e) => e.type === 'settings_changed' && e.key === key);
 }
 
-test('a slider drag logs exactly one settings_changed from the start value to the settled value', async ({ page }) => {
+// v3 Phase 4 (D2) replaced the sliders with segmented controls: one click is
+// one change, logged once with its real before and after.
+test('a Text size or Motion choice logs exactly one settings_changed from the old value to the new one', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await page.goto(server.url);
     await page.waitForSelector('.card');
     await page.click('#settings-trigger');
-    await page.waitForSelector('[data-slider="textSize"]');
-    await drag(page, '[data-slider="textSize"]', [6, 7, 8]);
-    await drag(page, '#decoration-step-slider', [6, 7, 8, 9]);
-    await expect.poll(async () => (await settingsEvents(server, 'textSizeStep')).length, { timeout: 8000 }).toBe(1);
-    const [textSize] = await settingsEvents(server, 'textSizeStep');
-    expect([textSize.from, textSize.to]).toEqual([5, 8]);
-    await expect.poll(async () => (await settingsEvents(server, 'decorationStep')).length, { timeout: 8000 }).toBe(1);
-    const [decoration] = await settingsEvents(server, 'decorationStep');
-    expect(decoration.to).toBe(9);
-    expect(decoration.from).not.toBe(9);
+    await page.click('.seg[data-seg="textSize"] button[data-value="5"]');
+    await page.click('.seg[data-seg="motion"] button[data-value="reduced"]');
+    await expect.poll(async () => (await settingsEvents(server, 'textSize')).length, { timeout: 8000 }).toBe(1);
+    const [textSize] = await settingsEvents(server, 'textSize');
+    expect([textSize.from, textSize.to]).toEqual([3, 5]);
+    await expect.poll(async () => (await settingsEvents(server, 'motion')).length, { timeout: 8000 }).toBe(1);
+    const [motion] = await settingsEvents(server, 'motion');
+    expect([motion.from, motion.to]).toEqual(['full', 'reduced']);
   } finally {
     await server.stop();
   }
@@ -56,8 +57,8 @@ test('a custom accent colour pick logs a real before and after', async ({ page }
     await page.click('[data-action="pick-custom"][data-slot="dark"]');
     await page.waitForSelector('[data-action="set-custom-accent"][data-slot="dark"]');
     await drag(page, '[data-action="set-custom-accent"][data-slot="dark"]', ['#112233', '#223344', '#ff3366']);
-    await expect.poll(async () => (await settingsEvents(server, 'appearance')).length, { timeout: 8000 }).toBe(2); // pick custom, then the drag
-    const drags = await settingsEvents(server, 'appearance');
+    await expect.poll(async () => (await settingsEvents(server, 'appearanceV3')).length, { timeout: 8000 }).toBe(2); // pick custom, then the drag
+    const drags = await settingsEvents(server, 'appearanceV3');
     const last = drags[drags.length - 1];
     expect(last.to.dark.accent).toBe('#ff3366');
     expect(last.from.dark.accent).not.toBe('#ff3366');

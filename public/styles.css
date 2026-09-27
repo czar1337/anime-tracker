@@ -80,39 +80,6 @@ body {
    dialog is never dimmed by it. */
 #atmosphere { position: fixed; inset: 0; z-index: 90; overflow: hidden; pointer-events: none; }
 
-/* ---------- Background effect (P6.1) ----------
-   Optional gradient/grain layer behind the library (spec: "an optional
-   gradient/grain background with opacity"). Sits one z-index below
-   #atmosphere (89 vs 90, both under every overlay's 100) for the exact
-   reason documented above this block: a negative-z-index sibling of
-   #app never actually painted through here, so this is a low-opacity
-   layer sitting ABOVE content instead, same as #atmosphere. Opacity is
-   set inline by themes.js's applyBackground() from the user's 0-100
-   slider — [data-effect="none"] is the same "not rendered" state that
-   opacity:0 already produces, plus display:none as a defensive no-op
-   belt-and-braces. Gradient reads the ACTIVE theme's own --glow token
-   (not a fixed colour), so it always matches whichever theme — curated
-   or custom — is applied. Grain is a small tiling feTurbulence SVG,
-   generated once and inlined as a data URI (no asset pipeline needed
-   for one static pattern); mix-blend-mode:overlay lets the same white
-   noise read as a subtle texture against both light and dark themes
-   rather than needing two different noise colours. */
-#bg-effect { position: fixed; inset: 0; z-index: 89; overflow: hidden; pointer-events: none; }
-#bg-effect[data-effect="none"] { display: none; }
-/* Post-2.2.0 feedback: 2 user-picked colours instead of always the theme's
-   own single --glow-derived colour fading to transparent — themes.js's
-   applyBackground() sets --bg-gradient-c1/-c2 as inline styles only once
-   the user has actually picked both; the var() fallbacks below reproduce
-   today's exact single-colour-to-transparent look until then. */
-#bg-effect[data-effect="gradient"] {
-  background: radial-gradient(closest-side at 50% 0%, var(--bg-gradient-c1, var(--glow)) 0%, var(--bg-gradient-c2, transparent) 70%);
-}
-#bg-effect[data-effect="grain"] {
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.2126 0.7152 0.0722 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 140px 140px;
-}
-
 .atmo-moon {
   position: absolute;
   top: -140px; left: 50%;
@@ -1037,7 +1004,6 @@ kbd {
 .discover-card .why b { color: var(--accent-lit); font-weight: 500; }
 .discover-card .acts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 
-
 .discover-adventurousness-row {
   display: flex;
   align-items: center;
@@ -1343,8 +1309,6 @@ kbd {
 .season-row .card-meta { margin-top: -2px; }
 .card-format-badge.season-badge { background: var(--accent); color: var(--accent-contrast); }
 
-
-
 /* Landscape crop from the AniList portrait, not the full portrait — a
    fixed height (not aspect-ratio) so it scales with --text-scale but stays
    independent of the card's own width (design/moonlit-shrine-design-
@@ -1609,7 +1573,6 @@ kbd {
   flex-wrap: wrap;
 }
 
-
 .progress-track {
   flex: 1;
   height: 6px;
@@ -1769,7 +1732,6 @@ kbd {
 .tag.warn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); color: var(--warning); }
 .tag.air { border-color: color-mix(in srgb, var(--positive) 45%, transparent); color: var(--positive); }
 
-
 .tag-chip {
   font: var(--t-nano);
   letter-spacing: .06em;
@@ -1851,10 +1813,6 @@ kbd {
 .quick-move-btn:active { transform: scale(0.93); }
 .quick-move-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 
-
-
-
-
 /* Select mode: an empty circle shows on every card while active (the
    affordance), filled with a check once picked — always visible, not
    hover-gated, since it's the primary interaction while select mode is on
@@ -1911,10 +1869,6 @@ kbd {
   background: var(--accent-soft);
   color: var(--accent-lit);
 }
-
-
-
-
 
 /* Subtle, not alarming — this is good news ("something to watch"), not a warning.
    .pop is added only when the count just increased from what was already
@@ -2539,6 +2493,71 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .confirm-type-row input:focus { outline: none; border-color: var(--accent); }
 
 /* ---------- Settings panel ---------- */
+/* ---------- Settings drawer (v3 Phase 4) ----------
+   A right-side drawer: sections in a vertical tab list beside the active
+   section (a strip of tabs above it on phones). */
+#settings-overlay { justify-content: flex-end; align-items: stretch; padding: 0; }
+.settings-panel {
+  width: min(780px, 100vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+@starting-style { #settings-overlay[open] .settings-panel { opacity: 0; transform: translateX(var(--move-lg)); } }
+#settings-overlay:not([open]) .settings-panel { transform: translateX(var(--move-md)); }
+.settings-head { position: relative; flex-shrink: 0; padding: var(--sp-6) var(--sp-6) var(--sp-4); border-bottom: 1px solid var(--line); }
+.settings-head h2 { margin: 0 48px 0 0; }
+.settings-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 184px 1fr; }
+.settings-nav { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-4) var(--sp-3); border-right: 1px solid var(--line); overflow-y: auto; }
+.settings-tab {
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--dim);
+  font: var(--t-body);
+  cursor: pointer;
+  transition: color var(--dur-base), background-color var(--dur-base);
+}
+.settings-tab:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.settings-tab[aria-selected="true"] { color: var(--text); background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.settings-sections { overflow-y: auto; padding: var(--sp-2) var(--sp-6) var(--sp-12); }
+.settings-section > .settings-section-title { margin-top: var(--sp-4); }
+.settings-notice { margin: var(--sp-4) 0 var(--sp-2); padding: var(--sp-4); border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
+.settings-notice h3 { margin: 0 0 var(--sp-2); color: var(--text); }
+.settings-notice ul { margin: 0 0 var(--sp-3); padding-left: var(--sp-6); display: grid; gap: var(--sp-1); font: var(--t-body); }
+.appearance-builder { display: grid; gap: var(--sp-3); justify-items: start; }
+.appearance-builder .appearance-slot, .appearance-builder .themegrid { justify-self: stretch; }
+.appearance-slot { display: grid; gap: var(--sp-2); }
+.appearance-slot .detail-lbl { margin: 0; }
+.text-size-seg button:nth-child(1) { font-size: var(--fs-micro); }
+.text-size-seg button:nth-child(2) { font-size: var(--fs-meta); }
+.text-size-seg button:nth-child(3) { font-size: var(--fs-body); }
+.text-size-seg button:nth-child(4) { font-size: var(--fs-card); }
+.text-size-seg button:nth-child(5) { font-size: var(--fs-heading); }
+.colour-field { display: inline-flex; align-items: center; gap: var(--sp-2); font: var(--t-meta); color: var(--dim); }
+.contrast-confirm.warn { color: var(--warning); }
+.danger-row .k b { color: var(--text); }
+.manager-rename { flex: 1; min-width: 0; }
+.manager-row.wrap { flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .settings-panel { width: 100vw; border-radius: 0; }
+  .settings-head { padding: var(--sp-4); }
+  .settings-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .settings-nav { flex-direction: row; overflow-x: auto; padding: var(--sp-2) var(--sp-3); border-right: 0; border-bottom: 1px solid var(--line); }
+  .settings-tab { white-space: nowrap; }
+  .settings-tab[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
+  .settings-sections { padding: var(--sp-2) var(--sp-4) calc(var(--sp-12) + env(safe-area-inset-bottom, 0px)); }
+  .settings-sections .set-row { grid-template-columns: 1fr; gap: var(--sp-2); }
+}
+
 .set-row { display: grid; grid-template-columns: 170px 1fr; gap: 18px; align-items: start; padding: var(--sp-4) 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
 .set-row:last-child { border-bottom: 0; }
 .set-row .k b { display: block; font: var(--t-card); margin-bottom: 3px; }
@@ -2553,7 +2572,7 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .themegrid button:hover { border-color: var(--line-lit); transform: translateY(-2px); }
 .themegrid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .themegrid .sw2 { height: 34px; display: flex; align-items: flex-end; gap: 3px; padding: 5px; }
-.themegrid .sw2 i { width: 8px; height: 8px; border-radius: 2px; }
+.themegrid .sw2 i { width: 12px; height: 12px; border-radius: 50%; }
 .themegrid .nm { display: block; font: var(--t-nano); letter-spacing: .04em; color: var(--dim); padding: 6px 5px var(--sp-2); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* P5A.2: the cold-start onboarding grid — same scrollable-grid/.on-state
@@ -2587,14 +2606,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .custom-swatch { height: 34px; }
 .appearance-slot { margin-bottom: var(--sp-4); }
 .appearance-slot:last-child { margin-bottom: 0; }
-.appearance-background { display: flex; flex-direction: column; }
-.appearance-shortcode-row { flex-wrap: nowrap; }
-.appearance-shortcode-input {
-  flex: 1; min-width: 0; box-sizing: border-box;
-  font: var(--t-meta); padding: 6px 8px;
-  border: 1px solid var(--line); border-radius: 6px;
-  background: var(--card); color: var(--text);
-}
 .custom-accent-row { align-items: center; }
 .custom-accent-input { width: 40px; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
 .contrast-confirm { font: var(--t-meta); color: var(--dim); }
@@ -2635,13 +2646,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 }
 .font-grid button:hover { border-color: var(--line-lit); background: color-mix(in srgb, var(--text) 3%, transparent); }
 .font-grid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-
-/* ---------- P3.2: typography sliders ---------- */
-.slider-row { display: flex; align-items: center; gap: var(--sp-3); }
-.slider-input { flex: 1; accent-color: var(--accent); }
-.slider-value { min-width: 2.5ch; text-align: right; font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; }
-.slider-contrast-warning { margin-top: var(--sp-2); font: var(--t-meta); color: var(--warning); }
-.slider-collapsed-note { margin-top: var(--sp-2); font: var(--t-meta); color: var(--faint); }
 
 /* ---------- Help panel ---------- */
 .help-tabs { display: flex; gap: 22px; padding: 0 0 var(--sp-3); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-4); }
