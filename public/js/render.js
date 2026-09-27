@@ -279,6 +279,8 @@ function renderFilterBar(list) {
 
   renderActiveFilterChips(list);
   renderBulkActionBar(list);
+  LibraryView.renderSavedViews(list);
+  LibraryView.renderLayoutToggle();
 }
 
 // bulkBarCountText: the generic "N selected" is ambiguous exactly when N

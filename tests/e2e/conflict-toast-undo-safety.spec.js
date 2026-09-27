@@ -30,9 +30,22 @@ const { startFixtureServer } = require('./harness.js');
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'watching-entry-library.json');
 const ANILIST_ID = 101922; // episodesWatched: 5, totalEpisodes: 12, listStatus: "watching"
 
+// The detail view (where the note lives since v3 Phase 4) loads the series
+// from AniList; answered here so the test never depends on the network.
+function stubAniListDetail(page) {
+  return page.route('**/graphql.anilist.co/**', (route) => {
+    const id = route.request().postDataJSON?.()?.variables?.id || 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { Media: { id, title: { romaji: 'Series', english: 'Series', native: null }, description: 'x', coverImage: { large: null }, bannerImage: null, genres: [], averageScore: 70, popularity: 1, favourites: 1, format: 'TV', status: 'FINISHED', episodes: 12, duration: 24, source: 'ORIGINAL', startDate: { year: 2020 }, endDate: { year: 2020 }, studios: { nodes: [] } } } }),
+    });
+  });
+}
 test('ctrl+z still triggers a genuine pending Undo, not an unrelated conflict toast\'s Reload action', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
+    await stubAniListDetail(page);
     await page.goto(server.url);
     await page.waitForSelector(`.card[data-id="${ANILIST_ID}"]`);
 
@@ -66,18 +79,24 @@ test('ctrl+z still triggers a genuine pending Undo, not an unrelated conflict to
 
     // A second, unrelated real edit (a notes save — no actionLabel toast of
     // its own) now conflicts, producing the Reload toast, while the Undo
-    // toast from the increment above is still showing.
+    // toast from the increment above is still showing. Since v3 Phase 4 the
+    // note is written in the detail view.
     const conflictResponse = page.waitForResponse(
       (r) => r.url().includes('/api/library') && r.request().method() === 'PUT'
     );
-    await page.click(`.card[data-id="${ANILIST_ID}"] [data-action="toggle-notes"]`);
-    const notesField = page.locator(`.card[data-id="${ANILIST_ID}"] .notes-field`);
+    await page.click(`.card[data-id="${ANILIST_ID}"] [data-action="show-detail"]`);
+    const notesField = page.locator('#detail-content [data-action="detail-note"]');
     await notesField.fill('a note written right before the conflict');
     await notesField.blur();
     expect((await conflictResponse).status()).toBe(409);
+    // Page shortcuts are off while a dialog is open; ctrl+z is pressed on the page.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#detail-overlay')).toBeHidden();
 
     const reloadButton = page.getByRole('button', { name: 'Reload' });
     await reloadButton.waitFor({ state: 'visible' });
+    // Further conflicting saves (the detail closing) do not stack more of them.
+    await expect(reloadButton).toHaveCount(1);
     // Both toasts genuinely coexist at this point.
     await expect(undoButton).toBeVisible();
     await expect(reloadButton).toBeVisible();

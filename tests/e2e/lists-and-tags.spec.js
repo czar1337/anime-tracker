@@ -60,14 +60,12 @@ async function openSettings(page) {
   await page.waitForSelector('#settings-body');
 }
 
-test('creating a tag from the detail view assigns it to that entry and the card shows a read-only chip', async ({ page }) => {
+// v3 Phase 4: cards carry one title and one meta line; tags show in the detail view.
+test('creating a tag from the detail view assigns it to that entry', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await mockAniListDetail(page);
     await openApp(page, server.url);
-
-    // Untagged is the default — verify zero visual change before touching anything.
-    expect(await page.locator('.card-tag-chips').count()).toBe(0);
 
     await openDetail(page);
     await page.click('[data-action="show-new-tag-form"]');
@@ -80,8 +78,6 @@ test('creating a tag from the detail view assigns it to that entry and the card 
     await expect(page.locator('.tag-chip-toggle.on')).toHaveText('Comfort rewatch');
 
     await page.click('[data-action="close-overlay"]');
-    // ...and the card, which was never touched directly, picks it up too.
-    await expect(page.locator('.card-tag-chips .tag-chip')).toHaveText('Comfort rewatch');
 
     const lib = await (await fetch(`${server.url}/api/library`)).json();
     expect(lib.entries[0].tagIds.length).toBe(1);

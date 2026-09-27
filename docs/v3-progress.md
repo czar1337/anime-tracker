@@ -11,7 +11,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 1 Safety and correctness | `v3/1-foundation-safety` | done | — |
 | 2 Render engine and structure | `v3/2-render-engine` | done | — |
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
-| 4 Flow and screens | `v3/4-flow-screens` | in progress | Start: branch from main, read brief Phase 4 and the plan's Phase 4 row. Carry-overs: wire Motion (Full/Reduced/Off) to `setReducedMotion()` in the D2 settings rebuild; the clipped sort control ("west f") |
+| 4 Flow and screens | `v3/4-flow-screens` | in progress | Done: before click counts (9), five-section nav + Library segments + bottom bar, command palette. Next: library cards (2:3, toolbar, context menu, list/compact view, saved filter views, clipped sort control), detail drawer, Home, dynamic accent, Discover layout, settings drawer + D2 migration (schema 15, wire Motion to `setReducedMotion()`), empty states, a11y, evidence, after click counts, checkpoint |
 | 5 Features | `v3/5-features` | not started | |
 | 6 Discover rebuild | `v3/6-discover` | not started | |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |

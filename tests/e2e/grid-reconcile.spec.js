@@ -140,10 +140,12 @@ test('keyboard focus stays on a card that moves, and inside it when its controls
     expect(moved.index, 'the card moved in the sort').not.toBe(startIndex);
     expect(moved.focused).toBe(id);
 
-    // Entering select mode replaces the card's corner controls.
-    await card.hover();
-    await card.locator('[data-action="quick-select"]').focus();
-    await page.keyboard.press('Space');
+    // Entering select mode replaces the card's toolbar (v3 Phase 4: from its
+    // menu, by keyboard).
+    await card.locator('[data-action="card-menu"]').focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('menuitem', { name: 'Select', exact: true }).focus();
+    await page.keyboard.press('Enter');
     await expect(page.locator('#bulk-action-bar')).toBeVisible();
     expect(await page.evaluate((cardId) => Boolean(document.activeElement?.closest(`.card[data-id="${cardId}"]`)), id)).toBe(true);
   } finally {

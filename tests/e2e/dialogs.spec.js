@@ -65,13 +65,17 @@ test('opening one overlay from another closes the first, and focus still returns
   const server = await startFixtureServer(FIXTURE);
   try {
     await page.goto(server.url);
+    // v3 Phase 4: Remove lives in the card's menu; focus goes back to the
+    // menu's button once the confirmation is dismissed.
     const card = page.locator(`.card[data-id="${ID}"]`);
-    await card.locator('[data-action="delete"]').focus();
-    await card.locator('[data-action="delete"]').click();
+    const more = card.locator('[data-action="card-menu"]');
+    await more.focus();
+    await more.click();
+    await page.getByRole('menuitem', { name: 'Remove from library' }).click();
     await expect(page.locator('#confirm-overlay')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.locator('#confirm-overlay')).toBeHidden();
-    expect(await card.locator('[data-action="delete"]').evaluate((el) => document.activeElement === el)).toBe(true);
+    expect(await more.evaluate((el) => document.activeElement === el)).toBe(true);
     expect(await page.evaluate(() => document.querySelectorAll('dialog.overlay[open]').length)).toBe(0);
   } finally {
     await server.stop();

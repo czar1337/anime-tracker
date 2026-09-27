@@ -1,15 +1,13 @@
 // Library view model (v3 Phase 2): the transient UI state the library grid
-// renders from — select mode and the selection, expanded franchise groups and
-// open note fields. It lives here rather than in the DOM so a re-render
+// renders from — select mode and the selection and expanded franchise groups. It lives here rather than in the DOM so a re-render
 // (keyed and morphing, see core/reconcile.js) always reproduces it.
 
 import { Store } from '../../state.js';
 
 export const expandedGroups = new Set();
-export const openNoteIds = new Set();
 // Series whose last episode was just marked: for the length of the completion
 // moment (actions.js playCompletion) the card shows the finished bar and its
-// sweep instead of the "Move to Watched?" prompt, then moves by itself.
+// sweep, then moves by itself.
 export const completingIds = new Set();
 
 let selectMode = false;
@@ -55,12 +53,6 @@ export function groupKey(group) {
 export function toggleGroupExpanded(key) {
   if (expandedGroups.has(key)) expandedGroups.delete(key);
   else expandedGroups.add(key);
-}
-
-export function toggleNoteOpen(anilistId) {
-  if (openNoteIds.has(anilistId)) openNoteIds.delete(anilistId);
-  else openNoteIds.add(anilistId);
-  return openNoteIds.has(anilistId);
 }
 
 // The same filtered/sorted view the grid renders, flattened to ids in order:

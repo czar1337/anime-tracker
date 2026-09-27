@@ -18,8 +18,12 @@ import { Detail } from '../detail/actions.js';
 import { copy } from '../../copy.js';
 import { titlesInOrder } from '../../titles.js';
 import { tokenMs, motionAllowed } from '../../core/motion.js';
-import { toggleNoteOpen, completingIds } from './model.js';
-import { exitTowardsOnNextRender, QUICK_MOVE_LISTS } from './view.js';
+import { completingIds } from './model.js';
+import { openMenu, isMenuOpen } from '../../core/menu.js';
+import { exitTowardsOnNextRender, QUICK_MOVE_LISTS, renderSavedViews, setSavedViewFormOpen, renderLayoutToggle } from './view.js';
+import { bindRovingTablist } from '../../core/focus.js';
+import { runCommand } from '../../core/commands.js';
+import { SAVED_VIEWS_MAX, SAVED_VIEW_NAME_MAX } from '../../settingsSchema.js';
 
 // Spec: "Every destructive or lossy action, bulk or single, fires an Undo
 // toast lasting at least 8 seconds".
@@ -410,10 +414,6 @@ export function handleSetStatus(id, newStatus) {
   });
 }
 
-function handleComplete(id) {
-  handleSetStatus(id, 'watched');
-}
-
 export function confirmDrop(id) {
   const entry = Store.getEntry(id);
   if (!entry) return;
@@ -791,6 +791,61 @@ function handleDelete(id) {
   });
 }
 
+// The card menu (v3 Phase 4): what left the card surface (status moves, the
+// 1-10 rating, the note, select, fix match, remove), plus +1 and Open.
+// `statusOnly` is the toolbar's status menu: just the moves.
+function cardMenuItems(id, { statusOnly = false } = {}) {
+  const entry = Store.getEntry(id);
+  if (!entry) return [];
+  const moves = Store.LISTS.filter((l) => l !== entry.listStatus).map((list) => ({
+    label: copy('menu.moveTo', undefined, { list: QUICK_MOVE_LISTS.find((q) => q.key === list)?.label || list }),
+    run: () => (list === 'dropped' ? confirmDrop(id) : handleSetStatus(id, list)),
+  }));
+  if (statusOnly) return moves;
+  const items = [];
+  const total = entry.totalEpisodes;
+  if (entry.listStatus === 'watching' && !(total && entry.episodesWatched >= total)) {
+    items.push({ label: copy('menu.markNext', undefined, { episode: entry.episodesWatched + 1 }), hint: 'Space', run: () => handleIncrement(cardOnScreen(id), id) });
+  }
+  items.push({ label: copy('menu.open'), hint: 'Enter', run: () => Detail.showDetail(id, { origin: cardOnScreen(id) }) });
+  items.push({ separator: true }, { heading: copy('menu.rate') });
+  for (let n = 1; n <= 10; n++) {
+    items.push({ label: String(n), ariaLabel: copy('menu.rateN', undefined, { n }), row: copy('menu.rate'), checked: entry.myScore === n, run: () => handleSetScore(id, n) });
+  }
+  items.push({ separator: true }, ...moves, { separator: true });
+  items.push({
+    label: copy('menu.note', undefined, { has: Boolean(entry.notes) }),
+    run: async () => {
+      await Detail.showDetail(id, { origin: cardOnScreen(id) });
+      requestAnimationFrame(() => document.querySelector('#detail-content [data-action="detail-note"]')?.focus());
+    },
+  });
+  items.push({
+    label: copy('menu.select'),
+    run: () => {
+      if (!Render.isSelectMode()) Render.toggleSelectMode();
+      if (!Render.getSelectedIds().includes(id)) Render.toggleSelected(id);
+      refreshGridOnly();
+    },
+  });
+  items.push({ label: copy('menu.fixMatch'), run: () => handleFixMatch(id) });
+  items.push({ label: copy('menu.remove'), danger: true, run: () => confirmDelete(id) });
+  return items;
+}
+
+export function openCardMenu(card, { point, anchor, statusOnly = false } = {}) {
+  const id = Number(card.dataset.id);
+  const entry = Store.getEntry(id);
+  if (!entry) return;
+  openMenu({
+    label: copy('menu.label', undefined, { title: displayTitle(entry) }),
+    items: cardMenuItems(id, { statusOnly }),
+    point,
+    anchor: anchor || (point ? null : card),
+    returnFocus: anchor || card,
+  });
+}
+
 export function bindGridEvents() {
   // Delegate on the whole app so cards rendered in the grid AND the home
   // dashboard's "continue watching" strip both get the same interactions.
@@ -842,81 +897,30 @@ export function bindGridEvents() {
       refreshGridOnly();
       return;
     }
-    else if (action === 'quick-select') {
-      // The hover-revealed entry point into select mode, before it's on.
-      if (!Render.isSelectMode()) Render.toggleSelectMode();
-      Render.toggleSelected(id);
-      refreshGridOnly();
-      return;
-    }
     else if (action === 'increment') handleIncrement(card, id);
     else if (action === 'edit-episode') handleEditEpisode(card, id);
-    else if (action === 'set-score') handleSetScore(id, Number(actionEl.dataset.score));
-    else if (action === 'complete') handleComplete(id);
-    else if (action === 'set-status') {
-      // Dropping is the one status change the design calls out as needing a
-      // confirm dialog (§8, and the reference's own "Släppa Shiki?" demo) —
-      // the quick season-row <select> and the 1-4 keyboard shortcuts stay
-      // unconfirmed on purpose, so a fast path still exists (see the "1-4"
-      // keydown handler and statusSelectHtml's own change listener below).
-      if (actionEl.dataset.status === 'dropped') confirmDrop(id);
-      else handleSetStatus(id, actionEl.dataset.status);
-    }
-    else if (action === 'delete') confirmDelete(id);
-    else if (action === 'fix-match') handleFixMatch(id);
-    else if (action === 'toggle-notes') {
-      // Open/closed is view state (views/library/model.js), so a re-render
-      // keeps an open note open.
-      const open = toggleNoteOpen(id);
-      const field = card.querySelector('.notes-field');
-      field.hidden = !open;
-      actionEl.setAttribute('aria-expanded', String(open));
-      if (open) field.focus();
+    else if (action === 'card-menu' || action === 'card-status-menu') {
+      openCardMenu(card, { anchor: actionEl, statusOnly: action === 'card-status-menu' });
     }
   });
 
-  root.addEventListener(
-    'blur',
-    (e) => {
-      if (e.target.dataset && e.target.dataset.action === 'edit-notes') {
-        const card = e.target.closest('.card');
-        const id = Number(card.dataset.id);
-        Store.updateEntry(id, { notes: e.target.value });
-        const toggle = card.querySelector('.notes-toggle');
-        if (toggle) toggle.textContent = e.target.value ? 'Edit note' : '+ Add note';
-        persist();
-      }
-    },
-    true
-  );
+  // Right-click on a card opens its menu at the pointer.
+  root.addEventListener('contextmenu', (e) => {
+    const card = e.target.closest('.card[data-id]');
+    if (!card || e.target.closest('input, textarea')) return;
+    e.preventDefault();
+    // A touch long-press already opened it (events.js bindHoldToSelect).
+    if (isMenuOpen()) return;
+    openCardMenu(card, { point: { x: e.clientX, y: e.clientY } });
+  });
 
-  // The compact <select> equivalents used inside .season-row (see
-  // scoreSelectHtml/statusSelectHtml in render.js) — a select's value change
-  // is a distinct interaction from the button-strip's click-to-toggle, so
-  // these set the value directly rather than reusing handleSetScore's
-  // click-again-to-unset behavior.
-  root.addEventListener('change', (e) => {
-    const card = e.target.closest('.card');
+  // The keyboard's own context-menu keys, on a focused card or its toolbar.
+  root.addEventListener('keydown', (e) => {
+    if (!(e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) return;
+    const card = e.target.closest?.('.card[data-id]');
     if (!card) return;
-    const id = Number(card.dataset.id);
-
-    const scoreSelect = e.target.closest('[data-action="set-score-select"]');
-    if (scoreSelect) {
-      // This path deliberately does NOT go through handleSetScore (a select's
-      // value change is a direct set, not the button strip's click-to-toggle),
-      // so it needs its own event — a missed entry point here would silently
-      // drop every score set made from a season row.
-      const beforeScore = Store.getEntry(id)?.myScore ?? null;
-      const nextScore = scoreSelect.value ? Number(scoreSelect.value) : null;
-      Store.updateEntry(id, { myScore: nextScore });
-      EventLog.recordForEntry('score_set', id, { from: beforeScore, to: nextScore });
-      refreshView();
-      persist();
-      return;
-    }
-
-    const statusSelect = e.target.closest('[data-action="set-status-select"]');
-    if (statusSelect) handleSetStatus(id, statusSelect.value);
+    e.preventDefault();
+    openCardMenu(card, { anchor: card.querySelector('[data-action="card-menu"]') || undefined });
   });
 }
 
@@ -1213,5 +1217,111 @@ export function bindFilterBar() {
 
     Render.renderAll(activeList());
     if (touchesPersistedState) persist();
+  });
+
+  bindLayoutToggle();
+  bindSavedViews();
+}
+
+// Covers or the compact list (v3 Phase 4): a radiogroup with arrow keys.
+function bindLayoutToggle() {
+  const toggle = document.querySelector('.layout-toggle');
+  toggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-layout]');
+    if (!btn || Store.state.preferences.libraryLayout === btn.dataset.layout) return;
+    Store.setPreference(['libraryLayout'], btn.dataset.layout);
+    renderLayoutToggle();
+    persist();
+  });
+  bindRovingTablist(toggle, '[role="radio"]');
+}
+
+// Saved filter views (v3 Phase 4): a name for a list's filters and sort.
+function bindSavedViews() {
+  const region = document.getElementById('saved-views');
+  const views = () => Store.state.preferences.savedViews;
+  const closeForm = () => {
+    setSavedViewFormOpen(false);
+    renderSavedViews(activeList());
+    region.querySelector('[data-action="save-view"]')?.focus();
+  };
+
+  region.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    const action = el.dataset.action;
+    if (action === 'save-view') {
+      if (views().length >= SAVED_VIEWS_MAX) {
+        Render.showToast(copy('views.full', undefined, { max: SAVED_VIEWS_MAX }));
+        return;
+      }
+      setSavedViewFormOpen(true);
+      renderSavedViews(activeList());
+      const input = document.getElementById('saved-view-name');
+      input.focus();
+      input.select();
+    } else if (action === 'cancel-save-view') closeForm();
+    else if (action === 'apply-view') applySavedView(el.dataset.viewId);
+    else if (action === 'delete-view') deleteSavedView(el.dataset.viewId);
+  });
+
+  region.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('saved-view-name').value.trim();
+    if (!name) return;
+    const list = activeList();
+    const prefs = Store.state.preferences;
+    const view = {
+      id: `v${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      name: name.slice(0, SAVED_VIEW_NAME_MAX),
+      list,
+      filters: structuredClone(prefs.filters[list]),
+      sort: prefs.sort[list],
+      sortDir: prefs.sortDir[list],
+    };
+    Store.setPreference(['savedViews'], [...views(), view]);
+    persist();
+    closeForm();
+    Render.showToast(copy('views.saved', undefined, { name: view.name }));
+  });
+
+  region.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && e.target.id === 'saved-view-name') {
+      e.preventDefault();
+      e.stopPropagation(); // the page's Escape (leave select mode) is not meant
+      closeForm();
+    }
+  });
+}
+
+function applySavedView(viewId) {
+  const view = Store.state.preferences.savedViews.find((v) => v.id === viewId);
+  if (!view) return;
+  Store.setPreference(['filters', view.list], structuredClone(view.filters));
+  Store.setPreference(['sort', view.list], view.sort);
+  Store.setPreference(['sortDir', view.list], view.sortDir);
+  if (view.list !== activeList()) runCommand(`go.${view.list}`);
+  else Render.renderAll(view.list);
+  persist();
+}
+
+function deleteSavedView(viewId) {
+  const all = Store.state.preferences.savedViews;
+  const index = all.findIndex((v) => v.id === viewId);
+  if (index < 0) return;
+  const view = all[index];
+  Store.setPreference(['savedViews'], all.filter((v) => v.id !== viewId));
+  renderSavedViews(activeList());
+  persist();
+  Render.showToast(copy('views.deleted', undefined, { name: view.name }), {
+    actionLabel: copy('toast.undo'),
+    duration: UNDO_TOAST_MS,
+    onAction: () => {
+      const now = Store.state.preferences.savedViews;
+      if (now.some((v) => v.id === view.id)) return;
+      Store.setPreference(['savedViews'], [...now.slice(0, index), view, ...now.slice(index)]);
+      renderSavedViews(activeList());
+      persist();
+    },
   });
 }

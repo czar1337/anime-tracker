@@ -51,6 +51,39 @@ export function isValidHexColor(value) {
   return typeof value === 'string' && HEX_COLOR_RE.test(value);
 }
 
+export const LIBRARY_LAYOUTS = ['grid', 'list'];
+export const SAVED_VIEW_LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
+export const SAVED_VIEWS_MAX = 20;
+export const SAVED_VIEW_NAME_MAX = 40;
+
+// Saved filter views (v3 Phase 4): a named list + filters + sort. Anything
+// malformed is dropped rather than repaired, and the filters are completed
+// from the list's defaults, so an old or hand-edited file can never break the
+// filter bar.
+export function sanitizeSavedViews(views, defaults) {
+  if (!Array.isArray(views)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const v of views) {
+    if (!v || typeof v !== 'object') continue;
+    const id = typeof v.id === 'string' ? v.id : '';
+    const name = typeof v.name === 'string' ? v.name.trim().slice(0, SAVED_VIEW_NAME_MAX) : '';
+    if (!id || !name || seen.has(id) || !SAVED_VIEW_LISTS.includes(v.list)) continue;
+    seen.add(id);
+    const filters = v.filters && typeof v.filters === 'object' ? v.filters : {};
+    out.push({
+      id,
+      name,
+      list: v.list,
+      filters: { ...defaults.filters[v.list], ...filters, genres: Array.isArray(filters.genres) ? filters.genres.filter((g) => typeof g === 'string') : [] },
+      sort: typeof v.sort === 'string' ? v.sort : defaults.sort[v.list],
+      sortDir: v.sortDir === 'asc' ? 'asc' : 'desc',
+    });
+    if (out.length >= SAVED_VIEWS_MAX) break;
+  }
+  return out;
+}
+
 function defaultAppearanceSlot(themeId) {
   return { type: 'preset', id: themeId };
 }
@@ -153,6 +186,11 @@ export function defaultSettings() {
       dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
     },
     activeTab: 'watching',
+    // v3 Phase 4: the library's layout (covers, or the compact list for large
+    // libraries) and the user's saved filter views, each
+    // { id, name, list, filters, sort, sortDir } (see sanitizeSavedViews).
+    libraryLayout: 'grid',
+    savedViews: [],
     discoverExcludedGenres: [],
     discoverIncludedGenres: [],
     // P5B.3: the Advanced Filters panel. `format`/`studio` are this
@@ -265,6 +303,8 @@ export function ensureSettingsShape(preferences) {
     prefs.filters[list] = { ...defaults.filters[list], ...(prefs.filters[list] || {}) };
   }
   prefs.activeTab = prefs.activeTab || defaults.activeTab;
+  prefs.libraryLayout = LIBRARY_LAYOUTS.includes(prefs.libraryLayout) ? prefs.libraryLayout : defaults.libraryLayout;
+  prefs.savedViews = sanitizeSavedViews(prefs.savedViews, defaults);
   prefs.discoverExcludedGenres = Array.isArray(prefs.discoverExcludedGenres) ? prefs.discoverExcludedGenres : defaults.discoverExcludedGenres;
   prefs.discoverIncludedGenres = Array.isArray(prefs.discoverIncludedGenres) ? prefs.discoverIncludedGenres : defaults.discoverIncludedGenres;
   prefs.discoverFilters = { ...defaults.discoverFilters, ...prefs.discoverFilters };

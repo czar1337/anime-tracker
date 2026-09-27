@@ -384,7 +384,27 @@ kbd {
 }
 .list-seg:hover { color: var(--text); }
 .list-seg[aria-selected="true"] { background: var(--accent-soft); color: var(--text); }
-.saved-views { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.saved-views { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.saved-view { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius-pill); overflow: hidden; }
+.saved-view.on { border-color: var(--accent); background: var(--accent-soft); }
+.saved-view-btn, .saved-view-del {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font: var(--t-meta);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+.saved-view-btn { padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3); display: inline-flex; gap: 6px; align-items: baseline; }
+.saved-view-btn small { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.saved-view.on .saved-view-btn { color: var(--text); }
+.saved-view-del { padding: 0 var(--sp-2); color: var(--faint); }
+.saved-view-btn:hover, .saved-view-del:hover { color: var(--text); }
+.saved-view-form { display: inline-flex; gap: var(--sp-2); align-items: center; }
+.saved-view-form input { width: 180px; background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: var(--radius-sm); color: var(--text); font: var(--t-meta); padding: var(--sp-1) var(--sp-2); }
+.layout-toggle { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.layout-toggle [aria-checked="true"] { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
 
 .tab-count {
   display: inline-block;
@@ -517,7 +537,9 @@ kbd {
    the otherwise-circular .icn into an auto-width pill to fit the text
    render.js writes into .sort-dir-label beside it. */
 .icn.is-asc svg { transform: scaleY(-1); }
-.sort-dir-btn { width: auto; border-radius: 8px; padding: 0 var(--sp-3) 0 var(--sp-2); gap: var(--sp-1); }
+/* v3 Phase 4: .icn.sort-dir-btn, not .sort-dir-btn: .icn.small (two classes)
+   used to win and pinned the pill at 28px, clipping "Newest first" to "west f". */
+.icn.sort-dir-btn { width: auto; flex-shrink: 0; border-radius: 8px; padding: 0 var(--sp-3) 0 var(--sp-2); gap: var(--sp-1); }
 .sort-dir-label { font: var(--t-meta); white-space: nowrap; }
 
 /* ---------- Buttons, four levels ----------
@@ -589,12 +611,10 @@ kbd {
   }
   .card:hover:not(:focus-within)::before { right: 100%; }
   .card:hover:not(:focus-within) .card-cover-wrap img { filter: var(--cover-filter); }
-  .card:hover:not(:focus-within) .plus { opacity: 0; transform: scale(0.85); }
   .btn-primary:hover { transform: none; filter: none; }
-  /* No hover affordance exists to reveal .plus on a touch device — without
-     this it's only reachable via keyboard focus, effectively invisible on
-     the devices most likely to rely on this media query. */
-  .plus { opacity: .85; transform: none; }
+  /* No hover exists to reveal the card toolbar on a touch device, so it is
+     always shown there (+1 must never depend on hover). */
+  .card .card-toolbar { opacity: 1; transform: none; }
   /* P5B.5: same reasoning — a touch device has no hover to reveal the
      discover card's alternate-language title, so it stays always-on-small
      instead of hidden behind an affordance that device can't trigger. */
@@ -1256,7 +1276,6 @@ kbd {
    row's thumbnail is a small portrait crop, not the grid card's 126px
    landscape strip. */
 .season-row .card-cover-wrap { width: 64px; height: auto; aspect-ratio: 2 / 3; flex-shrink: 0; border-radius: var(--radius-sm); }
-.season-row .card-corner-actions { top: 4px; right: 4px; gap: 3px; }
 .season-row .card-body { padding: 0; gap: var(--sp-1); min-width: 0; }
 /* -webkit-line-clamp:1 is unreliable (the box-orient/line-clamp hack is
    meant for 2+ lines) — the plain single-line ellipsis technique is the
@@ -1270,14 +1289,9 @@ kbd {
 }
 .season-row .card-title-sub { display: none; }
 .season-row .card-meta { margin-top: -2px; }
-.season-row .notes-toggle { font-size: var(--fs-micro); padding: 0; }
 .card-format-badge.season-badge { background: var(--accent); color: var(--accent-contrast); }
 
-/* Two compact <select> controls side by side instead of a 10-button score
-   strip plus a 4-button status row — the single biggest source of season
-   rows feeling oversized. */
-.season-controls-row { display: flex; gap: 6px; }
-.season-select { flex: 1; min-width: 0; font-size: var(--fs-meta); padding: var(--sp-1) 6px; }
+
 
 /* Landscape crop from the AniList portrait, not the full portrait — a
    fixed height (not aspect-ratio) so it scales with --text-scale but stays
@@ -1446,7 +1460,9 @@ kbd {
    toggled by preferences.js's textSize slider setter for step<=5 —
    the same threshold that made s (step 5) the highest step this rule
    used to fire for. */
-[data-text-compact] .card:not(.season-row) .card-title {
+/* v3 Phase 4 library cards: one title line at every text size (the full
+   title is in the detail view and the tooltip). */
+.card .card-title, .franchise-card .card-title {
   display: block;
   -webkit-line-clamp: unset;
   white-space: nowrap;
@@ -1454,6 +1470,72 @@ kbd {
   text-overflow: ellipsis;
   min-height: 0;
 }
+
+/* Portrait 2:3 covers: the old 3:2 crop threw away most of the art. */
+.card .card-cover-wrap, .franchise-card .card-cover-wrap { height: auto; aspect-ratio: 2 / 3; }
+.card .card-body { gap: var(--sp-1); padding: var(--sp-2) var(--sp-3) var(--sp-3); }
+.card .card-meta { align-items: baseline; gap: var(--sp-2); flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+.card .card-meta > * { flex-shrink: 0; }
+.card .card-meta .progress-label { padding: 0; color: var(--dim); }
+.card .card-score { color: var(--warning); }
+/* The hairline: progress on Watching, full on Watched, where it stopped on
+   Dropped. */
+.card .progress-track { flex: none; height: 2px; margin-top: var(--sp-1); }
+
+/* The compact list layout for large libraries (the layout toggle in the
+   filter bar): one row per series, the same card, a small cover. */
+.card-grid.list-layout { grid-template-columns: 1fr; gap: var(--sp-1); }
+.card-grid.list-layout > .card, .card-grid.list-layout .franchise-summary { flex-direction: row; align-items: center; contain-intrinsic-size: auto 64px; }
+.card-grid.list-layout > .card:hover, .card-grid.list-layout > .card:focus-within { transform: none; }
+/* The cover stops being the positioning box here (its media fills it
+   instead), so the toolbar inside it can sit at the end of the row. */
+.card-grid.list-layout > .card .card-cover-wrap, .card-grid.list-layout .franchise-summary .card-cover-wrap { position: static; width: 40px; flex-shrink: 0; margin: var(--sp-2); overflow: visible; }
+.card-grid.list-layout > .card .cover-media, .card-grid.list-layout .franchise-summary .cover-media { position: relative; width: 100%; height: 100%; border-radius: var(--radius-xs); overflow: hidden; }
+.card-grid.list-layout .card-cover-wrap::after, .card-grid.list-layout .card-format-badge, .card-grid.list-layout .dot { display: none; }
+.card-grid.list-layout > .card .card-body { flex-direction: row; align-items: center; gap: var(--sp-4); padding: var(--sp-2) calc(var(--sp-16) * 2) var(--sp-2) var(--sp-3); min-width: 0; }
+.card-grid.list-layout > .card .card-title-block { flex: 1; min-width: 0; }
+.card-grid.list-layout > .card .progress-track { width: 120px; flex-shrink: 0; margin: 0; }
+.card-grid.list-layout > .card .card-toolbar { left: auto; right: var(--sp-3); top: 50%; bottom: auto; opacity: 1; transform: translateY(-50%); }
+.card-grid.list-layout .card-select-box { top: 50%; left: auto; right: var(--sp-3); transform: translateY(-50%); }
+
+/* The popup menu (core/menu.js): the cards' context menu and toolbar menus. */
+.popup-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - var(--sp-4)));
+  padding: var(--sp-1);
+  border: 1px solid var(--line-lit);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--sh-3);
+}
+.popup-menu-item {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--dim);
+  font: var(--t-body);
+  text-align: left;
+  cursor: pointer;
+}
+.popup-menu-item:hover, .popup-menu-item:focus-visible { background: var(--accent-soft); color: var(--text); outline: none; }
+.popup-menu-item.danger { color: var(--accent-lit); }
+.popup-menu-item kbd { font-size: var(--fs-micro); }
+.popup-menu-sep { height: 1px; margin: var(--sp-1) var(--sp-2); background: var(--line); }
+.popup-menu-heading { padding: var(--sp-2) var(--sp-3) 2px; font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.popup-menu-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 2px var(--sp-2) var(--sp-1); }
+.popup-menu-item.in-row { justify-content: center; padding: 6px 0; font-variant-numeric: tabular-nums; }
+.popup-menu-item.in-row[aria-checked="true"] { background: var(--warning); color: var(--bg-deep); }
 
 .card-title-sub {
   font-size: var(--fs-micro);
@@ -1474,12 +1556,7 @@ kbd {
   flex-wrap: wrap;
 }
 
-/* Progress bar + +1 */
-.progress-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
+
 .progress-track {
   flex: 1;
   height: 6px;
@@ -1501,8 +1578,6 @@ kbd {
   transform: scaleX(var(--p, 0));
   transition: transform var(--dur-slow) var(--ease-spring);
 }
-.watched-progress-row { justify-content: flex-start; }
-.watched-progress-label-prefix { font-size: var(--fs-meta); color: var(--faint); }
 
 .progress-label {
   appearance: none;
@@ -1529,37 +1604,64 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-/* Floating plus button on the card cover — marks the next episode watched
-   without opening the card. Hover-reveal only; the spring easing is
-   reserved for exactly this and reward moments (design/moonlit-shrine-
-   design-system.md §10). */
-.plus {
+/* v3 Phase 4: the card's toolbar sits on the bottom of the cover: +1 on
+   Watching (the spring easing is reserved for it and rewards, design §10),
+   the status menu and the "more" menu. It shows on hover and whenever the
+   card or one of its controls has keyboard focus, and always on touch
+   (below), so +1 never depends on hover. */
+.card-toolbar {
   position: absolute;
-  overflow: hidden;
   z-index: 4;
-  right: 10px;
-  bottom: calc(50px * var(--text-scale));
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
-  background: color-mix(in srgb, var(--bg-deep) 86%, transparent);
-  color: var(--accent-lit);
+  left: var(--sp-2);
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(var(--move-sm));
+  transition: opacity var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-enter);
+}
+.card:hover .card-toolbar, .card:focus-within .card-toolbar { opacity: 1; transform: none; }
+.tb-btn {
+  appearance: none;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  font-size: var(--fs-display-s);
-  line-height: 1;
-  opacity: 0;
-  transform: scale(0.85);
+  border: 1px solid var(--line-lit);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-deep) 82%, transparent);
+  color: var(--text);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
+}
+.tb-btn:hover, .tb-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--bg-deep) 60%, var(--accent-soft)); }
+.tb-btn:active { transform: scale(var(--press-icon)); }
+.plus {
+  position: relative;
+  overflow: hidden;
+  margin-right: auto;
+  height: 32px;
+  min-width: 48px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--bg-deep) 82%, transparent);
+  color: var(--accent-lit);
+  display: inline-grid;
+  place-items: center;
+  font: var(--t-action);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
   transition:
     transform var(--dur-slow) var(--ease-spring),
-    opacity var(--dur-slow) var(--ease-spring),
     background-color var(--dur-fast) var(--ease-standard),
     color var(--dur-fast) var(--ease-standard);
   backdrop-filter: blur(4px);
   cursor: pointer;
 }
-.card:hover .plus, .card:focus-within .plus { opacity: 1; transform: none; }
 .plus:hover { background: var(--accent-fill); color: var(--accent-contrast); }
 /* v3 +1: pressed to 0.9 at once, then back on the spring when released. A
    keyboard +1 has no press, so .pulse (added after the save) plays the same
@@ -1614,12 +1716,7 @@ kbd {
 .tag.warn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); color: var(--warning); }
 .tag.air { border-color: color-mix(in srgb, var(--positive) 45%, transparent); color: var(--positive); }
 
-/* P1.7: user-created tag chips — a distinct class from .tag above (that one is
-   fixed status badges; this one is free-form, per-tag-coloured content), same
-   pill shape as .detail-genre-chip. Read-only on cards (no button chrome);
-   the colour itself is set inline per-tag via listsAndTags.js's tagColorHex(),
-   so no CSS variable per swatch is needed here. */
-.card-tag-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+
 .tag-chip {
   font: var(--t-nano);
   letter-spacing: .06em;
@@ -1701,49 +1798,9 @@ kbd {
 .quick-move-btn:active { transform: scale(0.93); }
 .quick-move-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 
-/* Corner actions (edit-match / delete) on card cover — hidden until hover
-   (or keyboard focus, so they stay reachable without a mouse) */
-.card-corner-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: var(--sp-1);
-  z-index: 2;
-  opacity: 0;
-  transition: opacity var(--dur-base) var(--ease-standard);
-}
-.card:hover .card-corner-actions,
-.card:focus-within .card-corner-actions {
-  opacity: 1;
-}
-.corner-btn {
-  appearance: none;
-  border: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--shade) 55%, transparent);
-  color: var(--on-shade);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  backdrop-filter: blur(2px);
-  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
-}
-.corner-btn:hover { background: color-mix(in srgb, var(--shade) 85%, transparent); }
-.corner-btn:active { transform: scale(0.93); }
-.corner-btn.danger:hover { background: var(--accent-fill); color: var(--accent-contrast); }
 
-/* A second, discoverable entry point into select mode: hover-revealed like
-   the rest of .card-corner-actions (it's a plain member of that same flex
-   row, so it needs no hover rule of its own), circular to visually echo
-   the real select-mode checkbox below rather than looking like a third
-   edit/delete action. */
-.corner-btn.quick-select-box { position: relative; border-radius: 50%; }
-.corner-btn.quick-select-box::after { content: '✓'; font-size: var(--fs-meta); color: transparent; }
-.corner-btn.quick-select-box input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+
+
 
 /* Select mode: an empty circle shows on every card while active (the
    affordance), filled with a check once picked — always visible, not
@@ -1802,40 +1859,9 @@ kbd {
   color: var(--accent-lit);
 }
 
-/* Notes */
-.notes-toggle {
-  font-size: var(--fs-meta);
-  color: var(--faint);
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-  text-align: left;
-}
-.notes-toggle:hover { color: var(--dim); }
-.notes-field {
-  width: 100%;
-  background: var(--bg-elevated);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: var(--fs-card);
-  padding: 6px var(--sp-2);
-  resize: vertical;
-  min-height: 44px;
-}
 
-/* Completion prompt */
-.completion-prompt {
-  background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  padding: var(--sp-2);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: var(--fs-card);
-}
+
+
 
 /* Subtle, not alarming — this is good news ("something to watch"), not a warning.
    .pop is added only when the count just increased from what was already

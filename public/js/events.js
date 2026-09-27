@@ -27,6 +27,7 @@ import {
   handleSetScore,
   handleSetStatus,
   confirmDrop,
+  openCardMenu,
   bindGridEvents,
   bindBulkActionBar,
   bindBulkMoreMenu,
@@ -1234,13 +1235,11 @@ export function repositionTabPill() {
   updateTabPill();
 }
 
-// Hold a card 500ms to enter select mode and select it in one motion
-// (design §10: "Hold a card · 500ms · linear ring · ring fills, then select
-// mode" — also the primary route into select mode on touch, per @media
-// (hover:none) handling, since there's no hover to reveal the checkbox
-// first). Delegated on #app like bindGridEvents; deliberately ignores
-// presses that start on an actual control inside the card (buttons, the
-// title, etc.) so holding the plus button doesn't also arm this.
+// Hold a card 500ms (design §10: "Hold a card · 500ms · linear ring"): with a
+// mouse it enters select mode with that card selected; on touch (v3 Phase 4)
+// it opens the card's menu, which has Select. Delegated on #app like
+// bindGridEvents; presses that start on a control inside the card (buttons,
+// the title) never arm it.
 function bindHoldToSelect() {
   const root = document.getElementById('app');
   let holdTimer = null;
@@ -1260,7 +1259,16 @@ function bindHoldToSelect() {
     if (!card) return;
     holdCard = card;
     card.classList.add('holding');
+    const point = { x: e.clientX, y: e.clientY };
+    const touch = e.pointerType === 'touch';
     holdTimer = setTimeout(() => {
+      // v3 Phase 4: a touch long-press opens the card's menu (which has
+      // Select); a mouse hold still goes straight into select mode.
+      if (touch) {
+        cancelHold();
+        openCardMenu(card, { point });
+        return;
+      }
       const id = Number(card.dataset.id);
       if (!Render.isSelectMode()) Render.toggleSelectMode();
       Render.toggleSelected(id);
