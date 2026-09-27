@@ -22,6 +22,7 @@ import {
 import { renderSchedulePage } from './views/schedule/view.js';
 import { relativeAgeText, formatEnumLabel, coverOrInitialHtml } from './views/shared/format.js';
 import { announce } from './core/announce.js';
+import { renderHelpPanel, setHelpTab } from './views/help/view.js';
 
 const { isSelectMode, toggleSelectMode, clearSelection, toggleSelected, getSelectedIds, visibleIds, selectRange, selectAllVisible, toggleGroupExpanded } = LibraryModel;
 const { QUICK_MOVE_LISTS } = LibraryView;
@@ -766,83 +767,6 @@ function renderColdStartOverlay(container, candidates, pickedIds) {
       </button>`;
     })
     .join('');
-}
-
-const HELP_TOUR = [
-  ['Watching', 'Series you are in the middle of. The one with a new episode is shown large at the top.'],
-  ['Watchlist', 'Series you plan to watch. Nothing here counts towards your stats.'],
-  ['Watched', 'Finished series. A series moves here by itself when you mark the last episode.'],
-  ['Dropped', 'Series you stopped. Your episodes and score are kept.'],
-  ['Schedule', 'When new episodes arrive, by day. Only for series you are watching.'],
-  ['Discover', 'Suggestions based on what you rated high. Each one says why it is there.'],
-  ['Statistics', 'Episodes per month, episodes per genre, your average score.'],
-];
-const HELP_TOUR_2 = [
-  ['Marking an episode', 'Hover a card and press the plus, or open the series and press "Mark episode watched". Both can be undone.'],
-  ['Selecting several', 'Press "Select several" in the toolbar, or hold a card, then pick more.'],
-  ['Your data', 'Everything stays on this computer. Nothing is sent anywhere except searches to AniList.'],
-];
-// Documents only the shortcuts events.js actually implements
-// (bindKeyboardShortcuts) — matches design system §13 exactly, plus the one
-// bonus row (+/-) that isn't in that list but still works.
-const HELP_KEYS = [
-  ['ctrl + k', 'Search, jump to a series or run a command'],
-  ['/', 'Filter the library'],
-  ['n', 'Search AniList and add a series'],
-  ['1 – 5', 'Go to Home, Library, Schedule, Discover or Stats'],
-  ['← / →', 'Move between tabs when a tab has focus'],
-  ['j / k', 'Move between cards'],
-  ['space', "Mark the focused card's next episode watched"],
-  ['enter', 'Open the focused card'],
-  ['s', 'Select mode'],
-  ['esc', 'Close, or leave select mode'],
-  ['ctrl + z', 'Undo the last change'],
-  ['?', 'Open this help'],
-  ['+ / -', 'Step episode progress on a focused card'],
-];
-// Verified against server.js/datadir.js/README.md rather than copied
-// verbatim from the design reference — a couple of its answers (backup
-// retention count, the data path, "replace match" vs. this app's actual
-// "Fix wrong match" label) would otherwise have been wrong for this app.
-const HELP_FAQ = [
-  ['Where is my data saved?', 'On this computer, in a folder outside the app: <code>%APPDATA%\\anime-tracker</code> on Windows (<code>~/Library/Application Support/anime-tracker</code> on Mac). You can delete the app folder and your library stays.'],
-  ['How do I make a backup?', 'Open Settings (the gear), then Backup and restore, then Export backup. You get one file with everything. The app also saves a backup on every change: the last 50, one a day for a month and one a month after that.'],
-  ['How do I add a series?', 'Press Add (or n) and search. You can also paste a screenshot of a list, or import your list from MyAnimeList.'],
-  ['A series I watch has a new episode, but the app does not show it.', 'The schedule comes from AniList. If the series has no schedule there, the app cannot know — open the series and mark the episode by hand.'],
-  ['Can I use the app without internet?', 'Yes. Your library, stats, schedule and backups all work offline. Only searching for new series and Discover need a connection.'],
-  ['I matched the wrong series. How do I fix it?', 'Hover the card and press "Fix wrong match", then search again. Your episodes and score move to the new match.'],
-  ['What happens when I drop a series?', 'It moves to Dropped. Watched episodes, your score and your notes are kept, and it stops showing up in Watching and Schedule.'],
-  ['How do I change how the app looks?', 'Open Settings (the gear). You can pick a theme, change text size and weight, and turn decoration down or off.'],
-  ['How do I update the app?', 'Download the new version and replace the old folder or exe. Your data is in a different place, so it is not touched.'],
-  ['Something looks broken. What now?', 'Reload the page first. If it stays broken, open Settings, then Backup and restore, and restore your most recent backup.'],
-];
-
-let helpTab = 'basics';
-
-function helpTabBodyHtml() {
-  if (helpTab === 'keyboard') {
-    return `<div class="keys">${HELP_KEYS.map(([key, desc]) => `<div><kbd>${escapeHtml(key)}</kbd>${escapeHtml(desc)}</div>`).join('')}</div>
-      <p class="note" style="margin-top:18px">Shortcuts are off while you are typing in a field.</p>`;
-  }
-  if (helpTab === 'questions') {
-    return `<div class="faq">${HELP_FAQ.map(
-      ([q, a], i) => `<details ${i === 0 ? 'open' : ''}><summary>${escapeHtml(q)}</summary><p>${a}</p></details>`
-    ).join('')}</div>`;
-  }
-  return `
-    <p class="tour-h">What each tab is for</p>
-    <div class="tour">${HELP_TOUR.map(([t, d]) => `<div><b>${escapeHtml(t)}</b>${escapeHtml(d)}</div>`).join('')}</div>
-    <p class="tour-h">Three things worth knowing</p>
-    <div class="tour">${HELP_TOUR_2.map(([t, d]) => `<div><b>${escapeHtml(t)}</b>${escapeHtml(d)}</div>`).join('')}</div>
-  `;
-}
-
-function renderHelpPanel(container) {
-  container.innerHTML = helpTabBodyHtml();
-}
-
-function setHelpTab(tab) {
-  helpTab = tab;
 }
 
 export const Render = {

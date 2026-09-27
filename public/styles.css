@@ -2675,6 +2675,7 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: var(--sp-2); }
 .keys div { display: flex; align-items: center; gap: var(--sp-3); border: 1px solid var(--line); border-radius: 8px; padding: 10px var(--sp-3); font: var(--t-meta); color: var(--dim); }
 .keys kbd { font-size: var(--fs-meta); border: 1px solid var(--line-lit); border-radius: 4px; padding: 2px var(--sp-2); color: var(--text); min-width: 22px; text-align: center; }
+.help-note { margin-top: var(--sp-4); }
 .tour { display: grid; gap: 10px; }
 .tour div { display: grid; grid-template-columns: 104px 1fr; gap: var(--sp-4); padding: var(--sp-3) 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); font: var(--t-body); color: var(--dim); }
 .tour div b { color: var(--text); font: var(--t-card); font-size: var(--fs-action); }
