@@ -439,7 +439,6 @@ async function boot() {
   initEventFlushLifecycle();
 
   const initialList = Store.state.preferences.activeTab || 'watching';
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === initialList)));
 
   initEvents({ initialList, persistFn: persist });
   initMalImport();

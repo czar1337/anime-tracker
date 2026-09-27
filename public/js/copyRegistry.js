@@ -39,6 +39,10 @@
 // if a later substep ever needs it, loaded server-side from its own source
 // bytes via the established data-URL trick.
 
+// v3: content tiers are out of v3.0 (D3), so new entries read the same in
+// every tier; this spells that out once instead of three identical lines.
+const same = (variant) => ({ familyFriendly: variant, standard: variant, madara: variant });
+
 export const COPY_REGISTRY = {
   // ---------------------------------------------------------------------------
   // P1.2 — concurrency: the two-tab conflict, the lock timeout, the disk quota
@@ -743,6 +747,38 @@ export const COPY_REGISTRY = {
     standard: 'Rate it',
     madara: 'Rate it',
   },
+
+  // ---------------------------------------------------------------------------
+  // v3 Phase 4: navigation and app commands (header, Settings, palette).
+  // ---------------------------------------------------------------------------
+
+  'nav.home': same('Home'),
+  'nav.library': same('Library'),
+  'nav.schedule': same('Schedule'),
+  'nav.discover': same('Discover'),
+  'nav.stats': same('Stats'),
+  'nav.sections': same('Sections'),
+  'nav.lists': same('Library lists'),
+  'list.watching': same('Watching'),
+  'list.watchlist': same('Watchlist'),
+  'list.watched': same('Watched'),
+  'list.dropped': same('Dropped'),
+  'nav.unseenBadge': same((p) => `${p.n} series with new episodes`),
+  'header.search': same('Search or jump to…'),
+  'header.add': same('Add'),
+  'header.settings': same('Settings'),
+  'header.notifications': same('New episodes'),
+  'command.settings': same('Open Settings'),
+  'command.import': same('Import from MyAnimeList'),
+  'command.backup': same('Backup and restore'),
+  'command.exportLibrary': same('Export library'),
+  'command.notifications': same('Episode notifications'),
+  'command.help': same('Help and keyboard shortcuts'),
+  'command.theme': same('Change theme'),
+  'command.addSeries': same('Add a series from AniList'),
+  'command.goTo': same((p) => `Go to ${p.place}`),
+  'settings.moved.heading': same('Import, backup and help'),
+  'settings.moved.description': same('Also in the command palette (Ctrl+K).'),
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

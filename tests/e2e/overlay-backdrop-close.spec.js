@@ -20,7 +20,7 @@ test('clicking an overlay\'s backdrop closes it (Help panel)', async ({ page }) 
   try {
     await page.goto(server.url);
     await page.waitForSelector('#grid .card');
-    await page.click('#shortcuts-trigger');
+    await page.keyboard.press('?');
     const overlay = page.locator('#shortcuts-overlay');
     await expect(overlay).toBeVisible();
 
@@ -37,7 +37,7 @@ test('clicking an overlay\'s backdrop closes it (Settings/theme picker)', async 
   try {
     await page.goto(server.url);
     await page.waitForSelector('#grid .card');
-    await page.click('#theme-toggle');
+    await page.click('#settings-trigger');
     const overlay = page.locator('#theme-picker-overlay');
     await expect(overlay).toBeVisible();
 
@@ -53,7 +53,7 @@ test('clicking inside the overlay panel never closes it', async ({ page }) => {
   try {
     await page.goto(server.url);
     await page.waitForSelector('#grid .card');
-    await page.click('#shortcuts-trigger');
+    await page.keyboard.press('?');
     const overlay = page.locator('#shortcuts-overlay');
     await expect(overlay).toBeVisible();
 

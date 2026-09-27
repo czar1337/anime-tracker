@@ -18,7 +18,7 @@ const { startFixtureServer } = require('./harness.js');
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'schema-v4-library.json');
 
 async function openSettings(page) {
-  await page.click('#theme-toggle');
+  await page.click('#settings-trigger');
   await page.waitForSelector('#settings-body');
   await page.waitForSelector('#font-grid-ui');
 }

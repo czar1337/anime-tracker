@@ -221,7 +221,8 @@ test('"Already watched, not tracked" adds the title to Completed with no score, 
     expect(entry.myScore).toBe(null);
 
     await page.reload();
-    await page.click('[data-tab="watched"]');
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watched"]');
     await expect(page.locator('.card[data-id="9980"]')).toBeVisible();
   } finally {
     await server.stop();
@@ -250,7 +251,8 @@ test('"Pick for me" with filters returns a matching Watchlist entry, and "Start 
     await expect(page.locator('#pick-for-me-overlay')).toBeHidden();
 
     await waitForDebouncedPersist(page, (lib) => lib.entries.find((e) => e.anilistId === 9500)?.listStatus === 'watching');
-    await page.click('[data-tab="watching"]');
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watching"]');
     await expect(page.locator('.card[data-id="9500"]')).toBeVisible();
   } finally {
     await server.stop();

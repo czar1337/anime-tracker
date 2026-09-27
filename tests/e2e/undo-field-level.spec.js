@@ -23,7 +23,8 @@ test('undoing a status move keeps a note written inside the undo window', async 
     await page.click(`.card[data-id="${ID}"] [data-action="set-status"][data-status="watchlist"]`);
     const undo = page.getByRole('button', { name: 'Undo' });
     await expect(undo).toBeVisible();
-    await page.click('[data-tab="watchlist"]');
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watchlist"]');
     await page.click(`.card[data-id="${ID}"] [data-action="toggle-notes"]`);
     const notes = page.locator(`.card[data-id="${ID}"] .notes-field`);
     await notes.fill('written after the move');

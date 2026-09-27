@@ -81,8 +81,9 @@ function corpus() {
 }
 
 const VIEWS = [
-  { name: 'watching', tab: 'watching', ready: '#grid .card' },
-  { name: 'watched', tab: 'watched', ready: '#grid .card' },
+  { name: 'home', tab: 'home', ready: '#home-view > *' },
+  { name: 'watching', tab: 'library', list: 'watching', ready: '#grid .card' },
+  { name: 'watched', tab: 'library', list: 'watched', ready: '#grid .card' },
   { name: 'schedule', tab: 'schedule', ready: '.schedule-day' },
   { name: 'discover', tab: 'discover', ready: '.discover-card, .shelf-empty' },
   { name: 'stats', tab: 'stats', ready: '.home-stats, .stats-hero' },
@@ -117,14 +118,10 @@ async function main() {
         await page.goto(server.url);
         await page.waitForSelector('#grid .card');
         for (const view of VIEWS) {
-          const tab = page.locator(`[data-tab="${view.tab}"]`);
-          if (await tab.isVisible()) {
-            await tab.click();
-          } else {
-            // Narrow screens put the tabs behind the navigation menu.
-            await page.click('#nav-hamburger');
-            await page.click(`#nav-menu-list [data-nav-menu="${view.tab}"]`);
-          }
+          // The section tabs are in the header, or the bottom tab bar on
+          // narrow screens; a list is a segment inside Library.
+          await page.click(`[data-tab="${view.tab}"]`);
+          if (view.list) await page.click(`[data-list="${view.list}"]`);
           await page.waitForSelector(view.ready, { timeout: 8000 }).catch(() => problems.push(`${label}/${view.name}: never became ready (${view.ready})`));
           await page.waitForTimeout(reducedMotion === 'reduce' ? 150 : 900);
       // Content that arrives late (Discover builds its shelves after opening)

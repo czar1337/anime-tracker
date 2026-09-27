@@ -3,6 +3,8 @@ import { Api } from './api.js';
 import { Render } from './render.js';
 import { EventLog } from './eventLog.js';
 import { openDialog, closeDialog, onDialogClose } from './core/dialog.js';
+import { registerCommand } from './core/commands.js';
+import { copy } from './copy.js';
 
 const STATUS_MAP = {
   Watching: 'watching',
@@ -187,9 +189,15 @@ export function initMalImport() {
       unmatched.map((item, i) => reviewRowHtml(item, i, 'unmatched', false)).join('');
   }
 
-  document.getElementById('import-trigger').addEventListener('click', () => {
-    reset();
-    openDialog(overlay);
+  registerCommand({
+    id: 'import.open',
+    title: copy('command.import'),
+    section: 'data',
+    keywords: 'mal myanimelist xml screenshot',
+    run: () => {
+      reset();
+      openDialog(overlay);
+    },
   });
   cancelBtn.addEventListener('click', () => {
     importGeneration += 1;

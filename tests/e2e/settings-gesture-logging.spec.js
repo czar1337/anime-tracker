@@ -31,7 +31,7 @@ test('a slider drag logs exactly one settings_changed from the start value to th
   try {
     await page.goto(server.url);
     await page.waitForSelector('.card');
-    await page.click('#theme-toggle');
+    await page.click('#settings-trigger');
     await page.waitForSelector('[data-slider="textSize"]');
     await drag(page, '[data-slider="textSize"]', [6, 7, 8]);
     await drag(page, '#decoration-step-slider', [6, 7, 8, 9]);
@@ -52,7 +52,7 @@ test('a custom accent colour pick logs a real before and after', async ({ page }
   try {
     await page.goto(server.url);
     await page.waitForSelector('.card');
-    await page.click('#theme-toggle');
+    await page.click('#settings-trigger');
     await page.click('[data-action="pick-custom"][data-slot="dark"]');
     await page.waitForSelector('[data-action="set-custom-accent"][data-slot="dark"]');
     await drag(page, '[data-action="set-custom-accent"][data-slot="dark"]', ['#112233', '#223344', '#ff3366']);

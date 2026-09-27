@@ -503,7 +503,11 @@ export function renderSettingsPanel(container, appearance) {
   const scrollTop = scroller.scrollTop;
   const themeGridScrollTops = Array.from(container.querySelectorAll('.themegrid')).map((g) => g.scrollTop);
   const otherGridScrollTops = OTHER_GRID_SELECTORS.map((sel) => container.querySelector(sel)?.scrollTop || 0);
+  // v3 Phase 4: what used to sit in the header (import, backup, notifications,
+  // help) is reached from here and from the command palette.
+  const commandButton = (id, key) => `<button class="btn btn-ghost sm" data-command="${id}">${escapeHtml(copy(key))}</button>`;
   container.innerHTML = `
+    ${settingsRowHtml(copy('settings.moved.heading'), copy('settings.moved.description'), `<div class="row">${commandButton('import.open', 'command.import')}${commandButton('backup.open', 'command.backup')}${commandButton('notifications.open', 'command.notifications')}${commandButton('help.open', 'command.help')}</div>`)}
     ${settingsRowHtml('Theme', `${COLOR_THEMES.length} colour themes. ${COLOR_THEMES.filter((t) => t.light).length} are light.`, appearanceSectionHtml(appearance))}
     ${settingsRowHtml('Background effect', 'An optional gradient or grain layer behind your library, at the accent colour of whichever theme is active.', appearanceBackgroundHtml(appearance.background))}
     ${settingsRowHtml('Import & export appearance', 'Copy your whole theme setup as a short code, or download/upload it as a JSON file.', appearanceExportImportHtml())}

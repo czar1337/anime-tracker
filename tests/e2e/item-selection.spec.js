@@ -131,11 +131,11 @@ test('selection clears on navigating to another tab', async ({ page }) => {
     await toggleCheckbox(page, 301).click();
     await expect.poll(() => selectedIds(page)).toEqual(['301']);
 
-    await page.click('.tab[data-tab="watchlist"]');
+    await page.click('[data-list="watchlist"]');
     await expect(page.locator('#select-mode-toggle')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#bulk-action-bar')).toBeHidden();
 
-    await page.click('.tab[data-tab="watching"]');
+    await page.click('[data-list="watching"]');
     await expect(page.locator('#select-mode-toggle')).toHaveAttribute('aria-pressed', 'false');
     await expect.poll(() => selectedIds(page)).toEqual([]);
   } finally {

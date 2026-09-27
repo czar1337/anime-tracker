@@ -56,3 +56,38 @@ export function trapTab(e, container) {
     first.focus();
   }
 }
+
+// The ARIA tabs pattern's keyboard (v3 Phase 4): inside a tablist the arrow
+// keys (and Home/End) move to the previous/next tab and activate it, and only
+// the selected tab is in the Tab order (roving tabindex, set by whoever
+// selects a tab). Tabs are activated by clicking them, so every tab keeps one
+// code path.
+export function bindRovingTablist(tablist, tabSelector = '[role="tab"]') {
+  const vertical = tablist.getAttribute('aria-orientation') === 'vertical';
+  tablist.addEventListener('keydown', (e) => {
+    const tabs = [...tablist.querySelectorAll(tabSelector)].filter(isVisible);
+    const i = tabs.indexOf(e.target.closest(tabSelector));
+    if (i < 0) return;
+    const prev = vertical ? 'ArrowUp' : 'ArrowLeft';
+    const next = vertical ? 'ArrowDown' : 'ArrowRight';
+    let to = -1;
+    if (e.key === prev) to = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === next) to = (i + 1) % tabs.length;
+    else if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = tabs.length - 1;
+    if (to < 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    tabs[to].focus();
+    tabs[to].click();
+  });
+}
+
+// Marks one tab of a tablist selected: aria-selected and the roving tabindex.
+export function selectTab(tabs, isSelected) {
+  for (const t of tabs) {
+    const on = isSelected(t);
+    t.setAttribute('aria-selected', String(on));
+    t.tabIndex = on ? 0 : -1;
+  }
+}

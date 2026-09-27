@@ -372,7 +372,7 @@ function moveToStatus(id, newStatus) {
   const { before: fullBefore } = Store.updateEntry(id, patch);
   // The card leaves this list: it fades out towards its new list's tab,
   // whose count badge pops (renderTabCounts).
-  exitTowardsOnNextRender(document.querySelector(`.tab[data-tab="${newStatus}"]`));
+  exitTowardsOnNextRender(document.querySelector(`.list-seg[data-list="${newStatus}"]`));
   return () => {
     // Only the fields this move changed (status, and the fast-forwarded
     // progress/completion date), and only if still untouched since.

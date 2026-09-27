@@ -52,9 +52,12 @@ test('tab changes run a View Transition typed by the direction of travel', async
     test.skip(!(await page.evaluate(() => typeof document.startViewTransition === 'function')), 'no View Transitions in this browser');
     await page.click('[data-tab="stats"]');
     await expect(page.locator('#stats-view')).toBeVisible();
-    await page.click('[data-tab="watchlist"]');
+    await page.click('[data-tab="library"]');
     await expect(page.locator('#list-view')).toBeVisible();
-    expect(await page.evaluate(() => window.__vt)).toEqual([['tab', 'forward'], ['tab', 'back']]);
+    // A list change inside Library slides too, by list order.
+    await page.click('[data-list="watchlist"]');
+    await expect(page.locator('[data-list="watchlist"]')).toHaveAttribute('aria-selected', 'true');
+    expect(await page.evaluate(() => window.__vt)).toEqual([['tab', 'forward'], ['tab', 'back'], ['tab', 'forward']]);
   } finally {
     await server.stop();
   }

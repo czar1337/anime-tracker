@@ -21,7 +21,7 @@ async function openApp(page, url) {
 }
 
 async function openSettings(page) {
-  await page.click('#theme-toggle');
+  await page.click('#settings-trigger');
   await page.waitForSelector('#snapshot-list');
 }
 

@@ -215,7 +215,8 @@ test('one-tap add with a status choice lands the entry directly in Watching, sur
     await page.waitForSelector('.card, .empty');
     lib = await page.evaluate(() => fetch('/api/library').then((r) => r.json()));
     expect(lib.entries.find((e) => e.anilistId === 9102).listStatus).toBe('watching');
-    await page.click('[data-tab="watching"]');
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watching"]');
     await expect(page.locator('.card[data-id="9102"]')).toBeVisible();
   } finally {
     await server.stop();

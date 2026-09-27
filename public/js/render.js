@@ -85,13 +85,6 @@ function sortDirLabel(key, dir) {
   return labels ? labels[dir] : null;
 }
 
-const EMPTY_STATES = {
-  watching: { title: 'Nothing in progress', body: 'Press / to search AniList and add something to start watching.' },
-  watchlist: { title: 'Your watchlist is empty', body: 'Add anime you want to watch next — sort by AniList score to decide.' },
-  watched: { title: 'No completed anime yet', body: 'Finish something in Watching and it will land here with your score.' },
-  dropped: { title: 'Nothing dropped', body: 'Anime you stop watching show up here.' },
-};
-
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -130,12 +123,18 @@ function renderTabCounts() {
   }
   // Distinct from the neutral total count above: how many Watching series
   // have aired episodes I haven't marked watched yet — not the same number.
+  // v3 Phase 4: the Library tab carries this one number (the lists' own
+  // counts are in its segmented control), and the bell only appears when
+  // there is something new.
+  const seriesCount = Airing.getUnseenSeriesCount();
   const unseenBadge = document.getElementById('watching-unseen-badge');
   if (unseenBadge) {
-    const seriesCount = Airing.getUnseenSeriesCount();
     setCountWithPop(unseenBadge, seriesCount, { onlyPopIfNonZero: true });
     unseenBadge.hidden = seriesCount === 0;
+    unseenBadge.setAttribute('aria-label', copy('nav.unseenBadge', undefined, { n: seriesCount }));
   }
+  const bell = document.getElementById('notifications-trigger');
+  if (bell) bell.hidden = seriesCount === 0;
 }
 
 // The small "Titles / Episodes / Mean score" strip shown above the grid on
@@ -699,33 +698,6 @@ function clearError() {
 
 // Shared by the MAL and screenshot import flows (design system: "Three
 // steps: pick the file, check the matches, done").
-// Mobile-only nav menu behind the header's hamburger (design request: a
-// three-line menu that reaches every tab without the tab row's own
-// horizontal-scroll cramping at phone widths). Counts are read fresh every
-// open rather than kept in sync with the tab row's own badges — simpler
-// than teaching renderTabCounts to update two copies of the same number.
-const NAV_MENU_ITEMS = [
-  { key: 'home', label: 'Home' },
-  { key: 'watching', label: 'Watching', list: true },
-  { key: 'watchlist', label: 'Watchlist', list: true },
-  { key: 'watched', label: 'Watched', list: true },
-  { key: 'dropped', label: 'Dropped', list: true },
-  { key: 'schedule', label: 'Schedule' },
-  { key: 'discover', label: 'Discover' },
-  { key: 'stats', label: 'Statistics' },
-];
-
-function renderNavMenu(container, activeView) {
-  const counts = Store.getCounts();
-  container.innerHTML = NAV_MENU_ITEMS.map(
-    (item) => `
-    <button class="nav-menu-item ${activeView === item.key ? 'on' : ''}" data-nav-menu="${item.key}">
-      <span>${escapeHtml(item.label)}</span>
-      ${item.list ? `<b>${counts[item.key]}</b>` : ''}
-    </button>`
-  ).join('');
-}
-
 function stepsHtml(current, labels) {
   return `<div class="steps">${labels
     .map((label, i) => {
@@ -823,9 +795,11 @@ const HELP_TOUR_2 = [
 // (bindKeyboardShortcuts) — matches design system §13 exactly, plus the one
 // bonus row (+/-) that isn't in that list but still works.
 const HELP_KEYS = [
-  ['/', 'Focus the filter in this list'],
-  ['n', 'Search and add a series'],
-  ['1 – 7', 'Switch tab'],
+  ['ctrl + k', 'Search, jump to a series or run a command'],
+  ['/', 'Filter the library'],
+  ['n', 'Search AniList and add a series'],
+  ['1 – 5', 'Go to Home, Library, Schedule, Discover or Stats'],
+  ['← / →', 'Move between tabs when a tab has focus'],
   ['j / k', 'Move between cards'],
   ['space', "Mark the focused card's next episode watched"],
   ['enter', 'Open the focused card'],
@@ -841,15 +815,15 @@ const HELP_KEYS = [
 // "Fix wrong match" label) would otherwise have been wrong for this app.
 const HELP_FAQ = [
   ['Where is my data saved?', 'On this computer, in a folder outside the app: <code>%APPDATA%\\anime-tracker</code> on Windows (<code>~/Library/Application Support/anime-tracker</code> on Mac). You can delete the app folder and your library stays.'],
-  ['How do I make a backup?', 'Press the backup button in the header, then Export backup. You get one file with everything. The app also saves a backup on every change and keeps the last 150.'],
-  ['How do I add a series?', 'Press Add series and search. You can also paste a screenshot of a list, or import your list from MyAnimeList.'],
+  ['How do I make a backup?', 'Open Settings (the gear), then Backup and restore, then Export backup. You get one file with everything. The app also saves a backup on every change: the last 50, one a day for a month and one a month after that.'],
+  ['How do I add a series?', 'Press Add (or n) and search. You can also paste a screenshot of a list, or import your list from MyAnimeList.'],
   ['A series I watch has a new episode, but the app does not show it.', 'The schedule comes from AniList. If the series has no schedule there, the app cannot know — open the series and mark the episode by hand.'],
   ['Can I use the app without internet?', 'Yes. Your library, stats, schedule and backups all work offline. Only searching for new series and Discover need a connection.'],
   ['I matched the wrong series. How do I fix it?', 'Hover the card and press "Fix wrong match", then search again. Your episodes and score move to the new match.'],
   ['What happens when I drop a series?', 'It moves to Dropped. Watched episodes, your score and your notes are kept, and it stops showing up in Watching and Schedule.'],
-  ['How do I change how the app looks?', 'Press the settings button. You can pick from 45 themes, change text size and weight, and turn decoration down or off.'],
+  ['How do I change how the app looks?', 'Open Settings (the gear). You can pick a theme, change text size and weight, and turn decoration down or off.'],
   ['How do I update the app?', 'Download the new version and replace the old folder or exe. Your data is in a different place, so it is not touched.'],
-  ['Something looks broken. What now?', 'Reload the page first. If it stays broken, open the backup menu and restore your most recent backup.'],
+  ['Something looks broken. What now?', 'Reload the page first. If it stays broken, open Settings, then Backup and restore, and restore your most recent backup.'],
 ];
 
 let helpTab = 'basics';
@@ -906,7 +880,6 @@ export const Render = {
   selectAllVisible,
   renderBulkActionBar,
   renderBulkMoreMenu,
-  renderNavMenu,
   stepsHtml,
   renderSettingsPanel,
   renderColdStartOverlay,

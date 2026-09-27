@@ -17,6 +17,7 @@ import { LISTS_AND_TAGS } from '../../../../config/tuning.js';
 import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from '../../typographySliders.js';
 import { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } from '../../appearanceExport.js';
 import { triggerDownload } from '../../download.js';
+import { registerCommand } from '../../core/commands.js';
 
 let ctx = null;
 const beginSettingGesture = (...args) => ctx.beginSettingGesture(...args);
@@ -88,11 +89,13 @@ export function bindSettingsActions(context) {
     repaintSettings();
   }
 
-  document.getElementById('theme-toggle').addEventListener('click', () => {
+  const openSettings = () => {
     openOverlay('theme-picker-overlay');
     repaintSettings();
     refreshSnapshotList();
-  });
+  };
+  registerCommand({ id: 'settings.open', title: copy('command.settings'), section: 'settings', keywords: 'preferences options appearance', run: openSettings });
+  registerCommand({ id: 'theme.open', title: copy('command.theme'), section: 'settings', keywords: 'colour color appearance dark light', run: openSettings });
 
   body.addEventListener('click', async (e) => {
     if (e.target.closest('[data-action="redo-cold-start"]')) {

@@ -227,7 +227,7 @@ function playEnter(el, index) {
 }
 
 const EMPTY_STATES = {
-  watching: { title: 'Nothing in progress', body: 'Press / to search AniList and add something to start watching.' },
+  watching: { title: 'Nothing in progress', body: 'Press n or Ctrl+K to search AniList and add something to start watching.' },
   watchlist: { title: 'Your watchlist is empty', body: 'Add anime you want to watch next — sort by AniList score to decide.' },
   watched: { title: 'No completed anime yet', body: 'Finish something in Watching and it will land here with your score.' },
   dropped: { title: 'Nothing dropped', body: 'Anime you stop watching show up here.' },

@@ -65,8 +65,13 @@ const MOMENTS = [
   {
     name: 'tab-change',
     async run(page) {
-      for (const tab of ['watchlist', 'watched', 'stats', 'watching']) {
+      for (const tab of ['schedule', 'discover', 'stats', 'library', 'home', 'library']) {
         await page.click(`[data-tab="${tab}"]`);
+        await pause(page, 900);
+      }
+      // Lists inside Library slide by list order too.
+      for (const list of ['watchlist', 'watched', 'watching']) {
+        await page.click(`[data-list="${list}"]`);
         await pause(page, 900);
       }
     },
@@ -107,9 +112,9 @@ const MOMENTS = [
       await card.hover();
       await card.locator('[data-action="increment"]').click();
       await pause(page, 900);
-      await page.click('[data-tab="watched"]');
+      await page.click('[data-list="watched"]');
       await pause(page, 700);
-      await page.click('[data-tab="watching"]');
+      await page.click('[data-list="watching"]');
       await pause(page, 700);
       await page.locator(firstWatching).nth(2).hover();
       await page.locator(firstWatching).nth(2).locator('[data-action="set-status"][data-status="watchlist"]').click();

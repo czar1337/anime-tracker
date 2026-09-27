@@ -324,6 +324,68 @@ kbd {
   color: var(--text);
 }
 
+/* v3 Phase 4: each section tab carries an icon for the bottom tab bar on
+   narrow screens; the header row shows the label only. */
+.tab-icon { display: none; flex-shrink: 0; }
+
+/* The search field in the header is a button that opens the command palette. */
+.search-field-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 220px;
+  height: 34px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  color: var(--faint);
+  font: var(--t-meta);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.search-field-btn:hover { border-color: var(--line-lit); color: var(--dim); }
+.search-field-label { flex: 1; text-align: left; white-space: nowrap; }
+.search-field-btn kbd { margin-left: auto; }
+
+/* The bell appears only with new episodes; its dot says so without a number
+   (the Library tab carries the count). */
+#notifications-trigger { position: relative; }
+.icn-dot { position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
+
+/* Library: the four lists as one segmented control, with counts. */
+.library-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.lists-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.list-seg {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--dim);
+  font: var(--t-action);
+  padding: var(--sp-2) var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.list-seg:hover { color: var(--text); }
+.list-seg[aria-selected="true"] { background: var(--accent-soft); color: var(--text); }
+.saved-views { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
 .tab-count {
   display: inline-block;
   font: var(--t-meta);
@@ -2888,15 +2950,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 /* 900px rather than the old 720px: the previous threshold left tablet-portrait
    widths (~768px) in a gap where the header could neither fit on one line nor
    wrap, clipping the tab bar. */
-/* ---------- Mobile nav menu (hamburger) ----------
-   Hidden on wide viewports — the tab row already works fine there. Below
-   900px the tab row used to wrap into a cramped, horizontally-scrolling
-   strip that clipped the header's own trailing controls; a menu behind a
-   single button is more reliable at phone widths than trying to keep a
-   7-item tab row legible in the same space. */
-.nav-hamburger { display: none; }
-.nav-menu-panel { max-width: 320px; }
-
 /* P4.4's More-actions overlay — one section per bulk verb group, each a
    labelled block (score, progress, tags, lists, mark completed, export).
    Reuses .detail-lbl/.tag-chip-toggle/.score-strip/.score-dot/.row exactly
@@ -2907,32 +2960,45 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .bulk-more-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: 6px; }
 .bulk-more-row .tag-chip-toggle { flex: 1; cursor: default; }
 .bulk-more-row .tag-chip-toggle:hover { transform: none; }
-.nav-menu-list { display: flex; flex-direction: column; gap: 2px; }
-.nav-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: var(--sp-3) var(--sp-3);
-  color: var(--dim);
-  font: var(--t-body);
-  cursor: pointer;
-  transition: background-color var(--dur-base), color var(--dur-base);
-}
-.nav-menu-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
-.nav-menu-item.on { color: var(--text); background: var(--accent-soft); }
-.nav-menu-item b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--faint); font-weight: 500; }
-
+/* v3 Phase 4, narrow screens: a compact one-row header (wordmark, search,
+   Add, Settings) and the section tabs as a bottom tab bar. The header does
+   not condense here: its transform would become the containing block of the
+   fixed tab bar inside it. */
 @media (max-width: 900px) {
-  .app-header { flex-wrap: wrap; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); }
-  .app-main { padding: var(--sp-4); }
-  .tabs { display: none; }
-  .nav-hamburger { display: flex; }
-  .header-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .app-header { gap: var(--sp-3); padding: var(--sp-2) var(--sp-4); animation: none; }
+  .app-header .brand { animation: none; font-size: var(--fs-heading); }
+  .app-header::after { display: none; }
+  .app-main { padding: var(--sp-4); padding-bottom: calc(var(--sp-16) + env(safe-area-inset-bottom, 0px)); }
+  .header-actions { margin-left: auto; gap: var(--sp-1); }
+  .app-version { display: none; }
+  .save[data-state="saved"] { display: none; }
+  .search-field-btn { min-width: 0; width: 36px; height: 36px; padding: 0; justify-content: center; border-color: transparent; background: transparent; }
+  .search-field-label, .search-field-btn kbd { display: none; }
+  #section-tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    gap: 0;
+    border-bottom: 0;
+    border-top: 1px solid var(--line);
+    background: var(--bg-elevated);
+    padding: var(--sp-1) var(--sp-2) calc(var(--sp-1) + env(safe-area-inset-bottom, 0px));
+  }
+  #section-tabs .tab-pill { display: none; }
+  #section-tabs .tab {
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 0;
+    letter-spacing: .06em;
+  }
+  #section-tabs .tab-icon { display: block; }
+  #section-tabs .tab[aria-selected="true"] { color: var(--accent-lit); }
+  .tab-unseen-badge { position: absolute; top: 2px; left: calc(50% + 6px); margin: 0; }
+  .list-seg { padding: 6px var(--sp-2); gap: var(--sp-1); }
+  .toast-container { bottom: calc(var(--sp-16) + var(--sp-2) + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 720px) {
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-4); }

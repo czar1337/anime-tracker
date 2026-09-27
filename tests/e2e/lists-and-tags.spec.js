@@ -56,7 +56,7 @@ async function openDetail(page) {
 }
 
 async function openSettings(page) {
-  await page.click('#theme-toggle');
+  await page.click('#settings-trigger');
   await page.waitForSelector('#settings-body');
 }
 

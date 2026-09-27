@@ -15,7 +15,8 @@ import { TasteProfile } from './tasteProfile.js';
 import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
 import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs, keepAboveDialogs } from './core/dialog.js';
-import { trapTab } from './core/focus.js';
+import { trapTab, bindRovingTablist, selectTab } from './core/focus.js';
+import { registerCommand, runCommand, bindCommandButtons } from './core/commands.js';
 import { runViewTransition, movementAllowed } from './core/motion.js';
 import { bindStatsActions } from './views/stats/actions.js';
 import {
@@ -277,13 +278,31 @@ function playViewEnter(el) {
   el.classList.add('view-fade-in');
 }
 
-// Slides the tab-pill highlight to whichever tab is currently
+// v3 Phase 4: five sections in the header (Home · Library · Schedule ·
+// Discover · Stats); the four lists are a segmented control inside Library.
+function sectionOf(view) {
+  return Store.LISTS.includes(view) ? 'library' : view;
+}
+
+// Marks `view` selected in both tablists (aria-selected plus the roving
+// tabindex), points the grid panel at its list tab, and moves the underline.
+function markSelected(view) {
+  const section = sectionOf(view);
+  selectTab(document.querySelectorAll('#section-tabs .tab'), (t) => t.dataset.tab === section);
+  if (Store.LISTS.includes(view)) {
+    selectTab(document.querySelectorAll('.list-seg'), (s) => s.dataset.list === view);
+    document.getElementById('grid').setAttribute('aria-labelledby', `list-tab-${view}`);
+  }
+  updateTabPill();
+}
+
+// Slides the tab-pill highlight to whichever header tab is currently
 // aria-selected="true" (measured, not hardcoded, so it works regardless of
-// tab label width). No active tab (Home dashboard) collapses it to nothing.
+// tab label width).
 function updateTabPill() {
   const pill = document.getElementById('tab-pill');
   if (!pill) return;
-  const activeTab = document.querySelector('.tab[aria-selected="true"]');
+  const activeTab = document.querySelector('#section-tabs .tab[aria-selected="true"]');
   // v3: transform only. The pill is 100px wide in CSS, translated to the tab
   // and scaled to its width; no active tab (Home) collapses it in place.
   if (!activeTab) {
@@ -305,26 +324,25 @@ function switchView(next, update, viewEl) {
   if (from < 0 || to < 0 || from === to) {
     update();
     playViewEnter(viewEl());
-    return;
+    return null;
   }
   // The app is in the new view at once (a shortcut pressed during the
   // transition's first frame must act on it); only the DOM change waits for
   // the transition to capture the old state.
   setCurrentView(next);
-  runViewTransition(update, { types: ['tab', to > from ? 'forward' : 'back'], onFallback: () => playViewEnter(viewEl()) });
+  return runViewTransition(update, { types: ['tab', to > from ? 'forward' : 'back'], onFallback: () => playViewEnter(viewEl()) });
 }
 
 function showListView(list) {
   if (list !== activeList) Render.clearSelection(); // stale selection from a different list would be confusing
   activeList = list;
-  switchView(list, () => {
+  return switchView(list, () => {
     setCurrentView(list);
     hideAllViews();
     const el = document.getElementById('list-view');
     el.hidden = false;
     Store.setPreference(['activeTab'], list);
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === list)));
-    updateTabPill();
+    markSelected(list);
     Render.renderAll(list);
     persist();
   }, () => document.getElementById('list-view'));
@@ -337,8 +355,7 @@ function showHomeView() {
     hideAllViews();
     const el = document.getElementById('home-view');
     el.hidden = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', 'false'));
-    updateTabPill();
+    markSelected('home');
     Render.renderHome(el);
   }, () => document.getElementById('home-view'));
 }
@@ -350,8 +367,7 @@ function showStatsView() {
     hideAllViews();
     const el = document.getElementById('stats-view');
     el.hidden = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'stats')));
-    updateTabPill();
+    markSelected('stats');
     Render.renderStatsPage(el);
   }, () => document.getElementById('stats-view'));
 }
@@ -363,8 +379,7 @@ function showDiscoverView() {
     hideAllViews();
     const el = document.getElementById('discover-view');
     el.hidden = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'discover')));
-    updateTabPill();
+    markSelected('discover');
     Discover.openView();
   }, () => document.getElementById('discover-view'));
 }
@@ -376,8 +391,7 @@ function showScheduleView() {
     hideAllViews();
     const el = document.getElementById('schedule-view');
     el.hidden = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'schedule')));
-    updateTabPill();
+    markSelected('schedule');
     Render.renderSchedulePage(el, Schedule.getScheduleState());
     Schedule.ensureFreshOnOpen();
   }, () => document.getElementById('schedule-view'));
@@ -522,8 +536,9 @@ function bindSearchOverlay() {
     openOverlay('search-overlay');
     input.focus();
   };
-  document.getElementById('search-trigger').addEventListener('click', openForAdd);
-  document.getElementById('add-trigger').addEventListener('click', openForAdd);
+  registerCommand({ id: 'search.add', title: copy('command.addSeries'), section: 'actions', keywords: 'search anilist new', run: openForAdd });
+  // Until the command palette lands (next step), Ctrl+K opens the AniList search.
+  registerCommand({ id: 'palette.open', run: openForAdd });
 
   input.addEventListener('input', () => {
     clearTimeout(searchDebounceTimer);
@@ -560,16 +575,22 @@ async function refreshBackupList() {
 }
 
 function bindBackupOverlay() {
-  document.getElementById('backup-menu-trigger').addEventListener('click', async () => {
-    openOverlay('backup-overlay');
-    try {
-      await refreshBackupList();
-    } catch (err) {
-      Render.showToast(`Could not load backups: ${err.message}`);
-    }
+  registerCommand({
+    id: 'backup.open',
+    title: copy('command.backup'),
+    section: 'data',
+    keywords: 'restore backups',
+    run: async () => {
+      openOverlay('backup-overlay');
+      try {
+        await refreshBackupList();
+      } catch (err) {
+        Render.showToast(`Could not load backups: ${err.message}`);
+      }
+    },
   });
 
-  document.getElementById('export-backup-btn').addEventListener('click', () => {
+  const exportLibrary = () => {
     const blob = new Blob([JSON.stringify(Store.toJSON(), null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -577,7 +598,9 @@ function bindBackupOverlay() {
     a.download = `anime-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  });
+  };
+  document.getElementById('export-backup-btn').addEventListener('click', exportLibrary);
+  registerCommand({ id: 'library.export', title: copy('command.exportLibrary'), section: 'data', keywords: 'download save json backup', run: exportLibrary });
 
   document.getElementById('import-backup-file').addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -660,9 +683,15 @@ function renderNotificationsStatus() {
 }
 
 function bindNotificationsOverlay() {
-  document.getElementById('notifications-trigger').addEventListener('click', () => {
-    openOverlay('notifications-overlay');
-    renderNotificationsStatus();
+  registerCommand({
+    id: 'notifications.open',
+    title: copy('command.notifications'),
+    section: 'settings',
+    keywords: 'new episodes bell alerts',
+    run: () => {
+      openOverlay('notifications-overlay');
+      renderNotificationsStatus();
+    },
   });
 
   document.getElementById('notifications-enabled-toggle').addEventListener('change', async (e) => {
@@ -931,13 +960,13 @@ function focusAdjacentCard(delta) {
   cards[nextIndex].focus();
 }
 
-// design system §13's full shortcut list: / search in this list · n add a
-// series · 1-7 switch tabs · j k move between cards · space mark next
+// design system §13's shortcut list, v3: ctrl+k palette · / filter the library ·
+// n add a series · 1-5 switch sections · j k move between cards · space mark next
 // episode · enter open the series · s select mode · esc close or leave
 // select mode · ctrl+z undo · ? help. All (except Escape, checked first)
 // are inactive while typing in a field, per that same section.
 function bindKeyboardShortcuts() {
-  document.getElementById('shortcuts-trigger').addEventListener('click', openHelp);
+  registerCommand({ id: 'help.open', title: copy('command.help'), section: 'help', keywords: 'shortcuts keys questions faq', run: openHelp });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -956,6 +985,13 @@ function bindKeyboardShortcuts() {
     // behind it is inert). The one exception is "d", which also closes the
     // scorer debug panel it opens.
     if (isAnyDialogOpen() && !(e.key === 'd' && isDialogOpen('scorer-debug-overlay'))) return;
+
+    // Ctrl/Cmd+K: the command palette (search, jump, actions), also from a field.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      runCommand('palette.open');
+      return;
+    }
 
     if (isTypingTarget(e.target)) return;
 
@@ -977,9 +1013,12 @@ function bindKeyboardShortcuts() {
       return;
     }
 
+    // "/" filters the library (it never searched AniList; "n" and Ctrl+K do).
     if (e.key === '/') {
       e.preventDefault();
-      document.getElementById('title-filter').focus();
+      // The list view appears inside a View Transition, a frame later.
+      const shown = Store.LISTS.includes(currentView) ? null : showListView(activeList);
+      Promise.resolve(shown?.updateCallbackDone).catch(() => {}).then(() => document.getElementById('title-filter').focus());
       return;
     }
 
@@ -1015,9 +1054,9 @@ function bindKeyboardShortcuts() {
       return;
     }
 
-    if (e.key >= '1' && e.key <= '7') {
-      const tabs = document.querySelectorAll('.tab');
-      tabs[Number(e.key) - 1]?.click();
+    // 1-5: the five sections, in header order.
+    if (e.key >= '1' && e.key <= '5') {
+      document.querySelectorAll('#section-tabs .tab')[Number(e.key) - 1]?.click();
       return;
     }
 
@@ -1052,15 +1091,36 @@ function bindKeyboardShortcuts() {
   });
 }
 
+// Shows any view by name: a section, or one of the four lists.
+function showView(view) {
+  if (view === 'home') showHomeView();
+  else if (view === 'stats') showStatsView();
+  else if (view === 'discover') showDiscoverView();
+  else if (view === 'schedule') showScheduleView();
+  else if (view === 'library') showListView(activeList);
+  else if (Store.LISTS.includes(view)) showListView(view);
+}
+
 function bindTabs() {
-  document.querySelectorAll('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      if (tab.dataset.tab === 'stats') showStatsView();
-      else if (tab.dataset.tab === 'discover') showDiscoverView();
-      else if (tab.dataset.tab === 'schedule') showScheduleView();
-      else showListView(tab.dataset.tab);
-    });
+  const tabs = document.getElementById('section-tabs');
+  tabs.addEventListener('click', (e) => {
+    const tab = e.target.closest('.tab');
+    if (tab) showView(tab.dataset.tab);
   });
+  bindRovingTablist(tabs, '.tab');
+  const lists = document.querySelector('.lists-seg');
+  lists.addEventListener('click', (e) => {
+    const seg = e.target.closest('.list-seg');
+    if (seg) showListView(seg.dataset.list);
+  });
+  bindRovingTablist(lists, '.list-seg');
+  const place = (key) => copy(`nav.${key}`);
+  for (const key of ['home', 'library', 'schedule', 'discover', 'stats']) {
+    registerCommand({ id: `go.${key}`, title: copy('command.goTo', undefined, { place: place(key) }), section: 'navigate', run: () => showView(key) });
+  }
+  for (const list of Store.LISTS) {
+    registerCommand({ id: `go.${list}`, title: copy('command.goTo', undefined, { place: copy(`list.${list}`) }), section: 'navigate', run: () => showView(list) });
+  }
 }
 
 function bindHome() {
@@ -1071,27 +1131,6 @@ function bindHome() {
   };
   document.getElementById('home-view').addEventListener('click', navClickHandler);
   document.getElementById('stats-view').addEventListener('click', navClickHandler);
-}
-
-// Mobile-only hamburger menu — see the matching CSS comment for why the
-// tab row gets replaced below 900px instead of trying to keep it scrollable.
-function bindNavMenu() {
-  document.getElementById('nav-hamburger').addEventListener('click', () => {
-    openOverlay('nav-menu-overlay');
-    Render.renderNavMenu(document.getElementById('nav-menu-list'), currentView);
-  });
-
-  document.getElementById('nav-menu-list').addEventListener('click', (e) => {
-    const item = e.target.closest('[data-nav-menu]');
-    if (!item) return;
-    const key = item.dataset.navMenu;
-    if (key === 'home') showHomeView();
-    else if (key === 'stats') showStatsView();
-    else if (key === 'discover') showDiscoverView();
-    else if (key === 'schedule') showScheduleView();
-    else showListView(key);
-    closeAllOverlays();
-  });
 }
 
 // The hero's "Mark episode watched" button isn't inside a .card (it's a
@@ -1267,7 +1306,6 @@ export function initEvents({ initialList, persistFn }) {
   bindCoverImageLoad();
   bindTabs();
   bindHome();
-  bindNavMenu();
   bindHero();
   Detail.bindDetailActions({ handleSetScore, handleSetStatus, confirmDrop, handleIncrement, recordProgressEvent, refreshGridOnly, persist: () => persist() });
   bindGridEvents();
@@ -1290,13 +1328,14 @@ export function initEvents({ initialList, persistFn }) {
   bindHelpPanel();
   bindRipple();
   document.addEventListener('keydown', trapOverlayFocus);
-  updateTabPill(); // positions it for the initial tab, set by app.js before this runs
+  bindCommandButtons();
+  markSelected(initialList); // also positions the underline for the first view
   window.addEventListener('resize', updateTabPill);
   // A tab also changes width on its own (a count or the new-episode badge
   // arriving after load), which left the underline short of the tab in v2.
   if (typeof ResizeObserver === 'function') {
     const tabsResized = new ResizeObserver(() => updateTabPill());
-    document.querySelectorAll('.tab').forEach((tab) => tabsResized.observe(tab));
+    document.querySelectorAll('#section-tabs .tab').forEach((tab) => tabsResized.observe(tab));
   }
   // Tab label widths can shift slightly once the real webfont swaps in
   // (font-display:swap renders a fallback font first) — re-measure once
