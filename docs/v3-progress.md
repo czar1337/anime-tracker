@@ -12,7 +12,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 2 Render engine and structure | `v3/2-render-engine` | done | — |
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
-| 5 Features | `v3/5-features` | in progress | Next: read the Phase 5 brief section, plan, schema 16 |
+| 5 Features | `v3/5-features` | in progress | Steps: 5.1 provenance (meta.source, legacy jump = backfill, streaks/sessions from live only); 5.2 schema 16 (paused, rewatchCount, startedAt, watchHistory + imports stores, notifications prefs) with round trips; 5.3 Paused, rewatch, editable dates; 5.4 lossless MAL import (+ fix: finish dates dropped, partial dates crash, real pre-import snapshot); 5.5 watch history (drawer + Stats diary); 5.6 AniList import + merge UI + revert in Settings, JSON import via merge; 5.7 where to watch; 5.8 Schedule v2; 5.9 background notifications + tray. Done: 5.1. Next: 5.2 |
 | 6 Discover rebuild | `v3/6-discover` | not started | |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |
 

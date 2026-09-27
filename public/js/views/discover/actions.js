@@ -372,6 +372,9 @@ export function initDiscover({ persistFn } = {}) {
         studio: candidate.studio || null,
         airingStatus: candidate.status || null,
         listStatus: addStatus,
+        // Added straight into Watched: the episodes are filled in (v3 Phase 5:
+        // before, a Watched add from Discover credited no episodes at all).
+        episodesWatched: addStatus === 'watched' && candidate.totalEpisodes ? candidate.totalEpisodes : 0,
         relatedIds: franchiseRelatedIds(candidate),
         // P5A.4's own new Class A provenance fields, real values now that a
         // real shelf identity and a real corpus popularity exist.
@@ -382,11 +385,14 @@ export function initDiscover({ persistFn } = {}) {
         adventurousness: Store.state.preferences.adventurousness,
         membersAtSurfacing: candidate.popularity ?? null,
       });
-      EventLog.recordForEntry('anime_added', candidate.anilistId, { to: addStatus });
+      EventLog.recordForEntry('anime_added', candidate.anilistId, { to: addStatus }, { source: 'discover' });
+      if (addStatus === 'watched' && candidate.totalEpisodes) {
+        EventLog.recordForEntry('episode_watched', candidate.anilistId, { episode: candidate.totalEpisodes, from: 0, to: candidate.totalEpisodes, meta: { durationMinutes: candidate.duration || null, format: candidate.format || null } }, { source: 'backfill' });
+      }
       EventLog.recordForEntry('recommendation_added', candidate.anilistId, {
         shelfId,
         meta: { adventurousness: Store.state.preferences.adventurousness, membersAtSurfacing: candidate.popularity ?? null, because: cardData.because, hiddenCount: cardData.hiddenCount },
-      });
+      }, { source: 'discover' });
       removeCardEverywhere(anilistId);
       renderHandingFocusOn(ctx.card);
       Render.renderTabCounts();

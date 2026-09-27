@@ -60,14 +60,15 @@ const handleFixMatch = (...args) => ctx.handleFixMatch(...args);
 // `meta.durationMinutes`/`meta.format` are captured at write time so the
 // counters fold never has to look the entry back up — the entry may have been
 // deleted, or its duration corrected, long before the fold runs.
-export function recordProgressEvent(entry, from, to) {
+// `source` is the event's provenance (eventTypes.js EVENT_SOURCES).
+export function recordProgressEvent(entry, from, to, source = 'live') {
   if (from === to) return;
   EventLog.recordForEntry('episode_watched', entry.anilistId, {
     episode: to,
     from,
     to,
     meta: { durationMinutes: entry.duration || null, format: entry.format || null },
-  });
+  }, { source });
 }
 
 // v3 Phase 1 item 9: episode undo is relative to the CURRENT value, not a jump
@@ -346,15 +347,17 @@ function buildStatusPatch(entry, newStatus) {
 // 24-episode series complete would credit ZERO lifetime episodes, which is the
 // difference between the counters being meaningful and being broken. One event
 // for the jump, not 24.
-function recordStatusChange(entry, before, newStatus, patch) {
+// The episodes a move to Watched fills in were not watched in this sitting: a
+// live move records them as a backfill (a bulk one stays bulk).
+function recordStatusChange(entry, before, newStatus, patch, source = 'live') {
   EventLog.recordForEntry(newStatus === 'dropped' ? 'anime_dropped' : 'status_changed', entry.anilistId, {
     from: before,
     to: newStatus,
     // The spec calls for `episode` = the episode dropped at.
     episode: newStatus === 'dropped' ? entry.episodesWatched : undefined,
-  });
+  }, { source });
   if (patch && typeof patch.episodesWatched === 'number' && patch.episodesWatched !== entry.episodesWatched) {
-    recordProgressEvent(entry, entry.episodesWatched, patch.episodesWatched);
+    recordProgressEvent(entry, entry.episodesWatched, patch.episodesWatched, source === 'live' ? 'backfill' : source);
   }
 }
 
@@ -450,7 +453,7 @@ function handleBulkMove(newStatus) {
     // one transaction for the whole batch" maps directly onto the single
     // persist()/flush below, since events accumulate in the outbox and go out
     // together.
-    recordStatusChange(entry, entry.listStatus, newStatus, patch);
+    recordStatusChange(entry, entry.listStatus, newStatus, patch, 'bulk');
     // Full before-snapshot (see handleSetStatus) so undo restores
     // episodesWatched/completedAt too, not just listStatus.
     const { before } = Store.updateEntry(id, patch);
@@ -468,8 +471,8 @@ function handleBulkMove(newStatus) {
     onAction: () => {
       changes.forEach(({ id, before, patch }) => {
         const reverted = Store.revertEntryPatch(id, patch, before);
-        if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before.listStatus });
-        if ('episodesWatched' in reverted) recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
+        if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before.listStatus }, { source: 'bulk' });
+        if ('episodesWatched' in reverted) recordProgressEvent(before, patch.episodesWatched, before.episodesWatched, 'bulk');
       });
       refreshView();
       Render.renderTabCounts();
@@ -507,7 +510,7 @@ function handleBulkSetScore(score) {
     if (!entry || entry.myScore === score) continue;
     const beforeScore = entry.myScore ?? null;
     const { before } = Store.updateEntry(id, { myScore: score });
-    EventLog.recordForEntry('score_set', id, { from: beforeScore, to: score });
+    EventLog.recordForEntry('score_set', id, { from: beforeScore, to: score }, { source: 'bulk' });
     changes.push({ id, before });
   }
   if (changes.length === 0) return;
@@ -521,7 +524,7 @@ function handleBulkSetScore(score) {
     onAction: () => {
       changes.forEach(({ id, before }) => {
         const reverted = Store.revertEntryPatch(id, { myScore: score }, before);
-        if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: score, to: before.myScore });
+        if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: score, to: before.myScore }, { source: 'bulk' });
       });
       refreshView();
       persist();
@@ -537,7 +540,7 @@ function handleBulkClearScore() {
     if (!entry || entry.myScore == null) continue;
     const beforeScore = entry.myScore;
     const { before } = Store.updateEntry(id, { myScore: null });
-    EventLog.recordForEntry('score_set', id, { from: beforeScore, to: null });
+    EventLog.recordForEntry('score_set', id, { from: beforeScore, to: null }, { source: 'bulk' });
     changes.push({ id, before });
   }
   if (changes.length === 0) return;
@@ -551,7 +554,7 @@ function handleBulkClearScore() {
     onAction: () => {
       changes.forEach(({ id, before }) => {
         const reverted = Store.revertEntryPatch(id, { myScore: null }, before);
-        if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: null, to: before.myScore });
+        if ('myScore' in reverted) EventLog.recordForEntry('score_set', id, { from: null, to: before.myScore }, { source: 'bulk' });
       });
       refreshView();
       persist();
@@ -572,7 +575,7 @@ function handleBulkIncrement() {
     const before = entry.episodesWatched;
     if (entry.totalEpisodes && before >= entry.totalEpisodes) continue;
     Store.updateEntry(id, { episodesWatched: before + 1 });
-    recordProgressEvent(entry, before, before + 1);
+    recordProgressEvent(entry, before, before + 1, 'bulk');
     changes.push({ id, before, entry });
   }
   if (changes.length === 0) return;
@@ -601,7 +604,7 @@ function handleBulkDecrement() {
     if (!entry || entry.episodesWatched <= 0) continue;
     const before = entry.episodesWatched;
     Store.updateEntry(id, { episodesWatched: before - 1 });
-    recordProgressEvent(entry, before, before - 1);
+    recordProgressEvent(entry, before, before - 1, 'bulk');
     changes.push({ id, before, entry });
   }
   if (changes.length === 0) return;
@@ -725,7 +728,7 @@ function handleBulkMarkCompleted() {
   for (const entry of eligible) {
     if (entry.listStatus === 'watched' && entry.episodesWatched === entry.totalEpisodes) continue;
     const patch = buildStatusPatch(entry, 'watched');
-    recordStatusChange(entry, entry.listStatus, 'watched', patch);
+    recordStatusChange(entry, entry.listStatus, 'watched', patch, 'bulk');
     const { before } = Store.updateEntry(entry.anilistId, patch);
     changes.push({ id: entry.anilistId, before, patch });
   }
@@ -743,8 +746,8 @@ function handleBulkMarkCompleted() {
     onAction: () => {
       changes.forEach(({ id, before, patch }) => {
         const reverted = Store.revertEntryPatch(id, patch, before);
-        if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: 'watched', to: before.listStatus });
-        if ('episodesWatched' in reverted) recordProgressEvent(before, patch.episodesWatched, before.episodesWatched);
+        if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: 'watched', to: before.listStatus }, { source: 'bulk' });
+        if ('episodesWatched' in reverted) recordProgressEvent(before, patch.episodesWatched, before.episodesWatched, 'bulk');
       });
       refreshView();
       Render.renderTabCounts();

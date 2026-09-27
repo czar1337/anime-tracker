@@ -320,7 +320,21 @@ Phase 3 (design system and motion):
 - **Settings evidence and the notice.** The one-time migration notice is a toast at
   boot plus a list in Settings > Appearance, cleared by "Got it" (`seenAt`), not a
   modal, so it never blocks the app on first start.
-- **Empty Discover shelves are grouped after the rails.** Each still states why it is
+- **Empty Discover shelves are grouped after the rails.**
+- **Event sources (Phase 5).** `live` for single actions, `bulk` for every select-mode
+  action (and the episodes a bulk move fills in), `import` for MAL and screenshot
+  imports, `backfill` for episodes filled in by a single move to Watched or an add
+  straight into Watched (search, detail, Discover), `discover` for Discover adds. The
+  Schedule's "Coming soon" add stays `live`. Old events are read, never rewritten: an
+  old `episode_watched` that jumps more than one episode is a backfill, anything else
+  live. Streaks and sittings read `live` only; "Episodes this year" drops `import`
+  (an import is past watching) but keeps bulk and backfill, which the user did now.
+  An old MAL import cannot be told apart from a move to Watched, so it still counts
+  there.
+- **Streaks and sittings are new on the Stats page.** The brief asks that they read live
+  events only, and there was no streak or session logic to restrict, so Phase 5 adds
+  them: a day counts when its live progress nets above zero; a sitting is live episodes
+  at most `sessionGapMinutes` (30) apart. Each still states why it is
   empty, but the rails above the fold are ones with cards.
 
 ## Later (out of scope for v3.0)

@@ -63,6 +63,29 @@ export function isKnownEventType(type) {
   return EVENT_TYPES.includes(type);
 }
 
+// v3 Phase 5: where an event came from, in `meta.source`.
+//   live     - the user did this one thing, now (the default)
+//   import   - a MyAnimeList, AniList, screenshot or file import
+//   bulk     - one action applied to several selected series
+//   backfill - progress recorded after the fact ("I already watched this",
+//              a move straight to Watched that fills in the episodes)
+//   discover - added from a Discover recommendation
+// Sessions and streaks read `live` only, so a 300-title import is not a
+// 3,000-episode day. The log is append-only, so old events are never
+// rewritten; eventSource() reads them instead.
+export const EVENT_SOURCES = ['live', 'import', 'bulk', 'backfill', 'discover'];
+
+// An event written before v3 has no source. The one old shape worth telling
+// apart is a single episode_watched that jumps several episodes at once
+// (imports, bulk "mark completed", a move to Watched): that is a backfill,
+// not a sitting. Everything else was a single live action.
+export function eventSource(event) {
+  const source = event?.meta?.source;
+  if (EVENT_SOURCES.includes(source)) return source;
+  if (event?.type === 'episode_watched' && Number(event.to) - Number(event.from) > 1) return 'backfill';
+  return 'live';
+}
+
 // `settings_changed` records real Settings choices only.
 //
 // These preference keys travel through the exact same

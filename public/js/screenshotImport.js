@@ -265,14 +265,14 @@ export function initScreenshotImport() {
       });
       // One event per imported entry; the library-imported handler's single
       // persist() flushes them as one batch.
-      EventLog.recordForEntry('anime_added', media.id, { to: listStatus });
+      EventLog.recordForEntry('anime_added', media.id, { to: listStatus }, { source: 'import' });
       if (listStatus === 'watched' && media.episodes) {
         EventLog.recordForEntry('episode_watched', media.id, {
           episode: media.episodes,
           from: 0,
           to: media.episodes,
           meta: { durationMinutes: media.duration || null, format: media.format || null },
-        });
+        }, { source: 'import' });
       }
       added += 1;
       toDownload.push({ anilistId: media.id, url: Api.bestCoverUrl(media) });

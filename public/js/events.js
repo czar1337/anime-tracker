@@ -516,7 +516,7 @@ async function addFromSearchResult(anilistId, listStatus) {
   // episodes the same way a "mark watched" does — otherwise importing a
   // finished series would count zero lifetime episodes.
   if (listStatus === 'watched' && media.episodes) {
-    recordProgressEvent({ anilistId: media.id, duration: media.duration, format: media.format }, 0, media.episodes);
+    recordProgressEvent({ anilistId: media.id, duration: media.duration, format: media.format }, 0, media.episodes, 'backfill');
   }
   Render.renderTabCounts();
   // Always refresh whatever's currently shown, not just when it matches

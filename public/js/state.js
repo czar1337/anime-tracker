@@ -154,6 +154,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function isIsoDate(value) {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
 function addEntry(entry) {
   const existing = getEntry(entry.anilistId);
   if (existing) return existing;
@@ -196,7 +200,9 @@ function addEntry(entry) {
     membersAtSurfacing: entry.membersAtSurfacing ?? null,
     addedAt: nowIso(),
     updatedAt: nowIso(),
-    completedAt: entry.listStatus === 'watched' ? nowIso() : null,
+    // An import can bring the real finish date (v3 Phase 5: MAL my_finish_date
+    // was computed but dropped here).
+    completedAt: isIsoDate(entry.completedAt) ? entry.completedAt : entry.listStatus === 'watched' ? nowIso() : null,
   };
   state.entries.push(full);
   entriesById.set(full.anilistId, full);

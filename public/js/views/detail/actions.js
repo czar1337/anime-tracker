@@ -7,6 +7,7 @@ import { Store } from '../../state.js';
 import { Api } from '../../api.js';
 import { Render } from '../../render.js';
 import { copy } from '../../copy.js';
+import { EventLog } from '../../eventLog.js';
 import { openOverlay } from '../../events.js';
 import { isDialogOpen, onDialogClose } from '../../core/dialog.js';
 import { runViewTransition, movementAllowed } from '../../core/motion.js';
@@ -196,9 +197,16 @@ export function bindDetailActions(lib) {
         studio: (media.studios?.nodes || [])[0]?.name || null,
         airingStatus: media.status || null,
         listStatus: 'watched',
+        episodesWatched: media.episodes || 0,
         myScore: null,
         relatedIds: Api.extractRelatedIds(media),
       });
+      // v3 Phase 5: recorded like any other add straight into Watched (before,
+      // this path wrote no event and credited no episodes).
+      EventLog.recordForEntry('anime_added', media.id, { to: 'watched' });
+      if (media.episodes) {
+        EventLog.recordForEntry('episode_watched', media.id, { episode: media.episodes, from: 0, to: media.episodes, meta: { durationMinutes: media.duration || null, format: media.format || null } }, { source: 'backfill' });
+      }
       lib.refreshGridOnly();
       Render.renderTabCounts();
       refresh(id);

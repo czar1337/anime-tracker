@@ -1003,6 +1003,11 @@ export const COPY_REGISTRY = {
   'empty.scheduleNothing.title': same('Nothing new coming up'),
   'empty.scheduleNothing.body': same('You have added or dismissed everything we found. New seasons appear here as they are announced.'),
   'command.clearFilters': same('Clear filters'),
+  // v3 Phase 5: live-only activity on the Stats page.
+  'stats.streakCurrent': same('Day streak'),
+  'stats.streakLongest': same('Longest streak (days)'),
+  'stats.sessions30': same('Sittings, last 30 days'),
+  'stats.perSession': same('Episodes per sitting'),
   // v3 Phase 4: the Help panel.
   'help.tourHeading': same('What each section is for'),
   'help.tipsHeading': same('Three things worth knowing'),

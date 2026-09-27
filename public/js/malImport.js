@@ -288,14 +288,14 @@ export function initMalImport() {
       // One event per imported entry, all flushed as a single batch by the
       // library-imported handler's persist() — the spec's "bulk actions use one
       // transaction for the whole batch" applies to imports too.
-      EventLog.recordForEntry('anime_added', media.id, { to: patch.listStatus || 'watchlist' });
+      EventLog.recordForEntry('anime_added', media.id, { to: patch.listStatus || 'watchlist' }, { source: 'import' });
       if (patch.episodesWatched > 0) {
         EventLog.recordForEntry('episode_watched', media.id, {
           episode: patch.episodesWatched,
           from: 0,
           to: patch.episodesWatched,
           meta: { durationMinutes: media.duration || null, format: media.format || null },
-        });
+        }, { source: 'import' });
       }
       lastImportedIds.push(media.id);
       added += 1;

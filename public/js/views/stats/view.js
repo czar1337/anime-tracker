@@ -4,7 +4,8 @@
 
 import { Store } from '../../state.js';
 import { EventHistory } from '../../eventHistory.js';
-import { computeLibraryStats } from '../../statsLogic.js';
+import { computeLibraryStats, watchStreaks, watchSessions } from '../../statsLogic.js';
+import { computeLocalDay } from '../../eventLog.js';
 import { html } from '../../core/html.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
 import { copy } from '../../copy.js';
@@ -71,6 +72,12 @@ export function renderStatsPage(container) {
   const thisYear = new Date().getFullYear();
   const completedThisYear = entries.filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
   const episodesThisYear = libraryStats.episodesThisYear;
+  // v3 Phase 5: from live events only (imports and bulk actions never count).
+  const liveEvents = EventHistory.allEvents();
+  const streaks = watchStreaks(liveEvents, computeLocalDay(new Date()));
+  const monthAgo = Date.now() - 30 * 86400000;
+  const recentSessions = watchSessions(liveEvents).filter((x) => x.end >= monthAgo);
+  const perSession = recentSessions.length ? (recentSessions.reduce((n, x) => n + x.episodes, 0) / recentSessions.length).toFixed(1) : '—';
 
   const dropEligible = counts.watched + counts.dropped;
   const dropRate = dropEligible ? ((counts.dropped / dropEligible) * 100).toFixed(1) : '0';
@@ -114,6 +121,10 @@ export function renderStatsPage(container) {
       ${statHtml(episodesThisYear, `Episodes in ${thisYear}`)}
       ${statHtml(`${dropRate}%`, 'Drop rate')}
       ${statHtml(Store.allGenres().length, 'Genres explored')}
+      ${statHtml(streaks.current, copy('stats.streakCurrent'))}
+      ${statHtml(streaks.longest, copy('stats.streakLongest'))}
+      ${statHtml(recentSessions.length, copy('stats.sessions30'))}
+      ${statHtml(perSession, copy('stats.perSession'))}
     </div>
 
     <div class="home-tiles">
