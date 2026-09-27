@@ -251,30 +251,45 @@ Visual reference for all of the above: `27-07-2026-moonlit-shrine-grafisk-profil
 
 ## 10 · Motion, hover, press and hold
 
-Easings: `--e-out cubic-bezier(.2,1,.3,1)` default · `--e-spring cubic-bezier(.2,1.5,.3,1)` plus button and rewards only · `--e-inout cubic-bezier(.4,0,.2,1)` colour and opacity · `--e-press cubic-bezier(.3,0,.6,1)` press down.
+v3 replaced the v2 motion tokens (`--e-*`, `--d-*`) with the set below. All of them live in `public/tokens.css`, and `scripts/check-css-tokens.js` (part of `npm test`) enforces the rules.
 
-Durations: `--d-press 90ms` · `--d-1 120ms` · `--d-2 200ms` · `--d-3 280ms` · `--d-4 380ms` · `--d-5 800ms`.
+**The animation setting.** `--motion` is the Settings animation slider as a multiplier (1 = full, 0 = Off). Every duration token is `calc(<ms> * var(--motion))`, so the slider reaches every animation. Off means nothing animates, including scroll-driven animations, which a `@container style(--motion: 0)` query switches off.
 
-Press scales: `--press-btn .97` · `--press-icon .90` · `--press-card .995` · `--press-chip .95`.
+Durations: `--dur-press 80ms` · `--dur-fast 140ms` · `--dur-base 220ms` · `--dur-slow 360ms` · `--dur-emph 520ms` · `--dur-reward 2000ms` (the reward feather) · `--dur-loop 1400ms` (the one shimmer, the saving dot) · `--dur-hold 500ms` (does not scale; it mirrors the hold timer) · `--delay-skeleton 150ms` (a wait, not motion).
+
+Easings: `--ease-standard cubic-bezier(.2,0,0,1)` default · `--ease-enter cubic-bezier(.05,.7,.1,1)` things arriving · `--ease-exit cubic-bezier(.3,0,.8,.15)` things leaving · `--ease-spring` a `linear()` spring with a small overlap (cubic-bezier fallback), for the plus button, progress bars and rewards only.
+
+Distances: `--move-sm 4px` · `--move-md 12px` · `--move-lg 24px`, each times `--move-scale`. Stagger: 30 ms per item, capped at 8 items (`staggerDelay()` in `views/shared/format.js`).
+
+Press scales: `--press-btn .97` · `--press-icon .90` · `--press-card .995` · `--press-chip .95`, flattened to 1 under reduced motion.
+
+Rules:
+
+- Animate only `transform` and `opacity`. Transitions may also change colours. The two documented exceptions are the hold ring's stroke and the cover filter on hover.
+- Exits run at about 70 % of the entry duration.
+- Every keyframe and transition reads the duration tokens. There are no literal durations.
 
 | Event | Duration | Easing | What moves |
 |---|---|---|---|
-| Card hover | 380 ms | `--e-out` | Lift 5 px, hairline draws across the top, cover gains colour, plus button eases in |
-| Any press | 90 ms down, 200 ms back | `--e-press` / `--e-out` | Scale per token, plus a ripple starting at the pointer position |
-| Hold a card | 500 ms | linear ring | Ring fills, then select mode |
-| Focus ring | 120 ms | `--e-inout` | Ring fades in, nothing moves |
-| Tab change | 240 ms | `--e-out` | The single underline slides |
-| Mark episode | 280 ms + 1.1 s | `--e-spring` | Progress grows, accent ripple at the pointer, toast rises |
-| Series finished | 2.4 s | `--e-out` | Ripple plus one feather drifting down from the card |
-| Overlay open | 340 ms | `--e-out` | Opacity plus 14 px up and scale 0.985 → 1 |
-| Toast | 300 ms in, 4.2 s visible | `--e-out` | Rises from the bottom, leaves by itself |
-| Drag | 280 ms | `--e-out` | Lift 8 px, tilt 2.5°, full shadow. Reordering only, never status changes |
+| Card hover | `--dur-slow` | `--ease-enter` | Lift, a hairline draws across the top (scaleX), cover gains colour, plus button eases in |
+| Any press | `--dur-press` down, back on the spring | `--ease-standard` / `--ease-spring` | Scale per token. No ripples on cards or score dots |
+| Hold a card | `--dur-hold` | linear ring | Ring fills, then select mode |
+| Tab change | `--dur-base`, leave at 70 % | `--ease-enter` / `--ease-exit` | View Transition: 12 px slide in the direction of travel plus crossfade. The underline moves with translateX plus scaleX |
+| Card to detail | `--dur-slow` | `--ease-enter` | The clicked card's cover becomes the detail cover (shared element `cover-<id>`), reversed on close |
+| Reorder, status move | `--dur-slow`, exit at 70 % | `--ease-standard` | FLIP: cards on screen glide to their new place. A card that left fades out towards its new tab, whose count pops |
+| Mark episode (+1) | `--dur-press` + spring, `--dur-slow` bar | `--ease-spring` | Button presses to 0.9 and springs back. The bar grows from its old value, never from 0. The digit does one 6 px slide-swap. Toast: "Frieren · episode 19 marked watched · Undo" |
+| Series finished | under 2.4 s in all | `--ease-standard` | The bar turns positive and one hairline sweeps it. One feather falls from the card itself. The series moves to Watched with an Undo toast carrying a 1–10 rating row |
+| Overlay | `--dur-slow` in, 70 % out | `--ease-enter` / `--ease-exit` | Enters from `@starting-style`: opacity plus 12 px up and scale 0.985 → 1. Exits with transitions on opacity plus `display`/`overlay` (allow-discrete) |
+| Toast | `--dur-slow` in, 70 % out | `--ease-enter` / `--ease-exit` | Rises in from `@starting-style`, sinks a little as it leaves. Inert while leaving |
+| Skeleton | after `--delay-skeleton` | `--ease-standard` | Fades in only if loading takes longer than 150 ms. One shimmer band, on one clock for every skeleton |
+| Scroll | scroll-driven | linear | The header condenses over the first 80 px (rises 6 px, brand to 0.9, shadow fades in). Discover shelves and Stats bars enter on a `view()` timeline |
+| Drag | `--dur-slow` | `--ease-enter` | Lift 8 px, tilt 2.5°, full shadow. Reordering only, never status changes |
 
-Forbidden: flash, screen shake, glitch, mouse-following parallax, counting numbers, anything above 2.5 s, and motion that blocks a click target.
+Forbidden: flash, screen shake, glitch, mouse-following parallax, counting numbers, endless loops on content (only skeletons and the saving dot loop), anything above 2.5 s, and motion that blocks a click target.
 
 `@media (hover:none)`: hover states are dropped and press scales step up one level, since a finger hides the feedback. Holding becomes the primary route into select mode.
 
-`prefers-reduced-motion: reduce`: every press animation becomes a 120 ms opacity change, the hold ring fills without animation, and the atmosphere layer turns off.
+Reduced motion (the OS setting): `--move-scale` becomes 0, so nothing moves or scales. Every duration is capped at 120 ms, so what remains are short opacity fades. Loops and the reward stop, there is no shared cover and no FLIP, and the atmosphere layer turns off.
 
 ---
 
@@ -286,7 +301,7 @@ Four layers, back to front: moon glow, canopy, leaves and feathers, grain and vi
 |---|---|---|---|
 | Leaves | 5 | 19–27 s | 0.26–0.40 |
 | Feather, ambient | 1 every 42 s | 26–36 s | 0.22–0.30 |
-| Feather, reward | 1 per finished series | 2.4 s | 0.95 |
+| Feather, reward | 1 per finished series, from the card | `--dur-reward` (2 s) | 0.95 |
 | Moon glow | 1 | static | 0.17 |
 | Canopy | 4 fields | static, blur 24 | 0.19–0.30 |
 
@@ -304,8 +319,8 @@ English, plain language, short sentences. The app says what happened, never how 
 
 | Situation | Say | Not |
 |---|---|---|
-| Episode marked | Frieren episode 19 marked watched | Nice work! One step closer! |
-| Series finished | Mushishi finished · moved to Watched | Congratulations, you did it! |
+| Episode marked | Frieren · episode 19 marked watched | Nice work! One step closer! |
+| Series finished | Mushishi · finished, moved to Watched | Congratulations, you did it! |
 | New episode | New episode · 3 hours ago | Don't miss this! |
 | Empty list | Nothing here yet | Oops, looks empty in here! |
 | Error | Could not reach AniList. Your library is unchanged. | Something went wrong :( |
@@ -364,7 +379,7 @@ Full FAQ copy is in `27-07-2026-moonlit-shrine-remaining-surfaces.html` §07 and
 ```css
 :root{
   /* form */
-  --radius-xs:4px; --radius-sm:7px; --radius:12px; --radius-lg:16px;
+  --radius-xs:4px; --radius-sm:7px; --radius-card:11px; --radius:12px; --radius-lg:16px; --radius-pill:999px;
   --sh-1:0 2px 8px -2px rgba(0,0,0,.5);
   --sh-2:0 12px 28px -14px rgba(0,0,0,.8);
   --sh-3:0 22px 42px -22px rgba(0,0,0,.95);
@@ -396,13 +411,26 @@ Full FAQ copy is in `27-07-2026-moonlit-shrine-remaining-surfaces.html` §07 and
   --t-nano:var(--w-med) var(--fs-nano)/1 var(--ui);
   --tr-display:.015em; --tr-brand:.055em; --tr-micro:.16em; --tr-nano:.22em;
 
-  /* motion */
-  --e-out:cubic-bezier(.2,1,.3,1);
-  --e-spring:cubic-bezier(.2,1.5,.3,1);
-  --e-inout:cubic-bezier(.4,0,.2,1);
-  --e-press:cubic-bezier(.3,0,.6,1);
-  --d-press:90ms; --d-1:120ms; --d-2:200ms; --d-3:280ms; --d-4:380ms; --d-5:800ms;
-  --press-btn:.97; --press-icon:.90; --press-card:.995; --press-chip:.95;
+  /* motion (v3; public/tokens.css is the source) */
+  --motion:1;               /* the animation setting; 0 = Off */
+  --move-scale:1;           /* 0 under reduced motion */
+  --dur-press:calc(80ms  * var(--motion));
+  --dur-fast: calc(140ms * var(--motion));
+  --dur-base: calc(220ms * var(--motion));
+  --dur-slow: calc(360ms * var(--motion));
+  --dur-emph: calc(520ms * var(--motion));
+  --dur-loop: calc(1400ms * var(--motion));
+  --dur-reward:calc(2000ms * var(--motion));
+  --dur-hold:500ms; --delay-skeleton:150ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);
+  --ease-enter:cubic-bezier(.05,.7,.1,1);
+  --ease-exit:cubic-bezier(.3,0,.8,.15);
+  --ease-spring:cubic-bezier(.2,1.2,.3,1); /* linear() spring where supported */
+  --move-sm:calc(4px * var(--move-scale));
+  --move-md:calc(12px * var(--move-scale));
+  --move-lg:calc(24px * var(--move-scale));
+  --press-btn:calc(1 - .03 * var(--move-scale)); --press-icon:calc(1 - .10 * var(--move-scale));
+  --press-card:calc(1 - .005 * var(--move-scale)); --press-chip:calc(1 - .05 * var(--move-scale));
 
   /* rhythm */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
@@ -421,9 +449,15 @@ Full FAQ copy is in `27-07-2026-moonlit-shrine-remaining-surfaces.html` §07 and
 [data-text-weight="bold"]  {--w-body:500;--w-med:600;--w-strong:700;--w-display:700}
 
 @media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{animation:none!important;transition:none!important}
+  :root{
+    --move-scale:0;
+    --dur-fast:min(calc(140ms * var(--motion)),120ms); /* likewise base, slow, emph */
+    --dur-reward:0ms; --dur-loop:0ms;
+  }
 }
 ```
+
+`public/tokens.css` is the source of truth for everything above. v3 added to the type scale: `--fs-display-xs` (18px, small Mincho headings), `--fs-heading` (16px, grotesk section headings), `--fs-title` and `--t-title` (14px, card titles; the card title was a hardcoded Sora 14.5px), and `--fs-num-s`/`--fs-num-m` (20px/26px, stat numbers). Sizes used for reading text have a 12px floor (`max(12px, …)`).
 
 Colour tokens are not listed here. They live per theme in the generated `public/moonlit-shrine-themes.css` — 45 blocks of 21 tokens.
 

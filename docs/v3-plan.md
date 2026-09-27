@@ -206,6 +206,51 @@ Phase 2:
   activated the detail overlay's newly focused close button, so it never worked; keys
   that open an overlay are consumed. Page shortcuts are off while an overlay is open.
 
+Phase 3 (design system and motion):
+
+- **FLIP runs in every browser, not only as a fallback.** View Transitions snapshot
+  the whole view, so a status move inside a 2,000-card grid would capture and
+  crossfade the grid. Reorders and status moves use the ~30-line `core/flip.js`
+  (only cards within about a screen are measured); View Transitions are used for tab
+  changes and the shared cover.
+- **The shared cover is `cover-<id>` with `view-transition-class: cover`.** The name
+  follows the brief; the class is what the timing rule selects.
+- **Two documented motion exceptions.** The hold ring animates its SVG stroke, and a
+  cover's `filter` eases on hover (design §9's treatment). Both carry a
+  `motion-exception:` comment, which `check-css-tokens.js` honours.
+- **The animation setting is `--motion`, a duration multiplier.** It replaces the v2
+  per-duration tokens; 0 is Off. The in-app reduced-motion override was removed: the
+  OS setting drives `--move-scale`, and the slider covers "less motion".
+  Scroll-driven animations are not timed, so Off turns them off with
+  `@container style(--motion: 0)`.
+- **Programmatic closes stay instant; user dismissals transition.** `closeAllOverlays`
+  (used before opening another overlay, and on boot/recovery paths) stays synchronous.
+  Escape, the close buttons and the backdrop go through `dismissOverlays()`, which
+  reverses the shared cover when it can.
+- **`switchView` sets the current view synchronously.** The DOM update of a tab change
+  lands a frame later inside the View Transition, but keyboard shortcuts pressed right
+  after the click must already act on the new view.
+- **Finishing a series moves it by itself.** The +1 that marks the last episode plays
+  the completion moment and moves the series to Watched after the sweep (about 660 ms,
+  scaled by the animation setting). Its Undo reverses the move and the episode (one
+  press did both). A score given in the toast's rating row stays after Undo, because
+  it was its own choice. A series finished some other way (a typed episode number)
+  keeps the v2 "Move to Watched?" prompt.
+- **Toasts name the series.** "Frieren · episode 19 marked watched", "… · finished,
+  moved to Watched", "… · moved to Watchlist", "… · back to episode 18", all through
+  the copy registry. A rating from the completion toast is applied quietly (no second
+  toast), with the same toggle as the card's score dots.
+- **A focused card that leaves the list hands focus on.** Moving or finishing the
+  focused card from the keyboard focuses the card now in its place, instead of
+  dropping focus to the page.
+- **Skeletons also replace the Schedule's loading text.** The brief names boot, the
+  detail view and Discover; the Schedule had the same "Finding what's coming up…"
+  text and uses the same shelf skeleton. The shimmer is synced by pinning every
+  shimmer animation's `startTime` to 0 (`syncShimmers`), which covers skeletons that
+  appear later too.
+- **`--delay-skeleton` is a CSS token, not a `config/tuning.js` value.** It is read
+  only by CSS (an animation delay) and does not scale with the animation setting.
+
 ## Later (out of scope for v3.0)
 
 - Two-way AniList OAuth sync (v3.1).
