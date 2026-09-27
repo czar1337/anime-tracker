@@ -1958,8 +1958,6 @@ kbd {
 .home-tile[data-nav="watched"] { --tile-accent: var(--positive); }
 .home-tile[data-nav="dropped"] { --tile-accent: var(--faint); }
 
-.home-continue h3 { margin: 0 0 var(--sp-4); font-size: var(--fs-title); color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
-
 /* ---------- Hero — both modes, both placements ----------
    design/moonlit-shrine-design-system.md §5, §12: 210px on Home, 268px on
    the Watching list (.tall). ".calm" is the "pick up where you left off"
@@ -1984,6 +1982,9 @@ kbd {
   filter: var(--cover-filter);
   transform: scale(1.04);
 }
+/* No banner cached: the cover, blurred (v3 Phase 4: v2 stretched the small
+   cover sharp across the hero and it looked pixelated). Static, not animated. */
+.hero .bg.from-cover { filter: blur(22px) saturate(1.1); transform: scale(1.3); }
 .hero .bg::after {
   content: '';
   position: absolute;
@@ -2024,30 +2025,120 @@ kbd {
 .hero .n { font: var(--t-meta); font-variant-numeric: tabular-nums; color: var(--faint); margin-bottom: 20px; }
 .hero .row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 
-/* ---------- Home ----------
-   Hero above, then two columns: pick-up-where-you-left-off cards on the
-   left, Tonight + This year on the right (design §09 remaining-surfaces —
-   "not a second library": at most 4 pickup cards, at most 3 Tonight rows). */
-.home-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--sp-4); align-items: start; }
-@media (max-width: 900px) { .home-cols { grid-template-columns: 1fr; } }
+/* ---------- Home, "Tonight at the shrine" (v3 Phase 4) ----------
+   The Continue watching rail (landscape, scroll-snapping, the first card is
+   the hero), then Airing tonight, Up next from the Watchlist and This year. */
+.home-section { min-width: 0; }
+.home-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-8); align-items: start; }
+@media (max-width: 900px) { .home-cols { grid-template-columns: 1fr; gap: var(--sp-6); } }
 .disc-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .disc-head h3 { margin: 0; font: var(--w-strong) var(--fs-heading)/1.3 var(--ui); }
 .disc-head .rule { flex: 1; height: 1px; background: var(--line); }
-.home-pickup { grid-template-columns: repeat(2, 1fr); }
-@media (min-width: 500px) { .home-pickup { grid-template-columns: repeat(4, 1fr); } }
 
-.tonight { display: grid; gap: var(--sp-2); }
-.tonight-row {
+.continue-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 340px);
+  gap: var(--sp-4);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+  padding-bottom: var(--sp-2);
+  scrollbar-width: thin;
+}
+.continue-card {
+  position: relative;
+  scroll-snap-align: start;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+  isolation: isolate;
+}
+.continue-card.is-hero { grid-column: span 2; aspect-ratio: auto; min-height: 196px; border-color: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: 0 0 46px -24px color-mix(in srgb, var(--accent) 60%, transparent); }
+.continue-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  filter: var(--cover-filter);
+}
+.continue-bg.from-cover { filter: blur(18px) saturate(1.1); transform: scale(1.3); }
+.continue-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--bg) 92%, transparent) 18%, color-mix(in srgb, var(--bg) 40%, transparent) 70%, transparent);
+}
+.continue-in { position: absolute; left: var(--sp-4); right: 76px; bottom: var(--sp-4); }
+.continue-card .kick { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--accent-lit); margin-bottom: var(--sp-2); display: flex; align-items: center; gap: var(--sp-2); }
+.continue-card .kick i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.continue-title { margin: 0 0 var(--sp-1); font: var(--t-title); font-weight: var(--w-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.continue-card.is-hero .continue-title { font: var(--t-display-m); letter-spacing: var(--tr-display); white-space: normal; }
+.continue-title:hover { color: var(--accent-lit); }
+.continue-meta { display: flex; gap: var(--sp-2); align-items: center; font: var(--t-meta); color: var(--dim); }
+.continue-plus {
+  position: absolute;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--bg-deep) 70%, transparent);
+  color: var(--accent-lit);
+  font: var(--t-action);
+  font-size: var(--fs-heading);
+  font-weight: var(--w-strong);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: transform var(--dur-slow) var(--ease-spring), background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.continue-plus:hover { background: var(--accent-fill); color: var(--accent-contrast); }
+.continue-plus:active { transform: scale(var(--press-icon)); transition-duration: var(--dur-press); }
+@media (max-width: 900px) {
+  .continue-rail { grid-auto-columns: 82%; }
+  .continue-card.is-hero { grid-column: auto; }
+}
+
+/* Airing tonight: a timeline; each row opens the series. */
+.tonight { list-style: none; margin: 0; padding: 0 0 0 var(--sp-3); border-left: 1px solid var(--line); display: grid; gap: var(--sp-1); }
+.tonight-row { position: relative; }
+.tonight-row::before { content: ''; position: absolute; left: calc(var(--sp-3) * -1 - 4px); top: 16px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.tonight-row.aired::before { background: var(--line-lit); }
+.tonight-btn {
+  appearance: none;
+  width: 100%;
   display: grid;
   grid-template-columns: 52px 1fr;
   gap: var(--sp-3);
   align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 10px var(--sp-3);
+  text-align: left;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  padding: var(--sp-2);
+  font: var(--t-body);
+  font-size: var(--fs-action);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard);
 }
-.tonight-row .num { font: var(--t-card); color: var(--accent-lit); }
-.tonight-row > span:last-child { font: var(--t-body); font-size: var(--fs-action); }
+.tonight-btn:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.tonight-btn .num { font: var(--t-card); color: var(--accent-lit); font-variant-numeric: tabular-nums; }
+.tonight-row.aired .tonight-btn { color: var(--dim); }
+.tonight-row.aired .num { color: var(--faint); }
+
+/* Up next from the Watchlist. */
+.up-next { list-style: none; margin: 0 0 var(--sp-6); padding: 0; display: grid; gap: var(--sp-2); }
+.up-next-row { display: grid; grid-template-columns: 36px 1fr auto; gap: var(--sp-3); align-items: center; }
+.up-next-cover { width: 36px; aspect-ratio: 2 / 3; border-radius: var(--radius-xs); background: var(--card) center / cover; }
+.up-next-text { min-width: 0; }
+.up-next-title { display: block; max-width: 100%; padding: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: var(--t-body); color: var(--text); }
+.home-year-head { margin-top: var(--sp-2); }
+.home-year { gap: 22px; }
 .meta-line { display: block; font: var(--t-meta); color: var(--faint); }
 
 .stat-display { display: block; font: var(--t-display-m); letter-spacing: var(--tr-display); }

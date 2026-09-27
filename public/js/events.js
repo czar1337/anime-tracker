@@ -1165,6 +1165,11 @@ function bindHome() {
     if (tile) showListView(tile.dataset.nav);
   };
   document.getElementById('home-view').addEventListener('click', navClickHandler);
+  // Home's "Up next from your Watchlist": Start moves the series to Watching.
+  document.getElementById('home-view').addEventListener('click', (e) => {
+    const start = e.target.closest('[data-action="home-start"]');
+    if (start) handleSetStatus(Number(start.dataset.id), 'watching');
+  });
   document.getElementById('stats-view').addEventListener('click', navClickHandler);
 }
 

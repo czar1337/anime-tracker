@@ -391,6 +391,8 @@ query ($idIn: [Int]) {
       status
       episodes
       nextAiringEpisode { episode airingAt }
+      bannerImage
+      coverImage { color }
     }
   }
 }`;

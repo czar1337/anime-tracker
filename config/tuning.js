@@ -287,6 +287,13 @@ export const LISTS_AND_TAGS = {
 //  after the last keystroke (the text itself is stored at once).
 //  gridFirstChunk / gridChunkSize: the library grid renders this many cards
 //  synchronously, then the rest in chunks of this size on later frames.
+// Home (v3 Phase 4, public/js/views/home/view.js): how much each part shows.
+export const HOME = {
+  continueMax: 8, // Continue watching rail cards, the hero included
+  tonightMax: 6, // Airing tonight rows
+  upNextMax: 3, // Up next from your Watchlist
+};
+
 // The command palette (v3 Phase 4, public/js/views/palette/).
 export const PALETTE = {
   maxResults: 14, // library and command rows shown for a query

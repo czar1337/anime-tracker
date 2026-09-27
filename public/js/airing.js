@@ -58,6 +58,16 @@ export function getNextEpisodeCountdown(anilistId) {
   return formatEpisodeCountdown(cacheEntries[anilistId]?.nextAiringEpisode);
 }
 
+// v3 Phase 4: AniList's banner image and dominant cover colour for a series in
+// Watching, when the airing refresh has fetched them (null otherwise).
+export function getBanner(anilistId) {
+  return cacheEntries[anilistId]?.bannerImage || null;
+}
+
+export function getCoverColor(anilistId) {
+  return cacheEntries[anilistId]?.coverColor || null;
+}
+
 export function getCacheState() {
   return { generatedAt };
 }
@@ -107,7 +117,10 @@ export async function refreshNow() {
         for (const m of media) {
           const old = cacheEntries[m.id];
           const nextAiringEpisode = m.nextAiringEpisode || null;
-          const entry = { status: m.status, episodes: m.episodes, nextAiringEpisode };
+          // v3 Phase 4: the banner (Home's Continue watching rail, the hero) and
+          // AniList's own dominant cover colour (the dynamic accent) ride along;
+          // both are regenerable, like the rest of this Class B cache.
+          const entry = { status: m.status, episodes: m.episodes, nextAiringEpisode, bannerImage: m.bannerImage || null, coverColor: m.coverImage?.color || null };
           // Schedule's "This week" Today column: carry forward whichever
           // episode this refresh just superseded (nextAiringEpisode moved
           // on to a later number, or disappeared entirely because the show
@@ -164,6 +177,8 @@ export async function initAiring() {
 }
 
 export const Airing = {
+  getBanner,
+  getCoverColor,
   initAiring,
   ensureFreshOnOpen,
   refreshNow,
