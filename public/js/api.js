@@ -609,6 +609,7 @@ query ($id: Int) {
     startDate { year month day }
     endDate { year month day }
     studios(isMain: true) { nodes { name } }
+    relations { edges { relationType node { id type format seasonYear episodes title { romaji english } } } }
   }
 }`;
 

@@ -62,10 +62,11 @@ test('jump to episode records the progress as an event, and the cover URL cannot
 
     // An action inside the overlay re-renders it in place: focus stays on the
     // control that was used (v2.3.0 rebuilt the overlay and dropped focus).
-    const dot = dialog.locator('.score-dot[data-score="8"]');
+    // (v3 Phase 4: the rating is a radiogroup in the drawer.)
+    const dot = dialog.getByRole('radio', { name: 'Rate 8 out of 10' });
     await dot.focus();
     await page.keyboard.press('Enter');
-    await expect(dialog.locator('.detail-score b')).toHaveText('8');
+    await expect(dot).toHaveAttribute('aria-checked', 'true');
     expect(await dot.evaluate((el) => document.activeElement === el)).toBe(true);
 
     const jump = dialog.locator('[data-action="detail-jump-episode"]');

@@ -319,10 +319,12 @@ function updateTabPill() {
 // :active-view-transition-type(tab)). Without View Transitions, or when the
 // view does not change, the view's own fade plays instead.
 const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'schedule', 'discover', 'stats'];
+let navigationToken = 0;
 function switchView(next, update, viewEl) {
   const from = VIEW_ORDER.indexOf(currentView);
   const to = VIEW_ORDER.indexOf(next);
   if (from < 0 || to < 0 || from === to) {
+    navigationToken += 1; // a still-pending older update must not override this
     update();
     playViewEnter(viewEl());
     return null;
@@ -331,7 +333,12 @@ function switchView(next, update, viewEl) {
   // transition's first frame must act on it); only the DOM change waits for
   // the transition to capture the old state.
   setCurrentView(next);
-  return runViewTransition(update, { types: ['tab', to > from ? 'forward' : 'back'], onFallback: () => playViewEnter(viewEl()) });
+  // A newer navigation skips this transition, and a skipped transition's
+  // update can still run after the newer one's: only the latest applies.
+  const token = ++navigationToken;
+  return runViewTransition(() => {
+    if (token === navigationToken) update();
+  }, { types: ['tab', to > from ? 'forward' : 'back'], onFallback: () => playViewEnter(viewEl()) });
 }
 
 function showListView(list) {

@@ -10,6 +10,7 @@ import { copy } from '../../copy.js';
 import { openOverlay } from '../../events.js';
 import { isDialogOpen, onDialogClose } from '../../core/dialog.js';
 import { runViewTransition, movementAllowed } from '../../core/motion.js';
+import { bindRovingTablist } from '../../core/focus.js';
 import { renderDetailOverlay } from './view.js';
 import { detailState, resetDetailState, showNewTagForm } from './model.js';
 
@@ -262,6 +263,26 @@ export function bindDetailActions(lib) {
       lib.persist();
     }
   });
+
+  // v3 Phase 4: a related series in the timeline opens in the drawer.
+  content.addEventListener('click', (e) => {
+    const related = e.target.closest('[data-action="detail-open-related"]');
+    if (related) showDetail(Number(related.dataset.relatedId));
+  });
+
+  // Keys 1-9 and 0 (for 10) rate the open series, unless a field has focus.
+  document.getElementById('detail-overlay').addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || !/^[0-9]$/.test(e.key)) return;
+    if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    const id = Number(content.dataset.anilistId);
+    if (!id || !Store.getEntry(id)) return;
+    e.preventDefault();
+    lib.handleSetScore(id, e.key === '0' ? 10 : Number(e.key));
+  });
+
+  // The rating and the list are radiogroups: arrows move and choose.
+  bindRovingTablist(content, '.detail-rating [role="radio"]');
+  bindRovingTablist(content, '.detail-status [role="radio"]');
 
   content.addEventListener(
     'blur',

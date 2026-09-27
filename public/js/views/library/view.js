@@ -46,20 +46,6 @@ function unseenPopClass(anilistId, unseen) {
   return lastUnseenByCardId.get(anilistId).pop ? 'pop' : '';
 }
 
-export function scoreStripHtml(entry) {
-  const dots = [];
-  for (let i = 1; i <= 10; i++) {
-    dots.push(html`<button class="${cls('score-dot', entry.myScore >= i && 'filled')}" data-action="set-score" data-score="${i}" title="${i}" aria-label="Score ${i}">${i}</button>`);
-  }
-  return html`<div class="score-strip" role="group" aria-label="Score">${dots}</div>`;
-}
-
-export function statusRowHtml(entry) {
-  return html`<div class="quick-move" role="group" aria-label="Move to list">${QUICK_MOVE_LISTS.map(
-    (l) => html`<button class="${cls('quick-move-btn', entry.listStatus === l.key && 'active')}" data-action="set-status" data-status="${l.key}" title="Move to ${l.label}" aria-label="Move to ${l.label}">${l.short}</button>`
-  )}</div>`;
-}
-
 // The preferred-language title large, the next different one small below it
 // (titles.js: the same rule the title sort uses). Clicking it opens the detail
 // overlay (events.js checks this action before anything else the click might

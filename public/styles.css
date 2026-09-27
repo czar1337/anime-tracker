@@ -1379,8 +1379,9 @@ kbd {
 .card-skeleton .sk-line, .card-skeleton .sk-bar { margin-left: var(--sp-3); margin-right: var(--sp-3); }
 .shelf-skeleton { margin-bottom: var(--sp-8); }
 .shelf-skeleton-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale)), 1fr)); gap: var(--sp-4); }
-.detail-body.skeleton-set .sk-title { margin-bottom: var(--sp-3); }
-.detail-side.skeleton-set .sk.detail-cover { border-radius: 0; background: var(--bg-elevated); }
+.detail-banner .sk.detail-banner-img { border-radius: 0; background: var(--bg-elevated); }
+.detail-head .sk.detail-cover { background: var(--line); }
+.detail-head-text .sk-title { width: 220px; margin-bottom: var(--sp-2); }
 
 /* New episode — accent dot, top left of the art (design §8). */
 .dot {
@@ -2754,35 +2755,152 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .import-row.row-removed { opacity: 0.4; }
 .import-row.row-removed .import-title { text-decoration: line-through; }
 
-/* ---------- Anime detail overlay ----------
-   design/moonlit-shrine-design-system.md: two-column sheet (cover + score
-   badge on the left, everything else on the right) instead of the old
-   "Status Window" stacked header — see the v0.5.1 prototype's .sheet. */
-.detail-panel { max-width: 820px; padding: 0; }
-#detail-content { display: grid; grid-template-columns: 220px 1fr; }
-/* Loading/error states render a single .empty-state child (see
-   renderDetailOverlay) — span both columns instead of being squeezed into
-   the first one. */
-#detail-content > .empty-state { grid-column: 1 / -1; }
-.detail-side { position: relative; min-height: 260px; }
-.detail-cover { position: absolute; inset: 0; background-size: cover; background-position: center; filter: var(--cover-filter); }
-.detail-cover::after {
+/* ---------- Anime detail drawer (v3 Phase 4) ----------
+   A right-side drawer of about 520px (full screen on phones): a banner
+   header with the shared cover and the title, then progress (the primary
+   action), rating, list, note, tags and lists, About, the franchise timeline
+   and the trailer, with a sticky action bar at the bottom. */
+#detail-overlay { justify-content: flex-end; align-items: stretch; padding: 0; }
+.detail-panel {
+  width: min(520px, 100vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* The drawer slides in from the right edge and back out towards it. */
+@starting-style { #detail-overlay[open] .detail-panel { opacity: 0; transform: translateX(var(--move-lg)); } }
+#detail-overlay:not([open]) .detail-panel { transform: translateX(var(--move-md)); }
+#detail-content { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+#detail-content > .empty-state { margin: var(--sp-8) var(--sp-6); }
+.detail-panel .overlay-close { z-index: 3; }
+
+.detail-banner { position: relative; flex-shrink: 0; }
+.detail-banner-img {
+  height: 150px;
+  background-color: var(--card);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+/* No banner on AniList: the cover, blurred, fills it instead (never a small
+   cover blown up and sharp). The blur is static, never animated. */
+.detail-banner-img.from-cover { filter: blur(18px) saturate(1.15); transform: scale(1.25); }
+.detail-banner::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(200deg, transparent 30%, color-mix(in srgb, var(--bg-elevated) 88%, var(--shade)) 100%);
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 150px;
+  background: linear-gradient(transparent 30%, var(--bg-elevated));
+  pointer-events: none;
 }
-.detail-score { position: absolute; bottom: 18px; left: 18px; right: 18px; z-index: 1; }
-.detail-score b { display: block; font: var(--t-display-m); font-size: var(--fs-num-m); letter-spacing: var(--tr-display); color: var(--text); }
-.detail-score span { font: var(--t-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
-
-.detail-body { padding: 22px 24px 24px; min-width: 0; }
+.detail-banner { overflow: hidden; }
+.detail-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-6);
+  margin-top: -72px;
+}
+.detail-cover {
+  width: 104px;
+  flex-shrink: 0;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  background-color: var(--card);
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--sh-2);
+  filter: var(--cover-filter);
+}
+.detail-head-text { min-width: 0; padding-bottom: var(--sp-1); }
 .detail-title { margin: 0 0 var(--sp-1); font: var(--t-display-m); letter-spacing: var(--tr-display); }
 /* The one place italic Mincho is used (design system §4.3): the AniList
    native-script title, shown per the Settings panel's "Original titles"
    preference (default: detail view only — see Preferences.getOriginalTitlesMode). */
-.detail-native { font-family: var(--display); font-style: italic; font-size: var(--fs-body); color: var(--dim); margin: 0 0 var(--sp-4); }
-.detail-meta-row { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: var(--sp-4); }
+.detail-native { font-family: var(--display); font-style: italic; font-size: var(--fs-body); color: var(--dim); margin: 0 0 var(--sp-2); }
+.detail-meta-row { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: var(--sp-1) 0 var(--sp-2); }
+.detail-owned-badge {
+  font: var(--t-nano);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: var(--sp-1) 10px;
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  display: inline-block;
+}
+
+.detail-body { padding: var(--sp-4) var(--sp-6) var(--sp-6); min-width: 0; }
+.detail-section { margin-bottom: var(--sp-6); }
+.detail-lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); margin: 0 0 var(--sp-2); }
+.detail-progress-head, .detail-rating-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.detail-progress-head .num { font: var(--t-meta); color: var(--faint); font-variant-numeric: tabular-nums; }
+.detail-primary-row { margin-top: var(--sp-3); }
+.detail-all-watched { font: var(--t-meta); color: var(--positive); }
+.detail-keys { font-size: var(--fs-micro); }
+
+/* Episode squares (design/HANDOVER §14: stay up to 50, one <i> per episode,
+   f = watched, n = the next one to mark). */
+.eps { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background-color var(--dur-base); }
+.eps i.f { background: color-mix(in srgb, var(--accent) 80%, transparent); }
+.eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* >50 episodes: a compact bar plus a jump-to-episode field, with only the
+   last 18 squares still shown as a tail (design/HANDOVER §14). */
+.barfallback { height: 5px; background: color-mix(in srgb, var(--text) 9%, transparent); border-radius: 99px; position: relative; overflow: hidden; margin-bottom: var(--sp-3); }
+.barfallback i { position: absolute; left: 0; top: 0; width: 100%; height: 5px; background: var(--accent); border-radius: 99px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform var(--dur-slow) var(--ease-spring); }
+.detail-jump-row { margin-top: var(--sp-3); gap: var(--sp-3); flex-wrap: wrap; }
+.detail-jump-field { max-width: 190px; }
+.detail-jump-field input { flex: 1; border: none; background: transparent; color: var(--text); font: var(--t-body); min-width: 0; }
+.detail-jump-field input:focus { outline: none; }
+.detail-eps-tail { align-items: center; margin-top: 6px; }
+.detail-eps-tail-label { font: var(--t-meta); color: var(--faint); margin-left: var(--sp-2); }
+
+/* The 1-10 rating. */
+.detail-rating { display: grid; grid-template-columns: repeat(10, 1fr); gap: var(--sp-1); }
+.rate-btn {
+  appearance: none;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--dim);
+  font: var(--t-action);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
+}
+.rate-btn:hover { border-color: var(--warning); color: var(--warning); }
+.rate-btn:active { transform: scale(var(--press-chip)); }
+.rate-btn[aria-checked="true"] { background: var(--warning); border-color: var(--warning); color: var(--bg-deep); }
+.detail-status { display: flex; width: 100%; }
+.detail-status button { flex: 1; }
+
+.detail-note {
+  width: 100%;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: var(--t-body);
+  padding: 10px var(--sp-3);
+  resize: vertical;
+  min-height: 72px;
+}
+.detail-note:focus { outline: none; border-color: var(--line-lit); }
+
 .detail-score-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; margin-bottom: var(--sp-3); }
 .detail-genres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--sp-4); }
 .detail-genre-chip {
@@ -2790,7 +2908,7 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
   letter-spacing: .1em;
   text-transform: uppercase;
   padding: var(--sp-1) 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent-soft);
   color: var(--accent-lit);
 }
@@ -2800,6 +2918,32 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .detail-tags-row .detail-genre-chip { background: transparent; border: 1px solid var(--line); color: var(--dim); }
 .detail-tags-row .detail-genre-chip.spoiler { border-color: var(--accent-deep); color: var(--accent-lit); }
 
+.detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-3) 20px;
+  padding: var(--sp-3) 0;
+  margin-bottom: var(--sp-4);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.detail-meta-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.detail-meta-label { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.detail-meta-grid > div > span:last-child { font: var(--t-body); }
+.detail-description { font: var(--t-body); color: var(--dim); white-space: pre-line; }
+/* P5B.5: "Show more"/"Show less" past DETAIL_SYNOPSIS_COLLAPSE_LENGTH. */
+.detail-description .text-btn { font: var(--t-meta); padding: 0; }
+
+/* The franchise timeline: this series among its prequels and sequels. */
+.detail-timeline { list-style: none; margin: 0; padding: 0 0 0 var(--sp-3); border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: var(--sp-2); }
+.detail-timeline li { position: relative; display: flex; flex-direction: column; gap: 2px; padding-left: var(--sp-3); }
+.detail-timeline li::before { content: ''; position: absolute; left: calc(var(--sp-3) * -1 - 4px); top: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--line-lit); }
+.detail-timeline li.owned::before { background: var(--support); }
+.detail-timeline li.self::before { background: var(--accent); }
+.detail-timeline-title { font: var(--t-body); color: var(--text); text-align: left; padding: 0; }
+.detail-timeline li.self .detail-timeline-title { font-weight: var(--w-strong); }
+.detail-timeline-meta { font: var(--t-meta); color: var(--faint); }
+
 /* P5B.5: trailer thumbnail + play glyph, linking out to the real video —
    no embedded player (this app's existing no-third-party-embed posture). */
 .detail-trailer {
@@ -2807,7 +2951,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
   display: block;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  margin-bottom: var(--sp-4);
   max-width: 320px;
   aspect-ratio: 16 / 9;
   background: color-mix(in srgb, var(--text) 6%, transparent);
@@ -2824,84 +2967,28 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
   background: color-mix(in srgb, var(--shade) 25%, transparent);
   text-shadow: 0 1px 4px color-mix(in srgb, var(--shade) 60%, transparent);
 }
-.detail-owned-badge {
-  font: var(--t-nano);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  padding: var(--sp-1) 10px;
-  border-radius: 999px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  color: var(--dim);
-  display: inline-block;
-  margin-bottom: var(--sp-4);
-}
 
-.detail-lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); margin: 0 0 var(--sp-2); }
-.detail-section { margin-bottom: 18px; }
-.detail-split { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 18px; }
-
-/* Episode squares (design/HANDOVER §14: stay up to 50, one <i> per episode,
-   f = watched, n = the next one to mark, pulsing to invite a click). */
-.eps { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
-.eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background-color var(--dur-base); }
-.eps i.f { background: color-mix(in srgb, var(--accent) 80%, transparent); }
-.eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
-
-/* >50 episodes: squares become a compact bar plus a jump-to-episode field,
-   with only the last 18 squares still shown as a tail (design/HANDOVER §14). */
-.detail-ep-summary { justify-content: space-between; margin-bottom: 10px; font: var(--t-card); }
-.detail-ep-summary .num { font: var(--t-meta); color: var(--faint); }
-.barfallback { height: 5px; background: color-mix(in srgb, var(--text) 9%, transparent); border-radius: 99px; position: relative; overflow: hidden; margin-bottom: var(--sp-3); }
-.barfallback i { position: absolute; left: 0; top: 0; width: 100%; height: 5px; background: var(--accent); border-radius: 99px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform var(--dur-slow) var(--ease-spring); }
-.detail-jump-row { margin-bottom: var(--sp-1); }
-.detail-jump-field { max-width: 190px; }
-.detail-jump-field input { flex: 1; border: none; background: transparent; color: var(--text); font: var(--t-body); min-width: 0; }
-.detail-jump-field input:focus { outline: none; }
-.detail-eps-tail { align-items: center; margin-top: 6px; }
-.detail-eps-tail-label { font: var(--t-meta); color: var(--faint); margin-left: var(--sp-2); }
-
-.detail-note {
-  width: 100%;
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font: var(--t-body);
-  padding: 10px var(--sp-3);
-  resize: none;
-  height: 60px;
-}
-.detail-note:focus { outline: none; border-color: var(--line-lit); }
-
-.detail-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--sp-3) 20px;
-  padding: var(--sp-4) 0;
-  margin-bottom: var(--sp-4);
+/* The sticky action bar. A link styled as a button reads as a button. */
+a.btn { text-decoration: none; }
+.detail-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-6);
+  background: var(--bg-elevated);
   border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
 }
-.detail-meta-grid > div { display: flex; flex-direction: column; gap: 2px; }
-.detail-meta-label { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
-.detail-meta-grid > div > span:last-child { font: var(--t-body); }
-
-.detail-description {
-  font: var(--t-body);
-  color: var(--dim);
-  white-space: pre-line;
-  margin-bottom: 18px;
-}
-/* P5B.5: "Show more"/"Show less" past DETAIL_SYNOPSIS_COLLAPSE_LENGTH. */
-.detail-description .text-btn { font: var(--t-meta); padding: 0; }
-
-.detail-foot { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
-.detail-foot .btn-danger { margin-left: auto; }
 
 @media (max-width: 720px) {
-  #detail-content { grid-template-columns: 1fr; }
-  .detail-side { min-height: 180px; }
+  .detail-panel { width: 100vw; border-radius: 0; border-left: 0; }
+  .detail-head { padding: 0 var(--sp-4); }
+  .detail-body { padding: var(--sp-4); }
+  .detail-actions { padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ---------- Command palette (v3 Phase 4) ---------- */

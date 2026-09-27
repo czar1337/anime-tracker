@@ -36,7 +36,7 @@ import { renderSchedulePage } from './views/schedule/view.js';
 import { relativeAgeText, formatEnumLabel, coverOrInitialHtml } from './views/shared/format.js';
 
 const { isSelectMode, toggleSelectMode, clearSelection, toggleSelected, getSelectedIds, visibleIds, selectRange, selectAllVisible, toggleGroupExpanded } = LibraryModel;
-const { coverSrc, cardHtml, titleBlockHtml, scoreStripHtml, statusRowHtml, QUICK_MOVE_LISTS } = LibraryView;
+const { QUICK_MOVE_LISTS } = LibraryView;
 const selectedIds = LibraryModel.selectedIds;
 
 const grid = document.getElementById('grid');
@@ -321,7 +321,7 @@ function renderBulkActionBar(list) {
 // completed, export — grouped into one overlay (see index.html's
 // #bulk-more-overlay) since the bar itself only has room for move/delete.
 // Progress-related actions are Watching-only, matching the single-item
-// `.plus`/episode-editor gating elsewhere (cardHtml, cardBodyForList).
+// `.plus`/episode-editor gating elsewhere (views/library/view.js cardHtml).
 function bulkMoreMenuHtml(list) {
   const tags = Store.getTags();
   const lists = Store.getCustomLists();

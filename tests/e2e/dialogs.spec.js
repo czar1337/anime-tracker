@@ -108,7 +108,7 @@ test('an Undo toast raised inside the detail overlay is visible and works', asyn
     await page.locator(`.card[data-id="${ID}"] [data-action="show-detail"]`).click();
     const dialog = page.locator('#detail-overlay');
     await expect(dialog.locator('[data-action="detail-mark-next"]').first()).toBeVisible();
-    await dialog.locator('.detail-foot [data-action="detail-mark-next"]').click();
+    await dialog.locator('[data-action="detail-mark-next"]').click();
     const undo = page.getByRole('button', { name: 'Undo' });
     await expect(undo).toBeVisible();
     expect(await undo.evaluate((el) => el.closest('dialog') === document.getElementById('detail-overlay'))).toBe(true);
