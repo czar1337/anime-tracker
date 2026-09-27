@@ -1256,6 +1256,12 @@ export function initEvents({ initialList, persistFn }) {
   document.addEventListener('keydown', trapOverlayFocus);
   updateTabPill(); // positions it for the initial tab, set by app.js before this runs
   window.addEventListener('resize', updateTabPill);
+  // A tab also changes width on its own (a count or the new-episode badge
+  // arriving after load), which left the underline short of the tab in v2.
+  if (typeof ResizeObserver === 'function') {
+    const tabsResized = new ResizeObserver(() => updateTabPill());
+    document.querySelectorAll('.tab').forEach((tab) => tabsResized.observe(tab));
+  }
   // Tab label widths can shift slightly once the real webfont swaps in
   // (font-display:swap renders a fallback font first) — re-measure once
   // that's settled so the pill doesn't end up a few pixels off.

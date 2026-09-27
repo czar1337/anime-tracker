@@ -87,3 +87,23 @@ test('+1 grows the progress bar from its old value, never from 0', async ({ page
     await server.stop();
   }
 });
+
+test('the tab underline spans the active tab, also after the tab widens', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card');
+    const aligned = () =>
+      page.evaluate(() => {
+        const pill = document.getElementById('tab-pill').getBoundingClientRect();
+        const tab = document.querySelector('.tab[aria-selected="true"]').getBoundingClientRect();
+        return Math.abs(pill.left - tab.left) < 1.5 && Math.abs(pill.width - tab.width) < 1.5;
+      });
+    await expect.poll(aligned).toBe(true);
+    // Widen the active tab the way a new-episode badge does.
+    await page.evaluate(() => document.querySelector('.tab[aria-selected="true"]').insertAdjacentHTML('beforeend', '<span style="display:inline-block;width:40px"></span>'));
+    await expect.poll(aligned).toBe(true);
+  } finally {
+    await server.stop();
+  }
+});
