@@ -235,6 +235,41 @@ kbd {
   flex-shrink: 0;
 }
 
+/* v3 Phase 3, scroll-driven: the header condenses over the first 80px of
+   scroll. It rises 6px (its top padding slides out of view), the brand
+   shrinks to 0.9 and a shadow fades in under it; only transform and opacity
+   move. Reduced motion keeps the shadow fade and drops the movement.
+   Scroll-driven animations are not timed, so the animation setting's Off
+   (--motion: 0) turns them off with a style query. */
+@supports (animation-timeline: scroll()) {
+  .app-header, .app-header .brand {
+    animation: headerCondense linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 80px;
+  }
+  .app-header .brand { animation-name: brandCondense; transform-origin: 0 50%; }
+  .app-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 12px;
+    transform: translateY(100%);
+    box-shadow: inset 0 12px 12px -12px var(--shade);
+    pointer-events: none;
+    animation: headerShadow linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 80px;
+  }
+  @keyframes headerCondense { to { transform: translateY(calc(var(--move-sm) * -1.5)); } }
+  @keyframes brandCondense { to { transform: scale(calc(1 - .1 * var(--move-scale))); } }
+  @keyframes headerShadow { from { opacity: 0; } to { opacity: 1; } }
+  @container style(--motion: 0) {
+    .app-header, .app-header .brand, .app-header::after { animation: none; }
+  }
+}
+
 .tabs {
   position: relative;
   display: flex;
@@ -1028,6 +1063,18 @@ kbd {
    .discover-card markup/animation the P1-era flat pool already used —
    reused as-is rather than duplicated, see shelfCardHtml's own comment. */
 .shelf { margin-bottom: var(--sp-8); }
+/* v3 Phase 3, scroll-driven: each shelf rises in as it enters the viewport.
+   A shelf already on screen at load is past its entry range, so it simply
+   shows. Off (--motion: 0) turns it off; reduced motion leaves the fade. */
+@supports (animation-timeline: view()) {
+  .shelf {
+    animation: shelfEnter linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 70%;
+  }
+  @keyframes shelfEnter { from { opacity: 0; transform: translateY(var(--move-md)); } }
+  @container style(--motion: 0) { .shelf { animation: none; } }
+}
 .shelf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--sp-4); }
 .shelf-empty { margin: 0; }
 .shelf-view-more { display: block; margin: var(--sp-3) auto 0; }
@@ -2029,6 +2076,18 @@ kbd {
 .stat-bar-label { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-bar-track { height: 7px; background: var(--line); border-radius: 999px; overflow: hidden; }
 .stat-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-lit)); border-radius: 999px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+/* v3 Phase 3, scroll-driven: a Stats bar grows to its value as it enters the
+   viewport (bars on screen at load are already past the range). Reduced
+   motion and Off show the value at once. */
+@supports (animation-timeline: view()) {
+  .stat-bar-fill {
+    animation: statBarEnter linear both;
+    animation-timeline: view();
+    animation-range: entry 20% cover 30%;
+  }
+  @keyframes statBarEnter { from { transform: scaleX(calc(var(--p, 0) * (1 - var(--move-scale)))); } to { transform: scaleX(var(--p, 0)); } }
+  @container style(--motion: 0) { .stat-bar-fill { animation: none; } }
+}
 .stat-bar-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--faint); font-weight: 600; }
 
 /* Distinct accent per chart so the four sections read apart at a glance */
