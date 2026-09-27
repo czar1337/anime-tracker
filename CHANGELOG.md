@@ -51,6 +51,24 @@ Entries are added phase by phase and rewritten into final release notes at the e
 - Removed the endless shimmer on every progress bar, the scanning and blinking loops, the counting-up numbers and the ripples on cards and score dots.
 - The card title now follows your text-size setting. Colours, text sizes and corner radii come from one token file, and a check in the test suite stops raw values from coming back.
 
+### Flow and screens
+
+- **Five sections: Home, Library, Schedule, Discover and Stats.** Watching, Watchlist, Watched and Dropped are now one Library with a switch at the top. On a phone the sections sit in a tab bar at the bottom. Keys 1 to 5 jump between them.
+- **Ctrl+K opens a command palette**: jump to any series, run any action ("theme jade", "go to schedule", "export library"), from anywhere, even while typing.
+- **Home shows what to watch now**: the series with the newest episode large at the top (with its banner, or a soft blur of its cover), what airs tonight, what is next in your Watchlist, and this year in three numbers.
+- **Cleaner library cards**: the cover, one title line and one line of details. +1, the status and a menu appear on hover or focus, and are always there on touch. Right-click a card, long-press it or press Shift+F10 for every action. A compact list view suits large libraries, and a filter you use often can be saved as a view.
+- **The series details open as a drawer from the right**, with the banner, progress as the main button, a 1 to 10 rating (keys 1 to 0), the list, your note, tags, About, the franchise in order and the trailer.
+- **Home, the Watching hero and the details take their colour from the cover art**, within the same contrast rules every theme follows.
+- **Discover in rows you scroll sideways**, each card leading with why it is there. Add a series in one click (or pick the list from its arrow), say "More like this", or "Not for me" with a reason. Moods, filters and "Pick for me" moved into one Tune button. Shelves with nothing to show are listed together at the bottom.
+- **Settings is a drawer with six sections** (Appearance, Library, Recommendations, Notifications, Data, Help) and no longer jumps back to the top when you change something.
+- **Fewer, clearer appearance options.** Twelve themes (nine dark, three light) plus your own two colours. The eight typography sliders became Text size (five steps), Density (Compact or Comfortable), Motion (Full, Reduced or Off) and Decoration (Off, Low or Full). Your look carries over to the nearest match. If anything could not carry over exactly (a retired theme, the grain or gradient background, a finer setting), the app tells you once, and lists what changed. The background grain and gradient layer and the theme share codes are gone.
+- **Empty lists say what to do next.** A list whose series are all hidden by filters says so, with Clear filters. An empty Watching list offers your oldest Watchlist series to start right there.
+- **Accessibility**: focus rings are visible in every theme, including your own colours; messages are read out by screen readers, also while a window is open; the error banner is announced; tabs, sections and switches work with the arrow keys. A custom theme shows its measured contrast.
+- **Help** is updated for all of the above, with every keyboard shortcut that works.
+- **Fix: after restoring a snapshot or resetting, the app said it failed** although it had worked.
+- **Fix: renaming a tag or list with Enter reopened the rename field.**
+- Internal: library format 15 adds the new appearance fields next to the old ones (which stay untouched), with a checked snapshot taken first.
+
 ## 2.3.0
 
 Two new features requested after trying 2.2.2 for real, plus a note on the rest of that feedback round.

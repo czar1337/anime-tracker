@@ -311,6 +311,15 @@ Phase 3 (design system and motion):
 - **Settings re-renders by morphing, not rebuilding.** One render function morphs the
   whole drawer into place; that alone removes the scroll-restore code, keeps focus and
   keeps a colour picker open. The snapshot list opts out with `data-morph-key`.
+- **Rating from a cold start costs one more interaction (2 → 3).** The brief moves the
+  score strip off the card (to the menu and the detail drawer), so rating a Watched
+  series from the app just opened is segment, right-click, rating. The loop's usual
+  case, rating a series as you finish it, is one tap in the completion toast (finish
+  plus rate: 2), measured as an extra flow in `click-count-after.json`. The five-flow
+  total is 9 before and 10 after; the other four flows are unchanged.
+- **Settings evidence and the notice.** The one-time migration notice is a toast at
+  boot plus a list in Settings > Appearance, cleared by "Got it" (`seenAt`), not a
+  modal, so it never blocks the app on first start.
 - **Empty Discover shelves are grouped after the rails.** Each still states why it is
   empty, but the rails above the fold are ones with cards.
 

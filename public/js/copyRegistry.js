@@ -935,7 +935,7 @@ export const COPY_REGISTRY = {
   'settings.motion.reduced': same('Reduced'),
   'settings.motion.off': same('Off'),
   'settings.decoration.heading': same('Decoration'),
-  'settings.decoration.description': same('Falling leaves, feathers and the glow behind the header. Hidden on light themes and with reduced motion.'),
+  'settings.decoration.description': same('The glow behind the page, and falling leaves and feathers. The falling ones stop on light themes and with reduced motion.'),
   'settings.decoration.off': same('Off'),
   'settings.decoration.low': same('Low'),
   'settings.decoration.full': same('Full'),

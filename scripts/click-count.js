@@ -91,7 +91,52 @@ const FLOWS = {
       await page.waitForFunction(() => /Added|Watchlist/.test(document.getElementById('toast-container').textContent));
     },
   },
-  after: {},
+  // The Phase 4 UI: the app opens on the Library; the card's +1 sits in its
+  // toolbar; the score dots left the card for its menu and the detail drawer,
+  // and a finished series offers its rating in the completion toast.
+  after: {
+    async logEpisode(page, c) {
+      const label = page.locator(`${WATCHING_CARD} .progress-label`).nth(1);
+      const was = await label.textContent();
+      await c.hoverFree(`${WATCHING_CARD} >> nth=1`);
+      await c.click(`${WATCHING_CARD} >> nth=1 >> [data-action="increment"]`);
+      await page.waitForFunction(([sel, old]) => document.querySelectorAll(sel)[1]?.querySelector('.progress-label')?.textContent !== old, [WATCHING_CARD, was]);
+    },
+    async finishSeries(page, c) {
+      await c.hoverFree(`${WATCHING_CARD} >> nth=0`);
+      await c.click(`${WATCHING_CARD} >> nth=0 >> [data-action="increment"]`);
+      await page.waitForFunction(() => /finished/.test(document.getElementById('toast-container').textContent));
+    },
+    async addSeries(page, c) {
+      await c.click('#add-trigger');
+      await c.type('#search-input', 'Apothecary');
+      await c.click('#search-results [data-add-status="watchlist"]');
+      await page.waitForFunction(() => /Added/.test(document.getElementById('toast-container').textContent));
+    },
+    async rate(page, c) {
+      await c.click('[data-list="watched"]');
+      await page.waitForSelector(`${WATCHING_CARD}`);
+      c.log.push(`right-click ${WATCHING_CARD} >> nth=0`);
+      await page.locator(WATCHING_CARD).first().click({ button: 'right' });
+      await c.click('[role="menuitemradio"][aria-label="Rate 3 out of 10"]');
+      await page.waitForFunction(() => /Score set to 3/.test(document.getElementById('toast-container').textContent));
+    },
+    async findSomethingNew(page, c) {
+      await c.click('[data-tab="discover"]');
+      await page.waitForSelector('.discover-card [data-action="discover-add"]');
+      await c.click('.discover-card [data-action="discover-add"]');
+      await page.waitForFunction(() => /Added|Watchlist/.test(document.getElementById('toast-container').textContent));
+    },
+    // Not in the "before" set (v2 had no rating in the finish toast): finishing
+    // a series and rating it, the way the loop usually runs.
+    async finishAndRate(page, c) {
+      await c.hoverFree(`${WATCHING_CARD} >> nth=0`);
+      await c.click(`${WATCHING_CARD} >> nth=0 >> [data-action="increment"]`);
+      await page.waitForSelector('.toast-rate button[data-score="8"]');
+      await c.click('.toast-rate button[data-score="8"]');
+      await page.waitForFunction(() => document.querySelector('.toast-rate button[data-score="8"]')?.getAttribute('aria-pressed') === 'true');
+    },
+  },
 };
 
 async function main() {
@@ -132,7 +177,9 @@ async function main() {
   } finally {
     await browser.close();
   }
-  const total = Object.values(results).reduce((n, r) => n + r.interactions, 0);
+  // The total covers the five core-loop flows both versions share, so before
+  // and after compare like with like; any extra flow is reported on its own.
+  const total = Object.entries(results).filter(([name]) => name in FLOWS.before).reduce((n, [, r]) => n + r.interactions, 0);
   const file = path.join(OUT, `click-count-${version}.json`);
   fs.writeFileSync(file, `${JSON.stringify({ version, measuredAt: new Date().toISOString(), total, flows: results }, null, 2)}\n`);
   console.log(`total: ${total} -> ${path.relative(process.cwd(), file)}`);
