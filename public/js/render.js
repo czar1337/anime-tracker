@@ -21,6 +21,7 @@ import {
 } from './views/discover/view.js';
 import { renderSchedulePage } from './views/schedule/view.js';
 import { relativeAgeText, formatEnumLabel, coverOrInitialHtml } from './views/shared/format.js';
+import { announce } from './core/announce.js';
 
 const { isSelectMode, toggleSelectMode, clearSelection, toggleSelected, getSelectedIds, visibleIds, selectRange, selectAllVisible, toggleGroupExpanded } = LibraryModel;
 const { QUICK_MOVE_LISTS } = LibraryView;
@@ -664,6 +665,7 @@ function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo 
     });
   }
   container.appendChild(toast);
+  announce(message);
   setTimeout(() => {
     dismissToast(toast);
     if (btn && btn === lastUndoBtn) lastUndoBtn = null;

@@ -16,6 +16,7 @@ import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
 import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs, keepAboveDialogs } from './core/dialog.js';
 import { trapTab, bindRovingTablist, selectTab } from './core/focus.js';
+import { initLiveRegions } from './core/announce.js';
 import { registerCommand, runCommand, bindCommandButtons } from './core/commands.js';
 import { runViewTransition, movementAllowed } from './core/motion.js';
 import { bindStatsActions } from './views/stats/actions.js';
@@ -732,6 +733,7 @@ function bindOverlayBackdropClose() {
   initDialogs({ onDismiss: () => dismissOverlays() });
   // Toasts (Undo above all) stay reachable while an overlay is open.
   keepAboveDialogs(document.getElementById('toast-container'));
+  initLiveRegions();
 }
 
 // P5A.3's scorer debug panel. Async (a fresh corpus-cache fetch per open,

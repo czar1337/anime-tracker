@@ -73,7 +73,7 @@
     </div>
   </header>
 
-  <div id="error-banner" class="banner error" hidden></div>
+  <div id="error-banner" class="banner error" role="alert" hidden></div>
 
   <main class="app-main">
     <div id="home-view" class="home-view" role="tabpanel" aria-labelledby="tab-home" hidden></div>
@@ -452,7 +452,9 @@
     </div>
   </dialog>
 
-  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <!-- Toasts are announced through core/announce.js's stable live regions:
+       this container moves into whichever dialog is open. -->
+  <div id="toast-container" class="toast-container"></div>
 
 </div>
 

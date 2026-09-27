@@ -151,7 +151,7 @@ button, input, select {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-lit);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -861,7 +861,7 @@ kbd {
   border-color: var(--line-lit);
   box-shadow: var(--sh-3), 0 0 30px -18px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
 
 /* Hold 500ms to enter select mode (design §10: "Hold a card · 500ms ·
    linear ring · ring fills, then select mode"). events.js's bindHoldToSelect
@@ -1036,7 +1036,7 @@ kbd {
   cursor: help;
 }
 .info-hint:hover, .info-hint:focus-visible { border-color: var(--accent); color: var(--accent-lit); }
-.info-hint:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.info-hint:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
 .info-hint-bubble {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -1123,7 +1123,7 @@ kbd {
   scroll-snap-align: start;
 }
 .discover-card.dc-portrait:hover { transform: translateY(-3px); }
-.discover-card.dc-portrait:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.discover-card.dc-portrait:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
 .dc-portrait .cov { height: auto; aspect-ratio: 2 / 3; border-radius: 0; background: var(--bg-elevated); display: grid; place-items: center; }
 .discover-card-initial { font: var(--t-display-l); color: color-mix(in srgb, var(--text) 22%, transparent); }
 .dc-body { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); flex: 1; }
@@ -3338,3 +3338,26 @@ a.btn { text-decoration: none; }
 /* Reduced motion — superseded by the Moonlit Shrine §15 block at the top of
    this file (kills animation/transition outright rather than squashing
    duration), kept only as a fallback in case that block is ever removed. */
+
+/* ---------- Accessibility (v3 Phase 4) ----------
+   Every focus ring is --accent-lit, which every theme (curated or custom,
+   themeBuilder.js) keeps at 4.6:1 or more against --bg. Fields that hide
+   their own input's outline show the ring on the field around it. */
+.field:has(input:focus-visible),
+.range:has(input:focus-visible),
+.search-input-row:has(input:focus-visible),
+.palette-field:has(input:focus-visible) { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
+.font-grid-search:focus-visible,
+.detail-note:focus-visible,
+.confirm-type-row input:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
