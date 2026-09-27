@@ -12,7 +12,7 @@ import { openOverlay } from '../../events.js';
 import { isDialogOpen, onDialogClose } from '../../core/dialog.js';
 import { runViewTransition, movementAllowed } from '../../core/motion.js';
 import { bindRovingTablist } from '../../core/focus.js';
-import { renderDetailOverlay } from './view.js';
+import { renderDetailOverlay, dateInputToIso } from './view.js';
 import { detailState, resetDetailState, showNewTagForm } from './model.js';
 
 const cache = new Map(); // anilistId -> AniList Media detail object
@@ -178,6 +178,22 @@ export function bindDetailActions(lib) {
       else lib.handleSetStatus(id, actionEl.dataset.status);
     } else if (action === 'detail-mark-next') lib.handleIncrement(null, id);
     else if (action === 'detail-drop') lib.confirmDrop(id);
+    // v3 Phase 5: rewatch and the history list.
+    else if (action === 'detail-rewatch') lib.startRewatch(id);
+    else if (action === 'history-remove') {
+      const removed = Store.removeWatchRecord(actionEl.dataset.recordId);
+      if (!removed) return;
+      lib.persist();
+      refresh(id);
+      Render.showToast(copy('detail.history.removed'), {
+        actionLabel: copy('toast.undo'),
+        onAction: () => {
+          Store.restoreWatchRecord(removed);
+          lib.persist();
+          refresh(id);
+        },
+      });
+    }
     else if (action === 'detail-already-watched') {
       // Only rendered when the title is not in the library; re-checked because
       // a stale click queued behind an add from elsewhere must not double-add.
@@ -302,6 +318,27 @@ export function bindDetailActions(lib) {
     },
     true
   );
+
+  // v3 Phase 5: the watch dates and a history record's note. The entry's
+  // startedAt/completedAt are its first watch, so they also date that watch's
+  // record when there is one.
+  content.addEventListener('change', (e) => {
+    const id = Number(content.dataset.anilistId);
+    const action = e.target.dataset?.action;
+    if (!id || !action) return;
+    if (action === 'detail-started' || action === 'detail-finished') {
+      const iso = dateInputToIso(e.target.value);
+      const field = action === 'detail-started' ? 'startedAt' : 'completedAt';
+      Store.updateEntry(id, { [field]: iso });
+      const first = Store.getWatchRecords(id).find((r) => r.kind === 'watch');
+      if (first) Store.updateWatchRecord(first.id, { [field === 'startedAt' ? 'startedAt' : 'finishedAt']: iso });
+      lib.persist();
+      lib.refreshGridOnly();
+    } else if (action === 'history-note') {
+      Store.updateWatchRecord(e.target.dataset.recordId, { note: e.target.value.slice(0, 500) });
+      lib.persist();
+    }
+  });
 
   // Keeps the in-progress tag name in the view state WITHOUT re-rendering on
   // every keystroke (that would fight the cursor), so an unrelated re-render

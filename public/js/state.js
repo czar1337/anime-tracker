@@ -268,6 +268,56 @@ function removeEntry(anilistId) {
 // listsAndTags.js's header for why.
 // ---------------------------------------------------------------------------
 
+// v3 Phase 5: the watch history (diary). One record per watch or rewatch:
+// { id, anilistId, kind: 'watch' | 'rewatch', startedAt, finishedAt, note,
+// title, createdAt }. A record outlives its series (removing a series keeps
+// its history), so it carries the title it had.
+function getWatchHistory() {
+  return state.watchHistory;
+}
+function getWatchRecords(anilistId) {
+  return state.watchHistory.filter((r) => r.anilistId === anilistId);
+}
+function openWatchRecord(anilistId) {
+  return state.watchHistory.find((r) => r.anilistId === anilistId && !r.finishedAt) || null;
+}
+function addWatchRecord(record) {
+  const full = {
+    id: record.id || `wh-${record.anilistId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    anilistId: record.anilistId,
+    kind: record.kind === 'rewatch' ? 'rewatch' : 'watch',
+    startedAt: isIsoDate(record.startedAt) ? record.startedAt : null,
+    finishedAt: isIsoDate(record.finishedAt) ? record.finishedAt : null,
+    note: typeof record.note === 'string' ? record.note : '',
+    title: typeof record.title === 'string' ? record.title : '',
+    createdAt: nowIso(),
+  };
+  state.watchHistory.push(full);
+  touch();
+  return full;
+}
+// Returns the record as it was before, for undo.
+function updateWatchRecord(id, patch) {
+  const record = state.watchHistory.find((r) => r.id === id);
+  if (!record) return null;
+  const before = { ...record };
+  Object.assign(record, patch);
+  touch();
+  return before;
+}
+function removeWatchRecord(id) {
+  const i = state.watchHistory.findIndex((r) => r.id === id);
+  if (i < 0) return null;
+  const [removed] = state.watchHistory.splice(i, 1);
+  touch();
+  return removed;
+}
+function restoreWatchRecord(record) {
+  if (!record || state.watchHistory.some((r) => r.id === record.id)) return;
+  state.watchHistory.push(record);
+  touch();
+}
+
 function getTags() {
   return state.tags;
 }
@@ -838,6 +888,13 @@ export const Store = {
   addEntryTag,
   removeEntryTag,
   getCustomLists,
+  getWatchHistory,
+  getWatchRecords,
+  openWatchRecord,
+  addWatchRecord,
+  updateWatchRecord,
+  removeWatchRecord,
+  restoreWatchRecord,
   createCustomList,
   renameCustomList,
   deleteCustomList,

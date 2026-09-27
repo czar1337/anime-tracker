@@ -6,6 +6,7 @@ import { EventHistory } from '../../eventHistory.js';
 import { computeLibraryStats } from '../../statsLogic.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from '../../statsExport.js';
 import { openDialog } from '../../core/dialog.js';
+import { renderStatsPage, showMoreDiary } from './view.js';
 
 function currentStats() {
   return computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
@@ -28,6 +29,10 @@ async function openStatsShareOverlay() {
 export function bindStatsActions() {
   document.getElementById('stats-view').addEventListener('click', (e) => {
     if (e.target.closest('#stats-share-trigger')) openStatsShareOverlay();
+    if (e.target.closest('[data-action="diary-more"]')) {
+      showMoreDiary();
+      renderStatsPage(document.getElementById('stats-view'));
+    }
   });
 
   document.getElementById('stats-share-download-btn').addEventListener('click', async () => {

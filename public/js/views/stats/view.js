@@ -168,5 +168,44 @@ export function renderStatsPage(container) {
         <div class="stat-mini-list">${miniListHtml(mostEpisodes)}</div>
       </div>
     </div>
+
+    <div class="stats-section stats-diary">
+      <h3>${copy('stats.diary.heading')}</h3>
+      ${diaryHtml()}
+    </div>
   `);
+}
+
+// v3 Phase 5: the diary, every finished watch and rewatch by date, newest
+// first, a page at a time.
+const DIARY_PAGE = 40;
+let diaryShown = DIARY_PAGE;
+export function showMoreDiary() {
+  diaryShown += DIARY_PAGE;
+}
+
+function diaryHtml() {
+  const records = Store.getWatchHistory()
+    .filter((r) => r.finishedAt && Number.isFinite(Date.parse(r.finishedAt)))
+    .sort((a, b) => Date.parse(b.finishedAt) - Date.parse(a.finishedAt));
+  if (!records.length) return html`<p class="card-meta">${copy('stats.diary.empty')}</p>`;
+  const monthOf = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  let lastMonth = null;
+  const rows = [];
+  for (const r of records.slice(0, diaryShown)) {
+    const month = monthOf(r.finishedAt);
+    if (month !== lastMonth) {
+      rows.push(html`<li class="diary-month">${month}</li>`);
+      lastMonth = month;
+    }
+    const entry = Store.getEntry(r.anilistId);
+    const title = entry ? entry.titleEnglish || entry.titleRomaji : r.title || copy('stats.diary.removedSeries');
+    rows.push(html`<li class="diary-row">
+      <span class="diary-date">${new Date(r.finishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
+      ${entry ? html`<button type="button" class="diary-title" data-action="show-detail" data-detail-id="${r.anilistId}">${title}</button>` : html`<span class="diary-title">${title}</span>`}
+      ${r.kind === 'rewatch' ? html`<span class="diary-badge">${copy('stats.diary.rewatch')}</span>` : html`<span></span>`}
+      ${r.note && html`<span class="diary-note">${r.note}</span>`}
+    </li>`);
+  }
+  return html`<ol class="diary">${rows}</ol>${records.length > diaryShown ? html`<button type="button" class="btn btn-ghost sm" data-action="diary-more">${copy('stats.diary.more')}</button>` : ''}`;
 }

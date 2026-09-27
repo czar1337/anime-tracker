@@ -28,6 +28,7 @@ import {
   handleSetScore,
   handleSetStatus,
   confirmDrop,
+  startRewatch,
   openCardMenu,
   bindGridEvents,
   bindBulkActionBar,
@@ -1363,7 +1364,7 @@ export function initEvents({ initialList, persistFn }) {
   bindSeriesCommands();
   bindHome();
   bindHero();
-  Detail.bindDetailActions({ handleSetScore, handleSetStatus, confirmDrop, handleIncrement, recordProgressEvent, refreshGridOnly, persist: () => persist() });
+  Detail.bindDetailActions({ handleSetScore, handleSetStatus, confirmDrop, handleIncrement, recordProgressEvent, startRewatch, refreshGridOnly, persist: () => persist() });
   bindGridEvents();
   bindHoldToSelect();
   bindFilterBar();

@@ -3368,3 +3368,24 @@ a.btn { text-decoration: none; }
   white-space: nowrap;
   border: 0;
 }
+
+/* v3 Phase 5: dates, rewatches and the watch history in the drawer, and the
+   diary on the Stats page. */
+.history-dates { gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.history-date { display: inline-flex; align-items: center; gap: var(--sp-2); font: var(--t-meta); color: var(--dim); }
+.history-date input { font: var(--t-body); color: var(--text); background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--sp-1) var(--sp-2); color-scheme: inherit; }
+.history-list { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: var(--sp-2); }
+.history-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-1) var(--sp-3); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.history-kind { font: var(--t-meta); font-weight: var(--w-strong); color: var(--text); }
+.history-range { font: var(--t-meta); color: var(--dim); }
+.history-note { grid-column: 1 / 3; font: var(--t-meta); color: var(--text); background: transparent; border: 0; border-bottom: 1px dashed var(--line); padding: var(--sp-1) 0; }
+.history-note:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
+.history-remove { grid-row: 1 / 3; grid-column: 3; }
+.diary { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); }
+.diary-month { margin: var(--sp-4) 0 var(--sp-1); font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.diary-row { display: grid; grid-template-columns: 96px 1fr auto; gap: var(--sp-3); align-items: baseline; padding: var(--sp-1) 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
+.diary-date { font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; }
+.diary-title { font: var(--t-body); color: var(--text); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+.diary-title:hover { color: var(--accent-lit); }
+.diary-note { grid-column: 2 / 4; font: var(--t-meta); color: var(--dim); }
+.diary-badge { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--accent-lit); }

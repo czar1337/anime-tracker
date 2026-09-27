@@ -30,6 +30,52 @@ const EPISODE_SQUARE_TAIL = 18;
 // P5B.5's synopsis "Show more" cutoff (spec-fixed prose, not a tunable).
 const DETAIL_SYNOPSIS_COLLAPSE_LENGTH = 180;
 
+// v3 Phase 5: a stored ISO time as the value of a date field (local day), and
+// back. Noon keeps the day the same in every time zone.
+export function isoToDateInput(iso) {
+  const t = Date.parse(iso || '');
+  if (!Number.isFinite(t)) return '';
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+export function dateInputToIso(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? new Date(`${value}T12:00:00`).toISOString() : null;
+}
+export function formatHistoryDate(iso) {
+  const t = Date.parse(iso || '');
+  return Number.isFinite(t) ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+}
+
+// Dates, rewatches and the history (the diary) of one series.
+function historySectionHtml(local) {
+  const records = Store.getWatchRecords(local.anilistId)
+    .slice()
+    .sort((a, b) => (Date.parse(a.startedAt || a.finishedAt || a.createdAt) || 0) - (Date.parse(b.startedAt || b.finishedAt || b.createdAt) || 0));
+  let rewatchN = 0;
+  const rows = records.map((r) => {
+    const label = r.kind === 'rewatch' ? copy('detail.history.rewatchN', undefined, { n: (rewatchN += 1) }) : copy('detail.history.watch');
+    const from = formatHistoryDate(r.startedAt);
+    const to = r.finishedAt ? formatHistoryDate(r.finishedAt) : copy('detail.history.ongoing');
+    const range = from ? `${from} – ${to}` : to;
+    return html`<li class="history-row" data-record-id="${r.id}">
+      <span class="history-kind">${label}</span>
+      <span class="history-range">${range}</span>
+      <input type="text" class="history-note" data-action="history-note" data-record-id="${r.id}" value="${r.note || ''}" placeholder="${copy('detail.history.notePlaceholder')}" aria-label="${copy('detail.history.noteLabel', undefined, { label })}">
+      <button type="button" class="icn history-remove" data-action="history-remove" data-record-id="${r.id}" aria-label="${copy('detail.history.remove', undefined, { label })}">×</button>
+    </li>`;
+  });
+  const watched = local.listStatus === 'watched';
+  return html`
+    <p class="detail-lbl">${copy('detail.history.heading')}</p>
+    <div class="row history-dates">
+      <label class="history-date">${copy('detail.history.started')}<input type="date" data-action="detail-started" value="${isoToDateInput(local.startedAt)}"></label>
+      <label class="history-date">${copy('detail.history.finished')}<input type="date" data-action="detail-finished" value="${isoToDateInput(local.completedAt)}"></label>
+      ${watched && html`<button type="button" class="btn btn-ghost sm" data-action="detail-rewatch">${copy('detail.history.watchAgain')}</button>`}
+    </div>
+    ${local.rewatchCount > 0 && html`<p class="card-meta">${copy('detail.history.rewatched', undefined, { n: local.rewatchCount })}</p>`}
+    ${rows.length ? html`<ol class="history-list">${rows}</ol>` : html`<p class="card-meta">${copy('detail.history.empty')}</p>`}`;
+}
+
 export function formatFuzzyDate(d) {
   if (!d || !d.year) return null;
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -256,7 +302,8 @@ export function renderDetailOverlay(container, state) {
           <textarea class="detail-note" id="detail-note-field" placeholder="${copy('detail.notePlaceholder')}" data-action="detail-note">${local.notes || ''}</textarea>
         </section>
         <section class="detail-section">${detailTagsSectionHtml(local)}</section>
-        <section class="detail-section">${detailListsSectionHtml(local)}</section>`}
+        <section class="detail-section">${detailListsSectionHtml(local)}</section>
+        <section class="detail-section detail-history">${historySectionHtml(local)}</section>`}
       <section class="detail-section detail-about">
         <p class="detail-lbl">${copy('detail.about')}</p>
         <div class="detail-score-row">

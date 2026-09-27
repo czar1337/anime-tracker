@@ -331,6 +331,17 @@ Phase 3 (design system and motion):
   (an import is past watching) but keeps bulk and backfill, which the user did now.
   An old MAL import cannot be told apart from a move to Watched, so it still counts
   there.
+- **Paused is the fifth list, last,** in the brief's order (Watching / Watchlist /
+  Watched / Dropped / Paused). On a phone the list row scrolls.
+- **Watch history.** Schema 16 seeds one record per Watched series with a finish date
+  (76 on the real copy). After that, a record is written when a series is finished
+  (a move to Watched, the completion moment, bulk) and closed when a rewatch ends; an
+  add straight into Watched writes none (its date is unknown). The entry's startedAt
+  and completedAt are the first watch, and editing them also dates that watch's
+  record. Records carry the title and outlive their series, so the diary never loses
+  an entry. "Watch again" resets progress to 0 without an episode event (lifetime
+  counts only add what is watched; the rewatched episodes add again) and emits
+  `rewatch_started`, the first time that type is reachable.
 - **Streaks and sittings are new on the Stats page.** The brief asks that they read live
   events only, and there was no streak or session logic to restrict, so Phase 5 adds
   them: a day counts when its live progress nets above zero; a sitting is live episodes

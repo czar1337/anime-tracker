@@ -48,16 +48,15 @@ export const EVENT_TYPES = [
 // tolerate them. Recorded here (rather than only in the progress file) so the
 // next person doesn't have to grep the whole app to find out why the log
 // never contains them:
-//   rewatch_started  - no rewatch feature exists at all (no rewatch count, no
-//                      "start over" control). Re-setting status watched ->
-//                      watching is indistinguishable from a normal status
-//                      change and deliberately does NOT synthesize one.
 //   review_written   - no review field exists; the free-text `notes` field is
 //                      a partial equivalent but no word count is stored
 //                      anywhere. Review text lands in P6.2.
 // font_previewed is no longer unreachable: P3.1's font picker (events.js's
 // .font-grid button click handler) emits it on every distinct selection.
-export const UNREACHABLE_EVENT_TYPES = ['rewatch_started', 'review_written'];
+// rewatch_started is reachable since v3 Phase 5 ("Watch again" in the detail
+// drawer, library/actions.js startRewatch); a plain move from Watched back to
+// Watching still does not synthesize one.
+export const UNREACHABLE_EVENT_TYPES = ['review_written'];
 
 export function isKnownEventType(type) {
   return EVENT_TYPES.includes(type);

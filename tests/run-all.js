@@ -1485,7 +1485,8 @@ async function run() {
   await test('the remaining unreachable types are declared in the union but flagged as having no action yet', () => {
     // font_previewed moved out of this list in P3.1 — the font picker
     // (events.js's .font-grid button handler) is now a real call site.
-    assert.deepEqual(UNREACHABLE_EVENT_TYPES, ['rewatch_started', 'review_written']);
+    // rewatch_started moved out in v3 Phase 5 ("Watch again").
+    assert.deepEqual(UNREACHABLE_EVENT_TYPES, ['review_written']);
     for (const t of UNREACHABLE_EVENT_TYPES) assert.ok(EVENT_TYPES.includes(t));
   });
 
