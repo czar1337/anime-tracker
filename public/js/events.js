@@ -537,8 +537,6 @@ function bindSearchOverlay() {
     input.focus();
   };
   registerCommand({ id: 'search.add', title: copy('command.addSeries'), section: 'actions', keywords: 'search anilist new', run: openForAdd });
-  // Until the command palette lands (next step), Ctrl+K opens the AniList search.
-  registerCommand({ id: 'palette.open', run: openForAdd });
 
   input.addEventListener('input', () => {
     clearTimeout(searchDebounceTimer);
@@ -1091,6 +1089,35 @@ function bindKeyboardShortcuts() {
   });
 }
 
+// Actions on one series and on AniList results, run by the command palette
+// (untitled: the palette builds its own per-series entries from the library).
+function bindSeriesCommands() {
+  const cardFor = (id) => document.querySelector(`#grid .card[data-id="${id}"]`);
+  registerCommand({ id: 'series.open', run: (id) => Detail.showDetail(Number(id), { origin: cardFor(id) }) });
+  registerCommand({ id: 'series.increment', run: (id) => handleIncrement(cardFor(id), Number(id)) });
+  registerCommand({
+    id: 'series.move',
+    run: ({ id, list }) => (list === 'dropped' ? confirmDrop(Number(id)) : handleSetStatus(Number(id), list)),
+  });
+  registerCommand({
+    id: 'anilist.add',
+    run: ({ media, list }) => {
+      mediaCache.set(media.id, media);
+      addFromSearchResult(media.id, list);
+    },
+  });
+  registerCommand({
+    id: 'anilist.search',
+    run: (query) => {
+      openOverlay('search-overlay');
+      const input = document.getElementById('search-input');
+      input.value = query || '';
+      input.focus();
+      runSearch(input.value);
+    },
+  });
+}
+
 // Shows any view by name: a section, or one of the four lists.
 function showView(view) {
   if (view === 'home') showHomeView();
@@ -1305,6 +1332,7 @@ export function initEvents({ initialList, persistFn }) {
   initLibraryActions({ getActiveList: () => activeList, closeAllOverlays, confirmDialog, openOverlay, persist: () => persist(), refreshGridOnly, refreshView, evaluateAchievementsAfterUndoWindow, handleFixMatch });
   bindCoverImageLoad();
   bindTabs();
+  bindSeriesCommands();
   bindHome();
   bindHero();
   Detail.bindDetailActions({ handleSetScore, handleSetStatus, confirmDrop, handleIncrement, recordProgressEvent, refreshGridOnly, persist: () => persist() });

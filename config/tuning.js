@@ -287,6 +287,15 @@ export const LISTS_AND_TAGS = {
 //  after the last keystroke (the text itself is stored at once).
 //  gridFirstChunk / gridChunkSize: the library grid renders this many cards
 //  synchronously, then the rest in chunks of this size on later frames.
+// The command palette (v3 Phase 4, public/js/views/palette/).
+export const PALETTE = {
+  maxResults: 14, // library and command rows shown for a query
+  recentMax: 6, // recently used series and commands kept (per browser)
+  anilistMinChars: 3, // AniList is searched from this many typed characters
+  anilistDebounceMs: 350,
+  anilistResults: 5,
+};
+
 export const UI_TIMING = {
   titleFilterDebounceMs: 120,
   gridFirstChunk: 60,

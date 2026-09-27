@@ -180,6 +180,20 @@
   </dialog>
 
   <!-- Search overlay -->
+  <!-- v3 Phase 4: the command palette (Ctrl/Cmd+K), views/palette/palette.js.
+       The input is an ARIA combobox that owns the listbox of results. -->
+  <dialog id="palette-overlay" class="overlay palette-overlay" aria-label="Command palette">
+    <div class="overlay-panel palette-panel">
+      <div class="palette-field">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search your library, AniList or commands…" aria-label="Search your library, AniList or commands">
+        <kbd>Esc</kbd>
+      </div>
+      <div id="palette-list" class="palette-list" role="listbox" aria-label="Results"></div>
+      <div class="palette-foot"><span id="palette-status" class="palette-status" role="status" aria-live="polite"></span><span class="palette-hint">↑ ↓ to move · Enter to run · Esc to close</span></div>
+    </div>
+  </dialog>
+
   <dialog id="search-overlay" class="overlay" aria-label="Search AniList">
     <div class="overlay-panel search-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>

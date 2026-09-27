@@ -17,7 +17,7 @@ import { LISTS_AND_TAGS } from '../../../../config/tuning.js';
 import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from '../../typographySliders.js';
 import { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } from '../../appearanceExport.js';
 import { triggerDownload } from '../../download.js';
-import { registerCommand } from '../../core/commands.js';
+import { registerCommand, registerCommandProvider } from '../../core/commands.js';
 
 let ctx = null;
 const beginSettingGesture = (...args) => ctx.beginSettingGesture(...args);
@@ -96,6 +96,20 @@ export function bindSettingsActions(context) {
   };
   registerCommand({ id: 'settings.open', title: copy('command.settings'), section: 'settings', keywords: 'preferences options appearance', run: openSettings });
   registerCommand({ id: 'theme.open', title: copy('command.theme'), section: 'settings', keywords: 'colour color appearance dark light', run: openSettings });
+  // "Theme: …" in the palette: a light theme goes in the light slot, a dark
+  // one in the dark slot, and the mode follows unless it tracks the system.
+  registerCommandProvider(() =>
+    Themes.COLOR_THEMES.map((t) => ({
+      title: copy('command.themeNamed', undefined, { name: t.name }),
+      section: 'settings',
+      keywords: 'theme colour color',
+      run: () => {
+        const appearance = Store.state.preferences.appearance;
+        const slot = t.light ? 'light' : 'dark';
+        commitAppearance({ ...appearance, mode: appearance.mode === 'system' ? 'system' : slot, [slot]: { type: 'preset', id: t.id } });
+      },
+    }))
+  );
 
   body.addEventListener('click', async (e) => {
     if (e.target.closest('[data-action="redo-cold-start"]')) {

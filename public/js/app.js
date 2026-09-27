@@ -7,6 +7,7 @@ import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './views/discover/actions.js';
 import { Schedule } from './views/schedule/actions.js';
 import { Detail } from './views/detail/actions.js';
+import { initPalette } from './views/palette/palette.js';
 import { Airing } from './airing.js';
 import { Corpus } from './corpus.js';
 import { TasteProfile } from './tasteProfile.js';
@@ -446,6 +447,7 @@ async function boot() {
   Discover.initDiscover({ persistFn: persist });
   Schedule.initSchedule({ persistFn: persist });
   Detail.initDetail();
+  initPalette();
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
   // Performance marks for scripts/perf.js (the 2,000-entry render budget): from
   // the start of the first render to the first painted frame that has cards

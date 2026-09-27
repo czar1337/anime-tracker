@@ -10,6 +10,8 @@ import { RECOMMENDATIONS, TIME_SEMANTICS } from '../../../../config/tuning.js';
 import { openOverlay } from '../../events.js';
 import { defaultSettings } from '../../settingsSchema.js';
 import { FeedbackLoop } from '../../feedbackLoop.js';
+import { registerCommand } from '../../core/commands.js';
+import { copy } from '../../copy.js';
 
 // P5B.5: one-tap add's toast needs a human label for whichever status the
 // user picked — render.js's own LIST_META isn't exported, so this stays a
@@ -192,6 +194,12 @@ async function buildShelvesNow() {
   return buildInFlight;
 }
 
+// Opens "Pick for me" over the Watchlist (the Discover button and the palette).
+function openPickForMe() {
+  Render.renderPickForMePanel(document.getElementById('pick-for-me-body'), { entries: Store.getEntriesByList('watchlist'), filters: {}, picked: undefined });
+  openOverlay('pick-for-me-overlay');
+}
+
 export function getDiscoverState() {
   return {
     ...discoverState,
@@ -318,6 +326,8 @@ export function initDiscover({ persistFn } = {}) {
     }
   });
 
+  // v3 Phase 4: also a palette command ("Pick for me").
+  registerCommand({ id: 'discover.pickForMe', title: copy('command.pickForMe'), section: 'actions', keywords: 'random choose watchlist suggest', run: openPickForMe });
   container.addEventListener('click', (e) => {
     if (e.target.closest('[data-action="corpus-pause"]')) {
       Corpus.pauseSeed();
@@ -343,8 +353,7 @@ export function initDiscover({ persistFn } = {}) {
     }
 
     if (e.target.closest('#pick-for-me-open')) {
-      Render.renderPickForMePanel(document.getElementById('pick-for-me-body'), { entries: Store.getEntriesByList('watchlist'), filters: {}, picked: undefined });
-      openOverlay('pick-for-me-overlay');
+      openPickForMe();
       return;
     }
 

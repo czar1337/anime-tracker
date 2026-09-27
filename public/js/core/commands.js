@@ -29,9 +29,25 @@ export function hasCommand(id) {
   return commands.has(id);
 }
 
+// A provider returns commands that exist only while something is true (one
+// per theme, say); they are listed like registered ones but not stored.
+const providers = [];
+export function registerCommandProvider(fn) {
+  providers.push(fn);
+}
+
 // Every command the palette may offer right now.
 export function listCommands() {
-  return [...commands.values()].filter((c) => c.title && (!c.available || c.available()));
+  const all = [...commands.values(), ...providers.flatMap((fn) => fn() || [])];
+  return all.filter((c) => c.title && (!c.available || c.available()));
+}
+
+// Runs a command object from listCommands() (a provided one has no id in the
+// registry).
+export function runCommandObject(cmd, arg) {
+  if (cmd.id && commands.get(cmd.id) === cmd) return runCommand(cmd.id, arg);
+  cmd.run(arg);
+  return true;
 }
 
 // Delegated: a click on any [data-command] element runs that command.
