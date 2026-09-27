@@ -369,9 +369,10 @@ test('real browser: app_opened plus a real click produce a correctly-shaped log,
     // refreshCurrentView() does not touch currentView, so re-rendering must
     // never look like navigation. 100 re-renders, zero dwell events.
     const dwellBefore = events.filter((e) => e.type === 'route_dwell').length;
-    for (let i = 0; i < 100; i++) {
-      await page.click(`.card[data-id="${ID}"] [data-action="toggle-notes"]`);
-    }
+    await page.evaluate(async () => {
+      const { refreshCurrentView } = await import('/js/events.js');
+      for (let i = 0; i < 100; i++) refreshCurrentView();
+    });
     await page.waitForTimeout(1200);
     const after = await (await fetch(`${server.url}/api/events`)).json();
     expect(after.events.filter((e) => e.type === 'route_dwell').length).toBe(dwellBefore);

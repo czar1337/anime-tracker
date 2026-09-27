@@ -21,7 +21,8 @@ async function openApp(page, url) {
 }
 
 async function openSettings(page) {
-  await page.click('#theme-toggle');
+  await page.click('#settings-trigger');
+  await page.click('#settings-tab-data'); // v3 Phase 4: Settings is sectioned
   await page.waitForSelector('#snapshot-list');
 }
 

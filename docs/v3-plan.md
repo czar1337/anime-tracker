@@ -265,6 +265,63 @@ Phase 3 (design system and motion):
   appear later too.
 - **`--delay-skeleton` is a CSS token, not a `config/tuning.js` value.** It is read
   only by CSS (an animation delay) and does not scale with the animation setting.
+- **The Phase 1 token baseline is retired in Phase 4.** It froze v2's layout to prove
+  the token conversion changed nothing; Phase 4 changes the layout on purpose. The spec
+  and its fixture moved to `archive/tests/`.
+- **One command registry.** Header buttons, keyboard shortcuts and the palette all run
+  the same registered commands (`core/commands.js`, `[data-command]`), so an action has
+  one implementation and one label.
+- **Touch long-press opens the card menu; mouse hold still selects.** The brief asks
+  for long-press on touch; the v2 hold-to-select stays for a mouse, where right-click
+  already opens the menu.
+- **Tag chips left the library card.** The brief's card has one title line and one meta
+  line; tags stay in the detail drawer and the filter.
+- **The Watching hero stays,** with the banner or a blurred cover behind it (no more
+  empty band when a series has no banner).
+- **One conflict toast at a time.** A burst of 409s shows one "reloaded" toast instead
+  of a stack.
+- **Cover hues come from data already fetched.** The airing refresh and the detail
+  query ask AniList for `coverImage.color`; the canvas read is the fallback.
+- **"More like this" records the existing thumb-up signal until Phase 6,** where the
+  seeded "More like this" view lands.
+- **Tune lives outside the Discover view** (`#discover-tune` in `index.html`), so a
+  shelf rebuild never closes it.
+- **The twelve curated themes.** Dark: Moonlit Shrine, Ember, Solar, Jade, Frost,
+  Cobalt, Amethyst, Bloom, Obsidian; light: Daybreak, Parchment, Rose Quartz. One per
+  hue family with the default kept. Each retired theme maps to the curated one with the
+  nearest accent on the same side of light/dark (`RETIRED_THEMES` in `themes.js`, frozen
+  in `migrate_14_to_15`, pinned together by a unit test). Swatches now show the real
+  generated `--bg` and `--accent`, not v2's legacy hexes.
+- **D2 nearest matches.** Text size: the old font scale to the nearest of five
+  (.87 .94 1 1.1 1.22). Density: old spacing step 3 or less is Compact, otherwise
+  Comfortable. Motion: old animation step 1 is Off, 2-3 (sped-up) is Reduced, the rest
+  Full, since the new Motion has no speed setting. Decoration: decor off is Off, half
+  or an amount of 3 or less is Low, otherwise Full. Anything that did not carry over
+  exactly (a retired theme, the background layer, an approximated or retired control)
+  goes in `appearanceNotice`, shown once as a toast plus a list in Settings until
+  "Got it".
+- **The v2 `appearance` is no longer repaired on load.** Repairing it would rewrite an
+  old field (a retired id would become the default), which D2 says must stay untouched.
+  It passes through as stored and only seeds `appearanceV3` when that is missing.
+- **`libraryView` in the schema table is `libraryLayout`.** It shipped earlier in Phase 4
+  under that name; the migration adds it (and `savedViews`) for files that lack them.
+- **Share codes and the gradient/grain layer are gone with their code.**
+  `appearanceExport.js` moved to `archive/js/`; the slider and decoration-amount specs
+  moved to `archive/tests/`.
+- **Settings re-renders by morphing, not rebuilding.** One render function morphs the
+  whole drawer into place; that alone removes the scroll-restore code, keeps focus and
+  keeps a colour picker open. The snapshot list opts out with `data-morph-key`.
+- **Rating from a cold start costs one more interaction (2 → 3).** The brief moves the
+  score strip off the card (to the menu and the detail drawer), so rating a Watched
+  series from the app just opened is segment, right-click, rating. The loop's usual
+  case, rating a series as you finish it, is one tap in the completion toast (finish
+  plus rate: 2), measured as an extra flow in `click-count-after.json`. The five-flow
+  total is 9 before and 10 after; the other four flows are unchanged.
+- **Settings evidence and the notice.** The one-time migration notice is a toast at
+  boot plus a list in Settings > Appearance, cleared by "Got it" (`seenAt`), not a
+  modal, so it never blocks the app on first start.
+- **Empty Discover shelves are grouped after the rails.** Each still states why it is
+  empty, but the rails above the fold are ones with cards.
 
 ## Later (out of scope for v3.0)
 

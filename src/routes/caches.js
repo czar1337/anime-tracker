@@ -11,6 +11,8 @@ const {
   writeRecsCacheAtomic,
   readAiringCache,
   writeAiringCacheAtomic,
+  readCoverHues,
+  writeCoverHuesAtomic,
   readUpcomingCache,
   writeUpcomingCacheAtomic,
   corpusSnapshot,
@@ -63,6 +65,38 @@ module.exports = function register({ route, prefix }) {
     }
     writeAiringCacheAtomic(data);
     sendJson(res, 200, { ok: true, evicted: quota.evicted || [] });
+    return;
+  });
+
+  // v3 Phase 4: cover colours for the dynamic accent. A merge, like the
+  // corpus: the page sends only the colours it just learned. Only
+  // #rrggbb values from AniList or a canvas read are kept.
+  route('GET', '/api/cover-hues', async ({ req, res, url, pathname }) => {
+    sendJson(res, 200, readCoverHues());
+    return;
+  });
+
+  route('PUT', '/api/cover-hues', async ({ req, res, url, pathname }) => {
+    const body = await readJsonBody(req);
+    if (!body || typeof body.entries !== 'object' || body.entries === null || Array.isArray(body.entries)) {
+      sendJson(res, 400, { error: 'Body must include an entries object.' });
+      return;
+    }
+    const incoming = {};
+    for (const [id, v] of Object.entries(body.entries)) {
+      if (!/^\d+$/.test(id) || !v || !/^#[0-9a-f]{6}$/i.test(v.color) || !['anilist', 'canvas'].includes(v.source)) continue;
+      incoming[id] = { color: v.color.toLowerCase(), source: v.source };
+    }
+    // Read, merge and write run synchronously (no await in between), so two
+    // overlapping saves cannot interleave and drop each other's colours.
+    const data = { entries: { ...readCoverHues().entries, ...incoming } };
+    const quota = ensureClassBWriteQuota(Buffer.byteLength(JSON.stringify(data)), 'coverHueCache');
+    if (!quota.ok) {
+      sendJson(res, 507, { error: quota.error });
+      return;
+    }
+    writeCoverHuesAtomic(data);
+    sendJson(res, 200, { ok: true, stored: Object.keys(incoming).length, evicted: quota.evicted || [] });
     return;
   });
 

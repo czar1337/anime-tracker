@@ -80,39 +80,6 @@ body {
    dialog is never dimmed by it. */
 #atmosphere { position: fixed; inset: 0; z-index: 90; overflow: hidden; pointer-events: none; }
 
-/* ---------- Background effect (P6.1) ----------
-   Optional gradient/grain layer behind the library (spec: "an optional
-   gradient/grain background with opacity"). Sits one z-index below
-   #atmosphere (89 vs 90, both under every overlay's 100) for the exact
-   reason documented above this block: a negative-z-index sibling of
-   #app never actually painted through here, so this is a low-opacity
-   layer sitting ABOVE content instead, same as #atmosphere. Opacity is
-   set inline by themes.js's applyBackground() from the user's 0-100
-   slider — [data-effect="none"] is the same "not rendered" state that
-   opacity:0 already produces, plus display:none as a defensive no-op
-   belt-and-braces. Gradient reads the ACTIVE theme's own --glow token
-   (not a fixed colour), so it always matches whichever theme — curated
-   or custom — is applied. Grain is a small tiling feTurbulence SVG,
-   generated once and inlined as a data URI (no asset pipeline needed
-   for one static pattern); mix-blend-mode:overlay lets the same white
-   noise read as a subtle texture against both light and dark themes
-   rather than needing two different noise colours. */
-#bg-effect { position: fixed; inset: 0; z-index: 89; overflow: hidden; pointer-events: none; }
-#bg-effect[data-effect="none"] { display: none; }
-/* Post-2.2.0 feedback: 2 user-picked colours instead of always the theme's
-   own single --glow-derived colour fading to transparent — themes.js's
-   applyBackground() sets --bg-gradient-c1/-c2 as inline styles only once
-   the user has actually picked both; the var() fallbacks below reproduce
-   today's exact single-colour-to-transparent look until then. */
-#bg-effect[data-effect="gradient"] {
-  background: radial-gradient(closest-side at 50% 0%, var(--bg-gradient-c1, var(--glow)) 0%, var(--bg-gradient-c2, transparent) 70%);
-}
-#bg-effect[data-effect="grain"] {
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.2126 0.7152 0.0722 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 140px 140px;
-}
-
 .atmo-moon {
   position: absolute;
   top: -140px; left: 50%;
@@ -184,7 +151,7 @@ button, input, select {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-lit);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -324,6 +291,88 @@ kbd {
   color: var(--text);
 }
 
+/* v3 Phase 4: each section tab carries an icon for the bottom tab bar on
+   narrow screens; the header row shows the label only. */
+.tab-icon { display: none; flex-shrink: 0; }
+
+/* The search field in the header is a button that opens the command palette. */
+.search-field-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 220px;
+  height: 34px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  color: var(--faint);
+  font: var(--t-meta);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.search-field-btn:hover { border-color: var(--line-lit); color: var(--dim); }
+.search-field-label { flex: 1; text-align: left; white-space: nowrap; }
+.search-field-btn kbd { margin-left: auto; }
+
+/* The bell appears only with new episodes; its dot says so without a number
+   (the Library tab carries the count). */
+#notifications-trigger { position: relative; }
+.icn-dot { position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
+
+/* Library: the four lists as one segmented control, with counts. */
+.library-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.lists-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.list-seg {
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--dim);
+  font: var(--t-action);
+  padding: var(--sp-2) var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.list-seg:hover { color: var(--text); }
+.list-seg[aria-selected="true"] { background: var(--accent-soft); color: var(--text); }
+.saved-views { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.saved-view { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius-pill); overflow: hidden; }
+.saved-view.on { border-color: var(--accent); background: var(--accent-soft); }
+.saved-view-btn, .saved-view-del {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font: var(--t-meta);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+.saved-view-btn { padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3); display: inline-flex; gap: 6px; align-items: baseline; }
+.saved-view-btn small { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.saved-view.on .saved-view-btn { color: var(--text); }
+.saved-view-del { padding: 0 var(--sp-2); color: var(--faint); }
+.saved-view-btn:hover, .saved-view-del:hover { color: var(--text); }
+.saved-view-form { display: inline-flex; gap: var(--sp-2); align-items: center; }
+.saved-view-form input { width: 180px; background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: var(--radius-sm); color: var(--text); font: var(--t-meta); padding: var(--sp-1) var(--sp-2); }
+.layout-toggle { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.layout-toggle [aria-checked="true"] { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
+
 .tab-count {
   display: inline-block;
   font: var(--t-meta);
@@ -455,7 +504,9 @@ kbd {
    the otherwise-circular .icn into an auto-width pill to fit the text
    render.js writes into .sort-dir-label beside it. */
 .icn.is-asc svg { transform: scaleY(-1); }
-.sort-dir-btn { width: auto; border-radius: 8px; padding: 0 var(--sp-3) 0 var(--sp-2); gap: var(--sp-1); }
+/* v3 Phase 4: .icn.sort-dir-btn, not .sort-dir-btn: .icn.small (two classes)
+   used to win and pinned the pill at 28px, clipping "Newest first" to "west f". */
+.icn.sort-dir-btn { width: auto; flex-shrink: 0; border-radius: 8px; padding: 0 var(--sp-3) 0 var(--sp-2); gap: var(--sp-1); }
 .sort-dir-label { font: var(--t-meta); white-space: nowrap; }
 
 /* ---------- Buttons, four levels ----------
@@ -527,12 +578,10 @@ kbd {
   }
   .card:hover:not(:focus-within)::before { right: 100%; }
   .card:hover:not(:focus-within) .card-cover-wrap img { filter: var(--cover-filter); }
-  .card:hover:not(:focus-within) .plus { opacity: 0; transform: scale(0.85); }
   .btn-primary:hover { transform: none; filter: none; }
-  /* No hover affordance exists to reveal .plus on a touch device — without
-     this it's only reachable via keyboard focus, effectively invisible on
-     the devices most likely to rely on this media query. */
-  .plus { opacity: .85; transform: none; }
+  /* No hover exists to reveal the card toolbar on a touch device, so it is
+     always shown there (+1 must never depend on hover). */
+  .card .card-toolbar { opacity: 1; transform: none; }
   /* P5B.5: same reasoning — a touch device has no hover to reveal the
      discover card's alternate-language title, so it stays always-on-small
      instead of hidden behind an affordance that device can't trigger. */
@@ -812,7 +861,7 @@ kbd {
   border-color: var(--line-lit);
   box-shadow: var(--sh-3), 0 0 30px -18px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
 
 /* Hold 500ms to enter select mode (design §10: "Hold a card · 500ms ·
    linear ring · ring fills, then select mode"). events.js's bindHoldToSelect
@@ -954,41 +1003,7 @@ kbd {
 .discover-card .why { font: var(--t-meta); color: var(--dim); line-height: 1.55; margin-bottom: var(--sp-3); padding-left: var(--sp-2); border-left: 1px solid var(--accent-deep); }
 .discover-card .why b { color: var(--accent-lit); font-weight: 500; }
 .discover-card .acts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-.discover-card .x {
-  position: absolute;
-  top: 10px; right: 10px;
-  width: 24px; height: 24px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg-deep) 70%, transparent);
-  color: var(--faint);
-  display: grid;
-  place-items: center;
-  font-size: var(--fs-body);
-  opacity: 0;
-  transition: opacity var(--dur-base), border-color var(--dur-base), color var(--dur-base);
-}
-.discover-card:hover .x, .discover-card:focus-within .x { opacity: 1; }
-.discover-card .x:hover { border-color: var(--accent); color: var(--accent-lit); }
 
-/* P5B.4: thumbs on the card's own .acts row, the dismiss-reason strip that
-   replaces .acts while open, the adventurousness slider row, and the
-   Pick-for-me result card. */
-.discover-card .thumb-btn {
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: none;
-  color: var(--faint);
-  font-size: var(--fs-body);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: border-color var(--dur-base), color var(--dur-base), background-color var(--dur-base);
-}
-.discover-card .thumb-btn:hover { border-color: var(--line-lit); color: var(--text); }
-.discover-card .thumb-btn.on { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
-.discover-reason-strip { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .discover-adventurousness-row {
   display: flex;
   align-items: center;
@@ -1021,7 +1036,7 @@ kbd {
   cursor: help;
 }
 .info-hint:hover, .info-hint:focus-visible { border-color: var(--accent); color: var(--accent-lit); }
-.info-hint:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.info-hint:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
 .info-hint-bubble {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -1076,9 +1091,95 @@ kbd {
   @keyframes shelfEnter { from { opacity: 0; transform: translateY(var(--move-md)); } }
   @container style(--motion: 0) { .shelf { animation: none; } }
 }
-.shelf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--sp-4); }
 .shelf-empty { margin: 0; }
-.shelf-view-more { display: block; margin: var(--sp-3) auto 0; }
+/* v3 Phase 4: empty shelves, grouped after the rails. */
+.shelves-quiet { margin-top: var(--sp-8); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+.shelves-quiet h3 { margin: 0 0 var(--sp-3); font-size: var(--fs-meta); color: var(--dim); font-weight: 600; }
+.shelves-quiet ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.shelves-quiet li { font-size: var(--fs-body); }
+.shelves-quiet .quiet-title { font-weight: 600; margin-right: var(--sp-2); color: var(--text); }
+
+/* v3 Phase 4: Discover's shelves are horizontal scroll-snap rails of
+   portrait cards; "View more" sits in the rail's head. */
+.rail-head .shelf-view-more { margin: 0; flex-shrink: 0; }
+.rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc(var(--cover-width, 170px) * var(--text-scale));
+  gap: var(--sp-4);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+  padding: 2px 2px var(--sp-3);
+  scrollbar-width: thin;
+}
+.discover-card.dc-portrait {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  scroll-snap-align: start;
+}
+.discover-card.dc-portrait:hover { transform: translateY(-3px); }
+.discover-card.dc-portrait:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
+.dc-portrait .cov { height: auto; aspect-ratio: 2 / 3; border-radius: 0; background: var(--bg-elevated); display: grid; place-items: center; }
+.discover-card-initial { font: var(--t-display-l); color: color-mix(in srgb, var(--text) 22%, transparent); }
+.dc-body { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); flex: 1; }
+/* The title follows the reason, as the second line. */
+.dc-portrait h4 { margin: 0; font: var(--t-meta); font-weight: var(--w-strong); color: var(--dim); cursor: pointer; }
+.dc-portrait h4 .discover-card-title-primary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The reason is the headline: body size, the full text colour, the anchor
+   in the accent colour. */
+.dc-portrait .why { margin: 0; font: var(--t-body); font-weight: var(--w-med); color: var(--text); line-height: 1.45; padding: 0; border: 0; }
+.why-anchor { font-style: normal; color: var(--accent-lit); }
+.dc-portrait .m { margin: 0; }
+.dc-portrait .acts { margin-top: auto; padding-top: var(--sp-2); align-items: center; flex-wrap: nowrap; gap: var(--sp-1); }
+.split-btn { display: inline-flex; margin-right: auto; }
+.split-btn .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-btn .split-caret { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 6px; border-left: 1px solid color-mix(in srgb, var(--accent-contrast) 25%, transparent); }
+.dc-icon { width: 30px; height: 30px; flex-shrink: 0; }
+.dc-icon.on { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
+
+/* The Discover header row and the Tune popover. */
+.discover-head { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+.discover-title { margin: 0; font: var(--t-display-m); letter-spacing: var(--tr-display); }
+.discover-head-spacer { flex: 1; }
+.tune-popover {
+  position: fixed;
+  inset: auto;
+  top: calc(var(--sp-16) * 2);
+  right: var(--sp-6);
+  margin: 0;
+  width: min(420px, calc(100vw - var(--sp-8)));
+  max-height: calc(100vh - var(--sp-16) * 3);
+  overflow-y: auto;
+  padding: var(--sp-4);
+  border: 1px solid var(--line-lit);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--sh-3);
+  opacity: 1;
+  transition:
+    opacity calc(var(--dur-base) * .7) var(--ease-exit),
+    display calc(var(--dur-base) * .7) allow-discrete,
+    overlay calc(var(--dur-base) * .7) allow-discrete;
+}
+.tune-popover:not(:popover-open) { display: none; opacity: 0; }
+.tune-popover:popover-open { transition-duration: var(--dur-base); transition-timing-function: var(--ease-enter); }
+@starting-style { .tune-popover:popover-open { opacity: 0; } }
+.tune-title { margin: 0 0 var(--sp-3); font: var(--t-display-xs, var(--t-title)); font-size: var(--fs-display-xs); }
+.tune-popover .discover-mood-row { margin: 0 0 var(--sp-4); }
+.tune-popover .discover-adventurousness-row { margin-bottom: var(--sp-3); }
+.tune-popover .discover-hide-owned-row { margin-bottom: var(--sp-4); white-space: normal; }
+.tune-actions { gap: var(--sp-2); }
+@media (max-width: 900px) {
+  .rail { grid-auto-columns: 46%; }
+  .split-btn .btn:first-child { padding-inline: var(--sp-2); }
+  .tune-popover { top: auto; bottom: calc(var(--sp-16) + var(--sp-2)); right: var(--sp-2); left: var(--sp-2); width: auto; }
+}
 .franchise-count { font: var(--t-nano); color: var(--faint); font-weight: 400; vertical-align: middle; }
 .discover-hide-owned-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-card); color: var(--dim); white-space: nowrap; cursor: pointer; }
 .discover-hide-owned-row input { width: 16px; height: 16px; }
@@ -1194,7 +1295,6 @@ kbd {
    row's thumbnail is a small portrait crop, not the grid card's 126px
    landscape strip. */
 .season-row .card-cover-wrap { width: 64px; height: auto; aspect-ratio: 2 / 3; flex-shrink: 0; border-radius: var(--radius-sm); }
-.season-row .card-corner-actions { top: 4px; right: 4px; gap: 3px; }
 .season-row .card-body { padding: 0; gap: var(--sp-1); min-width: 0; }
 /* -webkit-line-clamp:1 is unreliable (the box-orient/line-clamp hack is
    meant for 2+ lines) — the plain single-line ellipsis technique is the
@@ -1208,14 +1308,7 @@ kbd {
 }
 .season-row .card-title-sub { display: none; }
 .season-row .card-meta { margin-top: -2px; }
-.season-row .notes-toggle { font-size: var(--fs-micro); padding: 0; }
 .card-format-badge.season-badge { background: var(--accent); color: var(--accent-contrast); }
-
-/* Two compact <select> controls side by side instead of a 10-button score
-   strip plus a 4-button status row — the single biggest source of season
-   rows feeling oversized. */
-.season-controls-row { display: flex; gap: 6px; }
-.season-select { flex: 1; min-width: 0; font-size: var(--fs-meta); padding: var(--sp-1) 6px; }
 
 /* Landscape crop from the AniList portrait, not the full portrait — a
    fixed height (not aspect-ratio) so it scales with --text-scale but stays
@@ -1303,8 +1396,9 @@ kbd {
 .card-skeleton .sk-line, .card-skeleton .sk-bar { margin-left: var(--sp-3); margin-right: var(--sp-3); }
 .shelf-skeleton { margin-bottom: var(--sp-8); }
 .shelf-skeleton-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale)), 1fr)); gap: var(--sp-4); }
-.detail-body.skeleton-set .sk-title { margin-bottom: var(--sp-3); }
-.detail-side.skeleton-set .sk.detail-cover { border-radius: 0; background: var(--bg-elevated); }
+.detail-banner .sk.detail-banner-img { border-radius: 0; background: var(--bg-elevated); }
+.detail-head .sk.detail-cover { background: var(--line); }
+.detail-head-text .sk-title { width: 220px; margin-bottom: var(--sp-2); }
 
 /* New episode — accent dot, top left of the art (design §8). */
 .dot {
@@ -1384,7 +1478,9 @@ kbd {
    toggled by preferences.js's textSize slider setter for step<=5 —
    the same threshold that made s (step 5) the highest step this rule
    used to fire for. */
-[data-text-compact] .card:not(.season-row) .card-title {
+/* v3 Phase 4 library cards: one title line at every text size (the full
+   title is in the detail view and the tooltip). */
+.card .card-title, .franchise-card .card-title {
   display: block;
   -webkit-line-clamp: unset;
   white-space: nowrap;
@@ -1392,6 +1488,74 @@ kbd {
   text-overflow: ellipsis;
   min-height: 0;
 }
+
+/* Portrait 2:3 covers: the old 3:2 crop threw away most of the art. */
+.card .card-cover-wrap, .franchise-card .card-cover-wrap { height: auto; aspect-ratio: 2 / 3; }
+.card .card-body { gap: var(--sp-1); padding: var(--sp-2) var(--sp-3) var(--sp-3); }
+.card .card-meta { align-items: baseline; gap: var(--sp-2); flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+.card .card-meta > * { flex-shrink: 0; }
+.card .card-meta .progress-label { padding: 0; color: var(--dim); }
+.card .card-score { color: var(--warning); }
+/* The hairline: progress on Watching, full on Watched, where it stopped on
+   Dropped. */
+.card .progress-track { flex: none; height: 2px; margin-top: var(--sp-1); }
+
+/* The compact list layout for large libraries (the layout toggle in the
+   filter bar): one row per series, the same card, a small cover. */
+.card-grid.list-layout { grid-template-columns: 1fr; gap: var(--sp-1); }
+.card-grid.list-layout > .card, .card-grid.list-layout .franchise-summary { flex-direction: row; align-items: center; contain-intrinsic-size: auto 64px; }
+.card-grid.list-layout > .card:hover, .card-grid.list-layout > .card:focus-within { transform: none; }
+/* The cover stops being the positioning box here (its media fills it
+   instead), so the toolbar inside it can sit at the end of the row. */
+.card-grid.list-layout > .card .card-cover-wrap, .card-grid.list-layout .franchise-summary .card-cover-wrap { position: static; width: 40px; flex-shrink: 0; margin: var(--sp-2); overflow: visible; }
+.card-grid.list-layout > .card .cover-media, .card-grid.list-layout .franchise-summary .cover-media { position: relative; width: 100%; height: 100%; border-radius: var(--radius-xs); overflow: hidden; }
+.card-grid.list-layout .card-cover-wrap::after, .card-grid.list-layout .card-format-badge, .card-grid.list-layout .dot { display: none; }
+.card-grid.list-layout > .card .card-body { flex-direction: row; align-items: center; gap: var(--sp-4); padding: var(--sp-2) calc(var(--sp-16) * 2) var(--sp-2) var(--sp-3); min-width: 0; }
+.card-grid.list-layout > .card .card-title-block { flex: 1; min-width: 0; }
+.card-grid.list-layout > .card .progress-track { width: 120px; flex-shrink: 0; margin: 0; }
+.card-grid.list-layout > .card .card-toolbar { left: auto; right: var(--sp-3); top: 50%; bottom: auto; opacity: 1; transform: translateY(-50%); }
+.card-grid.list-layout .card-select-box { top: 50%; left: auto; right: var(--sp-3); transform: translateY(-50%); }
+
+/* The popup menu (core/menu.js): the cards' context menu and toolbar menus. */
+.popup-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - var(--sp-4)));
+  padding: var(--sp-1);
+  border: 1px solid var(--line-lit);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--sh-3);
+}
+.popup-menu-item {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--dim);
+  font: var(--t-body);
+  text-align: left;
+  cursor: pointer;
+}
+.popup-menu-item:hover { background: var(--accent-soft); color: var(--text); }
+/* Keyboard focus: the soft fill plus a ring in --accent-lit, so it stays visible on every theme (hover alone keeps just the fill). */
+.popup-menu-item:focus-visible { background: var(--accent-soft); color: var(--text); outline: none; box-shadow: inset 0 0 0 2px var(--accent-lit); }
+.popup-menu-item.danger { color: var(--accent-lit); }
+.popup-menu-item kbd { font-size: var(--fs-micro); }
+.popup-menu-sep { height: 1px; margin: var(--sp-1) var(--sp-2); background: var(--line); }
+.popup-menu-heading { padding: var(--sp-2) var(--sp-3) 2px; font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.popup-menu-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 2px var(--sp-2) var(--sp-1); }
+.popup-menu-item.in-row { justify-content: center; padding: 6px 0; font-variant-numeric: tabular-nums; }
+.popup-menu-item.in-row[aria-checked="true"] { background: var(--warning); color: var(--bg-deep); }
 
 .card-title-sub {
   font-size: var(--fs-micro);
@@ -1412,12 +1576,6 @@ kbd {
   flex-wrap: wrap;
 }
 
-/* Progress bar + +1 */
-.progress-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
 .progress-track {
   flex: 1;
   height: 6px;
@@ -1439,8 +1597,6 @@ kbd {
   transform: scaleX(var(--p, 0));
   transition: transform var(--dur-slow) var(--ease-spring);
 }
-.watched-progress-row { justify-content: flex-start; }
-.watched-progress-label-prefix { font-size: var(--fs-meta); color: var(--faint); }
 
 .progress-label {
   appearance: none;
@@ -1467,37 +1623,64 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-/* Floating plus button on the card cover — marks the next episode watched
-   without opening the card. Hover-reveal only; the spring easing is
-   reserved for exactly this and reward moments (design/moonlit-shrine-
-   design-system.md §10). */
-.plus {
+/* v3 Phase 4: the card's toolbar sits on the bottom of the cover: +1 on
+   Watching (the spring easing is reserved for it and rewards, design §10),
+   the status menu and the "more" menu. It shows on hover and whenever the
+   card or one of its controls has keyboard focus, and always on touch
+   (below), so +1 never depends on hover. */
+.card-toolbar {
   position: absolute;
-  overflow: hidden;
   z-index: 4;
-  right: 10px;
-  bottom: calc(50px * var(--text-scale));
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
-  background: color-mix(in srgb, var(--bg-deep) 86%, transparent);
-  color: var(--accent-lit);
+  left: var(--sp-2);
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(var(--move-sm));
+  transition: opacity var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-enter);
+}
+.card:hover .card-toolbar, .card:focus-within .card-toolbar { opacity: 1; transform: none; }
+.tb-btn {
+  appearance: none;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  font-size: var(--fs-display-s);
-  line-height: 1;
-  opacity: 0;
-  transform: scale(0.85);
+  border: 1px solid var(--line-lit);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-deep) 82%, transparent);
+  color: var(--text);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
+}
+.tb-btn:hover, .tb-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--bg-deep) 60%, var(--accent-soft)); }
+.tb-btn:active { transform: scale(var(--press-icon)); }
+.plus {
+  position: relative;
+  overflow: hidden;
+  margin-right: auto;
+  height: 32px;
+  min-width: 48px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--bg-deep) 82%, transparent);
+  color: var(--accent-lit);
+  display: inline-grid;
+  place-items: center;
+  font: var(--t-action);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
   transition:
     transform var(--dur-slow) var(--ease-spring),
-    opacity var(--dur-slow) var(--ease-spring),
     background-color var(--dur-fast) var(--ease-standard),
     color var(--dur-fast) var(--ease-standard);
   backdrop-filter: blur(4px);
   cursor: pointer;
 }
-.card:hover .plus, .card:focus-within .plus { opacity: 1; transform: none; }
 .plus:hover { background: var(--accent-fill); color: var(--accent-contrast); }
 /* v3 +1: pressed to 0.9 at once, then back on the spring when released. A
    keyboard +1 has no press, so .pulse (added after the save) plays the same
@@ -1552,12 +1735,6 @@ kbd {
 .tag.warn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); color: var(--warning); }
 .tag.air { border-color: color-mix(in srgb, var(--positive) 45%, transparent); color: var(--positive); }
 
-/* P1.7: user-created tag chips — a distinct class from .tag above (that one is
-   fixed status badges; this one is free-form, per-tag-coloured content), same
-   pill shape as .detail-genre-chip. Read-only on cards (no button chrome);
-   the colour itself is set inline per-tag via listsAndTags.js's tagColorHex(),
-   so no CSS variable per swatch is needed here. */
-.card-tag-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .tag-chip {
   font: var(--t-nano);
   letter-spacing: .06em;
@@ -1639,50 +1816,6 @@ kbd {
 .quick-move-btn:active { transform: scale(0.93); }
 .quick-move-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 
-/* Corner actions (edit-match / delete) on card cover — hidden until hover
-   (or keyboard focus, so they stay reachable without a mouse) */
-.card-corner-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: var(--sp-1);
-  z-index: 2;
-  opacity: 0;
-  transition: opacity var(--dur-base) var(--ease-standard);
-}
-.card:hover .card-corner-actions,
-.card:focus-within .card-corner-actions {
-  opacity: 1;
-}
-.corner-btn {
-  appearance: none;
-  border: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--shade) 55%, transparent);
-  color: var(--on-shade);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  backdrop-filter: blur(2px);
-  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
-}
-.corner-btn:hover { background: color-mix(in srgb, var(--shade) 85%, transparent); }
-.corner-btn:active { transform: scale(0.93); }
-.corner-btn.danger:hover { background: var(--accent-fill); color: var(--accent-contrast); }
-
-/* A second, discoverable entry point into select mode: hover-revealed like
-   the rest of .card-corner-actions (it's a plain member of that same flex
-   row, so it needs no hover rule of its own), circular to visually echo
-   the real select-mode checkbox below rather than looking like a third
-   edit/delete action. */
-.corner-btn.quick-select-box { position: relative; border-radius: 50%; }
-.corner-btn.quick-select-box::after { content: '✓'; font-size: var(--fs-meta); color: transparent; }
-.corner-btn.quick-select-box input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
-
 /* Select mode: an empty circle shows on every card while active (the
    affordance), filled with a check once picked — always visible, not
    hover-gated, since it's the primary interaction while select mode is on
@@ -1738,41 +1871,6 @@ kbd {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-lit);
-}
-
-/* Notes */
-.notes-toggle {
-  font-size: var(--fs-meta);
-  color: var(--faint);
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-  text-align: left;
-}
-.notes-toggle:hover { color: var(--dim); }
-.notes-field {
-  width: 100%;
-  background: var(--bg-elevated);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: var(--fs-card);
-  padding: 6px var(--sp-2);
-  resize: vertical;
-  min-height: 44px;
-}
-
-/* Completion prompt */
-.completion-prompt {
-  background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  padding: var(--sp-2);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: var(--fs-card);
 }
 
 /* Subtle, not alarming — this is good news ("something to watch"), not a warning.
@@ -1869,8 +1967,6 @@ kbd {
 .home-tile[data-nav="watched"] { --tile-accent: var(--positive); }
 .home-tile[data-nav="dropped"] { --tile-accent: var(--faint); }
 
-.home-continue h3 { margin: 0 0 var(--sp-4); font-size: var(--fs-title); color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
-
 /* ---------- Hero — both modes, both placements ----------
    design/moonlit-shrine-design-system.md §5, §12: 210px on Home, 268px on
    the Watching list (.tall). ".calm" is the "pick up where you left off"
@@ -1895,6 +1991,9 @@ kbd {
   filter: var(--cover-filter);
   transform: scale(1.04);
 }
+/* No banner cached: the cover, blurred (v3 Phase 4: v2 stretched the small
+   cover sharp across the hero and it looked pixelated). Static, not animated. */
+.hero .bg.from-cover { filter: blur(22px) saturate(1.1); transform: scale(1.3); }
 .hero .bg::after {
   content: '';
   position: absolute;
@@ -1935,30 +2034,120 @@ kbd {
 .hero .n { font: var(--t-meta); font-variant-numeric: tabular-nums; color: var(--faint); margin-bottom: 20px; }
 .hero .row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 
-/* ---------- Home ----------
-   Hero above, then two columns: pick-up-where-you-left-off cards on the
-   left, Tonight + This year on the right (design §09 remaining-surfaces —
-   "not a second library": at most 4 pickup cards, at most 3 Tonight rows). */
-.home-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--sp-4); align-items: start; }
-@media (max-width: 900px) { .home-cols { grid-template-columns: 1fr; } }
+/* ---------- Home, "Tonight at the shrine" (v3 Phase 4) ----------
+   The Continue watching rail (landscape, scroll-snapping, the first card is
+   the hero), then Airing tonight, Up next from the Watchlist and This year. */
+.home-section { min-width: 0; }
+.home-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-8); align-items: start; }
+@media (max-width: 900px) { .home-cols { grid-template-columns: 1fr; gap: var(--sp-6); } }
 .disc-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .disc-head h3 { margin: 0; font: var(--w-strong) var(--fs-heading)/1.3 var(--ui); }
 .disc-head .rule { flex: 1; height: 1px; background: var(--line); }
-.home-pickup { grid-template-columns: repeat(2, 1fr); }
-@media (min-width: 500px) { .home-pickup { grid-template-columns: repeat(4, 1fr); } }
 
-.tonight { display: grid; gap: var(--sp-2); }
-.tonight-row {
+.continue-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 340px);
+  gap: var(--sp-4);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+  padding-bottom: var(--sp-2);
+  scrollbar-width: thin;
+}
+.continue-card {
+  position: relative;
+  scroll-snap-align: start;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+  isolation: isolate;
+}
+.continue-card.is-hero { grid-column: span 2; aspect-ratio: auto; min-height: 196px; border-color: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: 0 0 46px -24px color-mix(in srgb, var(--accent) 60%, transparent); }
+.continue-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  filter: var(--cover-filter);
+}
+.continue-bg.from-cover { filter: blur(18px) saturate(1.1); transform: scale(1.3); }
+.continue-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--bg) 92%, transparent) 18%, color-mix(in srgb, var(--bg) 40%, transparent) 70%, transparent);
+}
+.continue-in { position: absolute; left: var(--sp-4); right: 76px; bottom: var(--sp-4); }
+.continue-card .kick { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--accent-lit); margin-bottom: var(--sp-2); display: flex; align-items: center; gap: var(--sp-2); }
+.continue-card .kick i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.continue-title { margin: 0 0 var(--sp-1); font: var(--t-title); font-weight: var(--w-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.continue-card.is-hero .continue-title { font: var(--t-display-m); letter-spacing: var(--tr-display); white-space: normal; }
+.continue-title:hover { color: var(--accent-lit); }
+.continue-meta { display: flex; gap: var(--sp-2); align-items: center; font: var(--t-meta); color: var(--dim); }
+.continue-plus {
+  position: absolute;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--bg-deep) 70%, transparent);
+  color: var(--accent-lit);
+  font: var(--t-action);
+  font-size: var(--fs-heading);
+  font-weight: var(--w-strong);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: transform var(--dur-slow) var(--ease-spring), background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.continue-plus:hover { background: var(--accent-fill); color: var(--accent-contrast); }
+.continue-plus:active { transform: scale(var(--press-icon)); transition-duration: var(--dur-press); }
+@media (max-width: 900px) {
+  .continue-rail { grid-auto-columns: 82%; }
+  .continue-card.is-hero { grid-column: auto; }
+}
+
+/* Airing tonight: a timeline; each row opens the series. */
+.tonight { list-style: none; margin: 0; padding: 0 0 0 var(--sp-3); border-left: 1px solid var(--line); display: grid; gap: var(--sp-1); }
+.tonight-row { position: relative; }
+.tonight-row::before { content: ''; position: absolute; left: calc(var(--sp-3) * -1 - 4px); top: 16px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.tonight-row.aired::before { background: var(--line-lit); }
+.tonight-btn {
+  appearance: none;
+  width: 100%;
   display: grid;
   grid-template-columns: 52px 1fr;
   gap: var(--sp-3);
   align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 10px var(--sp-3);
+  text-align: left;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  padding: var(--sp-2);
+  font: var(--t-body);
+  font-size: var(--fs-action);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard);
 }
-.tonight-row .num { font: var(--t-card); color: var(--accent-lit); }
-.tonight-row > span:last-child { font: var(--t-body); font-size: var(--fs-action); }
+.tonight-btn:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.tonight-btn .num { font: var(--t-card); color: var(--accent-lit); font-variant-numeric: tabular-nums; }
+.tonight-row.aired .tonight-btn { color: var(--dim); }
+.tonight-row.aired .num { color: var(--faint); }
+
+/* Up next from the Watchlist. */
+.up-next { list-style: none; margin: 0 0 var(--sp-6); padding: 0; display: grid; gap: var(--sp-2); }
+.up-next-row { display: grid; grid-template-columns: 36px 1fr auto; gap: var(--sp-3); align-items: center; }
+.up-next-cover { width: 36px; aspect-ratio: 2 / 3; border-radius: var(--radius-xs); background: var(--card) center / cover; }
+.up-next-text { min-width: 0; }
+.up-next-title { display: block; max-width: 100%; padding: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: var(--t-body); color: var(--text); }
+.home-year-head { margin-top: var(--sp-2); }
+.home-year { gap: 22px; }
 .meta-line { display: block; font: var(--t-meta); color: var(--faint); }
 
 .stat-display { display: block; font: var(--t-display-m); letter-spacing: var(--tr-display); }
@@ -2142,7 +2331,21 @@ kbd {
    placeholders elsewhere that reuse this same class with just a heading and
    a line of text. */
 #empty-state { border: 1px dashed var(--line-lit); border-radius: var(--radius); margin: 20px 0; }
-#empty-state .row { justify-content: center; }
+/* v3 Phase 4: the mark, and the actions centred under the sentence. */
+.empty-mark { width: 48px; height: 48px; color: var(--accent-lit); opacity: .85; }
+.empty-actions { justify-content: center; margin-top: var(--sp-2); }
+.empty-state.compact { padding: var(--sp-8) var(--sp-4); border: 1px dashed var(--line-lit); border-radius: var(--radius); }
+.empty-start { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-4); }
+.empty-start-item { width: 120px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+.empty-start-cover { width: 96px; aspect-ratio: 2 / 3; border-radius: var(--radius-sm); overflow: hidden; background: var(--card); display: grid; place-items: center; }
+.empty-start-cover img { width: 100%; height: 100%; object-fit: cover; filter: var(--cover-filter); }
+.empty-start-title { font: var(--t-meta); color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 720px) {
+  .empty-state { padding: var(--sp-12) var(--sp-4); }
+  .empty-start { gap: var(--sp-3); }
+  .empty-start-item { width: 92px; }
+  .empty-start-cover { width: 76px; }
+}
 
 /* ---------- Overlays ---------- */
 /* Overlays are native <dialog>s opened with showModal() (v3 Phase 2,
@@ -2307,6 +2510,71 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .confirm-type-row input:focus { outline: none; border-color: var(--accent); }
 
 /* ---------- Settings panel ---------- */
+/* ---------- Settings drawer (v3 Phase 4) ----------
+   A right-side drawer: sections in a vertical tab list beside the active
+   section (a strip of tabs above it on phones). */
+#settings-overlay { justify-content: flex-end; align-items: stretch; padding: 0; }
+.settings-panel {
+  width: min(780px, 100vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+@starting-style { #settings-overlay[open] .settings-panel { opacity: 0; transform: translateX(var(--move-lg)); } }
+#settings-overlay:not([open]) .settings-panel { transform: translateX(var(--move-md)); }
+.settings-head { position: relative; flex-shrink: 0; padding: var(--sp-6) var(--sp-6) var(--sp-4); border-bottom: 1px solid var(--line); }
+.settings-head h2 { margin: 0 48px 0 0; }
+.settings-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 184px 1fr; }
+.settings-nav { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-4) var(--sp-3); border-right: 1px solid var(--line); overflow-y: auto; }
+.settings-tab {
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--dim);
+  font: var(--t-body);
+  cursor: pointer;
+  transition: color var(--dur-base), background-color var(--dur-base);
+}
+.settings-tab:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.settings-tab[aria-selected="true"] { color: var(--text); background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.settings-sections { overflow-y: auto; padding: var(--sp-2) var(--sp-6) var(--sp-12); }
+.settings-section > .settings-section-title { margin-top: var(--sp-4); }
+.settings-notice { margin: var(--sp-4) 0 var(--sp-2); padding: var(--sp-4); border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
+.settings-notice h3 { margin: 0 0 var(--sp-2); color: var(--text); }
+.settings-notice ul { margin: 0 0 var(--sp-3); padding-left: var(--sp-6); display: grid; gap: var(--sp-1); font: var(--t-body); }
+.appearance-builder { display: grid; gap: var(--sp-3); justify-items: start; }
+.appearance-builder .appearance-slot, .appearance-builder .themegrid { justify-self: stretch; }
+.appearance-slot { display: grid; gap: var(--sp-2); }
+.appearance-slot .detail-lbl { margin: 0; }
+.text-size-seg button:nth-child(1) { font-size: var(--fs-micro); }
+.text-size-seg button:nth-child(2) { font-size: var(--fs-meta); }
+.text-size-seg button:nth-child(3) { font-size: var(--fs-body); }
+.text-size-seg button:nth-child(4) { font-size: var(--fs-card); }
+.text-size-seg button:nth-child(5) { font-size: var(--fs-heading); }
+.colour-field { display: inline-flex; align-items: center; gap: var(--sp-2); font: var(--t-meta); color: var(--dim); }
+.contrast-confirm.warn { color: var(--warning); }
+.danger-row .k b { color: var(--text); }
+.manager-rename { flex: 1; min-width: 0; }
+.manager-row.wrap { flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .settings-panel { width: 100vw; border-radius: 0; }
+  .settings-head { padding: var(--sp-4); }
+  .settings-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .settings-nav { flex-direction: row; overflow-x: auto; padding: var(--sp-2) var(--sp-3); border-right: 0; border-bottom: 1px solid var(--line); }
+  .settings-tab { white-space: nowrap; }
+  .settings-tab[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
+  .settings-sections { padding: var(--sp-2) var(--sp-4) calc(var(--sp-12) + env(safe-area-inset-bottom, 0px)); }
+  .settings-sections .set-row { grid-template-columns: 1fr; gap: var(--sp-2); }
+}
+
 .set-row { display: grid; grid-template-columns: 170px 1fr; gap: 18px; align-items: start; padding: var(--sp-4) 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
 .set-row:last-child { border-bottom: 0; }
 .set-row .k b { display: block; font: var(--t-card); margin-bottom: 3px; }
@@ -2321,7 +2589,7 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .themegrid button:hover { border-color: var(--line-lit); transform: translateY(-2px); }
 .themegrid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .themegrid .sw2 { height: 34px; display: flex; align-items: flex-end; gap: 3px; padding: 5px; }
-.themegrid .sw2 i { width: 8px; height: 8px; border-radius: 2px; }
+.themegrid .sw2 i { width: 12px; height: 12px; border-radius: 50%; }
 .themegrid .nm { display: block; font: var(--t-nano); letter-spacing: .04em; color: var(--dim); padding: 6px 5px var(--sp-2); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* P5A.2: the cold-start onboarding grid — same scrollable-grid/.on-state
@@ -2355,14 +2623,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .custom-swatch { height: 34px; }
 .appearance-slot { margin-bottom: var(--sp-4); }
 .appearance-slot:last-child { margin-bottom: 0; }
-.appearance-background { display: flex; flex-direction: column; }
-.appearance-shortcode-row { flex-wrap: nowrap; }
-.appearance-shortcode-input {
-  flex: 1; min-width: 0; box-sizing: border-box;
-  font: var(--t-meta); padding: 6px 8px;
-  border: 1px solid var(--line); border-radius: 6px;
-  background: var(--card); color: var(--text);
-}
 .custom-accent-row { align-items: center; }
 .custom-accent-input { width: 40px; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
 .contrast-confirm { font: var(--t-meta); color: var(--dim); }
@@ -2404,13 +2664,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .font-grid button:hover { border-color: var(--line-lit); background: color-mix(in srgb, var(--text) 3%, transparent); }
 .font-grid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
-/* ---------- P3.2: typography sliders ---------- */
-.slider-row { display: flex; align-items: center; gap: var(--sp-3); }
-.slider-input { flex: 1; accent-color: var(--accent); }
-.slider-value { min-width: 2.5ch; text-align: right; font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; }
-.slider-contrast-warning { margin-top: var(--sp-2); font: var(--t-meta); color: var(--warning); }
-.slider-collapsed-note { margin-top: var(--sp-2); font: var(--t-meta); color: var(--faint); }
-
 /* ---------- Help panel ---------- */
 .help-tabs { display: flex; gap: 22px; padding: 0 0 var(--sp-3); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-4); }
 .help-tabs button { background: none; border: 0; padding: 0 0 var(--sp-3); margin-bottom: calc(var(--sp-3) * -1); color: var(--faint); font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; border-bottom: 1px solid transparent; cursor: pointer; }
@@ -2426,6 +2679,7 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: var(--sp-2); }
 .keys div { display: flex; align-items: center; gap: var(--sp-3); border: 1px solid var(--line); border-radius: 8px; padding: 10px var(--sp-3); font: var(--t-meta); color: var(--dim); }
 .keys kbd { font-size: var(--fs-meta); border: 1px solid var(--line-lit); border-radius: 4px; padding: 2px var(--sp-2); color: var(--text); min-width: 22px; text-align: center; }
+.help-note { margin-top: var(--sp-4); }
 .tour { display: grid; gap: 10px; }
 .tour div { display: grid; grid-template-columns: 104px 1fr; gap: var(--sp-4); padding: var(--sp-3) 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); font: var(--t-body); color: var(--dim); }
 .tour div b { color: var(--text); font: var(--t-card); font-size: var(--fs-action); }
@@ -2666,35 +2920,152 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .import-row.row-removed { opacity: 0.4; }
 .import-row.row-removed .import-title { text-decoration: line-through; }
 
-/* ---------- Anime detail overlay ----------
-   design/moonlit-shrine-design-system.md: two-column sheet (cover + score
-   badge on the left, everything else on the right) instead of the old
-   "Status Window" stacked header — see the v0.5.1 prototype's .sheet. */
-.detail-panel { max-width: 820px; padding: 0; }
-#detail-content { display: grid; grid-template-columns: 220px 1fr; }
-/* Loading/error states render a single .empty-state child (see
-   renderDetailOverlay) — span both columns instead of being squeezed into
-   the first one. */
-#detail-content > .empty-state { grid-column: 1 / -1; }
-.detail-side { position: relative; min-height: 260px; }
-.detail-cover { position: absolute; inset: 0; background-size: cover; background-position: center; filter: var(--cover-filter); }
-.detail-cover::after {
+/* ---------- Anime detail drawer (v3 Phase 4) ----------
+   A right-side drawer of about 520px (full screen on phones): a banner
+   header with the shared cover and the title, then progress (the primary
+   action), rating, list, note, tags and lists, About, the franchise timeline
+   and the trailer, with a sticky action bar at the bottom. */
+#detail-overlay { justify-content: flex-end; align-items: stretch; padding: 0; }
+.detail-panel {
+  width: min(520px, 100vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* The drawer slides in from the right edge and back out towards it. */
+@starting-style { #detail-overlay[open] .detail-panel { opacity: 0; transform: translateX(var(--move-lg)); } }
+#detail-overlay:not([open]) .detail-panel { transform: translateX(var(--move-md)); }
+#detail-content { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+#detail-content > .empty-state { margin: var(--sp-8) var(--sp-6); }
+.detail-panel .overlay-close { z-index: 3; }
+
+.detail-banner { position: relative; flex-shrink: 0; }
+.detail-banner-img {
+  height: 150px;
+  background-color: var(--card);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+/* No banner on AniList: the cover, blurred, fills it instead (never a small
+   cover blown up and sharp). The blur is static, never animated. */
+.detail-banner-img.from-cover { filter: blur(18px) saturate(1.15); transform: scale(1.25); }
+.detail-banner::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(200deg, transparent 30%, color-mix(in srgb, var(--bg-elevated) 88%, var(--shade)) 100%);
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 150px;
+  background: linear-gradient(transparent 30%, var(--bg-elevated));
+  pointer-events: none;
 }
-.detail-score { position: absolute; bottom: 18px; left: 18px; right: 18px; z-index: 1; }
-.detail-score b { display: block; font: var(--t-display-m); font-size: var(--fs-num-m); letter-spacing: var(--tr-display); color: var(--text); }
-.detail-score span { font: var(--t-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
-
-.detail-body { padding: 22px 24px 24px; min-width: 0; }
+.detail-banner { overflow: hidden; }
+.detail-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-6);
+  margin-top: -72px;
+}
+.detail-cover {
+  width: 104px;
+  flex-shrink: 0;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  background-color: var(--card);
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--sh-2);
+  filter: var(--cover-filter);
+}
+.detail-head-text { min-width: 0; padding-bottom: var(--sp-1); }
 .detail-title { margin: 0 0 var(--sp-1); font: var(--t-display-m); letter-spacing: var(--tr-display); }
 /* The one place italic Mincho is used (design system §4.3): the AniList
    native-script title, shown per the Settings panel's "Original titles"
    preference (default: detail view only — see Preferences.getOriginalTitlesMode). */
-.detail-native { font-family: var(--display); font-style: italic; font-size: var(--fs-body); color: var(--dim); margin: 0 0 var(--sp-4); }
-.detail-meta-row { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: var(--sp-4); }
+.detail-native { font-family: var(--display); font-style: italic; font-size: var(--fs-body); color: var(--dim); margin: 0 0 var(--sp-2); }
+.detail-meta-row { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: var(--sp-1) 0 var(--sp-2); }
+.detail-owned-badge {
+  font: var(--t-nano);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: var(--sp-1) 10px;
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  display: inline-block;
+}
+
+.detail-body { padding: var(--sp-4) var(--sp-6) var(--sp-6); min-width: 0; }
+.detail-section { margin-bottom: var(--sp-6); }
+.detail-lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); margin: 0 0 var(--sp-2); }
+.detail-progress-head, .detail-rating-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.detail-progress-head .num { font: var(--t-meta); color: var(--faint); font-variant-numeric: tabular-nums; }
+.detail-primary-row { margin-top: var(--sp-3); }
+.detail-all-watched { font: var(--t-meta); color: var(--positive); }
+.detail-keys { font-size: var(--fs-micro); }
+
+/* Episode squares (design/HANDOVER §14: stay up to 50, one <i> per episode,
+   f = watched, n = the next one to mark). */
+.eps { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background-color var(--dur-base); }
+.eps i.f { background: color-mix(in srgb, var(--accent) 80%, transparent); }
+.eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* >50 episodes: a compact bar plus a jump-to-episode field, with only the
+   last 18 squares still shown as a tail (design/HANDOVER §14). */
+.barfallback { height: 5px; background: color-mix(in srgb, var(--text) 9%, transparent); border-radius: 99px; position: relative; overflow: hidden; margin-bottom: var(--sp-3); }
+.barfallback i { position: absolute; left: 0; top: 0; width: 100%; height: 5px; background: var(--accent); border-radius: 99px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform var(--dur-slow) var(--ease-spring); }
+.detail-jump-row { margin-top: var(--sp-3); gap: var(--sp-3); flex-wrap: wrap; }
+.detail-jump-field { max-width: 190px; }
+.detail-jump-field input { flex: 1; border: none; background: transparent; color: var(--text); font: var(--t-body); min-width: 0; }
+.detail-jump-field input:focus { outline: none; }
+.detail-eps-tail { align-items: center; margin-top: 6px; }
+.detail-eps-tail-label { font: var(--t-meta); color: var(--faint); margin-left: var(--sp-2); }
+
+/* The 1-10 rating. */
+.detail-rating { display: grid; grid-template-columns: repeat(10, 1fr); gap: var(--sp-1); }
+.rate-btn {
+  appearance: none;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--dim);
+  font: var(--t-action);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
+}
+.rate-btn:hover { border-color: var(--warning); color: var(--warning); }
+.rate-btn:active { transform: scale(var(--press-chip)); }
+.rate-btn[aria-checked="true"] { background: var(--warning); border-color: var(--warning); color: var(--bg-deep); }
+.detail-status { display: flex; width: 100%; }
+.detail-status button { flex: 1; }
+
+.detail-note {
+  width: 100%;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: var(--t-body);
+  padding: 10px var(--sp-3);
+  resize: vertical;
+  min-height: 72px;
+}
+.detail-note:focus { outline: none; border-color: var(--line-lit); }
+
 .detail-score-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; margin-bottom: var(--sp-3); }
 .detail-genres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--sp-4); }
 .detail-genre-chip {
@@ -2702,7 +3073,7 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
   letter-spacing: .1em;
   text-transform: uppercase;
   padding: var(--sp-1) 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent-soft);
   color: var(--accent-lit);
 }
@@ -2712,6 +3083,32 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .detail-tags-row .detail-genre-chip { background: transparent; border: 1px solid var(--line); color: var(--dim); }
 .detail-tags-row .detail-genre-chip.spoiler { border-color: var(--accent-deep); color: var(--accent-lit); }
 
+.detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-3) 20px;
+  padding: var(--sp-3) 0;
+  margin-bottom: var(--sp-4);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.detail-meta-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.detail-meta-label { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.detail-meta-grid > div > span:last-child { font: var(--t-body); }
+.detail-description { font: var(--t-body); color: var(--dim); white-space: pre-line; }
+/* P5B.5: "Show more"/"Show less" past DETAIL_SYNOPSIS_COLLAPSE_LENGTH. */
+.detail-description .text-btn { font: var(--t-meta); padding: 0; }
+
+/* The franchise timeline: this series among its prequels and sequels. */
+.detail-timeline { list-style: none; margin: 0; padding: 0 0 0 var(--sp-3); border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: var(--sp-2); }
+.detail-timeline li { position: relative; display: flex; flex-direction: column; gap: 2px; padding-left: var(--sp-3); }
+.detail-timeline li::before { content: ''; position: absolute; left: calc(var(--sp-3) * -1 - 4px); top: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--line-lit); }
+.detail-timeline li.owned::before { background: var(--support); }
+.detail-timeline li.self::before { background: var(--accent); }
+.detail-timeline-title { font: var(--t-body); color: var(--text); text-align: left; padding: 0; }
+.detail-timeline li.self .detail-timeline-title { font-weight: var(--w-strong); }
+.detail-timeline-meta { font: var(--t-meta); color: var(--faint); }
+
 /* P5B.5: trailer thumbnail + play glyph, linking out to the real video —
    no embedded player (this app's existing no-third-party-embed posture). */
 .detail-trailer {
@@ -2719,7 +3116,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
   display: block;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  margin-bottom: var(--sp-4);
   max-width: 320px;
   aspect-ratio: 16 / 9;
   background: color-mix(in srgb, var(--text) 6%, transparent);
@@ -2736,84 +3132,86 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
   background: color-mix(in srgb, var(--shade) 25%, transparent);
   text-shadow: 0 1px 4px color-mix(in srgb, var(--shade) 60%, transparent);
 }
-.detail-owned-badge {
-  font: var(--t-nano);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  padding: var(--sp-1) 10px;
-  border-radius: 999px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  color: var(--dim);
-  display: inline-block;
-  margin-bottom: var(--sp-4);
-}
 
-.detail-lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); margin: 0 0 var(--sp-2); }
-.detail-section { margin-bottom: 18px; }
-.detail-split { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 18px; }
-
-/* Episode squares (design/HANDOVER §14: stay up to 50, one <i> per episode,
-   f = watched, n = the next one to mark, pulsing to invite a click). */
-.eps { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
-.eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background-color var(--dur-base); }
-.eps i.f { background: color-mix(in srgb, var(--accent) 80%, transparent); }
-.eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
-
-/* >50 episodes: squares become a compact bar plus a jump-to-episode field,
-   with only the last 18 squares still shown as a tail (design/HANDOVER §14). */
-.detail-ep-summary { justify-content: space-between; margin-bottom: 10px; font: var(--t-card); }
-.detail-ep-summary .num { font: var(--t-meta); color: var(--faint); }
-.barfallback { height: 5px; background: color-mix(in srgb, var(--text) 9%, transparent); border-radius: 99px; position: relative; overflow: hidden; margin-bottom: var(--sp-3); }
-.barfallback i { position: absolute; left: 0; top: 0; width: 100%; height: 5px; background: var(--accent); border-radius: 99px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform var(--dur-slow) var(--ease-spring); }
-.detail-jump-row { margin-bottom: var(--sp-1); }
-.detail-jump-field { max-width: 190px; }
-.detail-jump-field input { flex: 1; border: none; background: transparent; color: var(--text); font: var(--t-body); min-width: 0; }
-.detail-jump-field input:focus { outline: none; }
-.detail-eps-tail { align-items: center; margin-top: 6px; }
-.detail-eps-tail-label { font: var(--t-meta); color: var(--faint); margin-left: var(--sp-2); }
-
-.detail-note {
-  width: 100%;
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font: var(--t-body);
-  padding: 10px var(--sp-3);
-  resize: none;
-  height: 60px;
-}
-.detail-note:focus { outline: none; border-color: var(--line-lit); }
-
-.detail-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--sp-3) 20px;
-  padding: var(--sp-4) 0;
-  margin-bottom: var(--sp-4);
+/* The sticky action bar. A link styled as a button reads as a button. */
+a.btn { text-decoration: none; }
+.detail-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-6);
+  background: var(--bg-elevated);
   border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
 }
-.detail-meta-grid > div { display: flex; flex-direction: column; gap: 2px; }
-.detail-meta-label { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
-.detail-meta-grid > div > span:last-child { font: var(--t-body); }
-
-.detail-description {
-  font: var(--t-body);
-  color: var(--dim);
-  white-space: pre-line;
-  margin-bottom: 18px;
-}
-/* P5B.5: "Show more"/"Show less" past DETAIL_SYNOPSIS_COLLAPSE_LENGTH. */
-.detail-description .text-btn { font: var(--t-meta); padding: 0; }
-
-.detail-foot { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
-.detail-foot .btn-danger { margin-left: auto; }
 
 @media (max-width: 720px) {
-  #detail-content { grid-template-columns: 1fr; }
-  .detail-side { min-height: 180px; }
+  .detail-panel { width: 100vw; border-radius: 0; border-left: 0; }
+  .detail-head { padding: 0 var(--sp-4); }
+  .detail-body { padding: var(--sp-4); }
+  .detail-actions { padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ---------- Command palette (v3 Phase 4) ---------- */
+.palette-overlay { padding-top: 12vh; }
+.palette-panel { max-width: 620px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.palette-field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  color: var(--faint);
+}
+.palette-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: var(--t-body);
+  font-size: var(--fs-heading);
+  padding: var(--sp-2) 0;
+}
+.palette-field input:focus-visible { outline: none; }
+.palette-list { max-height: min(56vh, 460px); overflow-y: auto; padding: var(--sp-2); }
+.palette-group {
+  font: var(--t-nano);
+  letter-spacing: var(--tr-nano);
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: var(--sp-3) var(--sp-3) var(--sp-1);
+}
+.palette-option {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  color: var(--dim);
+  font: var(--t-body);
+  cursor: pointer;
+}
+.palette-option[aria-selected="true"] { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 2px var(--accent-lit); }
+.palette-option-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-option-hint { font: var(--t-meta); color: var(--faint); white-space: nowrap; }
+.palette-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--line);
+  font: var(--t-meta);
+  color: var(--faint);
+}
+@media (max-width: 900px) {
+  .palette-overlay { padding: var(--sp-2); }
+  .palette-panel { max-height: none; }
+  .palette-hint { display: none; }
 }
 
 /* ---------- Toasts ---------- */
@@ -2888,15 +3286,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 /* 900px rather than the old 720px: the previous threshold left tablet-portrait
    widths (~768px) in a gap where the header could neither fit on one line nor
    wrap, clipping the tab bar. */
-/* ---------- Mobile nav menu (hamburger) ----------
-   Hidden on wide viewports — the tab row already works fine there. Below
-   900px the tab row used to wrap into a cramped, horizontally-scrolling
-   strip that clipped the header's own trailing controls; a menu behind a
-   single button is more reliable at phone widths than trying to keep a
-   7-item tab row legible in the same space. */
-.nav-hamburger { display: none; }
-.nav-menu-panel { max-width: 320px; }
-
 /* P4.4's More-actions overlay — one section per bulk verb group, each a
    labelled block (score, progress, tags, lists, mark completed, export).
    Reuses .detail-lbl/.tag-chip-toggle/.score-strip/.score-dot/.row exactly
@@ -2907,32 +3296,45 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 .bulk-more-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: 6px; }
 .bulk-more-row .tag-chip-toggle { flex: 1; cursor: default; }
 .bulk-more-row .tag-chip-toggle:hover { transform: none; }
-.nav-menu-list { display: flex; flex-direction: column; gap: 2px; }
-.nav-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: var(--sp-3) var(--sp-3);
-  color: var(--dim);
-  font: var(--t-body);
-  cursor: pointer;
-  transition: background-color var(--dur-base), color var(--dur-base);
-}
-.nav-menu-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
-.nav-menu-item.on { color: var(--text); background: var(--accent-soft); }
-.nav-menu-item b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--faint); font-weight: 500; }
-
+/* v3 Phase 4, narrow screens: a compact one-row header (wordmark, search,
+   Add, Settings) and the section tabs as a bottom tab bar. The header does
+   not condense here: its transform would become the containing block of the
+   fixed tab bar inside it. */
 @media (max-width: 900px) {
-  .app-header { flex-wrap: wrap; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); }
-  .app-main { padding: var(--sp-4); }
-  .tabs { display: none; }
-  .nav-hamburger { display: flex; }
-  .header-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .app-header { gap: var(--sp-3); padding: var(--sp-2) var(--sp-4); animation: none; }
+  .app-header .brand { animation: none; font-size: var(--fs-heading); }
+  .app-header::after { display: none; }
+  .app-main { padding: var(--sp-4); padding-bottom: calc(var(--sp-16) + env(safe-area-inset-bottom, 0px)); }
+  .header-actions { margin-left: auto; gap: var(--sp-1); }
+  .app-version { display: none; }
+  .save[data-state="saved"] { display: none; }
+  .search-field-btn { min-width: 0; width: 36px; height: 36px; padding: 0; justify-content: center; border-color: transparent; background: transparent; }
+  .search-field-label, .search-field-btn kbd { display: none; }
+  #section-tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    gap: 0;
+    border-bottom: 0;
+    border-top: 1px solid var(--line);
+    background: var(--bg-elevated);
+    padding: var(--sp-1) var(--sp-2) calc(var(--sp-1) + env(safe-area-inset-bottom, 0px));
+  }
+  #section-tabs .tab-pill { display: none; }
+  #section-tabs .tab {
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 0;
+    letter-spacing: .06em;
+  }
+  #section-tabs .tab-icon { display: block; }
+  #section-tabs .tab[aria-selected="true"] { color: var(--accent-lit); }
+  .tab-unseen-badge { position: absolute; top: 2px; left: calc(50% + 6px); margin: 0; }
+  .list-seg { padding: 6px var(--sp-2); gap: var(--sp-1); }
+  .toast-container { bottom: calc(var(--sp-16) + var(--sp-2) + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 720px) {
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-4); }
@@ -2941,3 +3343,26 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 /* Reduced motion — superseded by the Moonlit Shrine §15 block at the top of
    this file (kills animation/transition outright rather than squashing
    duration), kept only as a fallback in case that block is ever removed. */
+
+/* ---------- Accessibility (v3 Phase 4) ----------
+   Every focus ring is --accent-lit, which every theme (curated or custom,
+   themeBuilder.js) keeps at 4.6:1 or more against --bg. Fields that hide
+   their own input's outline show the ring on the field around it. */
+.field:has(input:focus-visible),
+.range:has(input:focus-visible),
+.search-input-row:has(input:focus-visible),
+.palette-field:has(input:focus-visible) { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
+.font-grid-search:focus-visible,
+.detail-note:focus-visible,
+.confirm-type-row input:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

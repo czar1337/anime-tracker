@@ -15,7 +15,9 @@ import { TasteProfile } from './tasteProfile.js';
 import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
 import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs, keepAboveDialogs } from './core/dialog.js';
-import { trapTab } from './core/focus.js';
+import { trapTab, bindRovingTablist, selectTab } from './core/focus.js';
+import { initLiveRegions } from './core/announce.js';
+import { registerCommand, runCommand, bindCommandButtons } from './core/commands.js';
 import { runViewTransition, movementAllowed } from './core/motion.js';
 import { bindStatsActions } from './views/stats/actions.js';
 import {
@@ -26,6 +28,7 @@ import {
   handleSetScore,
   handleSetStatus,
   confirmDrop,
+  openCardMenu,
   bindGridEvents,
   bindBulkActionBar,
   bindBulkMoreMenu,
@@ -277,13 +280,31 @@ function playViewEnter(el) {
   el.classList.add('view-fade-in');
 }
 
-// Slides the tab-pill highlight to whichever tab is currently
+// v3 Phase 4: five sections in the header (Home · Library · Schedule ·
+// Discover · Stats); the four lists are a segmented control inside Library.
+function sectionOf(view) {
+  return Store.LISTS.includes(view) ? 'library' : view;
+}
+
+// Marks `view` selected in both tablists (aria-selected plus the roving
+// tabindex), points the grid panel at its list tab, and moves the underline.
+function markSelected(view) {
+  const section = sectionOf(view);
+  selectTab(document.querySelectorAll('#section-tabs .tab'), (t) => t.dataset.tab === section);
+  if (Store.LISTS.includes(view)) {
+    selectTab(document.querySelectorAll('.list-seg'), (s) => s.dataset.list === view);
+    document.getElementById('grid').setAttribute('aria-labelledby', `list-tab-${view}`);
+  }
+  updateTabPill();
+}
+
+// Slides the tab-pill highlight to whichever header tab is currently
 // aria-selected="true" (measured, not hardcoded, so it works regardless of
-// tab label width). No active tab (Home dashboard) collapses it to nothing.
+// tab label width).
 function updateTabPill() {
   const pill = document.getElementById('tab-pill');
   if (!pill) return;
-  const activeTab = document.querySelector('.tab[aria-selected="true"]');
+  const activeTab = document.querySelector('#section-tabs .tab[aria-selected="true"]');
   // v3: transform only. The pill is 100px wide in CSS, translated to the tab
   // and scaled to its width; no active tab (Home) collapses it in place.
   if (!activeTab) {
@@ -299,32 +320,38 @@ function updateTabPill() {
 // :active-view-transition-type(tab)). Without View Transitions, or when the
 // view does not change, the view's own fade plays instead.
 const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'schedule', 'discover', 'stats'];
+let navigationToken = 0;
 function switchView(next, update, viewEl) {
   const from = VIEW_ORDER.indexOf(currentView);
   const to = VIEW_ORDER.indexOf(next);
   if (from < 0 || to < 0 || from === to) {
+    navigationToken += 1; // a still-pending older update must not override this
     update();
     playViewEnter(viewEl());
-    return;
+    return null;
   }
   // The app is in the new view at once (a shortcut pressed during the
   // transition's first frame must act on it); only the DOM change waits for
   // the transition to capture the old state.
   setCurrentView(next);
-  runViewTransition(update, { types: ['tab', to > from ? 'forward' : 'back'], onFallback: () => playViewEnter(viewEl()) });
+  // A newer navigation skips this transition, and a skipped transition's
+  // update can still run after the newer one's: only the latest applies.
+  const token = ++navigationToken;
+  return runViewTransition(() => {
+    if (token === navigationToken) update();
+  }, { types: ['tab', to > from ? 'forward' : 'back'], onFallback: () => playViewEnter(viewEl()) });
 }
 
 function showListView(list) {
   if (list !== activeList) Render.clearSelection(); // stale selection from a different list would be confusing
   activeList = list;
-  switchView(list, () => {
+  return switchView(list, () => {
     setCurrentView(list);
     hideAllViews();
     const el = document.getElementById('list-view');
     el.hidden = false;
     Store.setPreference(['activeTab'], list);
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === list)));
-    updateTabPill();
+    markSelected(list);
     Render.renderAll(list);
     persist();
   }, () => document.getElementById('list-view'));
@@ -337,8 +364,7 @@ function showHomeView() {
     hideAllViews();
     const el = document.getElementById('home-view');
     el.hidden = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', 'false'));
-    updateTabPill();
+    markSelected('home');
     Render.renderHome(el);
   }, () => document.getElementById('home-view'));
 }
@@ -350,8 +376,7 @@ function showStatsView() {
     hideAllViews();
     const el = document.getElementById('stats-view');
     el.hidden = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'stats')));
-    updateTabPill();
+    markSelected('stats');
     Render.renderStatsPage(el);
   }, () => document.getElementById('stats-view'));
 }
@@ -363,8 +388,7 @@ function showDiscoverView() {
     hideAllViews();
     const el = document.getElementById('discover-view');
     el.hidden = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'discover')));
-    updateTabPill();
+    markSelected('discover');
     Discover.openView();
   }, () => document.getElementById('discover-view'));
 }
@@ -376,8 +400,7 @@ function showScheduleView() {
     hideAllViews();
     const el = document.getElementById('schedule-view');
     el.hidden = false;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'schedule')));
-    updateTabPill();
+    markSelected('schedule');
     Render.renderSchedulePage(el, Schedule.getScheduleState());
     Schedule.ensureFreshOnOpen();
   }, () => document.getElementById('schedule-view'));
@@ -522,8 +545,7 @@ function bindSearchOverlay() {
     openOverlay('search-overlay');
     input.focus();
   };
-  document.getElementById('search-trigger').addEventListener('click', openForAdd);
-  document.getElementById('add-trigger').addEventListener('click', openForAdd);
+  registerCommand({ id: 'search.add', title: copy('command.addSeries'), section: 'actions', keywords: 'search anilist new', run: openForAdd });
 
   input.addEventListener('input', () => {
     clearTimeout(searchDebounceTimer);
@@ -560,16 +582,22 @@ async function refreshBackupList() {
 }
 
 function bindBackupOverlay() {
-  document.getElementById('backup-menu-trigger').addEventListener('click', async () => {
-    openOverlay('backup-overlay');
-    try {
-      await refreshBackupList();
-    } catch (err) {
-      Render.showToast(`Could not load backups: ${err.message}`);
-    }
+  registerCommand({
+    id: 'backup.open',
+    title: copy('command.backup'),
+    section: 'data',
+    keywords: 'restore backups',
+    run: async () => {
+      openOverlay('backup-overlay');
+      try {
+        await refreshBackupList();
+      } catch (err) {
+        Render.showToast(`Could not load backups: ${err.message}`);
+      }
+    },
   });
 
-  document.getElementById('export-backup-btn').addEventListener('click', () => {
+  const exportLibrary = () => {
     const blob = new Blob([JSON.stringify(Store.toJSON(), null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -577,7 +605,9 @@ function bindBackupOverlay() {
     a.download = `anime-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  });
+  };
+  document.getElementById('export-backup-btn').addEventListener('click', exportLibrary);
+  registerCommand({ id: 'library.export', title: copy('command.exportLibrary'), section: 'data', keywords: 'download save json backup', run: exportLibrary });
 
   document.getElementById('import-backup-file').addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -660,9 +690,15 @@ function renderNotificationsStatus() {
 }
 
 function bindNotificationsOverlay() {
-  document.getElementById('notifications-trigger').addEventListener('click', () => {
-    openOverlay('notifications-overlay');
-    renderNotificationsStatus();
+  registerCommand({
+    id: 'notifications.open',
+    title: copy('command.notifications'),
+    section: 'settings',
+    keywords: 'new episodes bell alerts',
+    run: () => {
+      openOverlay('notifications-overlay');
+      renderNotificationsStatus();
+    },
   });
 
   document.getElementById('notifications-enabled-toggle').addEventListener('change', async (e) => {
@@ -697,6 +733,7 @@ function bindOverlayBackdropClose() {
   initDialogs({ onDismiss: () => dismissOverlays() });
   // Toasts (Undo above all) stay reachable while an overlay is open.
   keepAboveDialogs(document.getElementById('toast-container'));
+  initLiveRegions();
 }
 
 // P5A.3's scorer debug panel. Async (a fresh corpus-cache fetch per open,
@@ -931,13 +968,13 @@ function focusAdjacentCard(delta) {
   cards[nextIndex].focus();
 }
 
-// design system §13's full shortcut list: / search in this list · n add a
-// series · 1-7 switch tabs · j k move between cards · space mark next
+// design system §13's shortcut list, v3: ctrl+k palette · / filter the library ·
+// n add a series · 1-5 switch sections · j k move between cards · space mark next
 // episode · enter open the series · s select mode · esc close or leave
 // select mode · ctrl+z undo · ? help. All (except Escape, checked first)
 // are inactive while typing in a field, per that same section.
 function bindKeyboardShortcuts() {
-  document.getElementById('shortcuts-trigger').addEventListener('click', openHelp);
+  registerCommand({ id: 'help.open', title: copy('command.help'), section: 'help', keywords: 'shortcuts keys questions faq', run: openHelp });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -955,6 +992,16 @@ function bindKeyboardShortcuts() {
     // v3 Phase 2: page shortcuts are off while an overlay is open (the page
     // behind it is inert). The one exception is "d", which also closes the
     // scorer debug panel it opens.
+    // Ctrl/Cmd+K: the command palette (search, jump, actions), also from a
+    // field and from any open window; pressed in the palette it closes it.
+    // Always handled, so the browser's own Ctrl+K never fires.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (isDialogOpen('palette-overlay')) dismissOverlays();
+      else runCommand('palette.open');
+      return;
+    }
+
     if (isAnyDialogOpen() && !(e.key === 'd' && isDialogOpen('scorer-debug-overlay'))) return;
 
     if (isTypingTarget(e.target)) return;
@@ -977,9 +1024,12 @@ function bindKeyboardShortcuts() {
       return;
     }
 
+    // "/" filters the library (it never searched AniList; "n" and Ctrl+K do).
     if (e.key === '/') {
       e.preventDefault();
-      document.getElementById('title-filter').focus();
+      // The list view appears inside a View Transition, a frame later.
+      const shown = Store.LISTS.includes(currentView) ? null : showListView(activeList);
+      Promise.resolve(shown?.updateCallbackDone).catch(() => {}).then(() => document.getElementById('title-filter').focus());
       return;
     }
 
@@ -1015,9 +1065,9 @@ function bindKeyboardShortcuts() {
       return;
     }
 
-    if (e.key >= '1' && e.key <= '7') {
-      const tabs = document.querySelectorAll('.tab');
-      tabs[Number(e.key) - 1]?.click();
+    // 1-5: the five sections, in header order.
+    if (e.key >= '1' && e.key <= '5') {
+      document.querySelectorAll('#section-tabs .tab')[Number(e.key) - 1]?.click();
       return;
     }
 
@@ -1052,15 +1102,65 @@ function bindKeyboardShortcuts() {
   });
 }
 
-function bindTabs() {
-  document.querySelectorAll('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      if (tab.dataset.tab === 'stats') showStatsView();
-      else if (tab.dataset.tab === 'discover') showDiscoverView();
-      else if (tab.dataset.tab === 'schedule') showScheduleView();
-      else showListView(tab.dataset.tab);
-    });
+// Actions on one series and on AniList results, run by the command palette
+// (untitled: the palette builds its own per-series entries from the library).
+function bindSeriesCommands() {
+  const cardFor = (id) => document.querySelector(`#grid .card[data-id="${id}"]`);
+  registerCommand({ id: 'series.open', run: (id) => Detail.showDetail(Number(id), { origin: cardFor(id) }) });
+  registerCommand({ id: 'series.increment', run: (id) => handleIncrement(cardFor(id), Number(id)) });
+  registerCommand({
+    id: 'series.move',
+    run: ({ id, list }) => (list === 'dropped' ? confirmDrop(Number(id)) : handleSetStatus(Number(id), list)),
   });
+  registerCommand({
+    id: 'anilist.add',
+    run: ({ media, list }) => {
+      mediaCache.set(media.id, media);
+      addFromSearchResult(media.id, list);
+    },
+  });
+  registerCommand({
+    id: 'anilist.search',
+    run: (query) => {
+      openOverlay('search-overlay');
+      const input = document.getElementById('search-input');
+      input.value = query || '';
+      input.focus();
+      runSearch(input.value);
+    },
+  });
+}
+
+// Shows any view by name: a section, or one of the four lists.
+function showView(view) {
+  if (view === 'home') showHomeView();
+  else if (view === 'stats') showStatsView();
+  else if (view === 'discover') showDiscoverView();
+  else if (view === 'schedule') showScheduleView();
+  else if (view === 'library') showListView(activeList);
+  else if (Store.LISTS.includes(view)) showListView(view);
+}
+
+function bindTabs() {
+  const tabs = document.getElementById('section-tabs');
+  tabs.addEventListener('click', (e) => {
+    const tab = e.target.closest('.tab');
+    if (tab) showView(tab.dataset.tab);
+  });
+  bindRovingTablist(tabs, '.tab');
+  const lists = document.querySelector('.lists-seg');
+  lists.addEventListener('click', (e) => {
+    const seg = e.target.closest('.list-seg');
+    if (seg) showListView(seg.dataset.list);
+  });
+  bindRovingTablist(lists, '.list-seg');
+  const place = (key) => copy(`nav.${key}`);
+  for (const key of ['home', 'library', 'schedule', 'discover', 'stats']) {
+    registerCommand({ id: `go.${key}`, title: copy('command.goTo', undefined, { place: place(key) }), section: 'navigate', run: () => showView(key) });
+  }
+  for (const list of Store.LISTS) {
+    registerCommand({ id: `go.${list}`, title: copy('command.goTo', undefined, { place: copy(`list.${list}`) }), section: 'navigate', run: () => showView(list) });
+  }
 }
 
 function bindHome() {
@@ -1070,28 +1170,12 @@ function bindHome() {
     if (tile) showListView(tile.dataset.nav);
   };
   document.getElementById('home-view').addEventListener('click', navClickHandler);
+  // Home's "Up next from your Watchlist": Start moves the series to Watching.
+  document.getElementById('home-view').addEventListener('click', (e) => {
+    const start = e.target.closest('[data-action="home-start"]');
+    if (start) handleSetStatus(Number(start.dataset.id), 'watching');
+  });
   document.getElementById('stats-view').addEventListener('click', navClickHandler);
-}
-
-// Mobile-only hamburger menu — see the matching CSS comment for why the
-// tab row gets replaced below 900px instead of trying to keep it scrollable.
-function bindNavMenu() {
-  document.getElementById('nav-hamburger').addEventListener('click', () => {
-    openOverlay('nav-menu-overlay');
-    Render.renderNavMenu(document.getElementById('nav-menu-list'), currentView);
-  });
-
-  document.getElementById('nav-menu-list').addEventListener('click', (e) => {
-    const item = e.target.closest('[data-nav-menu]');
-    if (!item) return;
-    const key = item.dataset.navMenu;
-    if (key === 'home') showHomeView();
-    else if (key === 'stats') showStatsView();
-    else if (key === 'discover') showDiscoverView();
-    else if (key === 'schedule') showScheduleView();
-    else showListView(key);
-    closeAllOverlays();
-  });
 }
 
 // The hero's "Mark episode watched" button isn't inside a .card (it's a
@@ -1168,13 +1252,11 @@ export function repositionTabPill() {
   updateTabPill();
 }
 
-// Hold a card 500ms to enter select mode and select it in one motion
-// (design §10: "Hold a card · 500ms · linear ring · ring fills, then select
-// mode" — also the primary route into select mode on touch, per @media
-// (hover:none) handling, since there's no hover to reveal the checkbox
-// first). Delegated on #app like bindGridEvents; deliberately ignores
-// presses that start on an actual control inside the card (buttons, the
-// title, etc.) so holding the plus button doesn't also arm this.
+// Hold a card 500ms (design §10: "Hold a card · 500ms · linear ring"): with a
+// mouse it enters select mode with that card selected; on touch (v3 Phase 4)
+// it opens the card's menu, which has Select. Delegated on #app like
+// bindGridEvents; presses that start on a control inside the card (buttons,
+// the title) never arm it.
 function bindHoldToSelect() {
   const root = document.getElementById('app');
   let holdTimer = null;
@@ -1194,7 +1276,16 @@ function bindHoldToSelect() {
     if (!card) return;
     holdCard = card;
     card.classList.add('holding');
+    const point = { x: e.clientX, y: e.clientY };
+    const touch = e.pointerType === 'touch';
     holdTimer = setTimeout(() => {
+      // v3 Phase 4: a touch long-press opens the card's menu (which has
+      // Select); a mouse hold still goes straight into select mode.
+      if (touch) {
+        cancelHold();
+        openCardMenu(card, { point });
+        return;
+      }
       const id = Number(card.dataset.id);
       if (!Render.isSelectMode()) Render.toggleSelectMode();
       Render.toggleSelected(id);
@@ -1266,8 +1357,8 @@ export function initEvents({ initialList, persistFn }) {
   initLibraryActions({ getActiveList: () => activeList, closeAllOverlays, confirmDialog, openOverlay, persist: () => persist(), refreshGridOnly, refreshView, evaluateAchievementsAfterUndoWindow, handleFixMatch });
   bindCoverImageLoad();
   bindTabs();
+  bindSeriesCommands();
   bindHome();
-  bindNavMenu();
   bindHero();
   Detail.bindDetailActions({ handleSetScore, handleSetStatus, confirmDrop, handleIncrement, recordProgressEvent, refreshGridOnly, persist: () => persist() });
   bindGridEvents();
@@ -1290,13 +1381,14 @@ export function initEvents({ initialList, persistFn }) {
   bindHelpPanel();
   bindRipple();
   document.addEventListener('keydown', trapOverlayFocus);
-  updateTabPill(); // positions it for the initial tab, set by app.js before this runs
+  bindCommandButtons();
+  markSelected(initialList); // also positions the underline for the first view
   window.addEventListener('resize', updateTabPill);
   // A tab also changes width on its own (a count or the new-episode badge
   // arriving after load), which left the underline short of the tab in v2.
   if (typeof ResizeObserver === 'function') {
     const tabsResized = new ResizeObserver(() => updateTabPill());
-    document.querySelectorAll('.tab').forEach((tab) => tabsResized.observe(tab));
+    document.querySelectorAll('#section-tabs .tab').forEach((tab) => tabsResized.observe(tab));
   }
   // Tab label widths can shift slightly once the real webfont swaps in
   // (font-display:swap renders a fallback font first) — re-measure once

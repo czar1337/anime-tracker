@@ -15,11 +15,12 @@ import { TAG_COLORS, tagColorHex } from '../../listsAndTags.js';
 import { LISTS_AND_TAGS } from '../../../../config/tuning.js';
 import { partitionSpoilerTags, truncateSynopsis } from '../../detailLogic.js';
 import { html, cls, cssUrl } from '../../core/html.js';
-import { scoreStripHtml, statusRowHtml } from '../library/view.js';
+import { QUICK_MOVE_LISTS } from '../library/view.js';
 import { formatEnumLabel } from '../shared/format.js';
 import { morphInto } from '../../core/reconcile.js';
 import { detailState } from './model.js';
 import { detailSkeletonHtml } from '../shared/skeleton.js';
+import { noteAniListColor, knownColor, colorFor, applyAccent } from '../../accent.js';
 
 // design/HANDOVER.md §14 "More than 50 episodes": squares up to 50; past that,
 // a compact bar plus a "jump to episode" field, with only the last 18 squares
@@ -40,28 +41,71 @@ function episodeSquareHtml(index, entry) {
   return html`<i class="${index < entry.episodesWatched ? 'f' : index === entry.episodesWatched ? 'n' : ''}"></i>`;
 }
 
+// The drawer's top section (v3 Phase 4): the episode squares (or, past 50, a
+// bar with a jump field and the last squares as a tail) and the primary
+// "Mark episode N watched".
 function episodesBlockHtml(entry) {
   const total = entry.totalEpisodes;
   const watched = entry.episodesWatched;
   const knownCount = total || watched;
+  const finished = Boolean(total) && watched >= total;
+  const primary = finished
+    ? html`<span class="detail-all-watched">${copy('detail.allWatched')}</span>`
+    : html`<button class="btn btn-primary rip-host" data-action="detail-mark-next">${copy('detail.markNext', undefined, { episode: watched + 1 })}</button>`;
+  const head = html`<div class="detail-progress-head"><p class="detail-lbl">${copy('detail.progress')}</p><span class="num">${copy('detail.progressText', undefined, { watched, total })}</span></div>`;
   if (knownCount > EPISODE_SQUARE_CAP) {
     const pct = total ? Math.min(100, (watched / total) * 100) : 100;
     const tailStart = Math.max(0, watched - EPISODE_SQUARE_TAIL + 1);
     const tailSquares = Array.from({ length: watched - tailStart + 1 }, (_, i) => episodeSquareHtml(tailStart + i, entry));
-    const nextEp = Math.min(watched + 1, total || watched + 1);
     return html`
-      <p class="detail-lbl">Episodes</p>
-      <div class="row detail-ep-summary"><span>Progress</span><span class="num">${watched} watched${total ? ` of ${total}` : ' · no total known'}</span></div>
+      ${head}
       <div class="barfallback"><i style="--p:${pct / 100}"></i></div>
+      <div class="row eps detail-eps-tail">${tailSquares}<span class="detail-eps-tail-label">last ${watched - tailStart + 1} shown</span></div>
       <div class="row detail-jump-row">
+        ${primary}
         <span class="field detail-jump-field">Jump to episode<input type="number" min="0" ${total ? html`max="${total}"` : ''} data-action="detail-jump-episode" aria-label="Jump to episode"><kbd>↵</kbd></span>
-        <button class="btn btn-ghost sm rip-host" data-action="detail-mark-next">Mark episode ${nextEp}</button>
-      </div>
-      <div class="row eps detail-eps-tail">${tailSquares}<span class="detail-eps-tail-label">last ${watched - tailStart + 1} shown</span></div>`;
+      </div>`;
   }
   const count = total || watched + 1;
   const squares = Array.from({ length: count }, (_, i) => episodeSquareHtml(i, entry));
-  return html`<p class="detail-lbl">Episodes</p><div class="eps">${squares}</div>`;
+  return html`${head}<div class="eps">${squares}</div><div class="row detail-primary-row">${primary}</div>`;
+}
+
+// 1-10 as a radiogroup (keys 1-0 while the drawer is open, actions.js).
+// Choosing the current score again clears it, like everywhere else.
+function ratingHtml(entry) {
+  const buttons = [];
+  for (let n = 1; n <= 10; n++) {
+    const on = entry.myScore === n;
+    buttons.push(html`<button type="button" class="rate-btn" role="radio" aria-checked="${on}" tabindex="${(entry.myScore ?? 1) === n ? 0 : -1}" data-action="set-score" data-score="${n}" aria-label="${copy('detail.rateN', undefined, { n })}">${n}</button>`);
+  }
+  return html`<div class="detail-rating-head"><p class="detail-lbl" id="detail-rating-label">${copy('detail.rating')}</p><kbd class="detail-keys">${copy('detail.ratingKeys')}</kbd></div><div class="detail-rating" role="radiogroup" aria-labelledby="detail-rating-label" aria-keyshortcuts="1 2 3 4 5 6 7 8 9 0">${buttons}</div>`;
+}
+
+// The status as a segmented control (Dropped still asks first, actions.js).
+function statusSegHtml(entry) {
+  return html`<p class="detail-lbl" id="detail-status-label">${copy('detail.list')}</p><div class="detail-status seg" role="radiogroup" aria-labelledby="detail-status-label">${QUICK_MOVE_LISTS.map(
+    (l) => html`<button type="button" role="radio" aria-checked="${entry.listStatus === l.key}" tabindex="${entry.listStatus === l.key ? 0 : -1}" class="${cls(entry.listStatus === l.key && 'on')}" data-action="set-status" data-status="${l.key}">${l.label}</button>`
+  )}</div>`;
+}
+
+// Sequels, prequels and side stories on AniList, in airing order around this
+// series, each marked when it is in the library.
+const TIMELINE_RELATIONS = new Set(['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SPIN_OFF', 'ALTERNATIVE']);
+function franchiseTimelineHtml(m) {
+  const related = (m.relations?.edges || [])
+    .filter((e) => e.node?.type === 'ANIME' && TIMELINE_RELATIONS.has(e.relationType))
+    .map((e) => ({ id: e.node.id, title: e.node.title?.english || e.node.title?.romaji, year: e.node.seasonYear, format: e.node.format, relation: e.relationType }));
+  if (!related.length) return '';
+  const self = { id: m.id, title: m.title.english || m.title.romaji, year: m.startDate?.year, format: m.format, self: true };
+  const items = [...related, self].sort((a, b) => (a.year || 9999) - (b.year || 9999) || (a.relation === 'PREQUEL' ? -1 : 0));
+  return html`<section class="detail-section"><p class="detail-lbl">${copy('detail.franchise')}</p><ol class="detail-timeline">${items.map((it) => {
+    const owned = Store.getEntry(it.id);
+    const meta = [it.year, formatEnumLabel(it.format), it.self ? copy('detail.thisSeries') : formatEnumLabel(it.relation)].filter(Boolean).join(' · ');
+    return html`<li class="${cls(it.self && 'self', owned && 'owned')}">${it.self
+      ? html`<span class="detail-timeline-title">${it.title}</span>`
+      : html`<button type="button" class="text-btn detail-timeline-title" data-action="detail-open-related" data-related-id="${it.id}">${it.title}</button>`}<span class="detail-timeline-meta">${meta}${owned && !it.self ? html` · ${copy('detail.inList', undefined, { list: QUICK_MOVE_LISTS.find((l) => l.key === owned.listStatus)?.label || owned.listStatus })}` : ''}</span></li>`;
+  })}</ol></section>`;
 }
 
 // AniList's trailer thumbnail with a play overlay linking out to the video —
@@ -157,6 +201,8 @@ export function renderDetailOverlay(container, state) {
   const shownId = container.dataset.anilistId;
   delete container.dataset.anilistId;
   container.removeAttribute('aria-busy');
+  const panel = container.closest('.detail-panel');
+  if (state.status !== 'ready') applyAccent(panel, null);
   if (state.status === 'loading') {
     container.setAttribute('aria-busy', 'true');
     container.innerHTML = String(detailSkeletonHtml({ coverNow: Boolean(state.coverNow) }));
@@ -181,64 +227,69 @@ export function renderDetailOverlay(container, state) {
   // despite asHtml:false — turned into real line breaks before escaping.
   const description = m.description ? m.description.replace(/<br\s*\/?>/gi, '\n').replace(/\n{3,}/g, '\n\n').trim() : null;
   const metaBits = [formatEnumLabel(m.format), formatEnumLabel(m.status), m.episodes ? `${m.episodes} ep` : null, m.duration ? `${m.duration} min/ep` : null].filter(Boolean);
-  const finished = local && local.totalEpisodes && local.episodesWatched >= local.totalEpisodes;
+  const cover = Api.bestCoverUrl(m) || '';
+  const listLabel = local ? QUICK_MOVE_LISTS.find((l) => l.key === local.listStatus)?.label || local.listStatus : null;
 
+  // v3 Phase 4: a right-side drawer. The banner is AniList's bannerImage, or
+  // the cover blurred; never a small cover blown up.
   const markup = html`
-    <div class="detail-side">
-      <div class="detail-cover" style="background-image:${cssUrl(Api.bestCoverUrl(m) || '')}"></div>
-      <div class="detail-score">
-        <b>${local?.myScore != null ? local.myScore : '—'}</b>
-        <span>${local?.myScore != null ? 'your score' : 'not rated'}</span>
+    <header class="detail-banner">
+      <div class="${cls('detail-banner-img', !m.bannerImage && 'from-cover')}" style="background-image:${cssUrl(m.bannerImage || cover)}" aria-hidden="true"></div>
+      <div class="detail-head">
+        <div class="detail-cover" style="background-image:${cssUrl(cover)}"></div>
+        <div class="detail-head-text">
+          <h2 class="detail-title">${primary}</h2>
+          ${secondary && html`<div class="card-title-sub detail-title-sub">${secondary}</div>`}
+          ${showNative && html`<p class="detail-native">${m.title.native}</p>`}
+          <div class="detail-meta-row">${metaBits.join(' · ')}</div>
+          <div class="detail-owned-badge">${local ? copy('detail.inList', undefined, { list: listLabel }) : copy('detail.notInLibrary')}</div>
+        </div>
       </div>
-    </div>
+    </header>
     <div class="detail-body">
-      <h2 class="detail-title">${primary}</h2>
-      ${secondary && html`<div class="card-title-sub detail-title-sub">${secondary}</div>`}
-      ${showNative && html`<p class="detail-native">${m.title.native}</p>`}
-      <div class="detail-meta-row">${metaBits.join(' · ')}</div>
-      <div class="detail-score-row">
-        ${m.averageScore ? html`<span>★ ${m.averageScore} AniList</span>` : ''}
-        ${m.popularity ? html`<span>${m.popularity.toLocaleString()} on lists</span>` : ''}
-        ${m.favourites ? html`<span>${m.favourites.toLocaleString()} favourites</span>` : ''}
-      </div>
-      ${(m.genres || []).length ? html`<div class="detail-genres">${m.genres.map((g) => html`<span class="detail-genre-chip">${g}</span>`)}</div>` : ''}
-      ${detailTagsRowHtml(m.tags)}
-      ${detailTrailerHtml(m.trailer)}
-      ${local && html`<div class="detail-owned-badge">In your ${local.listStatus} list</div>`}
       ${local && html`
-        <div class="detail-section">${episodesBlockHtml(local)}</div>
-        <div class="detail-split">
-          <div><p class="detail-lbl">Score</p>${scoreStripHtml(local)}</div>
-          <div><p class="detail-lbl">Status</p>${statusRowHtml(local)}</div>
+        <section class="detail-section detail-top">${episodesBlockHtml(local)}</section>
+        <section class="detail-section">${ratingHtml(local)}</section>
+        <section class="detail-section">${statusSegHtml(local)}</section>
+        <section class="detail-section">
+          <p class="detail-lbl"><label for="detail-note-field">${copy('detail.note')}</label></p>
+          <textarea class="detail-note" id="detail-note-field" placeholder="${copy('detail.notePlaceholder')}" data-action="detail-note">${local.notes || ''}</textarea>
+        </section>
+        <section class="detail-section">${detailTagsSectionHtml(local)}</section>
+        <section class="detail-section">${detailListsSectionHtml(local)}</section>`}
+      <section class="detail-section detail-about">
+        <p class="detail-lbl">${copy('detail.about')}</p>
+        <div class="detail-score-row">
+          ${m.averageScore ? html`<span>★ ${m.averageScore} AniList</span>` : ''}
+          ${m.popularity ? html`<span>${m.popularity.toLocaleString()} on lists</span>` : ''}
+          ${m.favourites ? html`<span>${m.favourites.toLocaleString()} favourites</span>` : ''}
         </div>
-        <div class="detail-section">
-          <p class="detail-lbl">Note</p>
-          <textarea class="detail-note" placeholder="Your notes…" data-action="detail-note">${local.notes || ''}</textarea>
+        <div class="detail-meta-grid">
+          ${metaCell('Studio', studios)}
+          ${metaCell('Source', m.source ? formatEnumLabel(m.source) : null)}
+          ${metaCell('Aired', airedRange)}
         </div>
-        <div class="detail-section">${detailTagsSectionHtml(local)}</div>
-        <div class="detail-section">${detailListsSectionHtml(local)}</div>`}
-      <div class="detail-meta-grid">
-        ${metaCell('Studio', studios)}
-        ${metaCell('Source', m.source ? formatEnumLabel(m.source) : null)}
-        ${metaCell('Aired', airedRange)}
-      </div>
-      ${detailSynopsisHtml(description)}
-      ${local
-        ? html`
-        <div class="detail-foot">
-          ${finished ? '' : html`<button class="btn btn-primary rip-host" data-action="detail-mark-next">Mark episode ${Math.min(local.episodesWatched + 1, local.totalEpisodes || local.episodesWatched + 1)} watched</button>`}
-          <button class="btn btn-quiet" data-action="close-overlay">Close</button>
-          ${local.listStatus === 'dropped' ? '' : html`<button class="btn btn-danger" data-action="detail-drop">Drop the series</button>`}
-        </div>`
-        : html`
-        <div class="detail-foot">
-          <button class="btn btn-quiet" data-action="detail-already-watched">${copy('discoverFeedback.alreadyWatched')}</button>
-          <button class="btn btn-quiet" data-action="close-overlay">Close</button>
-        </div>`}
-    </div>`;
+        ${(m.genres || []).length ? html`<div class="detail-genres">${m.genres.map((g) => html`<span class="detail-genre-chip">${g}</span>`)}</div>` : ''}
+        ${detailTagsRowHtml(m.tags)}
+        ${detailSynopsisHtml(description)}
+      </section>
+      ${franchiseTimelineHtml(m)}
+      ${m.trailer?.thumbnail && html`<section class="detail-section"><p class="detail-lbl">${copy('detail.trailer')}</p>${detailTrailerHtml(m.trailer)}</section>`}
+    </div>
+    <footer class="detail-actions">
+      ${!local && html`<button class="btn btn-quiet" data-action="detail-already-watched">${copy('discoverFeedback.alreadyWatched')}</button>`}
+      <a class="btn btn-quiet" href="https://anilist.co/anime/${m.id}" target="_blank" rel="noopener">${copy('detail.anilist')}</a>
+      <button class="btn btn-ghost" data-action="close-overlay">${copy('detail.close')}</button>
+    </footer>`;
   // The same series re-rendered after an action inside the overlay (a score,
   // a status, a tag) is morphed in place, so focus and scroll stay where they
   // were; a different series is a fresh render.
   if (shownId === String(m.id)) morphInto(container, markup);
   else container.innerHTML = String(markup);
+  // The dynamic accent: AniList's colour for this cover, or (for a series in
+  // the library) one read of its local cover.
+  noteAniListColor(m.id, m.coverImage?.color);
+  const known = knownColor(m.id);
+  applyAccent(panel, known);
+  if (!known && local) colorFor(m.id).then((color) => Number(container.dataset.anilistId) === m.id && applyAccent(panel, color));
 }

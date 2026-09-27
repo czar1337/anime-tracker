@@ -16,18 +16,35 @@ async function entry(server) {
   return (await (await fetch(`${server.url}/api/library`)).json()).entries.find((e) => e.anilistId === ID);
 }
 
+// The detail view (where the note lives since v3 Phase 4) loads the series
+// from AniList; answered here so the test never depends on the network.
+function stubAniListDetail(page) {
+  return page.route('**/graphql.anilist.co/**', (route) => {
+    const id = route.request().postDataJSON?.()?.variables?.id || 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { Media: { id, title: { romaji: 'Series', english: 'Series', native: null }, description: 'x', coverImage: { large: null }, bannerImage: null, genres: [], averageScore: 70, popularity: 1, favourites: 1, format: 'TV', status: 'FINISHED', episodes: 12, duration: 24, source: 'ORIGINAL', startDate: { year: 2020 }, endDate: { year: 2020 }, studios: { nodes: [] } } } }),
+    });
+  });
+}
 test('undoing a status move keeps a note written inside the undo window', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
+    await stubAniListDetail(page);
     await page.goto(server.url);
-    await page.click(`.card[data-id="${ID}"] [data-action="set-status"][data-status="watchlist"]`);
+    // v3 Phase 4: the move is in the card's status menu, the note in the detail view.
+    await page.click(`.card[data-id="${ID}"] [data-action="card-status-menu"]`);
+    await page.getByRole('menuitem', { name: 'Move to Watchlist' }).click();
     const undo = page.getByRole('button', { name: 'Undo' });
     await expect(undo).toBeVisible();
-    await page.click('[data-tab="watchlist"]');
-    await page.click(`.card[data-id="${ID}"] [data-action="toggle-notes"]`);
-    const notes = page.locator(`.card[data-id="${ID}"] .notes-field`);
+    await page.click('[data-list="watchlist"]');
+    await page.click(`.card[data-id="${ID}"] [data-action="show-detail"]`);
+    const notes = page.locator('#detail-content [data-action="detail-note"]');
     await notes.fill('written after the move');
     await notes.blur();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#detail-overlay')).toBeHidden();
     await expect.poll(async () => (await entry(server)).notes, { message: "the note reached the server before undo" }).toBe("written after the move");
     await undo.click();
     await expect.poll(async () => { const e = await entry(server); return `${e.listStatus}|${e.notes}`; }).toBe('watching|written after the move');

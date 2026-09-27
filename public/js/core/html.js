@@ -39,9 +39,17 @@ function renderValue(value) {
   return escapeHtml(value);
 }
 
+// Inside a quoted aria-* attribute, a boolean is the ARIA token "true" or
+// "false" (aria-pressed="${on}"); rendering false as nothing there would give
+// aria-pressed="", which is invalid.
+const ARIA_VALUE_START = /aria-[\w-]+=["']$/;
+
 export function html(strings, ...values) {
   let out = strings[0];
-  for (let i = 0; i < values.length; i++) out += renderValue(values[i]) + strings[i + 1];
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    out += (typeof value === 'boolean' && ARIA_VALUE_START.test(strings[i]) ? String(value) : renderValue(value)) + strings[i + 1];
+  }
   return new SafeHtml(out);
 }
 

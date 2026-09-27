@@ -20,7 +20,7 @@ test('clicking an overlay\'s backdrop closes it (Help panel)', async ({ page }) 
   try {
     await page.goto(server.url);
     await page.waitForSelector('#grid .card');
-    await page.click('#shortcuts-trigger');
+    await page.keyboard.press('?');
     const overlay = page.locator('#shortcuts-overlay');
     await expect(overlay).toBeVisible();
 
@@ -32,13 +32,13 @@ test('clicking an overlay\'s backdrop closes it (Help panel)', async ({ page }) 
   }
 });
 
-test('clicking an overlay\'s backdrop closes it (Settings/theme picker)', async ({ page }) => {
+test('clicking an overlay\'s backdrop closes it (the Settings drawer)', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await page.goto(server.url);
     await page.waitForSelector('#grid .card');
-    await page.click('#theme-toggle');
-    const overlay = page.locator('#theme-picker-overlay');
+    await page.click('#settings-trigger');
+    const overlay = page.locator('#settings-overlay');
     await expect(overlay).toBeVisible();
 
     await overlay.click({ position: { x: 5, y: 5 } });
@@ -53,7 +53,7 @@ test('clicking inside the overlay panel never closes it', async ({ page }) => {
   try {
     await page.goto(server.url);
     await page.waitForSelector('#grid .card');
-    await page.click('#shortcuts-trigger');
+    await page.keyboard.press('?');
     const overlay = page.locator('#shortcuts-overlay');
     await expect(overlay).toBeVisible();
 

@@ -20,6 +20,12 @@ test('html`` escapes interpolated values and keeps nested templates', async () =
   assert.strictEqual(String(html`${raw('<i></i>')}`), '<i></i>');
 });
 
+test('a boolean in an aria-* attribute renders as "true"/"false", elsewhere false renders nothing', async () => {
+  const { html } = await load('core/html.js');
+  assert.equal(String(html`<b aria-pressed="${false}" aria-expanded='${true}'></b>`), `<b aria-pressed="false" aria-expanded='true'></b>`);
+  assert.equal(String(html`<b data-x="${false}">${false}</b>`), '<b data-x=""></b>');
+});
+
 test('cssUrl cannot break out of the url() or the attribute', async () => {
   const { html, cssUrl } = await load('core/html.js');
   const evil = `/covers/a.jpg'); background:red; x:url("y"`;

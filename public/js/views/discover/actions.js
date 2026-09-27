@@ -10,6 +10,12 @@ import { RECOMMENDATIONS, TIME_SEMANTICS } from '../../../../config/tuning.js';
 import { openOverlay } from '../../events.js';
 import { defaultSettings } from '../../settingsSchema.js';
 import { FeedbackLoop } from '../../feedbackLoop.js';
+import { registerCommand } from '../../core/commands.js';
+import { copy } from '../../copy.js';
+import { openMenu } from '../../core/menu.js';
+import { tokenMs, tokenEase, movementAllowed } from '../../core/motion.js';
+import { Detail } from '../detail/actions.js';
+import { dismissReasons, dismissSkipLabel } from './view.js';
 
 // P5B.5: one-tap add's toast needs a human label for whichever status the
 // user picked — render.js's own LIST_META isn't exported, so this stays a
@@ -192,6 +198,12 @@ async function buildShelvesNow() {
   return buildInFlight;
 }
 
+// Opens "Pick for me" over the Watchlist (the Discover button and the palette).
+function openPickForMe() {
+  Render.renderPickForMePanel(document.getElementById('pick-for-me-body'), { entries: Store.getEntriesByList('watchlist'), filters: {}, picked: undefined });
+  openOverlay('pick-for-me-overlay');
+}
+
 export function getDiscoverState() {
   return {
     ...discoverState,
@@ -295,11 +307,161 @@ export function rebuildShelvesNow() {
   return buildShelvesNow();
 }
 
+// v3 Phase 4: keyboard in the rails. With a card focused, ←/→ move along its
+// rail and ↑/↓ to the card at the same place in the rail above or below.
+function bindRailKeys(container) {
+  container.addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    const card = e.target.closest?.('.rail > .discover-card');
+    if (!card || e.target !== card) return; // arrows inside a control stay the control's
+    const rail = card.parentElement;
+    const cards = [...rail.children];
+    const i = cards.indexOf(card);
+    let next = null;
+    if (e.key === 'ArrowLeft') next = cards[i - 1];
+    else if (e.key === 'ArrowRight') next = cards[i + 1];
+    else {
+      const rails = [...container.querySelectorAll('.rail')];
+      const other = rails[rails.indexOf(rail) + (e.key === 'ArrowDown' ? 1 : -1)];
+      if (other) next = other.children[Math.min(i, other.children.length - 1)];
+    }
+    if (!next) return;
+    e.preventDefault();
+    next.focus({ preventScroll: true });
+    next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+}
 export function initDiscover({ persistFn } = {}) {
   const persist = persistFn || (() => {});
   const container = document.getElementById('discover-view');
 
-  container.addEventListener('change', (e) => {
+  // v3 Phase 4: a card's actions, shared by its buttons and its menus.
+  // `ctx` is { anilistId, shelfId, cardData, candidate, card }.
+  // A card leaving a rail (added or dismissed) hands keyboard focus to its
+  // neighbour, so the keyboard user keeps their place in the rail.
+  const renderHandingFocusOn = (card) => {
+    const neighbour = card && (card.nextElementSibling || card.previousElementSibling);
+    const key = neighbour?.dataset.key;
+    const hadFocus = card && (card.contains(document.activeElement) || document.activeElement === document.body);
+    renderNow();
+    if (!hadFocus || (document.activeElement && document.activeElement !== document.body && document.activeElement.isConnected)) return;
+    const target = key && container.querySelector(`[data-key="${CSS.escape(key)}"]`);
+    target?.focus({ preventScroll: true });
+  };
+
+  const addCandidate = (ctx, addStatus) => {
+    const { anilistId, shelfId, cardData, candidate } = ctx;
+    if (Store.getEntry(anilistId)) return;
+      Store.addEntry({
+        anilistId: candidate.anilistId,
+        titleRomaji: candidate.titleRomaji,
+        titleEnglish: candidate.titleEnglish,
+        format: candidate.format,
+        year: candidate.seasonYear,
+        totalEpisodes: candidate.totalEpisodes,
+        duration: candidate.duration,
+        genres: candidate.genres,
+        // Corpus entries store normalizedScore (0-10, corpusLogic.js's own
+        // ingest-time normalisation) — averageScore on a library entry has
+        // always been AniList's raw 0-100 scale (every existing entry and
+        // every render.js display of it assumes that), so this reconstructs
+        // it rather than storing the corpus's own already-divided value.
+        averageScore: candidate.normalizedScore != null ? Math.round(candidate.normalizedScore * 10) : null,
+        popularity: candidate.popularity ?? null,
+        season: candidate.season || null,
+        studio: candidate.studio || null,
+        airingStatus: candidate.status || null,
+        listStatus: addStatus,
+        relatedIds: franchiseRelatedIds(candidate),
+        // P5A.4's own new Class A provenance fields, real values now that a
+        // real shelf identity and a real corpus popularity exist.
+        // adventurousness (P5B.4): the slider value actually active when
+        // this candidate surfaced, replacing the null placeholder used
+        // before the slider existed.
+        shelfId,
+        adventurousness: Store.state.preferences.adventurousness,
+        membersAtSurfacing: candidate.popularity ?? null,
+      });
+      EventLog.recordForEntry('anime_added', candidate.anilistId, { to: addStatus });
+      EventLog.recordForEntry('recommendation_added', candidate.anilistId, {
+        shelfId,
+        meta: { adventurousness: Store.state.preferences.adventurousness, membersAtSurfacing: candidate.popularity ?? null, because: cardData.because, hiddenCount: cardData.hiddenCount },
+      });
+      removeCardEverywhere(anilistId);
+      renderHandingFocusOn(ctx.card);
+      Render.renderTabCounts();
+      persist();
+      Render.showToast(`Added "${candidate.titleRomaji}" to ${ADD_STATUS_LABELS[addStatus] || 'Watchlist'}`);
+      // Corpus entries never carry a cover (corpusLogic.js's own pruning) —
+      // same live cover-batch fetch the cold-start overlay already
+      // established for exactly this gap, rather than waiting on app.js's
+      // own slower background retryMissingCovers() cycle.
+      Api.fetchCoversBatch([candidate.anilistId])
+        .then((media) => {
+          const url = media[0]?.coverImage?.large;
+          if (!url) return;
+          return Api.downloadCover(candidate.anilistId, url)
+            .then((file) => Store.updateEntry(candidate.anilistId, { coverFile: file }))
+            .then(() => persist());
+        })
+        .catch(() => {});
+  };
+
+  // A card that leaves (a dismissal) collapses first, at 70% of --dur-base;
+  // under reduced motion it only fades, and with animation Off it just goes.
+  const collapseThen = async (card, done) => {
+    const duration = tokenMs('--dur-base') * 0.7;
+    if (card?.isConnected && duration > 0) {
+      await card
+        .animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: movementAllowed() ? 'scale(.9) translateY(8px)' : 'none' }], { duration, easing: tokenEase('--ease-exit'), fill: 'forwards' })
+        .finished.catch(() => {});
+    }
+    done();
+  };
+
+  const dismissCandidate = (ctx, reason) => {
+    const { anilistId, shelfId, candidate, card } = ctx;
+    collapseThen(card, () => {
+      FeedbackLoop.dismissRecommendation({ anilistId, shelfId, title: candidate.titleEnglish || candidate.titleRomaji, reason });
+      removeCardEverywhere(anilistId);
+      renderHandingFocusOn(card);
+      persist();
+    });
+  };
+
+  const titleOf = (candidate) => candidate.titleEnglish || candidate.titleRomaji;
+
+  // The split button's menu: the other lists, and Details.
+  const openAddMenu = (ctx, anchor) => {
+    openMenu({
+      label: copy('discover.addMenu', undefined, { title: titleOf(ctx.candidate) }),
+      anchor,
+      items: [
+        { label: copy('discover.addAs', undefined, { list: ADD_STATUS_LABELS.watching }), run: () => addCandidate(ctx, 'watching') },
+        { label: copy('discover.addAs', undefined, { list: ADD_STATUS_LABELS.watched }), run: () => addCandidate(ctx, 'watched') },
+        { separator: true },
+        { label: copy('discover.details'), run: () => Detail.showDetail(ctx.anilistId) },
+      ],
+    });
+  };
+
+  // "Not for me": why, then the card collapses (Skip dismisses with no reason).
+  const openNotForMeMenu = (ctx, anchor) => {
+    openMenu({
+      label: copy('discover.whyNot'),
+      anchor,
+      items: [
+        { heading: copy('discover.whyNot') },
+        ...dismissReasons().map((r) => ({ label: r.label, run: () => dismissCandidate(ctx, r.id) })),
+        { separator: true },
+        { label: dismissSkipLabel(), run: () => dismissCandidate(ctx, null) },
+      ],
+    });
+  };
+  // v3 Phase 4: the Tune popover (outside the view, so a rebuild never closes
+  // it) takes the same change and click handling as the page.
+  const tune = document.getElementById('discover-tune');
+  const onChange = (e) => {
     if (e.target.id === 'discover-hide-owned-toggle') {
       Store.setPreference(['discoverHideOwned'], e.target.checked);
       persist();
@@ -316,9 +478,13 @@ export function initDiscover({ persistFn } = {}) {
       buildGeneration += 1;
       buildShelvesNow().catch(() => {});
     }
-  });
+  };
+  container.addEventListener('change', onChange);
+  tune.addEventListener('change', onChange);
 
-  container.addEventListener('click', (e) => {
+  // v3 Phase 4: also a palette command ("Pick for me").
+  registerCommand({ id: 'discover.pickForMe', title: copy('command.pickForMe'), section: 'actions', keywords: 'random choose watchlist suggest', run: openPickForMe });
+  const onClick = (e) => {
     if (e.target.closest('[data-action="corpus-pause"]')) {
       Corpus.pauseSeed();
       renderNow();
@@ -330,9 +496,14 @@ export function initDiscover({ persistFn } = {}) {
       return;
     }
 
-    if (e.target.closest('#discover-refresh-btn')) {
+    if (e.target.closest('#discover-refresh-btn, [data-action="discover-refresh"]')) {
       buildGeneration += 1;
       buildShelvesNow().catch(() => {});
+      return;
+    }
+
+    if (e.target.closest('[data-action="discover-open-tune"]')) {
+      document.getElementById('discover-tune')?.showPopover();
       return;
     }
 
@@ -343,8 +514,7 @@ export function initDiscover({ persistFn } = {}) {
     }
 
     if (e.target.closest('#pick-for-me-open')) {
-      Render.renderPickForMePanel(document.getElementById('pick-for-me-body'), { entries: Store.getEntriesByList('watchlist'), filters: {}, picked: undefined });
-      openOverlay('pick-for-me-overlay');
+      openPickForMe();
       return;
     }
 
@@ -451,101 +621,21 @@ export function initDiscover({ persistFn } = {}) {
     if (!cardData) return;
     const candidate = cardData.candidate;
 
-    const addBtn = e.target.closest('[data-action="discover-add"]');
-    if (addBtn) {
-      if (Store.getEntry(anilistId)) return;
-      // P5B.5: one-tap add now offers a status choice (mirrors
-      // renderSearchResults' own data-add-status buttons) instead of always
-      // landing in Watchlist.
-      const addStatus = addBtn.dataset.addStatus || 'watchlist';
-      Store.addEntry({
-        anilistId: candidate.anilistId,
-        titleRomaji: candidate.titleRomaji,
-        titleEnglish: candidate.titleEnglish,
-        format: candidate.format,
-        year: candidate.seasonYear,
-        totalEpisodes: candidate.totalEpisodes,
-        duration: candidate.duration,
-        genres: candidate.genres,
-        // Corpus entries store normalizedScore (0-10, corpusLogic.js's own
-        // ingest-time normalisation) — averageScore on a library entry has
-        // always been AniList's raw 0-100 scale (every existing entry and
-        // every render.js display of it assumes that), so this reconstructs
-        // it rather than storing the corpus's own already-divided value.
-        averageScore: candidate.normalizedScore != null ? Math.round(candidate.normalizedScore * 10) : null,
-        popularity: candidate.popularity ?? null,
-        season: candidate.season || null,
-        studio: candidate.studio || null,
-        airingStatus: candidate.status || null,
-        listStatus: addStatus,
-        relatedIds: franchiseRelatedIds(candidate),
-        // P5A.4's own new Class A provenance fields, real values now that a
-        // real shelf identity and a real corpus popularity exist.
-        // adventurousness (P5B.4): the slider value actually active when
-        // this candidate surfaced, replacing the null placeholder used
-        // before the slider existed.
-        shelfId,
-        adventurousness: Store.state.preferences.adventurousness,
-        membersAtSurfacing: candidate.popularity ?? null,
-      });
-      EventLog.recordForEntry('anime_added', candidate.anilistId, { to: addStatus });
-      EventLog.recordForEntry('recommendation_added', candidate.anilistId, {
-        shelfId,
-        meta: { adventurousness: Store.state.preferences.adventurousness, membersAtSurfacing: candidate.popularity ?? null, because: cardData.because, hiddenCount: cardData.hiddenCount },
-      });
-      removeCardEverywhere(anilistId);
-      renderNow();
-      Render.renderTabCounts();
-      persist();
-      Render.showToast(`Added "${candidate.titleRomaji}" to ${ADD_STATUS_LABELS[addStatus] || 'Watchlist'}`);
-      // Corpus entries never carry a cover (corpusLogic.js's own pruning) —
-      // same live cover-batch fetch the cold-start overlay already
-      // established for exactly this gap, rather than waiting on app.js's
-      // own slower background retryMissingCovers() cycle.
-      Api.fetchCoversBatch([candidate.anilistId])
-        .then((media) => {
-          const url = media[0]?.coverImage?.large;
-          if (!url) return;
-          return Api.downloadCover(candidate.anilistId, url)
-            .then((file) => Store.updateEntry(candidate.anilistId, { coverFile: file }))
-            .then(() => persist());
-        })
-        .catch(() => {});
-    } else if (e.target.closest('[data-action="discover-dismiss"]')) {
-      // P5B.4: × no longer dismisses immediately — it reveals the reason
-      // strip in place of .acts (Render.toggleReasonStrip), and picking a
-      // reason chip or Skip (below) is what actually performs the dismiss.
-      Render.toggleReasonStrip(anilistId);
-      renderNow();
-      return;
-    } else if (e.target.closest('[data-action="discover-dismiss-reason"]')) {
-      const reason = e.target.closest('[data-action="discover-dismiss-reason"]').dataset.reason;
-      FeedbackLoop.dismissRecommendation({ anilistId, shelfId, title: candidate.titleEnglish || candidate.titleRomaji, reason });
-      Render.closeReasonStrip(anilistId);
-      removeCardEverywhere(anilistId);
-      renderNow();
-      persist();
-    } else if (e.target.closest('[data-action="discover-dismiss-skip"]')) {
-      FeedbackLoop.dismissRecommendation({ anilistId, shelfId, title: candidate.titleEnglish || candidate.titleRomaji, reason: null });
-      Render.closeReasonStrip(anilistId);
-      removeCardEverywhere(anilistId);
-      renderNow();
-      persist();
-    } else if (e.target.closest('[data-action="discover-thumb-up"]')) {
-      FeedbackLoop.recordLike(anilistId);
-      renderNow();
-      persist();
-    } else if (e.target.closest('[data-action="discover-thumb-down"]')) {
-      // A fast dismiss path, no reason strip — the one place a dismissal
-      // still carries no reason on purpose (a thumbs-down IS the signal;
-      // making the user also pick a reason for it would be friction the
-      // spec's "one-tap" framing doesn't ask for).
-      FeedbackLoop.dismissRecommendation({ anilistId, shelfId, title: candidate.titleEnglish || candidate.titleRomaji, reason: null });
-      removeCardEverywhere(anilistId);
+    const ctx = { anilistId, shelfId, cardData, candidate, card };
+    const actionEl = e.target.closest('[data-action]');
+    const action = actionEl?.dataset.action;
+    if (action === 'discover-add') addCandidate(ctx, actionEl.dataset.addStatus || 'watchlist');
+    else if (action === 'discover-add-menu') openAddMenu(ctx, actionEl);
+    else if (action === 'discover-not-for-me') openNotForMeMenu(ctx, actionEl);
+    else if (action === 'discover-thumb-up') {
+      if (!FeedbackLoop.recordLike(anilistId)) FeedbackLoop.removeLike(anilistId);
       renderNow();
       persist();
     }
-  });
+  };
+  container.addEventListener('click', onClick);
+  tune.addEventListener('click', onClick);
+  bindRailKeys(container);
 
   document.getElementById('dismissed-content').addEventListener('click', (e) => {
     if (e.target.closest('#dismissed-restore-all-btn')) {

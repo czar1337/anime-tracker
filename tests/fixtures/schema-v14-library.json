@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 14,
+  "entries": [
+    {
+      "anilistId": 101922,
+      "titleRomaji": "Shingeki no Kyojin",
+      "titleEnglish": "Attack on Titan",
+      "coverFile": "covers/101922.jpg",
+      "format": "TV",
+      "year": 2013,
+      "totalEpisodes": 25,
+      "duration": 24,
+      "genres": [
+        "Action",
+        "Drama"
+      ],
+      "averageScore": 84,
+      "listStatus": "watched",
+      "episodesWatched": 25,
+      "myScore": 9,
+      "notes": "",
+      "relatedIds": [],
+      "tagIds": [],
+      "customListIds": [],
+      "addedAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-02T00:00:00.000Z",
+      "completedAt": "2025-01-02T00:00:00.000Z"
+    }
+  ],
+  "preferences": {
+    "sort": {
+      "watching": "dateAdded",
+      "watchlist": "dateAdded",
+      "watched": "completedAt",
+      "dropped": "lastUpdated",
+      "discover": "recommended"
+    },
+    "sortDir": {
+      "watching": "desc",
+      "watchlist": "desc",
+      "watched": "desc",
+      "dropped": "desc",
+      "discover": "desc"
+    },
+    "filters": {
+      "watching": {
+        "genres": [],
+        "format": "",
+        "studio": "",
+        "myScoreMin": null,
+        "myScoreMax": null,
+        "unratedOnly": false,
+        "airingStatus": ""
+      },
+      "watchlist": {
+        "genres": [],
+        "format": "",
+        "studio": "",
+        "myScoreMin": null,
+        "myScoreMax": null,
+        "unratedOnly": false,
+        "airingStatus": ""
+      },
+      "watched": {
+        "genres": [],
+        "format": "",
+        "studio": "",
+        "myScoreMin": null,
+        "myScoreMax": null,
+        "unratedOnly": false,
+        "airingStatus": ""
+      },
+      "dropped": {
+        "genres": [],
+        "format": "",
+        "studio": "",
+        "myScoreMin": null,
+        "myScoreMax": null,
+        "unratedOnly": false,
+        "airingStatus": ""
+      }
+    },
+    "activeTab": "watched",
+    "titleLanguage": "english",
+    "contentTier": "standard",
+    "streamerMode": false,
+    "decor": "on",
+    "decorDensity": "normal",
+    "originalTitles": "details",
+    "appearance": {
+      "mode": "dark",
+      "light": {
+        "type": "preset",
+        "id": "daybreak"
+      },
+      "dark": {
+        "type": "preset",
+        "id": "holo-deck"
+      },
+      "background": {
+        "type": "grain",
+        "opacity": 30,
+        "gradientColor1": null,
+        "gradientColor2": null
+      }
+    },
+    "uiFont": "inter",
+    "headingFont": "bebas-neue",
+    "numbersFont": "jetbrains-mono",
+    "textSizeStep": 5,
+    "textWeightStep": 5,
+    "lineHeightStep": 8,
+    "letterSpacingStep": 5,
+    "densityStep": 5,
+    "radiusStep": 5,
+    "coverWidthStep": 5,
+    "animationStep": 5,
+    "coldStartPicks": [],
+    "coldStartCompletedAt": null,
+    "coldStartSkipped": true,
+    "discoverHideOwned": true,
+    "discoverFilters": {
+      "format": "",
+      "studio": "",
+      "yearMin": null,
+      "yearMax": null,
+      "episodeMin": null,
+      "episodeMax": null,
+      "scoreMin": null,
+      "scoreMax": null,
+      "memberMin": null,
+      "memberMax": null,
+      "source": "",
+      "staffQuery": "",
+      "airingStatus": "",
+      "includeTags": [],
+      "excludeTags": [],
+      "maxLengthMinutes": null,
+      "enforcePrerequisiteChain": true,
+      "hideDismissed": true
+    },
+    "adventurousness": null,
+    "likedRecommendationIds": [],
+    "decorationStep": 5
+  },
+  "dismissedItems": [
+    {
+      "anilistId": 555,
+      "title": "Some Dismissed Show",
+      "coverImage": null
+    }
+  ],
+  "tags": [],
+  "customLists": []
+}

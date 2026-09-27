@@ -31,6 +31,14 @@ export function recordLike(anilistId) {
   return true;
 }
 
+// v3 Phase 4: "More like this" is a toggle; pressing it again takes the like back.
+export function removeLike(anilistId) {
+  const current = Store.state.preferences.likedRecommendationIds || [];
+  if (!current.includes(anilistId)) return false;
+  Store.setPreference(['likedRecommendationIds'], current.filter((id) => id !== anilistId));
+  return true;
+}
+
 // Pure, DOM-free — testable without a browser. Filters a Watchlist-shaped
 // entry array down to the caller's optional max-episodes/genre/minimum-score
 // constraints, then picks one at random via this project's one established
@@ -59,4 +67,4 @@ export function pickForMe({ entries, maxEpisodes = null, genre = null, minScore 
   return shuffle(pool, rng)[0];
 }
 
-export const FeedbackLoop = { dismissRecommendation, recordLike, pickForMe };
+export const FeedbackLoop = { dismissRecommendation, recordLike, removeLike, pickForMe };

@@ -39,9 +39,22 @@ const NON_DEFAULT_PREFS = {
   radiusStep: 10,
   coverWidthStep: 1,
   animationStep: 6,
+  // v3 Phase 4: the library layout and saved filter views, both new Class A
+  // preference fields.
+  libraryLayout: 'list',
+  // v3 Phase 4 (D2, schema 15): the appearance controls and the one-time notice.
+  appearanceV3: { mode: 'system', light: { type: 'preset', id: 'rosequartz' }, dark: { type: 'custom', accent: '#3ba55d', base: '#101820' } },
+  textSize: 5,
+  density: 'compact',
+  motion: 'reduced',
+  decoration: 'low',
+  appearanceNotice: { version: 15, changes: [{ kind: 'theme', slot: 'dark', from: 'holo-deck', to: 'frost' }], seenAt: '2026-09-27T10:00:00.000Z' },
+  savedViews: [
+    { id: 'v1', name: 'Short mysteries', list: 'watchlist', filters: { genres: ['Mystery'], format: 'TV', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' }, sort: 'episodes', sortDir: 'asc' },
+  ],
 };
 
-test('export, snapshot, wipe, restore round trip preserves all 18 new/promoted preference fields exactly', async () => {
+test('export, snapshot, wipe, restore round trip preserves every new/promoted preference field exactly', async () => {
   const server = await startFixtureServer(FIXTURE);
   try {
     const before = await (await fetch(`${server.url}/api/library`)).json();
@@ -56,13 +69,13 @@ test('export, snapshot, wipe, restore round trip preserves all 18 new/promoted p
 
     const beforeWipe = await (await fetch(`${server.url}/api/library`)).json();
     for (const [key, value] of Object.entries(NON_DEFAULT_PREFS)) {
-      expect(beforeWipe.preferences[key]).toBe(value);
+      expect(beforeWipe.preferences[key]).toEqual(value);
     }
 
     const exportRes = await fetch(`${server.url}/api/export`);
     const exported = await exportRes.json();
     for (const [key, value] of Object.entries(NON_DEFAULT_PREFS)) {
-      expect(exported.stores.preferences[key]).toBe(value);
+      expect(exported.stores.preferences[key]).toEqual(value);
     }
 
     const snapshotRes = await fetch(`${server.url}/api/snapshots`, { method: 'POST' });
@@ -83,7 +96,7 @@ test('export, snapshot, wipe, restore round trip preserves all 18 new/promoted p
 
     const after = await (await fetch(`${server.url}/api/library`)).json();
     for (const [key, value] of Object.entries(NON_DEFAULT_PREFS)) {
-      expect(after.preferences[key]).toBe(value);
+      expect(after.preferences[key]).toEqual(value);
     }
     expect(after.preferences).toEqual(beforeWipe.preferences);
   } finally {

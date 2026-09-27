@@ -35,7 +35,9 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 } = require('../migrations.js');
+  // The v2 light themes (migrate_9_to_10's frozen list): a retired light theme must map to a light one.
+  const LIGHT_THEME_IDS = new Set(['clean-interface', 'radiant', 'daybreak', 'parchment', 'amberlight', 'rosequartz', 'cinderglass']);
 
   await test('migration chain: v1 fixture reaches the current schemaVersion', () => {
     const v1 = readFixture('schema-v1-library.json');
@@ -574,6 +576,75 @@ async function run() {
     assert.deepEqual(migratedTwice, migrated);
   });
 
+  // v3 Phase 4 (decision D2).
+  const v14With = (prefs) => {
+    const v13 = migrate_12_to_13(readFixture('schema-v12-library.json'));
+    const v14 = migrate_13_to_14(v13);
+    // The fixture carries a non-default text size and weight; start from the defaults.
+    const defaultSteps = { textSizeStep: 5, textWeightStep: 5, lineHeightStep: 5, letterSpacingStep: 5, densityStep: 5, radiusStep: 5, coverWidthStep: 5, animationStep: 5 };
+    return { ...v14, preferences: { ...v14.preferences, ...defaultSteps, ...prefs } };
+  };
+
+  await test('migration v14->v15 (D2): a default v2 look carries over exactly, with no notice', () => {
+    const before = v14With({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'preset', id: 'moonlit-shrine' }, background: { type: 'none', opacity: 0 } } });
+    const migrated = migrate_14_to_15(before);
+    assert.equal(migrated.schemaVersion, 15);
+    const p = migrated.preferences;
+    assert.deepEqual(p.appearanceV3, { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'preset', id: 'moonlit-shrine' } });
+    assert.deepEqual([p.textSize, p.density, p.motion, p.decoration, p.libraryLayout], [3, 'comfortable', 'full', 'full', 'grid']);
+    assert.deepEqual(p.savedViews, []);
+    assert.equal(p.appearanceNotice, null);
+    assert.deepEqual(migrated.entries, before.entries);
+  });
+
+  await test('migration v14->v15: every value goes to its nearest new equivalent, the old fields stay untouched, and the notice names what changed', () => {
+    const oldPrefs = {
+      appearance: { mode: 'system', light: { type: 'preset', id: 'radiant' }, dark: { type: 'preset', id: 'holo-deck' }, background: { type: 'grain', opacity: 30 } },
+      textSizeStep: 8, densityStep: 2, animationStep: 3, lineHeightStep: 7, radiusStep: 1, decor: 'on', decorationStep: 2,
+    };
+    const before = v14With(oldPrefs);
+    const snapshot = JSON.parse(JSON.stringify(before.preferences));
+    const p = migrate_14_to_15(before).preferences;
+    assert.deepEqual(p.appearanceV3, { mode: 'system', light: { type: 'preset', id: 'parchment' }, dark: { type: 'preset', id: 'frost' } });
+    assert.deepEqual([p.textSize, p.density, p.motion, p.decoration], [5, 'compact', 'reduced', 'low']);
+    for (const key of Object.keys(snapshot)) assert.deepEqual(p[key], snapshot[key], `old field ${key} changed`);
+    assert.deepEqual(p.appearanceNotice.changes, [
+      { kind: 'theme', slot: 'light', from: 'radiant', to: 'parchment' },
+      { kind: 'theme', slot: 'dark', from: 'holo-deck', to: 'frost' },
+      { kind: 'background', from: 'grain' },
+      { kind: 'approximated', keys: ['textSize', 'density', 'motion'] },
+      { kind: 'retired', keys: ['lineHeight', 'radius'] },
+    ]);
+    assert.equal(p.appearanceNotice.seenAt, null);
+  });
+
+  await test('migration v14->v15: a custom slot keeps its colours, Off stays off, and decor half becomes Low', () => {
+    const p = migrate_14_to_15(v14With({
+      appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'custom', accent: '#3ba55d', base: '#101820' }, background: { type: 'none', opacity: 0 } },
+      animationStep: 1, decor: 'half', textSizeStep: 2, densityStep: 3,
+    })).preferences;
+    assert.deepEqual(p.appearanceV3.dark, { type: 'custom', accent: '#3ba55d', base: '#101820' });
+    assert.deepEqual([p.textSize, p.density, p.motion, p.decoration], [1, 'compact', 'off', 'low']);
+    assert.equal(p.appearanceNotice, null, 'every one of those carried over exactly');
+  });
+
+  await test('migration v14->v15 is idempotent: a second run changes nothing, not even a dismissed notice', () => {
+    const once = migrate_14_to_15(v14With({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'preset', id: 'venom' } } }));
+    const seen = { ...once, preferences: { ...once.preferences, appearanceNotice: { ...once.preferences.appearanceNotice, seenAt: '2026-09-27T10:00:00.000Z' }, textSize: 4 } };
+    assert.deepEqual(migrate_14_to_15(seen), seen);
+  });
+
+  await test("migrate_14_to_15's frozen theme lists match themes.js's live curated set and retired map", async () => {
+    const themesUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'themes.js').replace(/\\/g, '/');
+    const { COLOR_THEMES, RETIRED_THEMES } = await import(themesUrl);
+    assert.deepEqual([...CURATED_THEME_IDS_AT_V15].sort(), COLOR_THEMES.map((t) => t.id).sort());
+    assert.deepEqual(RETIRED_THEME_MAP_AT_V15, Object.fromEntries(Object.entries(RETIRED_THEMES).map(([id, t]) => [id, t.to])));
+    const lightIds = new Set(COLOR_THEMES.filter((t) => t.light).map((t) => t.id));
+    for (const [from, to] of Object.entries(RETIRED_THEME_MAP_AT_V15)) {
+      assert.equal(lightIds.has(to), LIGHT_THEME_IDS.has(from), `${from} -> ${to} crosses light/dark`);
+    }
+  });
+
   // -------------------------------------------------------------------------
   // settingsSchema.js (public/js/settingsSchema.js) — the single typed
   // settings object (P1.3), pure/no-DOM, loaded via dynamic import().
@@ -617,8 +688,12 @@ async function run() {
     assert.equal(shaped.discoverHideOwned, true);
     assert.equal(shaped.adventurousnessEnabled, true);
     assert.equal(shaped.decorationStep, 5);
-    assert.equal(shaped.appearance.background.gradientColor1, null);
-    assert.equal(shaped.appearance.background.gradientColor2, null);
+    assert.deepEqual(shaped.appearanceV3, { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'preset', id: 'moonlit-shrine' } });
+    assert.equal(shaped.textSize, 3);
+    assert.equal(shaped.density, 'comfortable');
+    assert.equal(shaped.motion, 'full');
+    assert.equal(shaped.decoration, 'full');
+    assert.equal(shaped.appearanceNotice, null);
   });
 
   await test('ensureSettingsShape seeds decorationStep from the legacy decorDensity enum on first repair, then leaves an already-valid step untouched', () => {
@@ -627,13 +702,24 @@ async function run() {
     assert.equal(ensureSettingsShape({ decorDensity: 'many', decorationStep: 3 }).decorationStep, 3, 'an already-valid step is never re-derived from decorDensity again');
   });
 
-  await test('ensureSettingsShape repairs an invalid gradient colour back to null (auto/theme-derived), preserves a valid one', () => {
-    const invalid = ensureSettingsShape({ appearance: { background: { type: 'gradient', opacity: 40, gradientColor1: 'not-a-colour', gradientColor2: 123 } } });
-    assert.equal(invalid.appearance.background.gradientColor1, null);
-    assert.equal(invalid.appearance.background.gradientColor2, null);
-    const valid = ensureSettingsShape({ appearance: { background: { type: 'gradient', opacity: 40, gradientColor1: '#AABBCC', gradientColor2: '#112233' } } });
-    assert.equal(valid.appearance.background.gradientColor1, '#aabbcc');
-    assert.equal(valid.appearance.background.gradientColor2, '#112233');
+  await test('ensureSettingsShape keeps the v2 appearance exactly as stored (D2: old fields stay untouched), retired ids and all', () => {
+    const legacy = { mode: 'dark', light: { type: 'preset', id: 'radiant' }, dark: { type: 'preset', id: 'holo-deck' }, background: { type: 'grain', opacity: 40, gradientColor1: 'not-a-colour' } };
+    const shaped = ensureSettingsShape({ appearance: JSON.parse(JSON.stringify(legacy)) });
+    assert.deepEqual(shaped.appearance, legacy);
+  });
+
+  await test('ensureSettingsShape derives a missing appearanceV3 from the v2 appearance, retired themes mapped to their curated one', () => {
+    const shaped = ensureSettingsShape({ appearance: { mode: 'system', light: { type: 'preset', id: 'radiant' }, dark: { type: 'preset', id: 'holo-deck' } } });
+    assert.deepEqual(shaped.appearanceV3, { mode: 'system', light: { type: 'preset', id: 'parchment' }, dark: { type: 'preset', id: 'frost' } });
+  });
+
+  await test('ensureSettingsShape repairs the v15 controls to their defaults and keeps valid ones', () => {
+    const bad = ensureSettingsShape({ textSize: 9, density: 'roomy', motion: 'fast', decoration: 'lots', appearanceNotice: 'x' });
+    assert.deepEqual([bad.textSize, bad.density, bad.motion, bad.decoration, bad.appearanceNotice], [3, 'comfortable', 'full', 'full', null]);
+    const good = ensureSettingsShape({ textSize: 5, density: 'compact', motion: 'reduced', decoration: 'low' });
+    assert.deepEqual([good.textSize, good.density, good.motion, good.decoration], [5, 'compact', 'reduced', 'low']);
+    const notice = { version: 15, changes: [{ kind: 'theme', slot: 'dark', from: 'ember-x', to: 'ember' }], seenAt: null };
+    assert.deepEqual(ensureSettingsShape({ appearanceNotice: notice }).appearanceNotice, notice);
   });
 
   await test('ensureSettingsShape preserves an explicit adventurousnessEnabled: false rather than re-defaulting it to true', () => {
@@ -682,12 +768,8 @@ async function run() {
     assert.equal(shaped.titleLanguage, 'native');
     assert.equal(shaped.contentTier, 'madara');
     assert.equal(shaped.streamerMode, true);
-    assert.deepEqual(shaped.appearance, {
-      mode: 'system',
-      light: { type: 'preset', id: 'wisteria' },
-      dark: { type: 'custom', accent: '#3ba55d', base: null },
-      background: { type: 'gradient', opacity: 40, gradientColor1: null, gradientColor2: null },
-    });
+    assert.deepEqual(shaped.appearance, { mode: 'system', light: { type: 'preset', id: 'wisteria' }, dark: { type: 'custom', accent: '#3ba55d' }, background: { type: 'gradient', opacity: 40 } });
+    assert.deepEqual(shaped.appearanceV3, { mode: 'system', light: { type: 'preset', id: 'amethyst' }, dark: { type: 'custom', accent: '#3ba55d', base: null } });
     assert.equal(shaped.uiFont, 'inter');
     assert.equal(shaped.headingFont, 'bebas-neue');
     assert.equal(shaped.numbersFont, 'jetbrains-mono');
@@ -696,12 +778,10 @@ async function run() {
   });
 
   await test('ensureSettingsShape: a custom appearance slot\'s optional base color repairs an invalid value to null and preserves a valid one', () => {
-    const invalidBase = ensureSettingsShape({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'custom', accent: '#3ba55d', base: 'not-a-hex' }, background: { type: 'none', opacity: 0 } } });
-    assert.equal(invalidBase.appearance.dark.base, null);
-    const validBase = ensureSettingsShape({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'custom', accent: '#3ba55d', base: '#1A2B3C' }, background: { type: 'none', opacity: 0 } } });
-    assert.equal(validBase.appearance.dark.base, '#1a2b3c', 'lowercased, same as accent');
-    const missingBase = ensureSettingsShape({ appearance: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'custom', accent: '#3ba55d' }, background: { type: 'none', opacity: 0 } } });
-    assert.equal(missingBase.appearance.dark.base, null, 'a slot saved before this field existed defaults to null (auto-derive), not a crash');
+    const slotWith = (base) => ({ appearanceV3: { mode: 'dark', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'custom', accent: '#3ba55d', base } } });
+    assert.equal(ensureSettingsShape(slotWith('not-a-hex')).appearanceV3.dark.base, null);
+    assert.equal(ensureSettingsShape(slotWith('#1A2B3C')).appearanceV3.dark.base, '#1a2b3c', 'lowercased, same as accent');
+    assert.equal(ensureSettingsShape(slotWith(undefined)).appearanceV3.dark.base, null, 'a slot saved before this field existed defaults to null (auto-derive), not a crash');
   });
 
   await test('ensureSettingsShape preserves an unknown future field untouched (rule 13 forward-compatibility)', () => {
@@ -3248,7 +3328,8 @@ async function run() {
     // relative position the spec's own rule 4 text names explicitly ("then
     // the taste profile, then the airing store") — without relitigating
     // P1.2's own pre-existing airing-before-upcoming order.
-    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['recommendationsCache', 'tasteProfileCache', 'airingCache', 'upcomingCache', 'corpusCache']);
+    // v3 Phase 4 put the cover colours first: the cheapest to regenerate.
+    assert.deepEqual(CLASS_B_STORES.map((s) => s.id), ['coverHueCache', 'recommendationsCache', 'tasteProfileCache', 'airingCache', 'upcomingCache', 'corpusCache']);
   });
 
   await test('selectCorpusEvictionCandidates: never selects a library id, even when it has the lowest popularity', () => {
@@ -3425,98 +3506,6 @@ async function run() {
       const roundTripped = hex(hexToHsl(accentHex));
       assert.equal(roundTripped, accentHex, `${accentHex} round-tripped to ${roundTripped}`);
     }
-  });
-
-  // -------------------------------------------------------------------------
-  // appearanceExport.js (public/js/appearanceExport.js) — P6.1 task 120's
-  // import/export module. validateAppearance is deliberately strict
-  // (reject, never repair) — see that function's own header comment for why
-  // this is a different contract than settingsSchema.js's sanitizers.
-  // -------------------------------------------------------------------------
-  console.log('appearanceExport.js');
-  const appearanceExportUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'appearanceExport.js').replace(/\\/g, '/');
-  const { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } = await import(appearanceExportUrl);
-
-  const SAMPLE_PRESET_APPEARANCE = {
-    mode: 'system',
-    light: { type: 'preset', id: 'daybreak' },
-    dark: { type: 'preset', id: 'moonlit-shrine' },
-    background: { type: 'gradient', opacity: 40 },
-  };
-  const SAMPLE_CUSTOM_APPEARANCE = {
-    mode: 'dark',
-    light: { type: 'preset', id: 'daybreak' },
-    dark: { type: 'custom', accent: '#8a6fd8' },
-    background: { type: 'grain', opacity: 15 },
-  };
-
-  await test('buildAppearanceJSON returns the appearance object verbatim, no wrapping envelope', () => {
-    assert.equal(buildAppearanceJSON(SAMPLE_PRESET_APPEARANCE), SAMPLE_PRESET_APPEARANCE);
-  });
-
-  await test('encodeShortCode/decodeShortCode round-trip a preset-only appearance exactly', () => {
-    assert.deepEqual(decodeShortCode(encodeShortCode(SAMPLE_PRESET_APPEARANCE)), SAMPLE_PRESET_APPEARANCE);
-  });
-
-  await test('encodeShortCode/decodeShortCode round-trip a custom-accent appearance exactly', () => {
-    assert.deepEqual(decodeShortCode(encodeShortCode(SAMPLE_CUSTOM_APPEARANCE)), SAMPLE_CUSTOM_APPEARANCE);
-  });
-
-  await test('encodeShortCode produces a URL-safe string (no +, / or = characters)', () => {
-    const code = encodeShortCode(SAMPLE_CUSTOM_APPEARANCE);
-    assert.equal(/[+/=]/.test(code), false, `short code contains a non-URL-safe character: ${code}`);
-  });
-
-  await test('encodeShortCode/decodeShortCode round-trip a custom slot WITH a base colour exactly, and omit the key entirely when absent', () => {
-    const withBase = { ...SAMPLE_CUSTOM_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: '#2a1a4d' } };
-    assert.deepEqual(decodeShortCode(encodeShortCode(withBase)), withBase);
-    // No base at all (the common case, and every code generated before this
-    // field existed) must not gain a spurious `base: undefined` key that
-    // would fail a strict deepEqual against the original.
-    const roundTripped = decodeShortCode(encodeShortCode(SAMPLE_CUSTOM_APPEARANCE));
-    assert.equal('base' in roundTripped.dark, false, 'no base key at all, not even undefined, when the original slot never had one');
-  });
-
-  await test('decodeShortCode returns null for malformed input rather than throwing', () => {
-    assert.equal(decodeShortCode('not-valid-base64-or-json!!!'), null);
-    assert.equal(decodeShortCode(''), null);
-  });
-
-  await test('validateAppearance accepts every well-formed shape (preset, custom, every mode/background type)', () => {
-    assert.equal(validateAppearance(SAMPLE_PRESET_APPEARANCE), true);
-    assert.equal(validateAppearance(SAMPLE_CUSTOM_APPEARANCE), true);
-    for (const mode of ['light', 'dark', 'system']) {
-      assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, mode }), true);
-    }
-    for (const type of ['none', 'gradient', 'grain']) {
-      assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type, opacity: 0 } }), true);
-    }
-    // Post-2.2.0 feedback: gradientColor1/2 are optional — absent
-    // (predates this field) and explicitly null (never picked) both pass.
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40 } }), true);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: null, gradientColor2: null } }), true);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: '#aabbcc', gradientColor2: '#112233' } }), true);
-    // Post-2.2.2 feedback: a custom slot's own base colour is optional the
-    // same way — absent, explicitly null, or a real hex all pass.
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8' } }), true);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: null } }), true);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: '#2a1a4d' } }), true);
-  });
-
-  await test('validateAppearance rejects every malformed shape named in the spec (bad hex, unknown preset id, out-of-range opacity, bad mode/background type)', () => {
-    assert.equal(validateAppearance(null), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, mode: 'sideways' }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, light: { type: 'preset', id: 'not-a-real-theme' } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: 'not-a-hex' } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#12345' } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'sparkles', opacity: 0 } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 500 } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: -1 } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 'a lot' } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor1: 'not-a-hex' } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, background: { type: 'gradient', opacity: 40, gradientColor2: '#12345' } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: 'not-a-hex' } }), false);
-    assert.equal(validateAppearance({ ...SAMPLE_PRESET_APPEARANCE, dark: { type: 'custom', accent: '#8a6fd8', base: '#12345' } }), false);
   });
 
   // -------------------------------------------------------------------------

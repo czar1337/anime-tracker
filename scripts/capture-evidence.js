@@ -5,7 +5,10 @@
 // screenshot of each, and fails if a view throws, logs a console error, or shows
 // a list count without visible cards.
 //
-//   node scripts/capture-evidence.js <phase>      -> docs/v3-evidence/<phase>/
+//   node scripts/capture-evidence.js <phase> [--theme <id>]  -> docs/v3-evidence/<phase>/
+//
+// --theme picks a curated theme (a light one is placed in the light slot and
+// light mode); its screenshots carry the theme id in their names.
 
 const path = require('node:path');
 const fs = require('node:fs');
@@ -13,6 +16,9 @@ const { chromium } = require('playwright-core');
 const { startFixtureServer } = require('../tests/e2e/harness.js');
 
 const phase = process.argv[2] || 'scratch';
+const themeArg = process.argv.indexOf('--theme');
+const THEME = themeArg > 0 ? process.argv[themeArg + 1] : null;
+const LIGHT_THEMES = ['daybreak', 'parchment', 'rosequartz'];
 const OUT = path.join(__dirname, '..', 'docs', 'v3-evidence', phase);
 
 const GENRES = ['Action', 'Drama', 'Comedy', 'Romance', 'Mystery', 'Fantasy', 'Slice of Life', 'Sci-Fi'];
@@ -54,7 +60,12 @@ function library() {
       relatedIds: [],
     };
   });
-  return { schemaVersion: 14, entries, preferences: { coldStartSkipped: true } };
+  const preferences = { coldStartSkipped: true };
+  if (THEME) {
+    const light = LIGHT_THEMES.includes(THEME);
+    preferences.appearanceV3 = { mode: light ? 'light' : 'dark', light: { type: 'preset', id: light ? THEME : 'daybreak' }, dark: { type: 'preset', id: light ? 'moonlit-shrine' : THEME } };
+  }
+  return { schemaVersion: 15, entries, preferences };
 }
 
 function corpus() {
@@ -81,11 +92,19 @@ function corpus() {
 }
 
 const VIEWS = [
-  { name: 'watching', tab: 'watching', ready: '#grid .card' },
-  { name: 'watched', tab: 'watched', ready: '#grid .card' },
+  { name: 'home', tab: 'home', ready: '#home-view > *' },
+  { name: 'watching', tab: 'library', list: 'watching', ready: '#grid .card' },
+  { name: 'watched', tab: 'library', list: 'watched', ready: '#grid .card' },
   { name: 'schedule', tab: 'schedule', ready: '.schedule-day' },
   { name: 'discover', tab: 'discover', ready: '.discover-card, .shelf-empty' },
   { name: 'stats', tab: 'stats', ready: '.home-stats, .stats-hero' },
+];
+
+// v3 Phase 4: the overlays, opened from the Library and closed again.
+const OVERLAYS = [
+  { name: 'detail', open: (page) => page.click('#grid .card [data-action="show-detail"]'), ready: '#detail-overlay[open] .detail-banner' },
+  { name: 'settings', open: (page) => page.click('#settings-trigger'), ready: '#settings-overlay[open] .themegrid' },
+  { name: 'palette', open: (page) => page.keyboard.press('Control+k'), ready: '#palette-overlay[open] .palette-list' },
 ];
 
 async function main() {
@@ -108,7 +127,16 @@ async function main() {
         const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 900 }, reducedMotion });
         const page = await context.newPage();
         // No network: AniList calls answer empty, so the check is deterministic.
-        await page.route('https://graphql.anilist.co/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{"Page":{"media":[]}}}' }));
+        // The detail query gets the synthetic series back, so the drawer shows
+        // its real layout.
+        const byId = new Map(library().entries.map((e) => [e.anilistId, e]));
+        await page.route('https://graphql.anilist.co/**', (route) => {
+          const body = route.request().postDataJSON?.() || {};
+          const entry = byId.get(body.variables?.id);
+          if (!entry || !(body.query || '').includes('Media(id')) return route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{"Page":{"media":[]}}}' });
+          const media = { id: entry.anilistId, title: { romaji: entry.titleRomaji, english: entry.titleEnglish, native: null }, description: 'A quiet, patient series about the people left behind after a long journey ends.', coverImage: { large: null, color: '#6b8fd6' }, bannerImage: null, genres: entry.genres, averageScore: entry.averageScore, popularity: entry.popularity, favourites: 100, format: entry.format, status: 'FINISHED', episodes: entry.totalEpisodes, duration: entry.duration, source: 'MANGA', startDate: { year: entry.year }, endDate: { year: entry.year }, studios: { nodes: [] }, relations: { edges: [] } };
+          return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { Media: media } }) });
+        });
         const label = `${width}-${reducedMotion === 'reduce' ? 'reduced' : 'motion'}`;
         page.on('pageerror', (e) => problems.push(`${label}: page error: ${e.message}`));
         page.on('console', (m) => {
@@ -117,14 +145,10 @@ async function main() {
         await page.goto(server.url);
         await page.waitForSelector('#grid .card');
         for (const view of VIEWS) {
-          const tab = page.locator(`[data-tab="${view.tab}"]`);
-          if (await tab.isVisible()) {
-            await tab.click();
-          } else {
-            // Narrow screens put the tabs behind the navigation menu.
-            await page.click('#nav-hamburger');
-            await page.click(`#nav-menu-list [data-nav-menu="${view.tab}"]`);
-          }
+          // The section tabs are in the header, or the bottom tab bar on
+          // narrow screens; a list is a segment inside Library.
+          await page.click(`[data-tab="${view.tab}"]`);
+          if (view.list) await page.click(`[data-list="${view.list}"]`);
           await page.waitForSelector(view.ready, { timeout: 8000 }).catch(() => problems.push(`${label}/${view.name}: never became ready (${view.ready})`));
           await page.waitForTimeout(reducedMotion === 'reduce' ? 150 : 900);
       // Content that arrives late (Discover builds its shelves after opening)
@@ -134,7 +158,18 @@ async function main() {
         .catch(() => {});
           const hidden = await page.$$eval('.card, .discover-card, .schedule-day', (els) => els.filter((el) => el.offsetParent && Number(getComputedStyle(el).opacity) < 0.99).length);
           if (hidden > 0) problems.push(`${label}/${view.name}: ${hidden} card(s) not fully visible`);
-          await page.screenshot({ path: path.join(OUT, `${view.name}-${label}.png`), fullPage: false });
+          await page.screenshot({ path: path.join(OUT, `${view.name}-${label}${THEME ? `-${THEME}` : ''}.png`), fullPage: false });
+        }
+        await page.click('[data-tab="library"]');
+        await page.click('[data-list="watching"]');
+        await page.waitForSelector('#grid .card');
+        for (const overlay of OVERLAYS) {
+          await overlay.open(page);
+          await page.waitForSelector(overlay.ready, { timeout: 8000 }).catch(() => problems.push(`${label}/${overlay.name}: never became ready (${overlay.ready})`));
+          await page.waitForTimeout(reducedMotion === 'reduce' ? 150 : 700);
+          await page.screenshot({ path: path.join(OUT, `${overlay.name}-${label}${THEME ? `-${THEME}` : ''}.png`), fullPage: false });
+          await page.keyboard.press('Escape');
+          await page.waitForFunction(() => !document.querySelector('dialog.overlay[open]'), null, { timeout: 5000 }).catch(() => problems.push(`${label}/${overlay.name}: did not close`));
         }
         await context.close();
       }
@@ -144,7 +179,7 @@ async function main() {
     await server.stop();
   }
   const report = problems.length ? problems.join('\n') : 'No problems: every view rendered, no page or console errors, all cards fully visible.';
-  fs.writeFileSync(path.join(OUT, 'browser-check.txt'), `${new Date().toISOString()}\n${report}\n`);
+  fs.writeFileSync(path.join(OUT, THEME ? `browser-check-${THEME}.txt` : 'browser-check.txt'), `${new Date().toISOString()}\n${report}\n`);
   console.log(report);
   process.exitCode = problems.length ? 1 : 0;
 }

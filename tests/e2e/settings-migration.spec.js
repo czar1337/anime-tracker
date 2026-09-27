@@ -12,6 +12,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { CURRENT_SCHEMA_VERSION } = require('../../migrations.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'schema-v4-library.json');
 
@@ -25,7 +26,7 @@ test('boot against a v4 fixture migrates to CURRENT_SCHEMA_VERSION, defaults eve
   const server = await startFixtureServer(FIXTURE);
   try {
     const data = await (await fetch(`${server.url}/api/library`)).json();
-    expect(data.schemaVersion).toBe(14);
+    expect(data.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     // P5B.3: the Advanced Filters panel's own discoverFilters object,
     // every field defaulting to today's exact behavior.
     expect(data.preferences.discoverFilters).toMatchObject({
@@ -111,7 +112,7 @@ test('PUT /api/library migrates an old-schemaVersion body before writing', async
     });
     expect(putRes.status).toBe(200);
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(14);
+    expect(after.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(after.dismissedItems).toEqual([{ anilistId: 777, title: null, coverImage: null }]);
     expect(after.preferences.appearance.dark).toEqual({ type: 'preset', id: 'moonlit-shrine' });
   } finally {
@@ -151,7 +152,7 @@ test('legacy backup restore migrates an old-schemaVersion backup file before wri
     });
     expect(res.status).toBe(200);
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(14);
+    expect(after.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(after.preferences.textSizeStep).toBe(5);
   } finally {
     await server.stop();
@@ -205,10 +206,10 @@ test('snapshot restore migrates an old-schemaVersion snapshot after restoring an
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.verified).toBe(true);
-    expect(body.migratedTo).toBe(14);
+    expect(body.migratedTo).toBe(CURRENT_SCHEMA_VERSION);
 
     const after = await (await fetch(`${server.url}/api/library`)).json();
-    expect(after.schemaVersion).toBe(14);
+    expect(after.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     // P1.7: this snapshot predates tags/customLists entirely (P1.6's
     // skipped-store restore), so migrate_5_to_6 is what defaults them and
     // backfills the per-entry membership arrays — same as booting a bare

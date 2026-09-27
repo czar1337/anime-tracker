@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 14;
+const CURRENT_SCHEMA_VERSION = 15;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -444,7 +444,100 @@ function migrate_13_to_14(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12, 12: migrate_12_to_13, 13: migrate_13_to_14 };
+// v3 Phase 4 (decision D2): 53 themes become 12 curated ones plus Custom, and
+// the eight typography sliders become Text size (5 steps), Density, Motion and
+// Decoration. Additive: the new fields are computed from the old ones by
+// nearest match and the old fields stay in the file untouched, so a downgrade
+// still reads them. Anything that could not carry over exactly is listed in
+// `appearanceNotice`, which the app shows once.
+//
+// Frozen snapshots as of this migration (public/js/themes.js holds the live
+// copies; a unit test pins the two together).
+const CURATED_THEME_IDS_AT_V15 = new Set(['moonlit-shrine', 'ember', 'solar', 'jade', 'frost', 'cobalt', 'amethyst', 'bloom', 'obsidian', 'daybreak', 'parchment', 'rosequartz']);
+const RETIRED_THEME_MAP_AT_V15 = {
+  'crow-feather': 'moonlit-shrine', 'crimson-core': 'moonlit-shrine', 'blood-moon': 'ember', eclipse: 'bloom', rogue: 'moonlit-shrine',
+  nightshade: 'bloom', mystic: 'amethyst', phantom: 'bloom', venom: 'amethyst', sunflare: 'solar', copper: 'ember', radiant: 'parchment',
+  verdant: 'jade', viridian: 'jade', 'moss-shrine': 'jade', cedar: 'jade', 'glacial-rift': 'frost', 'holo-deck': 'frost', tidal: 'frost',
+  'deep-sea': 'cobalt', 'clean-interface': 'daybreak', 'arcane-ward': 'amethyst', nebula: 'amethyst', 'indigo-night': 'amethyst',
+  celestial: 'cobalt', wisteria: 'amethyst', inferno: 'ember', wildfire: 'ember', aurora: 'solar', void: 'obsidian', storm: 'frost',
+  static: 'obsidian', wraith: 'obsidian', ashen: 'obsidian', 'olive-grove': 'solar', amberlight: 'parchment', marigold: 'solar',
+  abyssal: 'cobalt', 'orchid-veil': 'bloom', seafoam: 'jade', cinderglass: 'rosequartz',
+};
+// Old 1-10 text-size step -> new 1-5 size, by nearest font scale
+// (old .82 .87 .91 .95 1 1.06 1.12 1.19 1.27 1.35; new .87 .94 1 1.1 1.22).
+const TEXT_SIZE_FROM_STEP_AT_V15 = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 4, 8: 5, 9: 5, 10: 5 };
+const EXACT_TEXT_SIZE_STEPS_AT_V15 = new Set([2, 5]);
+const RETIRED_SLIDER_KEYS_AT_V15 = ['textWeightStep', 'lineHeightStep', 'letterSpacingStep', 'radiusStep', 'coverWidthStep'];
+
+function stepOr(value, fallback) {
+  return Number.isInteger(value) && value >= 1 && value <= 10 ? value : fallback;
+}
+
+function curatedSlot(slot, fallbackId) {
+  if (slot && slot.type === 'custom' && typeof slot.accent === 'string') return { type: 'custom', accent: slot.accent, base: typeof slot.base === 'string' ? slot.base : null };
+  const id = slot && slot.type === 'preset' && typeof slot.id === 'string' ? slot.id : fallbackId;
+  if (CURATED_THEME_IDS_AT_V15.has(id)) return { type: 'preset', id };
+  return { type: 'preset', id: RETIRED_THEME_MAP_AT_V15[id] || fallbackId };
+}
+
+function migrate_14_to_15(data) {
+  const out = { ...data };
+  out.schemaVersion = 15;
+  const before = out.preferences || {};
+  // Idempotent: a second run leaves the v15 fields exactly as they are.
+  if (before.appearanceV3 && typeof before.appearanceV3 === 'object') return out;
+
+  const appearance = before.appearance && typeof before.appearance === 'object' ? before.appearance : {};
+  const mode = ['light', 'dark', 'system'].includes(appearance.mode) ? appearance.mode : 'dark';
+  const appearanceV3 = { mode, light: curatedSlot(appearance.light, 'daybreak'), dark: curatedSlot(appearance.dark, 'moonlit-shrine') };
+
+  const textSizeStep = stepOr(before.textSizeStep, 5);
+  const densityStep = stepOr(before.densityStep, 5);
+  const animationStep = stepOr(before.animationStep, 5);
+  const decorDensitySeed = { few: 2, normal: 5, many: 8 }[before.decorDensity];
+  const decorationStep = stepOr(before.decorationStep, decorDensitySeed || 5);
+  const decor = ['on', 'half', 'off'].includes(before.decor) ? before.decor : 'on';
+
+  const textSize = TEXT_SIZE_FROM_STEP_AT_V15[textSizeStep];
+  const density = densityStep <= 3 ? 'compact' : 'comfortable';
+  const motion = animationStep === 1 ? 'off' : animationStep <= 3 ? 'reduced' : 'full';
+  const decoration = decor === 'off' ? 'off' : decor === 'half' || decorationStep <= 3 ? 'low' : 'full';
+
+  const changes = [];
+  for (const slotKey of ['light', 'dark']) {
+    const slot = appearance[slotKey];
+    if (slot && slot.type === 'preset' && RETIRED_THEME_MAP_AT_V15[slot.id]) {
+      changes.push({ kind: 'theme', slot: slotKey, from: slot.id, to: RETIRED_THEME_MAP_AT_V15[slot.id] });
+    }
+  }
+  const backgroundType = appearance.background && appearance.background.type;
+  if (backgroundType === 'gradient' || backgroundType === 'grain') changes.push({ kind: 'background', from: backgroundType });
+  const approximated = [];
+  if (!EXACT_TEXT_SIZE_STEPS_AT_V15.has(textSizeStep)) approximated.push('textSize');
+  if (densityStep !== 3 && densityStep !== 5) approximated.push('density');
+  if (animationStep !== 1 && animationStep !== 5) approximated.push('motion');
+  if (approximated.length) changes.push({ kind: 'approximated', keys: approximated });
+  const retired = RETIRED_SLIDER_KEYS_AT_V15.filter((key) => stepOr(before[key], 5) !== 5).map((key) => key.replace(/Step$/, ''));
+  if (retired.length) changes.push({ kind: 'retired', keys: retired });
+
+  out.preferences = {
+    ...before,
+    appearanceV3,
+    textSize,
+    density,
+    motion,
+    decoration,
+    libraryLayout: before.libraryLayout === 'list' ? 'list' : 'grid',
+    savedViews: Array.isArray(before.savedViews) ? before.savedViews : [],
+    appearanceNotice: changes.length ? { version: 15, changes, seenAt: null } : null,
+  };
+  if ((data.entries || []).length !== (out.entries || []).length) {
+    throw new Error('migrate_14_to_15 must not change the entry count');
+  }
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12, 12: migrate_12_to_13, 13: migrate_13_to_14, 14: migrate_14_to_15 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -471,4 +564,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, MIGRATIONS, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_2_to_3, migrate_3_to_4, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14 };
+module.exports = { CURRENT_SCHEMA_VERSION, MIGRATIONS, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_2_to_3, migrate_3_to_4, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 };

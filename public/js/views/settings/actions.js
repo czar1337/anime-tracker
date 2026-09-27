@@ -1,7 +1,10 @@
-// Settings panel actions (v3 Phase 2: moved from events.js unchanged). The
-// shared app plumbing they call (persist, confirm dialog, setting-change
-// events, overlays, refresh) is handed in by events.js through
-// bindSettingsActions(context).
+// Settings drawer actions (v3 Phase 4). The shared app plumbing they call
+// (persist, confirm dialog, setting-change events, overlays, refresh) is
+// handed in by events.js through bindSettingsActions(context).
+//
+// Every change updates the Store and the page, then repaints with morphInto
+// (view.js), which patches the existing nodes: nothing here restores scroll
+// or focus by hand.
 
 import { Store } from '../../state.js';
 import { Api } from '../../api.js';
@@ -12,11 +15,23 @@ import { Preferences } from '../../preferences.js';
 import { Atmosphere } from '../../atmosphere.js';
 import { BackupClient } from '../../backupClient.js';
 import { EventLog } from '../../eventLog.js';
-import { copy } from '../../copy.js';
-import { LISTS_AND_TAGS } from '../../../../config/tuning.js';
-import { SLIDER_KEYS, DEFAULT_STEP, computeSliderTokens } from '../../typographySliders.js';
-import { buildAppearanceJSON, encodeShortCode, decodeShortCode, validateAppearance } from '../../appearanceExport.js';
-import { triggerDownload } from '../../download.js';
+import { copy, setCopyTier } from '../../copy.js';
+import { LISTS_AND_TAGS, UI_TIMING } from '../../../../config/tuning.js';
+import { registerCommand, registerCommandProvider } from '../../core/commands.js';
+import { bindRovingTablist } from '../../core/focus.js';
+import {
+  renderSettingsPanel,
+  setSettingsSection,
+  getSettingsSection,
+  setFontSearchDraft,
+  toggleSettingsNewTagForm,
+  setSettingsNewTagColor,
+  getSettingsNewTagColor,
+  setSettingsNewTagName,
+  toggleSettingsNewListForm,
+  toggleManagerListExpanded,
+  appearanceNoticeLines,
+} from './view.js';
 
 let ctx = null;
 const beginSettingGesture = (...args) => ctx.beginSettingGesture(...args);
@@ -30,16 +45,8 @@ const refreshGridOnly = (...args) => ctx.refreshGridOnly(...args);
 const refreshView = (...args) => ctx.refreshView(...args);
 const restoreCopyFor = (...args) => ctx.restoreCopyFor(...args);
 
-// The bootstrap inline script in index.html already applies the saved (or
-// default) color theme/text-size/text-weight/decor before first paint —
-// this wires up the Settings panel to change any of them afterward, same
-// as the old theme-only picker did for just the theme.
-// Cached separately from the rest of the settings panel because it loads
-// async (a fetch) while everything else in the panel is synchronous local
-// state — without a cache, every unrelated click in the panel (a theme
-// swatch, a text-size step) would rebuild the whole panel via
-// renderSettingsPanel() and flash "Loading…" in the snapshot section on every
-// one of them, refetching for no reason.
+// The snapshot list loads asynchronously and is painted into its own <ul>,
+// which the view marks with data-morph-key so a repaint leaves it alone.
 let cachedSnapshots = null;
 
 function paintSnapshotList() {
@@ -59,66 +66,128 @@ async function refreshSnapshotList() {
   paintSnapshotList();
 }
 
+const SETTING_APPLIERS = {
+  textSize: (v) => Preferences.setTextSize(v),
+  density: (v) => Preferences.setDensity(v),
+  motion: (v) => Preferences.setMotion(v),
+  decoration: (v) => {
+    Preferences.setDecoration(v);
+    Atmosphere.resyncDensity();
+  },
+  originalTitles: (v) => {
+    Preferences.setOriginalTitlesMode(v);
+    Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
+  },
+};
+
 export function bindSettingsActions(context) {
   ctx = context;
   const body = document.getElementById('settings-body');
+  let tablistBound = false;
 
-  // Every renderSettingsPanel() call below rebuilds the whole panel from
-  // scratch (see that function's own comment on scroll restoration) — this
-  // repaints the snapshot section from the cache right after, so it doesn't
-  // fall back to a bare "Loading…" placeholder on every unrelated click.
-  // Reads the live appearance straight off Store rather than taking a
-  // parameter, so every one of this function's ~20 call sites (most
-  // unrelated to theming) doesn't need to know or care about it.
   function repaintSettings() {
-    Render.renderSettingsPanel(body, Store.state.preferences.appearance);
-    paintSnapshotList();
+    renderSettingsPanel(body, Store.state.preferences);
+    if (!tablistBound) {
+      tablistBound = true;
+      bindRovingTablist(body.querySelector('.settings-nav'));
+    }
   }
 
-  // Persists the current appearance, logs it, applies it live, and
-  // repaints — the one path every appearance-changing action below ends
-  // in, mirroring how the plain .seg handler further down does the same
-  // for decor/decorDensity/originalTitles.
-  function commitAppearance(nextAppearance) {
-    const before = Store.state.preferences.appearance;
-    Store.setPreference(['appearance'], nextAppearance);
-    recordSettingChange('appearance', before, nextAppearance);
-    Themes.applyAppearance(nextAppearance);
+  // Applies, stores, logs and persists one appearance change.
+  function commitAppearance(next) {
+    const before = Store.state.preferences.appearanceV3;
+    Store.setPreference(['appearanceV3'], next);
+    recordSettingChange('appearanceV3', before, next);
+    Themes.applyAppearance(next);
+    persist();
+    repaintSettings();
+  }
+  const appearance = () => Store.state.preferences.appearanceV3;
+
+  function commitSetting(key, value) {
+    const before = Store.state.preferences[key];
+    if (before === value) return;
+    SETTING_APPLIERS[key](value);
+    Store.setPreference([key], value);
+    recordSettingChange(key, before, value);
     persist();
     repaintSettings();
   }
 
-  document.getElementById('theme-toggle').addEventListener('click', () => {
-    openOverlay('theme-picker-overlay');
+  function openSettings(section) {
+    if (section) setSettingsSection(section);
+    openOverlay('settings-overlay');
     repaintSettings();
     refreshSnapshotList();
-  });
+  }
+  registerCommand({ id: 'settings.open', title: copy('command.settings'), section: 'settings', keywords: 'preferences options appearance', run: () => openSettings() });
+  registerCommand({ id: 'theme.open', title: copy('command.theme'), section: 'settings', keywords: 'colour color appearance dark light', run: () => openSettings('appearance') });
+  // "Theme: …" in the palette: a light theme goes in the light slot, a dark
+  // one in the dark slot, and the mode follows unless it tracks the system.
+  registerCommandProvider(() =>
+    Themes.COLOR_THEMES.map((t) => ({
+      title: copy('command.themeNamed', undefined, { name: t.name }),
+      section: 'settings',
+      keywords: 'theme colour color',
+      run: () => {
+        const a = appearance();
+        const slot = t.light ? 'light' : 'dark';
+        commitAppearance({ ...a, mode: a.mode === 'system' ? 'system' : slot, [slot]: { type: 'preset', id: t.id } });
+      },
+    }))
+  );
+
+  // The one-time notice after the D2 migration: a toast at boot that opens the
+  // Appearance section, where the notice lists what changed until dismissed.
+  const notice = Store.state.preferences.appearanceNotice;
+  // Shown once (toastShownAt); the list stays in Settings until dismissed.
+  if (notice && !notice.seenAt && !notice.toastShownAt) {
+    Store.setPreference(['appearanceNotice'], { ...notice, toastShownAt: new Date().toISOString() });
+    persist();
+    Render.showToast(copy('settings.notice.toast', undefined, { n: appearanceNoticeLines(notice).length }), {
+      actionLabel: copy('settings.notice.toastAction'),
+      onAction: () => openSettings('appearance'),
+      duration: UI_TIMING.appearanceNoticeToastMs,
+      trackUndo: false,
+    });
+  }
 
   body.addEventListener('click', async (e) => {
+    const tab = e.target.closest('[data-settings-section]');
+    if (tab) {
+      setSettingsSection(tab.dataset.settingsSection);
+      repaintSettings();
+      tab.focus();
+      return;
+    }
+    if (e.target.closest('[data-action="dismiss-appearance-notice"]')) {
+      const current = Store.state.preferences.appearanceNotice;
+      Store.setPreference(['appearanceNotice'], { ...current, seenAt: new Date().toISOString() });
+      persist();
+      repaintSettings();
+      body.querySelector('#settings-tab-appearance')?.focus();
+      return;
+    }
     if (e.target.closest('[data-action="redo-cold-start"]')) {
       openColdStartOnboarding();
       return;
     }
     const themeBtn = e.target.closest('[data-action="pick-theme"]');
     if (themeBtn) {
-      const slotKey = themeBtn.dataset.slot;
-      const appearance = Store.state.preferences.appearance;
-      commitAppearance({ ...appearance, [slotKey]: { type: 'preset', id: themeBtn.dataset.themeId } });
+      commitAppearance({ ...appearance(), [themeBtn.dataset.slot]: { type: 'preset', id: themeBtn.dataset.themeId } });
       return;
     }
     const customTile = e.target.closest('[data-action="pick-custom"]');
     if (customTile) {
       const slotKey = customTile.dataset.slot;
-      const appearance = Store.state.preferences.appearance;
-      const existing = appearance[slotKey].type === 'custom' ? appearance[slotKey] : null;
-      commitAppearance({ ...appearance, [slotKey]: { type: 'custom', accent: existing?.accent || '#8a6fd8', base: existing?.base || null } });
+      const existing = appearance()[slotKey].type === 'custom' ? appearance()[slotKey] : null;
+      commitAppearance({ ...appearance(), [slotKey]: { type: 'custom', accent: existing?.accent || '#8a6fd8', base: existing?.base || null } });
       return;
     }
     const randomBtn = e.target.closest('[data-action="random-theme"]');
     if (randomBtn) {
       const slotKey = randomBtn.dataset.slot;
-      const appearance = Store.state.preferences.appearance;
-      commitAppearance({ ...appearance, [slotKey]: Themes.randomThemeForSlot(slotKey === 'light') });
+      commitAppearance({ ...appearance(), [slotKey]: Themes.randomThemeForSlot(slotKey === 'light') });
       return;
     }
     const eyedropBtn = e.target.closest('[data-action="eyedrop-accent"]');
@@ -126,139 +195,33 @@ export function bindSettingsActions(context) {
       const slotKey = eyedropBtn.dataset.slot;
       try {
         const result = await new window.EyeDropper().open();
-        const appearance = Store.state.preferences.appearance;
-        // Preserves an existing base override — the eyedropper only ever
-        // picks the accent, so a background color the user already
-        // customized separately shouldn't silently reset just because
-        // they re-picked the accent with the eyedropper.
-        const existingBase = appearance[slotKey].type === 'custom' ? appearance[slotKey].base : null;
-        commitAppearance({ ...appearance, [slotKey]: { type: 'custom', accent: result.sRGBHex, base: existingBase } });
+        // The eyedropper picks the accent only; a background colour chosen
+        // separately stays.
+        const a = appearance();
+        const existingBase = a[slotKey].type === 'custom' ? a[slotKey].base : null;
+        commitAppearance({ ...a, [slotKey]: { type: 'custom', accent: result.sRGBHex, base: existingBase } });
       } catch {
-        // User cancelled the eyedropper (Esc, or clicked away) — no-op,
-        // same as cancelling any other picker in this app.
+        // Cancelled (Esc or a click away): nothing to do.
       }
       return;
     }
     const resetBaseBtn = e.target.closest('[data-action="reset-custom-base"]');
     if (resetBaseBtn) {
       const slotKey = resetBaseBtn.dataset.slot;
-      const appearance = Store.state.preferences.appearance;
-      commitAppearance({ ...appearance, [slotKey]: { ...appearance[slotKey], base: null } });
-      return;
-    }
-
-    if (e.target.closest('[data-action="reset-background-gradient-colors"]')) {
-      const appearance = Store.state.preferences.appearance;
-      commitAppearance({ ...appearance, background: { ...appearance.background, gradientColor1: null, gradientColor2: null } });
-      return;
-    }
-
-    if (e.target.closest('[data-action="export-appearance-json"]')) {
-      const stamp = new Date().toISOString().slice(0, 10);
-      const blob = new Blob([JSON.stringify(buildAppearanceJSON(Store.state.preferences.appearance), null, 2)], { type: 'application/json' });
-      triggerDownload(blob, `anime-tracker-appearance-${stamp}.json`);
-      return;
-    }
-    if (e.target.closest('[data-action="export-appearance-code"]')) {
-      const output = document.getElementById('appearance-shortcode-output');
-      if (output) output.value = encodeShortCode(Store.state.preferences.appearance);
-      return;
-    }
-    if (e.target.closest('[data-action="import-appearance-file"]')) {
-      document.getElementById('import-appearance-file-input')?.click();
-      return;
-    }
-    if (e.target.closest('[data-action="copy-appearance-code"]')) {
-      const output = document.getElementById('appearance-shortcode-output');
-      if (output?.value && navigator.clipboard) {
-        navigator.clipboard.writeText(output.value).then(() => Render.showToast('Short code copied to clipboard.'));
-      }
-      return;
-    }
-    if (e.target.closest('[data-action="import-appearance-code"]')) {
-      const input = document.getElementById('appearance-import-code-input');
-      const code = input?.value.trim();
-      if (!code) return;
-      const decoded = decodeShortCode(code);
-      if (!decoded || !validateAppearance(decoded)) {
-        Render.showToast('That short code is not valid.');
-        return;
-      }
-      commitAppearance(decoded);
+      commitAppearance({ ...appearance(), [slotKey]: { ...appearance()[slotKey], base: null } });
       return;
     }
 
     const fontBtn = e.target.closest('.font-grid button');
     if (fontBtn) {
-      // Post-2.2.0 feedback: one site-wide font instead of independent
-      // ui/heading/numbers slots — the grid's own internal slot key stays
-      // 'ui' (render.js's own comment explains why), but the preference
-      // field, setter and recorded event all use the real, current name.
       const fontId = fontBtn.dataset.fontId;
       Preferences.setSiteFont(fontId);
       const before = Store.state.preferences.siteFont;
       Store.setPreference(['siteFont'], fontId);
       recordSettingChange('siteFont', before, fontId);
-      // font_previewed: fires once per distinct selection (not on every
-      // render/hover) — the spec's own "emit on preview" trigger, since
-      // trying a font in this picker IS the preview.
+      // font_previewed: once per distinct selection, since trying a font in
+      // this picker is the preview.
       if (before !== fontId) EventLog.record('font_previewed', { meta: { slot: 'site', fontId } });
-      persist();
-      repaintSettings();
-      return;
-    }
-
-    // P3.2: the weight slider collapsed to the current UI font's own
-    // discrete weights (fewer than 4 real weights available).
-    const weightOptionBtn = e.target.closest('[data-slider-weight-option]');
-    if (weightOptionBtn) {
-      // The collapsed UI still stores a 1-10 step (the schema doesn't
-      // change), so a click picks whichever step's own derivation lands
-      // closest to the chosen weight — render.js's sliderRowHtml already
-      // did this same nearest-match work to decide which button shows
-      // `.on`, so this just re-derives the same step from the same
-      // formula rather than inventing a second mapping.
-      const chosenWeight = Number(weightOptionBtn.dataset.sliderWeightOption);
-      let bestStep = 1;
-      let bestDiff = Infinity;
-      for (let step = 1; step <= 10; step++) {
-        const diff = Math.abs(Number(computeSliderTokens('textWeight', step)['--w-body']) - chosenWeight);
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          bestStep = step;
-        }
-      }
-      Preferences.setSliderStep('textWeight', bestStep);
-      const before = Store.state.preferences.textWeightStep;
-      Store.setPreference(['textWeightStep'], bestStep);
-      recordSettingChange('textWeightStep', before, bestStep);
-      persist();
-      repaintSettings();
-      return;
-    }
-
-    const sliderResetBtn = e.target.closest('[data-slider-reset]');
-    if (sliderResetBtn) {
-      const key = sliderResetBtn.dataset.sliderReset;
-      Preferences.setSliderStep(key, DEFAULT_STEP);
-      const prefKey = `${key}Step`;
-      const before = Store.state.preferences[prefKey];
-      Store.setPreference([prefKey], DEFAULT_STEP);
-      recordSettingChange(prefKey, before, DEFAULT_STEP);
-      persist();
-      repaintSettings();
-      return;
-    }
-
-    const resetAllBtn = e.target.closest('[data-action="reset-all-sliders"]');
-    if (resetAllBtn) {
-      for (const key of SLIDER_KEYS) {
-        Preferences.setSliderStep(key, DEFAULT_STEP);
-        const prefKey = `${key}Step`;
-        const before = Store.state.preferences[prefKey];
-        Store.setPreference([prefKey], DEFAULT_STEP);
-        recordSettingChange(prefKey, before, DEFAULT_STEP);
-      }
       persist();
       repaintSettings();
       return;
@@ -279,8 +242,7 @@ export function bindSettingsActions(context) {
       return;
     }
 
-    const downloadBtn = e.target.closest('#download-export-btn');
-    if (downloadBtn) {
+    if (e.target.closest('#download-export-btn')) {
       try {
         await BackupClient.downloadExport();
       } catch (err) {
@@ -301,9 +263,10 @@ export function bindSettingsActions(context) {
             const restoreResult = await BackupClient.restoreSnapshot(file);
             const { data, etag } = await Api.getLibrary();
             Store.setLibrary(data, etag);
-            Preferences.syncFromLibrary(data.preferences);
-            setCopyTier(data.preferences.contentTier);
+            Preferences.syncFromLibrary(Store.state.preferences);
+            setCopyTier(Store.state.preferences.contentTier);
             refreshView();
+            repaintSettings();
             await refreshSnapshotList();
             Render.showToast(restoreCopyFor(restoreResult));
           } catch (err) {
@@ -314,8 +277,7 @@ export function bindSettingsActions(context) {
       return;
     }
 
-    const resetBtn = e.target.closest('#reset-everything-btn');
-    if (resetBtn) {
+    if (e.target.closest('#reset-everything-btn')) {
       confirmDialog({
         title: copy('reset.dialog.title'),
         body: copy('reset.dialog.body'),
@@ -326,9 +288,10 @@ export function bindSettingsActions(context) {
             await BackupClient.resetEverything('RESET');
             const { data, etag } = await Api.getLibrary();
             Store.setLibrary(data, etag);
-            Preferences.syncFromLibrary(data.preferences);
-            setCopyTier(data.preferences.contentTier);
+            Preferences.syncFromLibrary(Store.state.preferences);
+            setCopyTier(Store.state.preferences.contentTier);
             refreshView();
+            repaintSettings();
             await refreshSnapshotList();
             Render.showToast(copy('reset.succeeded'));
           } catch (err) {
@@ -339,78 +302,52 @@ export function bindSettingsActions(context) {
       return;
     }
 
-    // P1.7: Tags manager. Every branch ends in repaintSettings(), which
-    // rebuilds the whole panel from its live Store state — the same "full
-    // rebuild on every change" the rest of this panel already relies on.
+    // Tags manager.
     if (e.target.closest('#tags-create-btn')) {
-      Render.toggleSettingsNewTagForm(true);
+      toggleSettingsNewTagForm(true);
       repaintSettings();
+      document.getElementById('settings-new-tag-name')?.focus();
       return;
     }
     const tagColorSwatch = e.target.closest('[data-action="pick-settings-new-tag-color"]');
     if (tagColorSwatch) {
-      Render.setSettingsNewTagColor(tagColorSwatch.dataset.colorId);
+      setSettingsNewTagColor(tagColorSwatch.dataset.colorId);
       repaintSettings();
       return;
     }
     if (e.target.closest('[data-action="cancel-settings-new-tag"]')) {
-      Render.toggleSettingsNewTagForm(false);
+      toggleSettingsNewTagForm(false);
       repaintSettings();
+      body.querySelector('#tags-create-btn')?.focus();
       return;
     }
     if (e.target.closest('[data-action="confirm-settings-new-tag"]')) {
       const input = document.getElementById('settings-new-tag-name');
-      const tag = Store.createTag(input ? input.value : '', Render.getSettingsNewTagColor());
+      const tag = Store.createTag(input ? input.value : '', getSettingsNewTagColor());
       if (!tag) {
         if (input && input.value.trim()) Render.showToast(copy('tags.create.duplicateName'));
         return;
       }
-      Render.toggleSettingsNewTagForm(false);
+      toggleSettingsNewTagForm(false);
       persist();
       repaintSettings();
+      body.querySelector('#tags-create-btn')?.focus();
       return;
     }
     const renameTagBtn = e.target.closest('[data-action="rename-tag"]');
     if (renameTagBtn) {
-      // Same inline "swap the label for an input" idiom as handleEditEpisode —
-      // commit on blur/Enter, discard on Escape by simply repainting without
-      // having called renameTag.
-      const row = renameTagBtn.closest('.manager-row');
-      const nameEl = row.querySelector('.nm');
-      const tagId = renameTagBtn.dataset.tagId;
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = nameEl.textContent;
-      input.maxLength = LISTS_AND_TAGS.maxNameLength;
-      input.style.flex = '1';
-      nameEl.replaceWith(input);
-      input.focus();
-      input.select();
-      let committed = false;
-      const commit = () => {
-        if (committed) return;
-        committed = true;
-        const renamed = Store.renameTag(tagId, input.value);
-        if (!renamed && input.value.trim()) Render.showToast(copy('tags.create.duplicateName'));
-        if (renamed) persist();
-        repaintSettings();
-      };
-      input.addEventListener('blur', commit);
-      input.addEventListener('keydown', (ke) => {
-        if (ke.key === 'Enter') input.blur();
-        else if (ke.key === 'Escape') {
-          committed = true;
-          repaintSettings();
-        }
+      inlineRename(renameTagBtn, (value) => {
+        const renamed = Store.renameTag(renameTagBtn.dataset.tagId, value);
+        if (!renamed && value.trim()) Render.showToast(copy('tags.create.duplicateName'));
+        return renamed;
       });
       return;
     }
     const deleteTagBtn = e.target.closest('[data-action="delete-tag"]');
     if (deleteTagBtn) {
       const tagId = deleteTagBtn.dataset.tagId;
-      const name = deleteTagBtn.dataset.tagName;
       confirmDialog({
-        title: copy('tags.delete.dialog.title', undefined, { name }),
+        title: copy('tags.delete.dialog.title', undefined, { name: deleteTagBtn.dataset.tagName }),
         body: copy('tags.delete.dialog.body'),
         confirmLabel: copy('tags.delete.dialog.confirm'),
         onConfirm: () => {
@@ -424,70 +361,45 @@ export function bindSettingsActions(context) {
       return;
     }
 
-    // P1.7: Custom lists manager — mirrors the tags manager above exactly,
-    // minus the colour picker.
+    // Custom lists manager: the same, minus the colour.
     if (e.target.closest('#lists-create-btn')) {
-      Render.toggleSettingsNewListForm(true);
+      toggleSettingsNewListForm(true);
       repaintSettings();
+      document.getElementById('settings-new-list-name')?.focus();
       return;
     }
     if (e.target.closest('[data-action="cancel-settings-new-list"]')) {
-      Render.toggleSettingsNewListForm(false);
+      toggleSettingsNewListForm(false);
       repaintSettings();
+      body.querySelector('#lists-create-btn')?.focus();
       return;
     }
     if (e.target.closest('[data-action="confirm-settings-new-list"]')) {
       const input = document.getElementById('settings-new-list-name');
       const list = Store.createCustomList(input ? input.value : '');
       if (!list) return;
-      Render.toggleSettingsNewListForm(false);
+      toggleSettingsNewListForm(false);
       persist();
       repaintSettings();
+      body.querySelector('#lists-create-btn')?.focus();
       return;
     }
     const toggleEntriesBtn = e.target.closest('[data-action="toggle-list-entries"]');
     if (toggleEntriesBtn) {
-      Render.toggleManagerListExpanded(toggleEntriesBtn.dataset.listId);
+      toggleManagerListExpanded(toggleEntriesBtn.dataset.listId);
       repaintSettings();
       return;
     }
     const renameListBtn = e.target.closest('[data-action="rename-list"]');
     if (renameListBtn) {
-      const row = renameListBtn.closest('.manager-row');
-      const nameEl = row.querySelector('.nm');
-      const listId = renameListBtn.dataset.listId;
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = nameEl.textContent;
-      input.maxLength = LISTS_AND_TAGS.maxNameLength;
-      input.style.flex = '1';
-      nameEl.replaceWith(input);
-      input.focus();
-      input.select();
-      let committed = false;
-      const commit = () => {
-        if (committed) return;
-        committed = true;
-        const renamed = Store.renameCustomList(listId, input.value);
-        if (renamed) persist();
-        repaintSettings();
-      };
-      input.addEventListener('blur', commit);
-      input.addEventListener('keydown', (ke) => {
-        if (ke.key === 'Enter') input.blur();
-        else if (ke.key === 'Escape') {
-          committed = true;
-          repaintSettings();
-        }
-      });
+      inlineRename(renameListBtn, (value) => Store.renameCustomList(renameListBtn.dataset.listId, value));
       return;
     }
     const deleteListBtn = e.target.closest('[data-action="delete-list"]');
     if (deleteListBtn) {
       const listId = deleteListBtn.dataset.listId;
-      const name = deleteListBtn.dataset.listName;
       confirmDialog({
-        title: copy('lists.delete.dialog.title', undefined, { name }),
+        title: copy('lists.delete.dialog.title', undefined, { name: deleteListBtn.dataset.listName }),
         body: copy('lists.delete.dialog.body'),
         confirmLabel: copy('lists.delete.dialog.confirm'),
         onConfirm: () => {
@@ -505,268 +417,107 @@ export function bindSettingsActions(context) {
     if (!segBtn) return;
     const seg = segBtn.closest('.seg').dataset.seg;
     const value = segBtn.dataset.value;
-    // appearance-mode doesn't fit the generic Store.setPreference([seg],
-    // value) tail below — `mode` is a nested field inside the structured
-    // `appearance` object, not its own top-level preference — so it commits
-    // through the same path every other appearance change uses instead.
     if (seg === 'appearance-mode') {
-      commitAppearance({ ...Store.state.preferences.appearance, mode: value });
+      commitAppearance({ ...appearance(), mode: value });
       return;
     }
-    if (seg === 'appearance-background-type') {
-      const appearance = Store.state.preferences.appearance;
-      // Switching away from 'none' with opacity still at its default 0
-      // would apply an effect the user can't see and has no visible
-      // slider feedback for yet — 30 is a middling, clearly-visible
-      // starting point, same reasoning a volume control unmutes to
-      // something audible rather than 0.
-      const opacity = value !== 'none' && appearance.background.opacity === 0 ? 30 : appearance.background.opacity;
-      commitAppearance({ ...appearance, background: { type: value, opacity } });
+    if (seg === 'textSize') {
+      commitSetting('textSize', Number(value));
       return;
     }
-    if (seg === 'decor') Preferences.setDecor(value);
-    else if (seg === 'originalTitles') {
-      Preferences.setOriginalTitlesMode(value);
-      Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));
-    }
-    // P1.3: these 5 segments are all now Class A too (see settingsSchema.js)
-    // — keep library.json in sync the same way every other preference field
-    // change already does, alongside the existing localStorage/DOM update
-    // above (which stays authoritative for the immediate, synchronous UI
-    // update; this is what makes the choice survive backup/export/restore).
-    const beforeSetting = Store.state.preferences[seg];
-    Store.setPreference([seg], value);
-    recordSettingChange(seg, beforeSetting, value);
-    persist();
-    repaintSettings();
+    if (SETTING_APPLIERS[seg]) commitSetting(seg, value);
   });
 
-  // P1.7: Enter submits either inline create form, same as the detail view's.
+  // Swaps a manager row's name for an input: Enter or blur commits, Escape
+  // cancels. The repaint afterwards morphs the row back to its label.
+  function inlineRename(button, rename) {
+    const row = button.closest('.manager-row');
+    const nameEl = row.querySelector('.nm');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = nameEl.textContent;
+    input.maxLength = LISTS_AND_TAGS.maxNameLength;
+    input.className = 'manager-rename';
+    input.setAttribute('aria-label', copy('settings.renameLabel', undefined, { name: nameEl.textContent }));
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = (commit) => {
+      if (done) return;
+      done = true;
+      if (commit && rename(input.value)) persist();
+      input.replaceWith(nameEl);
+      repaintSettings();
+      button.focus();
+    };
+    input.addEventListener('blur', () => finish(true));
+    input.addEventListener('keydown', (ke) => {
+      // preventDefault: focus returns to the Rename button inside this key
+      // press, which would otherwise activate it again.
+      if (ke.key === 'Enter') {
+        ke.preventDefault();
+        finish(true);
+      } else if (ke.key === 'Escape') {
+        ke.stopPropagation();
+        ke.preventDefault();
+        finish(false);
+      }
+    });
+  }
+
+  // Enter submits either inline create form.
   body.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     if (e.target.id === 'settings-new-tag-name') body.querySelector('[data-action="confirm-settings-new-tag"]')?.click();
     else if (e.target.id === 'settings-new-list-name') body.querySelector('[data-action="confirm-settings-new-list"]')?.click();
   });
 
-  // Same colour-swatch-loses-the-typed-name fix as the detail view's — see
-  // setSettingsNewTagName's comment.
   body.addEventListener('input', (e) => {
-    if (e.target.id === 'settings-new-tag-name') Render.setSettingsNewTagName(e.target.value);
-
-    const searchSlot = e.target.dataset.fontSearchSlot;
-    if (searchSlot) {
-      Render.setFontSearchDraft(searchSlot, e.target.value);
-      // Deliberately NOT a full repaintSettings() call: that replaces the
-      // whole panel's innerHTML, which would steal focus/cursor position
-      // out of this very input on every keystroke. Only the grid div next
-      // to it needs to change.
-      const currentFontId = Preferences.getSiteFont();
-      const grid = document.getElementById(`font-grid-${searchSlot}`);
-      if (grid) grid.innerHTML = Render.fontGridBodyHtml(searchSlot, currentFontId);
+    if (e.target.id === 'settings-new-tag-name') setSettingsNewTagName(e.target.value);
+    if (e.target.dataset.fontSearchSlot) {
+      setFontSearchDraft(e.target.value);
+      repaintSettings();
     }
-
-    // P3.2: live preview while dragging. Deliberately NOT a repaintSettings()
-    // call here either — replacing a <input type="range"> mid-drag would
-    // drop the browser's own pointer capture and cancel the gesture. Only
-    // the CSS custom properties and the adjacent numeric readout update;
-    // persist() is already debounced, so calling it on every drag tick is
-    // harmless, not a flood. The rest of the row (contrast warning,
-    // disabled reset state, the collapsed-weight note) catches up on
-    // 'change' below, once the drag actually settles.
-    const sliderKey = e.target.dataset.slider;
-    if (sliderKey) {
-      const step = Number(e.target.value);
-      Preferences.setSliderStep(sliderKey, step);
-      const prefKey = `${sliderKey}Step`;
-      beginSettingGesture(prefKey, Store.state.preferences[prefKey]);
-      Store.setPreference([prefKey], step);
+    // A native colour input fires 'input' continuously while its picker is
+    // open: apply live and log once, on 'change' (or when focus leaves).
+    const colourInput = e.target.closest('[data-action="set-custom-accent"], [data-action="set-custom-base"]');
+    if (colourInput) {
+      const slotKey = colourInput.dataset.slot;
+      const a = appearance();
+      beginSettingGesture('appearanceV3', a);
+      const field = colourInput.dataset.action === 'set-custom-accent' ? 'accent' : 'base';
+      const next = { ...a, [slotKey]: { ...a[slotKey], type: 'custom', [field]: colourInput.value } };
+      Store.setPreference(['appearanceV3'], next);
+      Themes.applyAppearance(next);
       persist();
-      const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
-      if (readout) readout.textContent = String(step);
-    }
-
-    if (e.target.id === 'decoration-step-slider') {
-      const step = Number(e.target.value);
-      Preferences.setDecorationStep(step);
-      Atmosphere.resyncDensity();
-      beginSettingGesture('decorationStep', Store.state.preferences.decorationStep);
-      Store.setPreference(['decorationStep'], step);
-      persist();
-      const readout = e.target.closest('.slider-row')?.querySelector('.slider-value');
-      if (readout) readout.textContent = String(step);
-    }
-
-    // P6.1: same live-preview-without-repaint reasoning as the slider above
-    // — a native <input type="color"> fires 'input' continuously while its
-    // own picker is open, and replacing the panel mid-drag would close it.
-    // Only the small swatch preview updates here; the contrast confirmation
-    // line (task-scoped separately) catches up on 'change' below.
-    const accentInput = e.target.closest('[data-action="set-custom-accent"]');
-    if (accentInput) {
-      const slotKey = accentInput.dataset.slot;
-      const hex = accentInput.value;
-      const appearance = Store.state.preferences.appearance;
-      beginSettingGesture('appearance', appearance);
-      const currentBase = appearance[slotKey].base;
-      const nextAppearance = { ...appearance, [slotKey]: { ...appearance[slotKey], type: 'custom', accent: hex } };
-      Store.setPreference(['appearance'], nextAppearance);
-      Themes.applyAppearance(nextAppearance);
-      persist();
-      const swatch = accentInput.closest('.appearance-slot')?.querySelector('.custom-swatch');
+      const swatch = colourInput.closest('.appearance-slot')?.querySelector('.custom-swatch');
       if (swatch) {
-        swatch.querySelector('.custom-swatch-accent').style.background = hex;
-        // base is null (never customized) means the background hue still
-        // follows the accent — the swatch's outer half must track along.
-        if (!currentBase) swatch.style.background = hex;
+        if (field === 'accent') swatch.querySelector('.custom-swatch-accent').style.background = colourInput.value;
+        if (field === 'base' || !next[slotKey].base) swatch.style.background = field === 'base' ? colourInput.value : next[slotKey].accent;
       }
-    }
-
-    // Post-2.2.2 feedback: the background's own color, independent of the
-    // accent — same live-preview-without-repaint reasoning as the accent
-    // input above.
-    const baseInput = e.target.closest('[data-action="set-custom-base"]');
-    if (baseInput) {
-      const slotKey = baseInput.dataset.slot;
-      const hex = baseInput.value;
-      const appearance = Store.state.preferences.appearance;
-      beginSettingGesture('appearance', appearance);
-      const nextAppearance = { ...appearance, [slotKey]: { ...appearance[slotKey], type: 'custom', base: hex } };
-      Store.setPreference(['appearance'], nextAppearance);
-      Themes.applyAppearance(nextAppearance);
-      persist();
-      const swatch = baseInput.closest('.appearance-slot')?.querySelector('.custom-swatch');
-      if (swatch) swatch.style.background = hex;
-    }
-
-    // Same live-preview-without-repaint reasoning as the two inputs above
-    // — dragging a native range input fires 'input' continuously, and a
-    // repaintSettings() mid-drag would recreate the element and drop the
-    // browser's pointer capture, cancelling the gesture.
-    const opacityInput = e.target.closest('[data-action="set-background-opacity"]');
-    if (opacityInput) {
-      const opacity = Number(opacityInput.value);
-      const appearance = Store.state.preferences.appearance;
-      beginSettingGesture('appearance', appearance);
-      const nextAppearance = { ...appearance, background: { ...appearance.background, opacity } };
-      Store.setPreference(['appearance'], nextAppearance);
-      Themes.applyAppearance(nextAppearance);
-      persist();
-      const readout = opacityInput.closest('.slider-row')?.querySelector('.slider-value');
-      if (readout) readout.textContent = `${opacity}%`;
-    }
-
-    // Post-2.2.0 feedback: the gradient effect's 2 optional colours — same
-    // live-preview-without-repaint reasoning as the custom accent input
-    // above (a native <input type="color"> fires 'input' continuously
-    // while its own picker is open).
-    const gradientColorInput = e.target.closest('[data-action="set-background-gradient-color"]');
-    if (gradientColorInput) {
-      const slot = gradientColorInput.dataset.gradientSlot === '1' ? 'gradientColor1' : 'gradientColor2';
-      const hex = gradientColorInput.value;
-      const appearance = Store.state.preferences.appearance;
-      beginSettingGesture('appearance', appearance);
-      const nextAppearance = { ...appearance, background: { ...appearance.background, [slot]: hex } };
-      Store.setPreference(['appearance'], nextAppearance);
-      Themes.applyAppearance(nextAppearance);
-      persist();
     }
   });
 
-  // 'change' (drag release, or a committed keyboard step) — safe to fully
-  // re-render here: refreshes the contrast warning, the reset button's
-  // disabled state, and the weight slider's collapsed-note text, none of
-  // which the lightweight 'input' handler above touches.
-  //
-  // repaintSettings() replaces the whole panel's innerHTML, which destroys
-  // the very <input> the user is mid-keyboard-navigating with (arrows/
-  // Home/End all fire 'change' on every discrete step, not just on
-  // drag-release) — without restoring focus afterward, the FIRST arrow
-  // press would silently end keyboard operability for the rest of that
-  // slider interaction. Re-focusing the recreated element by its own
-  // data-slider attribute is what keeps arrows/Home/End usable across
-  // consecutive key presses, the spec's explicit requirement.
-  // A drag control closed without a change event (a colour picker dismissed)
-  // must not leave its start value behind for the next gesture's "from".
+  // A colour picker closed without a change event must not leave its start
+  // value behind for the next gesture's "from".
   body.addEventListener('focusout', (e) => {
-    const t = e.target;
-    if (t.dataset?.slider) endSettingGesture(`${t.dataset.slider}Step`, Store.state.preferences[`${t.dataset.slider}Step`]);
-    else if (t.id === 'decoration-step-slider') endSettingGesture('decorationStep', Store.state.preferences.decorationStep);
-    else if (t.closest?.('[data-action="set-custom-accent"], [data-action="set-custom-base"], [data-action="set-background-opacity"], [data-action="set-background-gradient-color"]'))
-      endSettingGesture('appearance', Store.state.preferences.appearance);
+    if (e.target.closest?.('[data-action="set-custom-accent"], [data-action="set-custom-base"]')) endSettingGesture('appearanceV3', appearance());
   });
 
   body.addEventListener('change', (e) => {
-    const sliderKey = e.target.dataset.slider;
-    if (sliderKey) {
-      const step = Number(e.target.value);
-      const prefKey = `${sliderKey}Step`;
-      endSettingGesture(prefKey, step);
+    if (e.target.closest('[data-action="set-custom-accent"], [data-action="set-custom-base"]')) {
+      endSettingGesture('appearanceV3', appearance());
       repaintSettings();
-      body.querySelector(`[data-slider="${sliderKey}"]`)?.focus();
-      return;
-    }
-
-    // Value is already applied+persisted by the 'input' handler above
-    // (same reasoning as the slider's own before/after split) — this just
-    // logs the settled value and repaints to refresh the contrast
-    // confirmation line and swatch state.
-    if (e.target.closest('[data-action="set-custom-accent"]')) {
-      endSettingGesture('appearance', Store.state.preferences.appearance);
-      repaintSettings();
-      return;
-    }
-
-    // Value is already applied+persisted by the 'input' handler above —
-    // this just logs the settled value and repaints so the "Match accent"
-    // reset button appears (conditional on base now being set, which the
-    // lightweight 'input' handler doesn't repaint), same as the accent
-    // input right above.
-    if (e.target.closest('[data-action="set-custom-base"]')) {
-      endSettingGesture('appearance', Store.state.preferences.appearance);
-      repaintSettings();
-      return;
-    }
-
-    // Value is already applied+persisted by the 'input' handler above;
-    // this just logs the settled value once the drag ends.
-    if (e.target.closest('[data-action="set-background-opacity"]')) {
-      endSettingGesture('appearance', Store.state.preferences.appearance);
-      return;
-    }
-
-    // Value is already applied+persisted by the 'input' handler above —
-    // this just logs the settled value and repaints so the "Use theme
-    // colour" reset button appears (it's conditional on a custom colour
-    // now being set, which the lightweight 'input' handler doesn't repaint).
-    if (e.target.closest('[data-action="set-background-gradient-color"]')) {
-      endSettingGesture('appearance', Store.state.preferences.appearance);
-      repaintSettings();
-      return;
-    }
-
-    if (e.target.id === 'decoration-step-slider') {
-      endSettingGesture('decorationStep', Store.state.preferences.decorationStep);
-      return;
-    }
-
-    if (e.target.id === 'import-appearance-file-input') {
-      const file = e.target.files[0];
-      e.target.value = '';
-      if (!file) return;
-      file.text().then((text) => {
-        let parsed = null;
-        try {
-          parsed = JSON.parse(text);
-        } catch {
-          // parsed stays null — falls through to the same rejection path
-          // as a structurally-invalid-but-parseable file.
-        }
-        if (!parsed || !validateAppearance(parsed)) {
-          Render.showToast('That file is not a valid appearance export.');
-          return;
-        }
-        commitAppearance(parsed);
-      });
     }
   });
+
+  // Keep the section the user was reading when the drawer reopens, but start
+  // it scrolled to the top.
+  document.getElementById('settings-overlay')?.addEventListener('close', () => {
+    const scroller = body.querySelector('.settings-sections');
+    if (scroller) scroller.scrollTop = 0;
+  });
 }
+
+export { getSettingsSection };

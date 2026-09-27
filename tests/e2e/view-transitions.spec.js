@@ -52,9 +52,12 @@ test('tab changes run a View Transition typed by the direction of travel', async
     test.skip(!(await page.evaluate(() => typeof document.startViewTransition === 'function')), 'no View Transitions in this browser');
     await page.click('[data-tab="stats"]');
     await expect(page.locator('#stats-view')).toBeVisible();
-    await page.click('[data-tab="watchlist"]');
+    await page.click('[data-tab="library"]');
     await expect(page.locator('#list-view')).toBeVisible();
-    expect(await page.evaluate(() => window.__vt)).toEqual([['tab', 'forward'], ['tab', 'back']]);
+    // A list change inside Library slides too, by list order.
+    await page.click('[data-list="watchlist"]');
+    await expect(page.locator('[data-list="watchlist"]')).toHaveAttribute('aria-selected', 'true');
+    expect(await page.evaluate(() => window.__vt)).toEqual([['tab', 'forward'], ['tab', 'back'], ['tab', 'forward']]);
   } finally {
     await server.stop();
   }
@@ -130,12 +133,15 @@ test('a sort change glides the cards on screen, and a status move fades the card
 
     const card = page.locator('#grid > .card').first();
     const id = await card.getAttribute('data-id');
-    const ghost = await page.evaluate(async (cardId) => {
-      document.querySelector(`#grid > .card[data-id="${cardId}"] [data-action="set-status"][data-status="watchlist"]`).click();
+    // v3 Phase 4: moves are in the card's status menu.
+    await card.locator('[data-action="card-status-menu"]').click();
+    await expect(page.getByRole('menuitem', { name: 'Move to Watchlist' })).toBeVisible();
+    const ghost = await page.evaluate(async () => {
+      [...document.querySelectorAll('#popup-menu [role="menuitem"]')].find((b) => b.textContent.includes('Move to Watchlist')).click();
       await new Promise((r) => requestAnimationFrame(r));
       const g = [...document.body.children].find((el) => el.classList?.contains('card') && el.getAttribute('aria-hidden') === 'true');
       return g ? { inert: g.inert, animating: g.getAnimations().length > 0 } : null;
-    }, id);
+    });
     expect(ghost).toEqual({ inert: true, animating: true });
     await expect.poll(() => page.evaluate(() => [...document.body.children].some((el) => el.classList?.contains('card') && el.getAttribute('aria-hidden') === 'true'))).toBe(false);
   } finally {

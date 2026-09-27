@@ -143,7 +143,8 @@ test('pressing "d" again closes the panel, and "d" is a no-op outside Discover',
     await page.keyboard.press('d');
     await expect(page.locator('#scorer-debug-overlay')).toBeHidden();
 
-    await page.click('[data-tab="watching"]');
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watching"]');
     await page.keyboard.press('d');
     await expect(page.locator('#scorer-debug-overlay')).toBeHidden();
   } finally {

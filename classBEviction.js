@@ -24,6 +24,9 @@
 // shape (the same "corrupt = empty, just recompute" reset every one of these
 // caches already uses).
 const CLASS_B_STORES = [
+  // v3 Phase 4: first to go. Each colour comes back from AniList (or one
+  // canvas read of the local cover) the next time that cover is shown.
+  { id: 'coverHueCache', file: 'cover-hues.json', label: 'Cover colours' },
   { id: 'recommendationsCache', file: 'recommendations-cache.json', label: 'Recommendations cache' },
   { id: 'tasteProfileCache', file: 'taste-profile-cache.json', label: 'Taste profile cache' },
   { id: 'airingCache', file: 'airing-cache.json', label: 'Airing cache' },

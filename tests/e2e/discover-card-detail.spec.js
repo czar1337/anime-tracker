@@ -13,6 +13,7 @@
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { tune, notForMe, addAs } = require('./discoverHelpers.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
 const FILLER_COUNT = 30;
@@ -204,7 +205,7 @@ test('one-tap add with a status choice lands the entry directly in Watching, sur
 
     const card = page.locator('.discover-card[data-anilist-id="9102"]');
     await expect(card).toBeVisible();
-    await card.locator('[data-action="discover-add"][data-add-status="watching"]').click();
+    await addAs(page, card, 'Watching');
     await expect(card).toHaveCount(0);
 
     await waitForDebouncedPersist(page, (lib) => lib.entries.some((e) => e.anilistId === 9102));
@@ -215,7 +216,8 @@ test('one-tap add with a status choice lands the entry directly in Watching, sur
     await page.waitForSelector('.card, .empty');
     lib = await page.evaluate(() => fetch('/api/library').then((r) => r.json()));
     expect(lib.entries.find((e) => e.anilistId === 9102).listStatus).toBe('watching');
-    await page.click('[data-tab="watching"]');
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watching"]');
     await expect(page.locator('.card[data-id="9102"]')).toBeVisible();
   } finally {
     await server.stop();

@@ -30,10 +30,6 @@ function toggleCheckbox(page, id) {
   return page.locator(`.card[data-id="${id}"] input[data-action="toggle-select"]`);
 }
 
-function quickSelectCheckbox(page, id) {
-  return page.locator(`.card[data-id="${id}"] input[data-action="quick-select"]`);
-}
-
 function selectedIds(page) {
   return page.locator('.card.selected').evaluateAll((cards) => cards.map((c) => c.dataset.id).sort());
 }
@@ -93,12 +89,14 @@ test('Ctrl/Cmd+A selects only the currently visible, filtered set — never the 
   }
 });
 
-test('the hover checkbox enters select mode and selects on one click', async ({ page }) => {
+// v3 Phase 4: the hover checkbox left the card; the card's menu has Select.
+test("the card menu's Select enters select mode and selects that card in one step", async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await gotoSortedByTitle(page, server);
     await expect(page.locator('#select-mode-toggle')).toHaveAttribute('aria-pressed', 'false');
-    await quickSelectCheckbox(page, 304).click();
+    await page.locator('.card[data-id="304"]').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Select', exact: true }).click();
     await expect(page.locator('#select-mode-toggle')).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => selectedIds(page)).toEqual(['304']);
   } finally {
@@ -106,18 +104,22 @@ test('the hover checkbox enters select mode and selects on one click', async ({ 
   }
 });
 
-test('the bulk bar count is an aria-live region and updates as selections change', async ({ page }) => {
+// v3 Phase 4: the bar is rebuilt on every change, so the count is announced
+// through the page's stable live region (core/announce.js) instead.
+test('the bulk bar count updates as selections change and is announced through the stable live region', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await gotoSortedByTitle(page, server);
     await page.click('#select-mode-toggle');
     const count = page.locator('#bulk-action-bar .count');
-    await expect(count).toHaveAttribute('aria-live', 'polite');
+    const region = page.locator('#live-region');
     await expect(count).toContainText('0 selected');
     await toggleCheckbox(page, 301).click();
     await expect(count).toContainText('1 selected');
+    await expect(region).toHaveText('1 selected');
     await toggleCheckbox(page, 302).click();
     await expect(count).toContainText('2 selected');
+    await expect(region).toHaveText('2 selected');
   } finally {
     await server.stop();
   }
@@ -131,11 +133,11 @@ test('selection clears on navigating to another tab', async ({ page }) => {
     await toggleCheckbox(page, 301).click();
     await expect.poll(() => selectedIds(page)).toEqual(['301']);
 
-    await page.click('.tab[data-tab="watchlist"]');
+    await page.click('[data-list="watchlist"]');
     await expect(page.locator('#select-mode-toggle')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#bulk-action-bar')).toBeHidden();
 
-    await page.click('.tab[data-tab="watching"]');
+    await page.click('[data-list="watching"]');
     await expect(page.locator('#select-mode-toggle')).toHaveAttribute('aria-pressed', 'false');
     await expect.poll(() => selectedIds(page)).toEqual([]);
   } finally {

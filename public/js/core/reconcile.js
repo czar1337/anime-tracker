@@ -81,12 +81,35 @@ export function morphInto(container, markup) {
   morphChildren(container, next);
 }
 
+const keyOf = (node) => (node.nodeType === Node.ELEMENT_NODE ? node.getAttribute('data-key') : null);
+
+// Children are matched by position, except that an element with a data-key is
+// matched to the existing element with the same key wherever it is (v3 Phase 4:
+// Discover's rails), so removing one card keeps every other card's node, its
+// focus and its scroll position.
 function morphChildren(fromParent, toParent) {
   const toChildren = [...toParent.childNodes];
+  const toKeys = new Set(toChildren.map(keyOf).filter(Boolean));
+  const keyed = new Map();
+  for (const child of fromParent.children) {
+    const k = keyOf(child);
+    if (k && toKeys.has(k)) keyed.set(k, child);
+  }
   let fromChild = fromParent.firstChild;
   for (const toChild of toChildren) {
-    if (!fromChild) {
-      fromParent.appendChild(toChild);
+    const k = keyOf(toChild);
+    if (k && keyed.has(k)) {
+      const match = keyed.get(k);
+      keyed.delete(k);
+      if (match === fromChild) fromChild = fromChild.nextSibling;
+      else fromParent.insertBefore(match, fromChild);
+      morph(match, toChild);
+      continue;
+    }
+    // A node kept for a later keyed slot is not reused for this one.
+    const fromKey = fromChild && keyOf(fromChild);
+    if (!fromChild || (fromKey && keyed.has(fromKey))) {
+      fromParent.insertBefore(toChild, fromChild);
       continue;
     }
     const next = fromChild.nextSibling;

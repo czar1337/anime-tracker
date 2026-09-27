@@ -11,6 +11,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { CURRENT_SCHEMA_VERSION } = require('../../migrations.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'watching-entry-library.json');
 const ID = 101922;
@@ -56,18 +57,16 @@ async function openDetail(page) {
 }
 
 async function openSettings(page) {
-  await page.click('#theme-toggle');
-  await page.waitForSelector('#settings-body');
+  await page.click('#settings-trigger');
+  await page.click('#settings-tab-library'); // v3 Phase 4: tags and lists live in the Library section
 }
 
-test('creating a tag from the detail view assigns it to that entry and the card shows a read-only chip', async ({ page }) => {
+// v3 Phase 4: cards carry one title and one meta line; tags show in the detail view.
+test('creating a tag from the detail view assigns it to that entry', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await mockAniListDetail(page);
     await openApp(page, server.url);
-
-    // Untagged is the default — verify zero visual change before touching anything.
-    expect(await page.locator('.card-tag-chips').count()).toBe(0);
 
     await openDetail(page);
     await page.click('[data-action="show-new-tag-form"]');
@@ -80,8 +79,6 @@ test('creating a tag from the detail view assigns it to that entry and the card 
     await expect(page.locator('.tag-chip-toggle.on')).toHaveText('Comfort rewatch');
 
     await page.click('[data-action="close-overlay"]');
-    // ...and the card, which was never touched directly, picks it up too.
-    await expect(page.locator('.card-tag-chips .tag-chip')).toHaveText('Comfort rewatch');
 
     const lib = await (await fetch(`${server.url}/api/library`)).json();
     expect(lib.entries[0].tagIds.length).toBe(1);
@@ -337,7 +334,7 @@ test('the specific P1.7 regression: a snapshot predating tags/customLists entire
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.verified).toBe(true);
-    expect(body.migratedTo).toBe(14);
+    expect(body.migratedTo).toBe(CURRENT_SCHEMA_VERSION);
     expect(body.skippedStores).toEqual(['tags', 'customLists']);
 
     const lib = await (await fetch(`${server.url}/api/library`)).json();

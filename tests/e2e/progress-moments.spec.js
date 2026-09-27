@@ -112,12 +112,14 @@ test('the last episode: finished bar with a sweep, a feather from the card, then
     await toast.getByRole('button', { name: 'Rate it 8' }).click();
     await expect(toast.getByRole('button', { name: 'Rate it 8' })).toHaveAttribute('aria-pressed', 'true');
     await expect(toast).toBeVisible(); // rating keeps the toast up
-    await page.click('[data-tab="watched"]');
-    await expect(page.locator('#grid > .card[data-id="401"] .score-dot.filled')).toHaveCount(8);
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watched"]');
+    await expect(page.locator('#grid > .card[data-id="401"] .card-score')).toHaveText('★ 8');
 
     // Undo reverses the whole press: back in Watching, one episode from the end.
     await toast.getByRole('button', { name: 'Undo' }).click();
-    await page.click('[data-tab="watching"]');
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watching"]');
     await expect(page.locator('#grid > .card[data-id="401"] .progress-label')).toHaveText('11/12');
     // The log records the undo as real transitions: back to watching, 12 -> 11.
     await expect
@@ -190,7 +192,7 @@ test('while the moment plays the card shows no "Move to Watched?" prompt', async
     const during = await page.evaluate(() => {
       const card = document.querySelector('#grid > .card[data-id="401"]');
       card.querySelector('[data-action="increment"]').click();
-      return { completing: card.classList.contains('completing'), finished: card.classList.contains('finished'), prompt: Boolean(card.querySelector('.completion-prompt')) };
+      return { completing: card.classList.contains('completing'), finished: card.classList.contains('finished'), prompt: /Finished!/.test(card.textContent) };
     });
     expect(during).toEqual({ completing: true, finished: true, prompt: false });
   } finally {

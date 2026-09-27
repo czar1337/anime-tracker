@@ -29,7 +29,7 @@ const { startFixtureServer } = require('./harness.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'schema-v4-library.json');
 const ANILIST_ID = 101922;
-const NON_DEFAULT_THEME = 'wisteria'; // schema-v4-library.json's fixture never sets this — schema default is 'moonlit-shrine'. Not light-flagged, so it resolves into the 'dark' slot.
+const NON_DEFAULT_THEME = 'jade'; // schema-v4-library.json's fixture never sets this; the default is 'moonlit-shrine'. A dark theme, so it resolves into the 'dark' slot.
 
 test('an existing user\'s customized color theme survives the P1.3 upgrade with no flash to default, and is promoted into the library', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
@@ -56,7 +56,7 @@ test('an existing user\'s customized color theme survives the P1.3 upgrade with 
     await expect
       .poll(async () => {
         const data = await (await fetch(`${server.url}/api/library`)).json();
-        return data.preferences.appearance?.dark;
+        return data.preferences.appearanceV3?.dark;
       }, { timeout: 5000 })
       .toEqual({ type: 'preset', id: NON_DEFAULT_THEME });
 
@@ -82,12 +82,11 @@ test('a fresh browser profile (no localStorage) pulls the library\'s real cosmet
       mode: 'dark',
       light: { type: 'preset', id: 'daybreak' },
       dark: { type: 'preset', id: NON_DEFAULT_THEME },
-      background: { type: 'none', opacity: 0 },
     };
     await fetch(`${server.url}/api/library`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': etag },
-      body: JSON.stringify({ ...before, preferences: { ...before.preferences, appearance } }),
+      body: JSON.stringify({ ...before, preferences: { ...before.preferences, appearanceV3: appearance } }),
     });
 
     // A brand new page in this context has empty localStorage — no
@@ -96,6 +95,21 @@ test('a fresh browser profile (no localStorage) pulls the library\'s real cosmet
     await page.waitForSelector(`.card[data-id="${ANILIST_ID}"]`);
     const themeAttr = await page.evaluate(() => document.documentElement.dataset.colorTheme);
     expect(themeAttr).toBe(NON_DEFAULT_THEME);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('a retired theme id left in localStorage is promoted as its nearest curated theme', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.addInitScript(() => localStorage.setItem('anime-tracker-color-theme', 'holo-deck'));
+    await page.goto(server.url);
+    await page.waitForSelector(`.card[data-id="${ANILIST_ID}"]`);
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.colorTheme)).toBe('frost');
+    await expect
+      .poll(async () => (await (await fetch(`${server.url}/api/library`)).json()).preferences.appearanceV3?.dark, { timeout: 5000 })
+      .toEqual({ type: 'preset', id: 'frost' });
   } finally {
     await server.stop();
   }

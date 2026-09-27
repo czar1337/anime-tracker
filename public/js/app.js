@@ -7,6 +7,8 @@ import { initScreenshotImport } from './screenshotImport.js';
 import { Discover } from './views/discover/actions.js';
 import { Schedule } from './views/schedule/actions.js';
 import { Detail } from './views/detail/actions.js';
+import { initPalette } from './views/palette/palette.js';
+import { initAccent } from './accent.js';
 import { Airing } from './airing.js';
 import { Corpus } from './corpus.js';
 import { TasteProfile } from './tasteProfile.js';
@@ -19,6 +21,7 @@ import { whenSettled } from './core/reconcile.js';
 import { syncShimmers } from './core/motion.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
+import { UI_TIMING } from '../../config/tuning.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -46,6 +49,9 @@ function setSaveIndicator(state, text) {
 // never succeed, only a fresh load can, so this stops the indefinite retry
 // loop and asks the user to reload instead of hammering the server with a
 // doomed request forever.
+const CONFLICT_TOAST_MS = UI_TIMING.conflictToastMs;
+let conflictToastUntil = 0;
+
 async function reloadAfterConflict() {
   const { data, etag } = await Api.getLibrary();
   Store.setLibrary(data, etag);
@@ -99,14 +105,19 @@ async function attemptSave(attempt = 0) {
     if (err.conflict) {
       saveQueued = false;
       setSaveIndicator('failed', copy('save.indicator.conflict'));
+      // One Reload toast at a time: every further save conflicts the same way
+      // until the page reloads, and a stack of identical toasts helps no one.
+      if (Date.now() < conflictToastUntil) return;
+      conflictToastUntil = Date.now() + CONFLICT_TOAST_MS;
       Render.showToast(
         copy('save.conflict.body'),
         {
           actionLabel: copy('save.conflict.action'),
           onAction: () => {
+            conflictToastUntil = 0;
             reloadAfterConflict().catch((reloadErr) => Render.showError(copy('save.reloadFailed', undefined, { message: reloadErr.message })));
           },
-          duration: 20000,
+          duration: CONFLICT_TOAST_MS,
           // Not an undo action — must not steal ctrl+z away from a genuine
           // pending Undo toast (e.g. a "Moved to watched" toast shown just
           // before this save conflict surfaced).
@@ -439,7 +450,6 @@ async function boot() {
   initEventFlushLifecycle();
 
   const initialList = Store.state.preferences.activeTab || 'watching';
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === initialList)));
 
   initEvents({ initialList, persistFn: persist });
   initMalImport();
@@ -447,7 +457,9 @@ async function boot() {
   Discover.initDiscover({ persistFn: persist });
   Schedule.initSchedule({ persistFn: persist });
   Detail.initDetail();
+  initPalette();
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
+  await initAccent(); // the hero's cover colour is known before its first paint
   // Performance marks for scripts/perf.js (the 2,000-entry render budget): from
   // the start of the first render to the first painted frame that has cards
   // (a task queued from rAF runs after that frame is painted), and to the

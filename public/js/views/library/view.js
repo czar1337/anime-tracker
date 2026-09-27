@@ -8,14 +8,14 @@
 import { Store } from '../../state.js';
 import { Airing } from '../../airing.js';
 import { copy } from '../../copy.js';
-import { tagColorHex } from '../../listsAndTags.js';
 import { titlesInOrder } from '../../titles.js';
 import { html, raw, cls } from '../../core/html.js';
 import { reconcileListChunked } from '../../core/reconcile.js';
 import { flip } from '../../core/flip.js';
 import { UI_TIMING } from '../../../../config/tuning.js';
 import { staggerDelay } from '../shared/format.js';
-import { expandedGroups, openNoteIds, selectedIds, completingIds, isSelectMode, groupKey } from './model.js';
+import { emptyStateHtml } from '../shared/emptyState.js';
+import { expandedGroups, selectedIds, completingIds, isSelectMode, groupKey } from './model.js';
 
 export const QUICK_MOVE_LISTS = [
   { key: 'watching', label: 'Watching', short: 'Watch' },
@@ -23,9 +23,6 @@ export const QUICK_MOVE_LISTS = [
   { key: 'watched', label: 'Watched', short: 'Done' },
   { key: 'dropped', label: 'Dropped', short: 'Drop' },
 ];
-
-const PENCIL_SVG = raw('<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>');
-const TRASH_SVG = raw('<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>');
 
 export function coverSrc(entry) {
   return entry.coverFile ? `/data/covers/${entry.coverFile.split('/').pop()}` : '';
@@ -50,75 +47,6 @@ function unseenPopClass(anilistId, unseen) {
   return lastUnseenByCardId.get(anilistId).pop ? 'pop' : '';
 }
 
-export function scoreStripHtml(entry) {
-  const dots = [];
-  for (let i = 1; i <= 10; i++) {
-    dots.push(html`<button class="${cls('score-dot', entry.myScore >= i && 'filled')}" data-action="set-score" data-score="${i}" title="${i}" aria-label="Score ${i}">${i}</button>`);
-  }
-  return html`<div class="score-strip" role="group" aria-label="Score">${dots}</div>`;
-}
-
-export function statusRowHtml(entry) {
-  return html`<div class="quick-move" role="group" aria-label="Move to list">${QUICK_MOVE_LISTS.map(
-    (l) => html`<button class="${cls('quick-move-btn', entry.listStatus === l.key && 'active')}" data-action="set-status" data-status="${l.key}" title="Move to ${l.label}" aria-label="Move to ${l.label}">${l.short}</button>`
-  )}</div>`;
-}
-
-// Compact single-control equivalents of the score strip and status row, used
-// only inside an expanded franchise's .season-row.
-function scoreSelectHtml(entry) {
-  const options = Array.from({ length: 10 }, (_, i) => i + 1).map(
-    (i) => html`<option value="${i}" ${entry.myScore === i && raw('selected')}>★ ${i}</option>`
-  );
-  return html`<select class="filter-select season-select" data-action="set-score-select" aria-label="Score"><option value="" ${entry.myScore == null && raw('selected')}>Not rated</option>${options}</select>`;
-}
-
-function statusSelectHtml(entry) {
-  return html`<select class="filter-select season-select" data-action="set-status-select" aria-label="Move to list">${QUICK_MOVE_LISTS.map(
-    (l) => html`<option value="${l.key}" ${entry.listStatus === l.key && raw('selected')}>${l.label}</option>`
-  )}</select>`;
-}
-
-function progressRowHtml(entry, pct, { watched = false } = {}) {
-  const total = entry.totalEpisodes;
-  const hint = watched ? 'Click to correct the episode count' : 'Click to type an exact episode number';
-  // The watched count sits in its own span so a +1 can slide the old digit out
-  // and the new one in (actions.js playIncrement).
-  return html`<div class="${cls('progress-row', watched && 'watched-progress-row')}"><div class="progress-track"><div class="progress-fill" style="--p:${pct / 100}"></div></div><button class="progress-label" data-action="edit-episode" title="${hint}"><span class="ep-now">${entry.episodesWatched}</span>${total ? `/${total}` : ''}</button></div>`;
-}
-
-function cardBodyForList(entry, list, isSeasonRow) {
-  const statusControl = isSeasonRow ? html`<div class="season-controls-row">${statusSelectHtml(entry)}</div>` : statusRowHtml(entry);
-  if (list === 'watching') {
-    const total = entry.totalEpisodes;
-    const pct = total ? Math.min(100, (entry.episodesWatched / total) * 100) : 0;
-    const showCompletionPrompt = Boolean(total) && entry.episodesWatched >= total && !completingIds.has(entry.anilistId);
-    const unseen = Airing.getUnseenCount(entry.anilistId);
-    // Forward-looking ("next episode airs in ...") and backward-looking
-    // (unseen) are separate signals and can both show; no known airing time
-    // renders nothing rather than a guess.
-    const countdown = Airing.getNextEpisodeCountdown(entry.anilistId);
-    return html`
-      ${progressRowHtml(entry, pct)}
-      ${unseen > 0 && html`<div class="${cls('unseen-badge', unseenPopClass(entry.anilistId, unseen))}" title="Aired but not marked watched yet">${unseen} new episode${unseen === 1 ? '' : 's'}</div>`}
-      ${countdown && html`<div class="countdown-badge">${copy('airing.nextEpisodeCountdown', undefined, countdown)}</div>`}
-      ${showCompletionPrompt && html`<div class="completion-prompt"><span>Finished! Move to Watched?</span>${isSeasonRow ? scoreSelectHtml(entry) : scoreStripHtml(entry)}<button class="text-btn primary" data-action="complete" style="align-self:flex-start;padding:6px var(--sp-3);">Move to Watched</button></div>`}
-      ${statusControl}`;
-  }
-  if (list === 'watched') {
-    // Finished: an always-full progress bar next to the episode count, so
-    // colour is never the only signal that a series is done.
-    return html`
-      ${progressRowHtml(entry, 100, { watched: true })}
-      ${isSeasonRow ? html`<div class="season-controls-row">${scoreSelectHtml(entry)}${statusSelectHtml(entry)}</div>` : html`${scoreStripHtml(entry)}${statusRowHtml(entry)}`}`;
-  }
-  if (list === 'watchlist') {
-    return html`<div class="card-meta"><span>${entry.averageScore ? `★ ${entry.averageScore}` : 'No score'}</span></div>${statusControl}`;
-  }
-  // Dropped: reduced opacity on the whole card plus this tag, never opacity alone.
-  return html`${list === 'dropped' && html`<span class="tag drop">Dropped</span>`}${statusControl}`;
-}
-
 // The preferred-language title large, the next different one small below it
 // (titles.js: the same rule the title sort uses). Clicking it opens the detail
 // overlay (events.js checks this action before anything else the click might
@@ -128,16 +56,72 @@ export function titleBlockHtml(item, anilistId) {
   return html`<div class="card-title-block" data-action="show-detail" data-detail-id="${anilistId}" title="View details"><div class="card-title" title="${primary}">${primary}</div>${secondary && html`<div class="card-title-sub" title="${secondary}">${secondary}</div>`}</div>`;
 }
 
-// Read-only on the card: tags are assigned from the detail view. Renders
-// nothing for untagged entries.
-function cardTagChipsHtml(entry) {
-  if (!entry.tagIds || entry.tagIds.length === 0) return '';
-  const tags = Store.getTags();
-  const chips = entry.tagIds
-    .map((id) => tags.find((t) => t.id === id))
-    .filter(Boolean)
-    .map((t) => html`<span class="tag-chip" style="background:${tagColorHex(t.color)}22;color:${tagColorHex(t.color)}">${t.name}</span>`);
-  return chips.length ? html`<div class="card-tag-chips">${chips}</div>` : '';
+// v3 Phase 4 library card: a 2:3 cover, one title line, one meta line and a
+// hairline progress bar. Actions sit in a toolbar on the cover (shown on hover
+// and focus, always on touch): +1 on Watching, a status menu and a "more"
+// menu. The status buttons, the score strip and the note left the card; they
+// live in the context menu (right-click, long-press, Shift+F10) and the
+// detail view. The watched count keeps its own span, so a +1 can slide the old
+// digit out and the new one in (actions.js playIncrement).
+
+function displayTitle(entry) {
+  return titlesInOrder(entry, Store.state.preferences.titleLanguage)[0];
+}
+
+function progressLabelHtml(entry, { editable }) {
+  const total = entry.totalEpisodes;
+  const inner = html`<span class="ep-now">${entry.episodesWatched}</span>${total ? `/${total}` : ''}`;
+  return editable
+    ? html`<button class="progress-label" data-action="edit-episode" title="${copy('card.editEpisode')}">${inner}</button>`
+    : html`<span class="progress-label">${inner}</span>`;
+}
+
+// One meta line per list, the numbers that matter there.
+function metaHtml(entry, list) {
+  const bits = [];
+  if (list === 'watching') {
+    bits.push(progressLabelHtml(entry, { editable: true }));
+    const unseen = Airing.getUnseenCount(entry.anilistId);
+    if (unseen > 0) bits.push(html`<span class="${cls('unseen-badge', unseenPopClass(entry.anilistId, unseen))}" title="Aired but not marked watched yet">${copy('card.newEpisodes', undefined, { n: unseen })}</span>`);
+    else {
+      // Forward-looking ("next episode in ...") only when nothing is waiting;
+      // no known airing time renders nothing rather than a guess.
+      const countdown = Airing.getNextEpisodeCountdown(entry.anilistId);
+      if (countdown) bits.push(html`<span class="countdown-badge">${copy('airing.nextEpisodeCountdown', undefined, countdown)}</span>`);
+    }
+  } else if (list === 'watched') {
+    bits.push(html`<span class="card-score">${entry.myScore != null ? copy('card.myScore', undefined, { score: entry.myScore }) : copy('card.notRated')}</span>`);
+    bits.push(progressLabelHtml(entry, { editable: true }));
+  } else if (list === 'dropped') {
+    bits.push(html`<span>${copy('card.droppedAt', undefined, { n: entry.episodesWatched, total: entry.totalEpisodes })}</span>`);
+  } else {
+    if (entry.averageScore) bits.push(html`<span>${copy('card.anilistScore', undefined, { score: entry.averageScore })}</span>`);
+    if (entry.totalEpisodes) bits.push(html`<span>${copy('card.episodes', undefined, { n: entry.totalEpisodes })}</span>`);
+  }
+  if (entry.year && list !== 'watching') bits.push(html`<span>${entry.year}</span>`);
+  return html`<div class="card-meta">${bits}</div>`;
+}
+
+// The hairline under the meta line: progress on Watching, full (and positive)
+// on Watched, where it stopped on Dropped; none on the Watchlist.
+function hairlineHtml(entry, list) {
+  if (list === 'watchlist') return '';
+  const total = entry.totalEpisodes;
+  const p = list === 'watched' ? 1 : total ? Math.min(1, entry.episodesWatched / total) : 0;
+  return html`<div class="progress-track"><div class="progress-fill" style="--p:${p}"></div></div>`;
+}
+
+const STATUS_SVG = raw('<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h11M4 12h8M4 17h11"/><path d="m16 14 3 3 3-3"/></svg>');
+const MORE_SVG = raw('<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>');
+
+function toolbarHtml(entry, list, title) {
+  const total = entry.totalEpisodes;
+  const canIncrement = list === 'watching' && !(total && entry.episodesWatched >= total);
+  return html`<div class="card-toolbar" role="toolbar" aria-label="${copy('card.toolbar', undefined, { title })}">
+      ${canIncrement && html`<button class="plus" data-action="increment" aria-label="${copy('card.increment', undefined, { title, episode: entry.episodesWatched + 1 })}" title="${copy('card.increment', undefined, { title, episode: entry.episodesWatched + 1 })}">+1</button>`}
+      <button class="tb-btn" data-action="card-status-menu" aria-haspopup="menu" aria-expanded="false" aria-label="${copy('card.statusMenu', undefined, { title })}" title="${copy('card.statusMenu', undefined, { title })}">${STATUS_SVG}</button>
+      <button class="tb-btn" data-action="card-menu" aria-haspopup="menu" aria-expanded="false" aria-label="${copy('card.moreMenu', undefined, { title })}" title="${copy('card.moreMenu', undefined, { title })}">${MORE_SVG}</button>
+    </div>`;
 }
 
 // seasonLabel is only passed inside an expanded franchise group: it switches on
@@ -148,8 +132,8 @@ export function cardHtml(entry, list, seasonLabel = null) {
   const isSelected = selectedIds.has(entry.anilistId);
   const isFinished = list === 'watched' || (list === 'watching' && Boolean(entry.totalEpisodes) && entry.episodesWatched >= entry.totalEpisodes);
   const isNew = list === 'watching' && Airing.getUnseenCount(entry.anilistId) > 0;
-  const noteOpen = openNoteIds.has(entry.anilistId);
-  return html`<article class="${cls('card', seasonLabel && 'season-row', isSelected && 'selected', isFinished && 'finished', completingIds.has(entry.anilistId) && 'completing', list === 'dropped' && 'dropped')}" data-id="${entry.anilistId}" tabindex="0">
+  const title = displayTitle(entry);
+  return html`<article class="${cls('card', seasonLabel && 'season-row', isSelected && 'selected', isFinished && 'finished', completingIds.has(entry.anilistId) && 'completing', list === 'dropped' && 'dropped')}" data-id="${entry.anilistId}" tabindex="0" aria-label="${title}">
       <svg class="hold-ring" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle></svg>
       <div class="card-cover-wrap">
         ${coverMediaHtml(src)}
@@ -158,21 +142,13 @@ export function cardHtml(entry, list, seasonLabel = null) {
           ? html`<span class="card-format-badge season-badge">${seasonLabel}</span>`
           : entry.format ? html`<span class="card-format-badge">${entry.format}</span>` : ''}
         ${selectMode
-          ? html`<label class="card-select-box" title="Select"><input type="checkbox" data-action="toggle-select" ${isSelected && raw('checked')}></label>`
-          : html`<div class="card-corner-actions">
-              <button class="corner-btn" data-action="fix-match" title="Fix wrong match" aria-label="Fix wrong match">${PENCIL_SVG}</button>
-              <button class="corner-btn danger" data-action="delete" title="Remove from library" aria-label="Remove from library">${TRASH_SVG}</button>
-              <label class="corner-btn quick-select-box" title="Select"><input type="checkbox" data-action="quick-select" aria-label="Select"></label>
-            </div>`}
-        ${list === 'watching' && !selectMode && html`<button class="plus" data-action="increment" aria-label="Mark next episode watched" title="Mark next episode watched">＋</button>`}
+          ? html`<label class="card-select-box" title="Select"><input type="checkbox" data-action="toggle-select" aria-label="Select ${title}" ${isSelected && raw('checked')}></label>`
+          : toolbarHtml(entry, list, title)}
       </div>
       <div class="card-body">
-        ${titleBlockHtml(entry, entry.anilistId)}
-        <div class="card-meta">${entry.year ? html`<span>${entry.year}</span>` : '' }${entry.totalEpisodes ? html`<span>${entry.totalEpisodes} ep</span>` : ''}</div>
-        ${cardBodyForList(entry, list, Boolean(seasonLabel))}
-        ${cardTagChipsHtml(entry)}
-        <button class="notes-toggle" data-action="toggle-notes" aria-expanded="${noteOpen}">${entry.notes ? 'Edit note' : '+ Add note'}</button>
-        <textarea class="notes-field" data-action="edit-notes" placeholder="Personal notes…" ${!noteOpen && raw('hidden')}>${entry.notes || ''}</textarea>
+        <div class="card-title-block" data-action="show-detail" data-detail-id="${entry.anilistId}" title="${title}"><div class="card-title">${title}</div></div>
+        ${metaHtml(entry, list)}
+        ${hairlineHtml(entry, list)}
       </div>
     </article>`;
 }
@@ -186,20 +162,20 @@ export function franchiseCardHtml(group, list) {
   const totalEpisodes = group.every((e) => e.totalEpisodes) ? group.reduce((s, e) => s + e.totalEpisodes, 0) : null;
   const scored = group.filter((e) => e.myScore != null);
   const avgScore = scored.length ? (scored.reduce((s, e) => s + e.myScore, 0) / scored.length).toFixed(1) : null;
+  const title = displayTitle(primary);
   return html`<div class="${cls('franchise-card', expanded && 'expanded')}" data-group-key="${key}">
       <div class="franchise-summary" data-action="toggle-group">
         <div class="card-cover-wrap">
           ${coverMediaHtml(src)}
-          <span class="card-format-badge">${group.length} seasons</span>
+          <span class="card-format-badge">${copy('card.seasons', undefined, { n: group.length })}</span>
         </div>
         <div class="card-body">
-          ${titleBlockHtml(primary, primary.anilistId)}
+          <div class="card-title-block" data-action="show-detail" data-detail-id="${primary.anilistId}" title="${title}"><div class="card-title">${title}</div></div>
           <div class="card-meta">
-            ${primary.year ? html`<span>${primary.year}</span>` : ''}
             <span>${totalEpisodes ? `${totalWatched}/${totalEpisodes}` : totalWatched} ep</span>
             ${avgScore && html`<span>★ ${avgScore} avg</span>`}
           </div>
-          <button class="text-btn franchise-toggle-label" data-action="toggle-group" aria-expanded="${expanded}">${expanded ? 'Hide seasons ▲' : `Show ${group.length} seasons ▾`}</button>
+          <button class="text-btn franchise-toggle-label" data-action="toggle-group" aria-expanded="${expanded}">${expanded ? copy('card.hideSeasons') : copy('card.showSeasons', undefined, { n: group.length })}</button>
         </div>
       </div>
       <div class="franchise-seasons" ${!expanded && raw('hidden')}>${group.map((e, i) => cardHtml(e, list, Store.seasonLabel(group, i)))}</div>
@@ -226,12 +202,45 @@ function playEnter(el, index) {
   timer = setTimeout(done, 1500);
 }
 
-const EMPTY_STATES = {
-  watching: { title: 'Nothing in progress', body: 'Press / to search AniList and add something to start watching.' },
-  watchlist: { title: 'Your watchlist is empty', body: 'Add anime you want to watch next — sort by AniList score to decide.' },
-  watched: { title: 'No completed anime yet', body: 'Finish something in Watching and it will land here with your score.' },
-  dropped: { title: 'Nothing dropped', body: 'Anime you stop watching show up here.' },
-};
+// v3 Phase 4: one sentence, one primary action and one secondary (design
+// system §8). A list that has series but none match the filters says so and
+// offers to clear them, instead of claiming the list is empty.
+const EMPTY_START_MAX = 3;
+
+function emptyStateFor(list) {
+  if (Store.getEntriesByList(list).length > 0) {
+    return { mark: 'feather', title: copy('empty.filtered.title'), body: copy('empty.filtered.body'), primary: { label: copy('empty.filtered.clear'), command: 'filters.clear' }, secondary: { label: copy('empty.addSeries'), command: 'search.add' } };
+  }
+  const add = { label: copy('empty.addSeries'), command: 'search.add' };
+  if (list === 'watching') {
+    // Offer the oldest-queued Watchlist series right here, each with Start.
+    const queued = Store.getEntriesByList('watchlist')
+      .slice()
+      .sort((a, b) => (Date.parse(a.addedAt) || 0) - (Date.parse(b.addedAt) || 0))
+      .slice(0, EMPTY_START_MAX);
+    const extra = queued.length
+      ? html`<ul class="empty-start" aria-label="${copy('empty.watching.fromWatchlist')}">${queued.map((e) => {
+          const src = coverSrc(e);
+          return html`<li class="empty-start-item">
+            <span class="empty-start-cover">${src ? html`<img src="${src}" alt="" loading="lazy">` : html`<span class="cover-initial" aria-hidden="true">${(displayTitle(e) || '?').trim().charAt(0).toUpperCase()}</span>`}</span>
+            <span class="empty-start-title">${displayTitle(e)}</span>
+            <button type="button" class="btn btn-ghost sm" data-action="empty-start" data-id="${e.anilistId}" aria-label="${copy('home.startLabel', undefined, { title: displayTitle(e) })}">${copy('home.start')}</button>
+          </li>`;
+        })}</ul>`
+      : '';
+    return queued.length
+      ? { mark: 'moon', title: copy('empty.watching.title'), body: copy('empty.watching.withQueue'), extra, primary: add, secondary: { label: copy('empty.discover'), command: 'go.discover' } }
+      : { mark: 'moon', title: copy('empty.watching.title'), body: copy('empty.watching.body'), primary: add, secondary: { label: copy('empty.import'), command: 'import.open' } };
+  }
+  if (list === 'watchlist') {
+    return { mark: 'moon', title: copy('empty.watchlist.title'), body: copy('empty.watchlist.body'), primary: { label: copy('empty.discover'), command: 'go.discover' }, secondary: add };
+  }
+  if (list === 'watched') {
+    const watching = Store.getEntriesByList('watching').length > 0;
+    return { mark: 'feather', title: copy('empty.watched.title'), body: copy('empty.watched.body'), primary: watching ? { label: copy('empty.goWatching'), command: 'go.watching' } : add, secondary: { label: copy('empty.import'), command: 'import.open' } };
+  }
+  return { mark: 'feather', title: copy('empty.dropped.title'), body: copy('empty.dropped.body'), primary: { label: copy('empty.goWatching'), command: 'go.watching' } };
+}
 
 const AIRING_HEADING_KEY = '__still-airing';
 let renderedList = null;
@@ -250,14 +259,7 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
   if (groups.length === 0) {
     grid.hidden = true;
     emptyState.hidden = false;
-    const info = EMPTY_STATES[list];
-    emptyState.innerHTML = String(html`
-      <h2>${info.title}</h2>
-      <p>${info.body}</p>
-      <div class="row">
-        <button class="btn btn-primary rip-host" data-action="open-search">Add series</button>
-        <button class="btn btn-quiet" data-action="open-import">Import</button>
-      </div>`);
+    emptyState.innerHTML = String(emptyStateHtml(emptyStateFor(list)));
     return Promise.resolve();
   }
   grid.hidden = false;
@@ -314,6 +316,51 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
     cards[Math.min(focusedIndex, cards.length - 1)]?.focus({ preventScroll: true });
   }
   return pass;
+}
+
+// ---------------------------------------------------------------------------
+// Saved filter views and the layout toggle (v3 Phase 4)
+// ---------------------------------------------------------------------------
+
+// What a view captures: the list's filters and sort. Genres are compared as a
+// set, so the same filter picked in another order still matches.
+export function viewSignature(filters, sort, sortDir) {
+  const f = { ...filters, genres: [...(filters.genres || [])].sort() };
+  return JSON.stringify([Object.keys(f).sort().map((k) => [k, f[k]]), sort, sortDir]);
+}
+
+const listLabel = (list) => QUICK_MOVE_LISTS.find((l) => l.key === list)?.label || list;
+
+export function renderSavedViews(list) {
+  const el = document.getElementById('saved-views');
+  if (!el) return;
+  const prefs = Store.state.preferences;
+  const current = viewSignature(prefs.filters[list], prefs.sort[list], prefs.sortDir[list]);
+  const chips = prefs.savedViews.map((v) => {
+    const on = v.list === list && viewSignature(v.filters, v.sort, v.sortDir) === current;
+    return html`<span class="${cls('saved-view', on && 'on')}"><button type="button" class="saved-view-btn" data-action="apply-view" data-view-id="${v.id}" aria-pressed="${on}">${v.name}${v.list !== list ? html`<small>${listLabel(v.list)}</small>` : ''}</button><button type="button" class="saved-view-del" data-action="delete-view" data-view-id="${v.id}" aria-label="${copy('views.delete', undefined, { name: v.name })}" title="${copy('views.delete', undefined, { name: v.name })}">×</button></span>`;
+  });
+  const control = savedViewFormOpen
+    ? html`<form class="saved-view-form" data-action="save-view-form"><input id="saved-view-name" type="text" maxlength="40" required aria-label="${copy('views.nameLabel')}" value="${copy('views.suggest', undefined, { list: listLabel(list), n: prefs.savedViews.length + 1 })}"><button type="submit" class="btn btn-primary sm">${copy('views.saveButton')}</button><button type="button" class="btn btn-quiet sm" data-action="cancel-save-view">${copy('views.cancel')}</button></form>`
+    : html`<button type="button" class="text-btn" data-action="save-view">${copy('views.save')}</button>`;
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', copy('views.region'));
+  el.innerHTML = String(html`${chips}${control}`);
+}
+
+let savedViewFormOpen = false;
+export function setSavedViewFormOpen(open) {
+  savedViewFormOpen = open;
+}
+
+export function renderLayoutToggle() {
+  const layout = Store.state.preferences.libraryLayout;
+  document.querySelectorAll('.layout-toggle [data-layout]').forEach((b) => {
+    const on = b.dataset.layout === layout;
+    b.setAttribute('aria-checked', String(on));
+    b.tabIndex = on ? 0 : -1;
+  });
+  document.getElementById('grid')?.classList.toggle('list-layout', layout === 'list');
 }
 
 // For tests and the list switch in events.js: forget which list the grid shows.

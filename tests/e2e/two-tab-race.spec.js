@@ -91,6 +91,12 @@ async function reachByTab(page, locator, maxPresses = 100) {
   return locator.evaluate((el) => el === document.activeElement).catch(() => false);
 }
 
+// v3 Phase 4: the score is set from the card's menu (the 10-dot strip left the card).
+async function rate(page, score) {
+  await page.locator(`.card[data-id="${ANILIST_ID}"]`).click({ button: 'right' });
+  await page.getByRole('menuitemradio', { name: `Rate ${score} out of 10` }).click();
+}
+
 test('two tabs saving concurrently: exactly one wins, the loser gets a recoverable conflict, no silent data loss', async ({ context }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
@@ -112,8 +118,8 @@ test('two tabs saving concurrently: exactly one wins, the loser gets a recoverab
       (r) => r.url().includes('/api/library') && r.request().method() === 'PUT'
     );
 
-    await pageA.click(`.card[data-id="${ANILIST_ID}"] [data-action="set-score"][data-score="7"]`);
-    await pageB.click(`.card[data-id="${ANILIST_ID}"] [data-action="set-score"][data-score="3"]`);
+    await rate(pageA, 7);
+    await rate(pageB, 3);
 
     // Barrier: wait until both debounced saves have actually reached the
     // server (both requests genuinely in flight), then release together.
@@ -146,9 +152,7 @@ test('two tabs saving concurrently: exactly one wins, the loser gets a recoverab
     await loser.page.keyboard.press('Enter');
     // Reload resyncs Store from a fresh GET — the card now shows the
     // winner's score, not the loser's abandoned edit.
-    await expect(
-      loser.page.locator(`.card[data-id="${ANILIST_ID}"] .score-dot.filled`).last()
-    ).toHaveAttribute('data-score', String(winner.score));
+    await expect(loser.page.locator(`.card[data-id="${ANILIST_ID}"] .card-score`)).toHaveText(`★ ${winner.score}`);
 
     // Follow-up: a fresh edit from the (formerly losing) tab, now holding a
     // current etag, must succeed normally — the app isn't wedged after a
@@ -159,7 +163,7 @@ test('two tabs saving concurrently: exactly one wins, the loser gets a recoverab
     const followUpResponse = loser.page.waitForResponse(
       (r) => r.url().includes('/api/library') && r.request().method() === 'PUT'
     );
-    await loser.page.click(`.card[data-id="${ANILIST_ID}"] [data-action="set-score"][data-score="${followUpScore}"]`);
+    await rate(loser.page, followUpScore);
     expect((await followUpResponse).status()).toBe(200);
 
     const onDiskAfterFollowUp = readLibraryFile(server.dataDir);

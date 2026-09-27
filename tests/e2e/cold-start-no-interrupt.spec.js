@@ -34,7 +34,8 @@ test('once the user has started using the app, cold start is offered as a toast,
     await page.route('https://graphql.anilist.co/**', async (route) => (await new Promise((r) => setTimeout(r, 2500)), route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { Page: { media: [] } } }) })));
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
-    await page.click('[data-tab="watched"]'); // the user is now doing something
+    await page.click('[data-tab="library"]');
+    await page.click('[data-list="watched"]'); // the user is now doing something
     await expect(page.getByRole('button', { name: 'Pick shows' })).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#cold-start-overlay')).toBeHidden();
     await page.getByRole('button', { name: 'Pick shows' }).click();

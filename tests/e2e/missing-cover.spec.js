@@ -58,7 +58,7 @@ test('a search result without a cover renders its initial', async ({ page }) => 
     );
     await page.goto(server.url);
     await page.waitForSelector('.card');
-    await page.click('#search-trigger');
+    await page.click('#add-trigger');
     await page.fill('#search-input', 'nocover');
     const result = page.locator(`.search-result[data-anilist-id="${NO_COVER.id}"]`);
     await expect(result).toBeVisible();

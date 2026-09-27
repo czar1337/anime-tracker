@@ -16,6 +16,7 @@ const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const fs = require('node:fs');
 const { startFixtureServer } = require('./harness.js');
+const { tune, notForMe, addAs } = require('./discoverHelpers.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
 // discover.js's own MIN_CORPUS_FOR_SHELVES gate — below this the whole page
@@ -165,12 +166,9 @@ test('dismissing a shelf card removes it from screen and records it as dismissed
 
     const card = page.locator('.discover-card[data-anilist-id="9002"]');
     await expect(card).toBeVisible();
-    // P5B.4: × now reveals a reason strip in place of dismissing
-    // immediately — Skip is the no-reason-given equivalent of this test's
-    // original single-tap dismiss.
-    await card.locator('[data-action="discover-dismiss"]').click();
-    await expect(card.locator('.discover-reason-strip')).toBeVisible();
-    await card.locator('[data-action="discover-dismiss-skip"]').click();
+    // v3 Phase 4: "Not for me" opens a reason menu; Skip is the
+    // no-reason-given equivalent of the original single-tap dismiss.
+    await notForMe(page, card, 'Skip');
     await expect(card).toHaveCount(0);
 
     // app.js's own persist() debounces the save by 300ms.
@@ -233,6 +231,7 @@ test('the hide-owned toggle hides an already-owned corpus candidate by default a
     await expect(page.locator('.shelf-empty', { hasText: 'Rate a few more shows and this shelf will find its footing.' })).toBeVisible();
     await expect(page.locator('.shelf-empty', { hasText: "You’ve already found this corpus’s hidden gems." })).toBeVisible();
 
+    await tune(page);
     await page.click('#discover-hide-owned-toggle');
     const revealed = page.locator('.discover-card[data-anilist-id="9500"]');
     await expect(revealed).toBeVisible();

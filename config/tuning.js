@@ -43,6 +43,16 @@ export const TYPOGRAPHY_STEPS = {
   coverWidth: [100, 116, 132, 148, 164, 180, 200, 220, 240, 264], // px
   animationDurationMult: [0, 0.25, 0.4, 0.55, 0.7, 0.85, 1.0, 1.2, 1.4, 1.6], // 0 = off
 };
+// v3 Phase 4 (decision D2): the four appearance controls that replace the
+// eight sliders. textSizeScales is the font scale per Text size step (1-5,
+// default 3 = 1.0). A density is applied as one of the old spacing steps
+// above (compact = step 3, comfortable = step 5 = today's spacing). Text size
+// 3 and smaller keep single-line card titles, as the old default did.
+export const APPEARANCE = {
+  textSizeScales: [0.87, 0.94, 1.0, 1.1, 1.22],
+  densitySpacingStep: { compact: 3, comfortable: 5 },
+  compactTitlesMaxTextSize: 3,
+};
 export const MIN_EFFECTIVE_FONT_SIZE_PX = 12;
 export const RADIUS_SURFACE_CAP_PX = 24;
 
@@ -287,6 +297,23 @@ export const LISTS_AND_TAGS = {
 //  after the last keystroke (the text itself is stored at once).
 //  gridFirstChunk / gridChunkSize: the library grid renders this many cards
 //  synchronously, then the rest in chunks of this size on later frames.
+// Home (v3 Phase 4, public/js/views/home/view.js): how much each part shows.
+export const HOME = {
+  continueMax: 8, // Continue watching rail cards, the hero included
+  tonightMax: 6, // Airing tonight rows
+  upNextMax: 3, // Up next from your Watchlist
+};
+
+// The command palette (v3 Phase 4, public/js/views/palette/).
+export const PALETTE = {
+  maxResults: 14, // library and command rows shown for a query
+  recentMax: 6, // recently used series and commands kept (per browser)
+  anilistMinChars: 3, // AniList is searched from this many typed characters
+  anilistDebounceMs: 350,
+  anilistResults: 5,
+  minMatchRatio: 0.15, // a fuzzy match must cover at least this share of the name
+};
+
 export const UI_TIMING = {
   titleFilterDebounceMs: 120,
   gridFirstChunk: 60,
@@ -295,4 +322,9 @@ export const UI_TIMING = {
   // series moves to Watched, however slow the animation setting, so the whole
   // moment stays under 2.4s.
   completionMoveMaxMs: 900,
+  // v3 Phase 4.
+  conflictToastMs: 20000, // the "changed elsewhere, reloaded" toast
+  appearanceNoticeToastMs: 12000, // the one-time D2 "your look was updated" toast
+  accentSaveDebounceMs: 1500, // learned cover colours are saved in batches
+  menuCloseScrollPx: 48, // a popup menu closes once the page scrolls this far
 };

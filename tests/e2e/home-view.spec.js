@@ -36,8 +36,9 @@ test('the hero cover URL cannot break out of url(), and a +1 keeps the hero node
     expect(await before.evaluate((el) => el.isConnected)).toBe(true);
 
     await page.click('#brand-home');
-    await expect(page.locator('#home-view .hero h2')).toHaveText('Attack on Titan');
-    await expect(page.locator('#home-view .home-pickup .card')).toHaveCount(1);
+    // v3 Phase 4: Home is a Continue watching rail whose first card is the hero.
+    await expect(page.locator('#home-view .continue-card.is-hero .continue-title')).toHaveText('Attack on Titan');
+    await expect(page.locator('#home-view .continue-card')).toHaveCount(1);
   } finally {
     await server.stop();
   }

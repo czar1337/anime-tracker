@@ -1,0 +1,49 @@
+{
+  "version": "after",
+  "measuredAt": "2026-09-27T18:36:05.060Z",
+  "total": 10,
+  "flows": {
+    "logEpisode": {
+      "interactions": 1,
+      "steps": [
+        "click #grid > .card >> nth=1 >> [data-action=\"increment\"]"
+      ]
+    },
+    "finishSeries": {
+      "interactions": 1,
+      "steps": [
+        "click #grid > .card >> nth=0 >> [data-action=\"increment\"]"
+      ]
+    },
+    "addSeries": {
+      "interactions": 3,
+      "steps": [
+        "click #add-trigger",
+        "type #search-input",
+        "click #search-results [data-add-status=\"watchlist\"]"
+      ]
+    },
+    "rate": {
+      "interactions": 3,
+      "steps": [
+        "click [data-list=\"watched\"]",
+        "right-click #grid > .card >> nth=0",
+        "click [role=\"menuitemradio\"][aria-label=\"Rate 3 out of 10\"]"
+      ]
+    },
+    "findSomethingNew": {
+      "interactions": 2,
+      "steps": [
+        "click [data-tab=\"discover\"]",
+        "click .discover-card [data-action=\"discover-add\"]"
+      ]
+    },
+    "finishAndRate": {
+      "interactions": 2,
+      "steps": [
+        "click #grid > .card >> nth=0 >> [data-action=\"increment\"]",
+        "click .toast-rate button[data-score=\"8\"]"
+      ]
+    }
+  }
+}

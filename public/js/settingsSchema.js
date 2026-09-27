@@ -20,7 +20,7 @@
 // a plain dynamic import() from Node" pattern as state.js/recommendLogic.js,
 // so this is unit-testable without a browser.
 
-import { DEFAULT_THEME_ID, COLOR_THEMES } from './themes.js';
+import { DEFAULT_THEME_ID, DEFAULT_LIGHT_THEME_ID, curatedThemeId } from './themes.js';
 import { DEFAULT_UI_FONT, DEFAULT_HEADING_FONT, DEFAULT_NUMBERS_FONT, isValidFontId } from './fonts.js';
 import { SLIDER_KEYS, DEFAULT_STEP, MIN_STEP, MAX_STEP } from './typographySliders.js';
 
@@ -45,10 +45,51 @@ export const ORIGINAL_TITLES_MODES = ['off', 'details', 'everywhere'];
 // existing value here) — see migrations.js's own header for why one id
 // can't represent light/dark/system with independent per-mode choices.
 export const APPEARANCE_MODES = ['light', 'dark', 'system'];
-export const BACKGROUND_TYPES = ['none', 'gradient', 'grain'];
 export const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+
+// v3 Phase 4 (decision D2, schema 15): the appearance controls. The v2 fields
+// they replace (appearance, the *Step sliders, decor, decorationStep) stay in
+// the file untouched; migrate_14_to_15 computed these from them.
+export const TEXT_SIZES = [1, 2, 3, 4, 5];
+export const DEFAULT_TEXT_SIZE = 3;
+export const DENSITIES = ['compact', 'comfortable'];
+export const MOTION_LEVELS = ['full', 'reduced', 'off'];
+export const DECORATION_LEVELS = ['off', 'low', 'full'];
 export function isValidHexColor(value) {
   return typeof value === 'string' && HEX_COLOR_RE.test(value);
+}
+
+export const LIBRARY_LAYOUTS = ['grid', 'list'];
+export const SAVED_VIEW_LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
+export const SAVED_VIEWS_MAX = 20;
+export const SAVED_VIEW_NAME_MAX = 40;
+
+// Saved filter views (v3 Phase 4): a named list + filters + sort. Anything
+// malformed is dropped rather than repaired, and the filters are completed
+// from the list's defaults, so an old or hand-edited file can never break the
+// filter bar.
+export function sanitizeSavedViews(views, defaults) {
+  if (!Array.isArray(views)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const v of views) {
+    if (!v || typeof v !== 'object') continue;
+    const id = typeof v.id === 'string' ? v.id : '';
+    const name = typeof v.name === 'string' ? v.name.trim().slice(0, SAVED_VIEW_NAME_MAX) : '';
+    if (!id || !name || seen.has(id) || !SAVED_VIEW_LISTS.includes(v.list)) continue;
+    seen.add(id);
+    const filters = v.filters && typeof v.filters === 'object' ? v.filters : {};
+    out.push({
+      id,
+      name,
+      list: v.list,
+      filters: { ...defaults.filters[v.list], ...filters, genres: Array.isArray(filters.genres) ? filters.genres.filter((g) => typeof g === 'string') : [] },
+      sort: typeof v.sort === 'string' ? v.sort : defaults.sort[v.list],
+      sortDir: v.sortDir === 'asc' ? 'asc' : 'desc',
+    });
+    if (out.length >= SAVED_VIEWS_MAX) break;
+  }
+  return out;
 }
 
 function defaultAppearanceSlot(themeId) {
@@ -78,23 +119,40 @@ export function defaultAppearance() {
 // original single-color behavior, so every custom slot saved before this
 // field existed keeps rendering identically. Same optional-nullable
 // pattern as sanitizeBackground's gradientColor1/2 below.
+// v3: a preset slot may name a retired theme (the v2 `appearance` field, or a
+// hand-edited file); it becomes that theme's nearest curated one.
 function sanitizeAppearanceSlot(slot, fallback) {
   if (slot && slot.type === 'custom' && isValidHexColor(slot.accent)) {
     const base = isValidHexColor(slot.base) ? slot.base.toLowerCase() : null;
     return { type: 'custom', accent: slot.accent.toLowerCase(), base };
   }
-  if (slot && slot.type === 'preset' && COLOR_THEMES.some((t) => t.id === slot.id)) {
-    return { type: 'preset', id: slot.id };
-  }
-  return fallback;
+  const id = slot && slot.type === 'preset' ? curatedThemeId(slot.id) : null;
+  return id ? { type: 'preset', id } : fallback;
 }
 
-function sanitizeBackground(background, fallback) {
-  const type = background && BACKGROUND_TYPES.includes(background.type) ? background.type : fallback.type;
-  const rawOpacity = background && typeof background.opacity === 'number' ? background.opacity : fallback.opacity;
-  const gradientColor1 = background && isValidHexColor(background.gradientColor1) ? background.gradientColor1.toLowerCase() : null;
-  const gradientColor2 = background && isValidHexColor(background.gradientColor2) ? background.gradientColor2.toLowerCase() : null;
-  return { type, opacity: Math.max(0, Math.min(100, rawOpacity)), gradientColor1, gradientColor2 };
+export function defaultAppearanceV3() {
+  return { mode: 'dark', light: defaultAppearanceSlot(DEFAULT_LIGHT_THEME_ID), dark: defaultAppearanceSlot(DEFAULT_THEME_ID) };
+}
+
+// preferences.appearanceV3. When it is missing (a library that never went
+// through migrate_14_to_15, such as a client-side test fixture), it is computed
+// from the v2 `appearance` the same way the migration does.
+export function sanitizeAppearanceV3(value, legacy) {
+  const defaults = defaultAppearanceV3();
+  const source = value && typeof value === 'object' ? value : legacy && typeof legacy === 'object' ? legacy : {};
+  return {
+    mode: APPEARANCE_MODES.includes(source.mode) ? source.mode : defaults.mode,
+    light: sanitizeAppearanceSlot(source.light, defaults.light),
+    dark: sanitizeAppearanceSlot(source.dark, defaults.dark),
+  };
+}
+
+// The one-time "what changed" notice migrate_14_to_15 leaves behind, or null.
+function sanitizeAppearanceNotice(notice) {
+  if (!notice || typeof notice !== 'object' || !Array.isArray(notice.changes)) return null;
+  const changes = notice.changes.filter((c) => c && typeof c === 'object' && typeof c.kind === 'string');
+  if (!changes.length) return null;
+  return { ...notice, changes, seenAt: typeof notice.seenAt === 'string' ? notice.seenAt : null };
 }
 
 // Named, exported defaults (not inline literals) so preferences.js's
@@ -153,6 +211,11 @@ export function defaultSettings() {
       dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
     },
     activeTab: 'watching',
+    // v3 Phase 4: the library's layout (covers, or the compact list for large
+    // libraries) and the user's saved filter views, each
+    // { id, name, list, filters, sort, sortDir } (see sanitizeSavedViews).
+    libraryLayout: 'grid',
+    savedViews: [],
     discoverExcludedGenres: [],
     discoverIncludedGenres: [],
     // P5B.3: the Advanced Filters panel. `format`/`studio` are this
@@ -202,6 +265,13 @@ export function defaultSettings() {
     decorationStep: DEFAULT_STEP,
     originalTitles: DEFAULT_ORIGINAL_TITLES,
     appearance: defaultAppearance(),
+    // v3 Phase 4 (D2): what Settings actually reads and writes now.
+    appearanceV3: defaultAppearanceV3(),
+    textSize: DEFAULT_TEXT_SIZE,
+    density: 'comfortable',
+    motion: 'full',
+    decoration: 'full',
+    appearanceNotice: null,
     // P3.1: uiFont/headingFont/numbersFont default to today's actual,
     // already-shipped typography (Schibsted Grotesk/Zen Old Mincho) —
     // picking none of the 9 new families this substep adds is
@@ -265,6 +335,8 @@ export function ensureSettingsShape(preferences) {
     prefs.filters[list] = { ...defaults.filters[list], ...(prefs.filters[list] || {}) };
   }
   prefs.activeTab = prefs.activeTab || defaults.activeTab;
+  prefs.libraryLayout = LIBRARY_LAYOUTS.includes(prefs.libraryLayout) ? prefs.libraryLayout : defaults.libraryLayout;
+  prefs.savedViews = sanitizeSavedViews(prefs.savedViews, defaults);
   prefs.discoverExcludedGenres = Array.isArray(prefs.discoverExcludedGenres) ? prefs.discoverExcludedGenres : defaults.discoverExcludedGenres;
   prefs.discoverIncludedGenres = Array.isArray(prefs.discoverIncludedGenres) ? prefs.discoverIncludedGenres : defaults.discoverIncludedGenres;
   prefs.discoverFilters = { ...defaults.discoverFilters, ...prefs.discoverFilters };
@@ -290,13 +362,15 @@ export function ensureSettingsShape(preferences) {
   const DECOR_DENSITY_SEED_STEP = { few: 2, normal: 5, many: 8 };
   prefs.decorationStep = isValidStep(prefs.decorationStep) ? prefs.decorationStep : DECOR_DENSITY_SEED_STEP[prefs.decorDensity] ?? defaults.decorationStep;
   prefs.originalTitles = ORIGINAL_TITLES_MODES.includes(prefs.originalTitles) ? prefs.originalTitles : defaults.originalTitles;
-  const appearance = prefs.appearance && typeof prefs.appearance === 'object' ? prefs.appearance : {};
-  prefs.appearance = {
-    mode: APPEARANCE_MODES.includes(appearance.mode) ? appearance.mode : defaults.appearance.mode,
-    light: sanitizeAppearanceSlot(appearance.light, defaults.appearance.light),
-    dark: sanitizeAppearanceSlot(appearance.dark, defaults.appearance.dark),
-    background: sanitizeBackground(appearance.background, defaults.appearance.background),
-  };
+  // v3: the v2 `appearance` is kept exactly as stored (a downgrade reads it);
+  // nothing reads it any more except to seed appearanceV3.
+  if (!prefs.appearance || typeof prefs.appearance !== 'object') prefs.appearance = defaults.appearance;
+  prefs.appearanceV3 = sanitizeAppearanceV3(prefs.appearanceV3, prefs.appearance);
+  prefs.textSize = TEXT_SIZES.includes(prefs.textSize) ? prefs.textSize : defaults.textSize;
+  prefs.density = DENSITIES.includes(prefs.density) ? prefs.density : defaults.density;
+  prefs.motion = MOTION_LEVELS.includes(prefs.motion) ? prefs.motion : defaults.motion;
+  prefs.decoration = DECORATION_LEVELS.includes(prefs.decoration) ? prefs.decoration : defaults.decoration;
+  prefs.appearanceNotice = sanitizeAppearanceNotice(prefs.appearanceNotice);
   prefs.uiFont = isValidFontId(prefs.uiFont) ? prefs.uiFont : defaults.uiFont;
   prefs.headingFont = isValidFontId(prefs.headingFont) ? prefs.headingFont : defaults.headingFont;
   prefs.numbersFont = isValidFontId(prefs.numbersFont) ? prefs.numbersFont : defaults.numbersFont;

@@ -347,13 +347,14 @@ Full FAQ copy is in `27-07-2026-moonlit-shrine-remaining-surfaces.html` §07 and
 
 ## 13 · Accessibility
 
-- Focus: 2 px accent ring, 2 px offset, `:focus-visible`, never removed.
+- Focus: 2 px `--accent-lit` ring, 2 px offset, `:focus-visible`, never removed. A field that hides its input's outline shows the ring on the field. `--accent-lit` is at least 4.6:1 on `--bg` in every theme, custom ones included (unit-tested at 3:1, the WCAG focus minimum).
 - Contrast: verified per theme by the generator, worst case 4.6:1 for labels. See §3.3.
 - Colour is never the only carrier: a new episode has a dot **and** the words, finished has support-coloured progress **and** 26/26, dropped has reduced opacity **and** a tag.
-- Text size and weight are user controls, not a zoom hack, and apply on the safety screens too.
-- Keyboard: `/` search · `n` add · `1`–`7` tabs · `j` `k` move between cards · `space` mark next episode · `enter` open · `s` select mode · `esc` close or leave select mode · `ctrl+z` undo · `?` help. Shortcuts are inactive while typing in a field.
+- Text size (5 steps) and density are user controls, not a zoom hack, and apply on the safety screens too. Motion has Full, Reduced (the OS setting's behaviour, also on demand) and Off.
+- A custom theme shows its measured WCAG AA contrast in Settings.
+- Keyboard (v3): `ctrl+k` command palette (works from a field too) · `/` filter the library · `n` add · `1`–`5` Home, Library, Schedule, Discover, Stats · arrows move within a tab list, a segmented control or a Discover rail (up and down move between rails) · `j` `k` move between cards · `space` mark next episode · `+` `-` step progress · `enter` open · `shift+f10` or the menu key opens the card menu · `1`–`0` rate in the detail drawer · `s` select mode · `ctrl+a` select all · `esc` close or leave select mode · `ctrl+z` undo · `?` help. Shortcuts are inactive while typing in a field.
 - All overlays trap focus, restore it on close, and close on `esc`.
-- `aria-live="polite"` on the toast container, `aria-selected` on tabs, `aria-pressed` on select mode.
+- Announcements go through stable, visually hidden live regions (one in the page, one in each dialog, since a modal makes the page inert), not the toast container, which moves. The error banner is `role="alert"`. Tabs, list segments and Settings sections are ARIA tab lists with a roving tabindex; toggles use `aria-pressed`.
 
 ---
 

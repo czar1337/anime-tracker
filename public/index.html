@@ -25,60 +25,72 @@
 </head>
 <body>
 
-<div id="bg-effect" data-effect="none" aria-hidden="true"></div>
 
 <div id="app">
 
   <header class="app-header">
-    <button id="nav-hamburger" class="icn nav-hamburger" title="Menu" aria-label="Open navigation menu" aria-expanded="false">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-    </button>
     <button id="brand-home" class="brand" title="Go to Home"><i></i>Anime Tracker</button>
 
-    <nav class="tabs" role="tablist" aria-label="Lists">
+    <!-- v3 Phase 4: five sections. The same tablist becomes the bottom tab bar
+         on narrow screens (styles.css), so there is one set of tabs to keep in
+         sync, for the pointer, the keyboard and assistive technology alike. -->
+    <nav id="section-tabs" class="tabs" role="tablist" aria-label="Sections">
       <span id="tab-pill" class="tab-pill" aria-hidden="true"></span>
-      <button class="tab" data-tab="watching" role="tab" aria-selected="true">Watching <b class="tab-count" data-count="watching">0</b><span id="watching-unseen-badge" class="tab-unseen-badge" title="Series with unread episodes" hidden>0</span></button>
-      <button class="tab" data-tab="watchlist" role="tab" aria-selected="false">Watchlist <b class="tab-count" data-count="watchlist">0</b></button>
-      <button class="tab" data-tab="watched" role="tab" aria-selected="false">Watched <b class="tab-count" data-count="watched">0</b></button>
-      <button class="tab" data-tab="dropped" role="tab" aria-selected="false">Dropped <b class="tab-count" data-count="dropped">0</b></button>
-      <button class="tab" data-tab="schedule" role="tab" aria-selected="false">Schedule</button>
-      <button class="tab" data-tab="discover" role="tab" aria-selected="false">Discover</button>
-      <button class="tab" data-tab="stats" role="tab" aria-selected="false">Statistics</button>
+      <button class="tab" id="tab-home" data-tab="home" role="tab" aria-selected="false" aria-controls="home-view" tabindex="-1">
+        <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1Z"/></svg><span class="tab-label">Home</span>
+      </button>
+      <button class="tab" id="tab-library" data-tab="library" role="tab" aria-selected="true" aria-controls="list-view" tabindex="0">
+        <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="4" width="4.5" height="16" rx="1"/><rect x="10.5" y="4" width="4.5" height="16" rx="1"/><path d="m17.2 5.2 3.1.8-3.6 14-3.1-.8"/></svg><span class="tab-label">Library</span><span id="watching-unseen-badge" class="tab-unseen-badge" hidden>0</span>
+      </button>
+      <button class="tab" id="tab-schedule" data-tab="schedule" role="tab" aria-selected="false" aria-controls="schedule-view" tabindex="-1">
+        <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg><span class="tab-label">Schedule</span>
+      </button>
+      <button class="tab" id="tab-discover" data-tab="discover" role="tab" aria-selected="false" aria-controls="discover-view" tabindex="-1">
+        <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5Z"/></svg><span class="tab-label">Discover</span>
+      </button>
+      <button class="tab" id="tab-stats" data-tab="stats" role="tab" aria-selected="false" aria-controls="stats-view" tabindex="-1">
+        <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg><span class="tab-label">Stats</span>
+      </button>
     </nav>
 
     <div class="header-actions">
       <a id="update-banner" class="banner update" href="#" target="_blank" rel="noopener" hidden></a>
       <span id="app-version" class="app-version"></span>
       <span id="save-indicator" class="save" data-state="saved"><i></i>Saved</span>
-      <button id="theme-toggle" class="icn" title="Choose a color theme" aria-label="Choose a color theme">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="13.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="17.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.2" fill="currentColor" stroke="none"/><path d="M12 2a10 10 0 1 0 8.02 16 2.5 2.5 0 0 0-1.36-4.5H16a3 3 0 0 1-3-3 3 3 0 0 1 1-2.24A2.5 2.5 0 0 0 12.5 2Z"/></svg>
+      <button id="search-trigger" class="search-field-btn" data-command="palette.open" aria-label="Search or jump to (Ctrl+K)" aria-keyshortcuts="Control+K">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <span class="search-field-label">Search or jump to…</span>
+        <kbd>Ctrl K</kbd>
       </button>
-      <button id="notifications-trigger" class="icn" title="Episode notifications" aria-label="Episode notifications">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+      <button id="notifications-trigger" class="icn" data-command="notifications.open" title="New episodes" aria-label="New episodes" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+        <i class="icn-dot" aria-hidden="true"></i>
       </button>
-      <button id="search-trigger" class="icn" title="Search (press /)" aria-label="Search">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <button id="add-trigger" class="btn btn-primary rip-host" data-command="search.add" title="Add a series from AniList (n)" aria-keyshortcuts="n">Add</button>
+      <button id="settings-trigger" class="icn" data-command="settings.open" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.2 7.5l2.1 1.2M17.7 15.3l2.1 1.2M4.2 16.5l2.1-1.2M17.7 8.7l2.1-1.2"/><circle cx="12" cy="12" r="6.6"/></svg>
       </button>
-      <button id="import-trigger" class="icn" title="Import from MyAnimeList" aria-label="Import from MyAnimeList">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg>
-      </button>
-      <button id="backup-menu-trigger" class="icn" title="Backup &amp; restore" aria-label="Backup and restore">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16"/></svg>
-      </button>
-      <button id="shortcuts-trigger" class="icn" title="Keyboard shortcuts (press ?)" aria-label="Keyboard shortcuts">?</button>
-      <button id="add-trigger" class="btn btn-primary rip-host" title="Add a new anime">Add series</button>
     </div>
   </header>
 
-  <div id="error-banner" class="banner error" hidden></div>
+  <div id="error-banner" class="banner error" role="alert" hidden></div>
 
   <main class="app-main">
-    <div id="home-view" class="home-view" hidden></div>
-    <div id="stats-view" class="stats-view" hidden></div>
-    <div id="discover-view" class="discover-view" hidden></div>
-    <div id="schedule-view" class="discover-view" hidden></div>
+    <div id="home-view" class="home-view" role="tabpanel" aria-labelledby="tab-home" hidden></div>
+    <div id="stats-view" class="stats-view" role="tabpanel" aria-labelledby="tab-stats" hidden></div>
+    <div id="discover-view" class="discover-view" role="tabpanel" aria-labelledby="tab-discover" hidden></div>
+    <div id="schedule-view" class="discover-view" role="tabpanel" aria-labelledby="tab-schedule" hidden></div>
 
-    <div id="list-view">
+    <div id="list-view" role="tabpanel" aria-labelledby="tab-library">
+    <div class="library-head">
+      <div class="lists-seg" role="tablist" aria-label="Library lists">
+        <button class="list-seg" id="list-tab-watching" data-list="watching" role="tab" aria-selected="true" aria-controls="grid" tabindex="0">Watching <b class="tab-count" data-count="watching">0</b></button>
+        <button class="list-seg" id="list-tab-watchlist" data-list="watchlist" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Watchlist <b class="tab-count" data-count="watchlist">0</b></button>
+        <button class="list-seg" id="list-tab-watched" data-list="watched" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Watched <b class="tab-count" data-count="watched">0</b></button>
+        <button class="list-seg" id="list-tab-dropped" data-list="dropped" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Dropped <b class="tab-count" data-count="dropped">0</b></button>
+      </div>
+      <div id="saved-views" class="saved-views"></div>
+    </div>
     <div id="watching-hero" hidden></div>
     <div class="list-toolbar">
       <div id="stats-header" class="stats-header" hidden></div>
@@ -99,6 +111,10 @@
           <button id="select-mode-toggle" class="icn small" title="Select several" aria-label="Select several" aria-pressed="false">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg>
           </button>
+          <div class="layout-toggle" role="radiogroup" aria-label="Layout">
+            <button type="button" class="icn small" role="radio" data-layout="grid" aria-checked="true" aria-label="Covers" title="Covers"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="4" width="6.5" height="9" rx="1"/><rect x="13.5" y="4" width="6.5" height="9" rx="1"/><path d="M4 17h6.5M13.5 17h6.5M4 20h4M13.5 20h4"/></svg></button>
+            <button type="button" class="icn small" role="radio" data-layout="list" aria-checked="false" aria-label="Compact list" title="Compact list" tabindex="-1"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="5" width="3" height="4" rx=".5"/><rect x="4" y="15" width="3" height="4" rx=".5"/><path d="M10 7h10M10 17h10"/></svg></button>
+          </div>
         </div>
         <div class="line2">
           <div class="filter-group" id="genre-filter"></div>
@@ -132,7 +148,7 @@
 
     <!-- Boot skeleton (v3 Phase 3): shown only if the library takes longer than
          150ms to arrive; the first render replaces it. -->
-    <div id="grid" class="card-grid" aria-busy="true">
+    <div id="grid" class="card-grid" role="tabpanel" aria-labelledby="list-tab-watching" aria-busy="true">
       <div class="card-skeleton skeleton-set shimmer" aria-hidden="true"><div class="sk sk-cover"></div><div class="sk sk-line"></div><div class="sk sk-line short"></div><div class="sk sk-bar"></div></div>
       <div class="card-skeleton skeleton-set shimmer" aria-hidden="true"><div class="sk sk-cover"></div><div class="sk sk-line"></div><div class="sk sk-line short"></div><div class="sk sk-bar"></div></div>
       <div class="card-skeleton skeleton-set shimmer" aria-hidden="true"><div class="sk sk-cover"></div><div class="sk sk-line"></div><div class="sk sk-line short"></div><div class="sk sk-bar"></div></div>
@@ -152,16 +168,6 @@
     </div>
   </dialog>
 
-  <!-- Mobile navigation menu, behind the header's hamburger button (hidden
-       on wide viewports, where the tab row already works). -->
-  <dialog id="nav-menu-overlay" class="overlay">
-    <div class="overlay-panel nav-menu-panel">
-      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
-      <h2>Menu</h2>
-      <nav id="nav-menu-list" class="nav-menu-list"></nav>
-    </div>
-  </dialog>
-
   <!-- P4.4: the rest of the bulk verbs beyond the bar's own move/delete
        (score, progress, tags, lists, mark completed, export) — populated
        per-open by Render.renderBulkMoreMenu(), same reasoning as the nav
@@ -175,6 +181,25 @@
   </dialog>
 
   <!-- Search overlay -->
+  <!-- v3 Phase 4: Discover's "Tune" popover (views/discover/view.js
+       renderDiscoverTune). Outside #discover-view, so rebuilding the shelves
+       never closes it. -->
+  <div id="discover-tune" class="tune-popover" popover role="dialog" aria-label="Tune Discover"></div>
+
+  <!-- v3 Phase 4: the command palette (Ctrl/Cmd+K), views/palette/palette.js.
+       The input is an ARIA combobox that owns the listbox of results. -->
+  <dialog id="palette-overlay" class="overlay palette-overlay" aria-label="Command palette">
+    <div class="overlay-panel palette-panel">
+      <div class="palette-field">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search your library, AniList or commands…" aria-label="Search your library, AniList or commands">
+        <kbd>Esc</kbd>
+      </div>
+      <div id="palette-list" class="palette-list" role="listbox" aria-label="Results"></div>
+      <div class="palette-foot"><span id="palette-status" class="palette-status" role="status" aria-live="polite"></span><span class="palette-hint">↑ ↓ to move · Enter to run · Esc to close</span></div>
+    </div>
+  </dialog>
+
   <dialog id="search-overlay" class="overlay" aria-label="Search AniList">
     <div class="overlay-panel search-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
@@ -238,14 +263,16 @@
     </div>
   </dialog>
 
-  <!-- Settings panel: theme, text size, text weight, decoration, original
-       titles. Replaces the old theme-picker-only overlay (same trigger,
-       same id, new contents — see events.js's bindThemePicker). -->
-  <dialog id="theme-picker-overlay" class="overlay">
-    <div class="overlay-panel" style="max-width:760px">
-      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
-      <h2>Settings</h2>
-      <div id="settings-body"></div>
+  <!-- Settings (v3 Phase 4): a sectioned drawer from the right. The tab list
+       and the sections are rendered into #settings-body by
+       views/settings/view.js. -->
+  <dialog id="settings-overlay" class="overlay drawer-overlay" aria-labelledby="settings-title">
+    <div class="overlay-panel settings-panel">
+      <div class="settings-head">
+        <h2 id="settings-title">Settings</h2>
+        <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      </div>
+      <div id="settings-body" class="settings-layout"></div>
     </div>
   </dialog>
 
@@ -281,7 +308,7 @@
   <!-- P5B.3's Advanced Filters panel — dropdown option lists depend on
        runtime corpus data (which studios/sources/tags actually exist), so
        the body is rendered dynamically by render.js, same split
-       theme-picker-overlay's #settings-body already uses. -->
+       settings-overlay's #settings-body also uses. -->
   <dialog id="discover-filters-overlay" class="overlay">
     <div class="overlay-panel" style="max-width:640px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
@@ -425,7 +452,9 @@
     </div>
   </dialog>
 
-  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <!-- Toasts are announced through core/announce.js's stable live regions:
+       this container moves into whichever dialog is open. -->
+  <div id="toast-container" class="toast-container"></div>
 
 </div>
 
