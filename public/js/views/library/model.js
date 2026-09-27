@@ -7,6 +7,10 @@ import { Store } from '../../state.js';
 
 export const expandedGroups = new Set();
 export const openNoteIds = new Set();
+// Series whose last episode was just marked: for the length of the completion
+// moment (actions.js playCompletion) the card shows the finished bar and its
+// sweep instead of the "Move to Watched?" prompt, then moves by itself.
+export const completingIds = new Set();
 
 let selectMode = false;
 export const selectedIds = new Set();

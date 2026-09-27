@@ -614,14 +614,27 @@ let lastUndoBtn = null;
 // evaluation deferred until the Undo window expires" hook every
 // destructive/lossy call site passes, so an undone action never gets
 // evaluated against a state it no longer produced.
-function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true, onExpire } = {}) {
+//
+// `rating` (v3 Phase 3, the completion moment): `{ label, value, onRate }`
+// adds a 1-10 row under the message. `onRate(score)` applies the score and
+// returns the value now stored (a second click on the same score clears it),
+// which the row then shows as pressed. Rating does not close the toast.
+function ratingRowHtml({ label, value }) {
+  const buttons = [];
+  for (let i = 1; i <= 10; i++) {
+    buttons.push(`<button type="button" data-score="${i}" aria-pressed="${value === i}" aria-label="${escapeHtml(label)} ${i}">${i}</button>`);
+  }
+  return `<div class="toast-rate" role="group" aria-label="${escapeHtml(label)}"><span>${escapeHtml(label)}</span>${buttons.join('')}</div>`;
+}
+
+function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true, onExpire, rating } = {}) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = `<span>${escapeHtml(message)}</span>${actionLabel ? `<button>${escapeHtml(actionLabel)}</button>` : ''}`;
+  toast.className = rating ? 'toast has-rating' : 'toast';
+  toast.innerHTML = `<span class="toast-msg">${escapeHtml(message)}</span>${actionLabel ? `<button class="toast-action">${escapeHtml(actionLabel)}</button>` : ''}${rating ? ratingRowHtml(rating) : ''}`;
   let actioned = false;
-  if (actionLabel && onAction) {
-    const btn = toast.querySelector('button');
+  const btn = toast.querySelector('.toast-action');
+  if (btn && onAction) {
     btn.addEventListener('click', () => {
       actioned = true;
       onAction();
@@ -630,10 +643,18 @@ function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo 
     });
     if (trackUndo) lastUndoBtn = btn;
   }
+  if (rating) {
+    toast.querySelector('.toast-rate').addEventListener('click', (e) => {
+      const scoreBtn = e.target.closest('button[data-score]');
+      if (!scoreBtn) return;
+      const stored = rating.onRate(Number(scoreBtn.dataset.score));
+      for (const b of toast.querySelectorAll('.toast-rate button')) b.setAttribute('aria-pressed', String(Number(b.dataset.score) === stored));
+    });
+  }
   container.appendChild(toast);
   setTimeout(() => {
     toast.remove();
-    if (toast.querySelector('button') === lastUndoBtn) lastUndoBtn = null;
+    if (btn && btn === lastUndoBtn) lastUndoBtn = null;
     if (onExpire && !actioned) onExpire();
   }, duration);
 }

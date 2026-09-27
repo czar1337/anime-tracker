@@ -159,7 +159,7 @@ body {
 
 .atmo-feather {
   position: absolute;
-  top: -30px;
+  top: var(--f-y, -30px);
   left: var(--f-x);
   width: 9px; height: 24px;
   background: linear-gradient(180deg, var(--glow), transparent);
@@ -167,7 +167,9 @@ body {
   animation: featherFall var(--f-dur, 2.4s) var(--ease-enter) forwards;
   opacity: 0;
 }
-.atmo-feather.reward { width: 13px; height: 32px; }
+/* The reward feather is part of the completion moment, which stays under
+   2.4s: it falls in --dur-reward (2s). */
+.atmo-feather.reward { width: 13px; height: 32px; animation-duration: var(--dur-reward); }
 @keyframes featherFall {
   0% { transform: translate(0, 0) rotate(-12deg); opacity: 0; }
   10% { opacity: var(--f-op, .95); }
@@ -1417,13 +1419,40 @@ kbd {
 }
 .card:hover .plus, .card:focus-within .plus { opacity: 1; transform: none; }
 .plus:hover { background: var(--accent-fill); color: var(--accent-contrast); }
-.plus:active { transform: scale(0.88); }
-.plus.pulse { animation: plusPulse var(--dur-slow) var(--ease-standard); }
-@keyframes plusPulse {
-  0% { transform: scale(1); }
-  40% { transform: scale(calc(1 + .25 * var(--move-scale))); }
-  100% { transform: scale(1); }
+/* v3 +1: pressed to 0.9 at once, then back on the spring when released. A
+   keyboard +1 has no press, so .pulse (added after the save) plays the same
+   press-and-spring; after a click it starts from the pressed scale it is
+   already at. */
+.plus:active { transform: scale(var(--press-icon)); transition-duration: var(--dur-press); transition-timing-function: var(--ease-standard); }
+.plus.pulse { animation: plusPress var(--dur-slow) var(--ease-spring); }
+@keyframes plusPress {
+  from { transform: scale(var(--press-icon)); }
+  to { transform: none; }
 }
+
+/* The watched count's slide-swap: the new digit rises 6px into place while
+   the old one (a ghost, text from data-n) leaves upwards at 70% of that. */
+.progress-label .ep { position: relative; display: inline-block; }
+.progress-label .ep-now { display: inline-block; }
+.progress-label .ep.ep-swap .ep-now { animation: epIn var(--dur-base) var(--ease-enter); }
+.progress-label .ep-old { position: absolute; left: 0; top: 0; animation: epOut calc(var(--dur-base) * .7) var(--ease-exit) forwards; }
+.progress-label .ep-old::before { content: attr(data-n); }
+@keyframes epIn { from { opacity: 0; transform: translateY(calc(var(--move-sm) * 1.5)); } }
+@keyframes epOut { to { opacity: 0; transform: translateY(calc(var(--move-sm) * -1.5)); } }
+
+/* The completion moment: the finished bar (--positive, below) gets one
+   hairline sweeping across it. Under reduced motion the band never moves
+   into view. */
+.card.completing .progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 16%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 75%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: hairSweep var(--dur-emph) var(--ease-standard) forwards;
+}
+@keyframes hairSweep { to { transform: translateX(calc(-100% + 725% * var(--move-scale))); } }
 
 /* Tags — used where a state must never rely on colour alone (§8, §13). */
 .tag {
@@ -2713,6 +2742,25 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
   transition: background-color var(--dur-base);
 }
 .toast button:hover { background: var(--accent-soft); }
+/* The completion toast's 1-10 rating row, on its own line under the message. */
+.toast.has-rating {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  row-gap: var(--sp-2);
+  border-radius: var(--radius-card);
+  width: min(440px, calc(100vw - var(--sp-4) * 2));
+}
+.toast-rate { flex-basis: 100%; display: flex; align-items: center; gap: var(--sp-1); }
+.toast-rate span { font: var(--t-meta); color: var(--dim); margin-right: var(--sp-1); white-space: nowrap; }
+.toast .toast-rate button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--sp-1) 0;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--dur-fast), color var(--dur-fast);
+}
+.toast .toast-rate button[aria-pressed="true"] { background: var(--accent-fill); color: var(--accent-contrast); }
 
 /* ---------- Responsive ---------- */
 /* 900px rather than the old 720px: the previous threshold left tablet-portrait

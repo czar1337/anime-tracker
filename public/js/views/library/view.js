@@ -15,7 +15,7 @@ import { reconcileListChunked } from '../../core/reconcile.js';
 import { flip } from '../../core/flip.js';
 import { UI_TIMING } from '../../../../config/tuning.js';
 import { staggerDelay } from '../shared/format.js';
-import { expandedGroups, openNoteIds, selectedIds, isSelectMode, groupKey } from './model.js';
+import { expandedGroups, openNoteIds, selectedIds, completingIds, isSelectMode, groupKey } from './model.js';
 
 export const QUICK_MOVE_LISTS = [
   { key: 'watching', label: 'Watching', short: 'Watch' },
@@ -82,7 +82,9 @@ function statusSelectHtml(entry) {
 function progressRowHtml(entry, pct, { watched = false } = {}) {
   const total = entry.totalEpisodes;
   const hint = watched ? 'Click to correct the episode count' : 'Click to type an exact episode number';
-  return html`<div class="${cls('progress-row', watched && 'watched-progress-row')}"><div class="progress-track"><div class="progress-fill" style="--p:${pct / 100}"></div></div><button class="progress-label" data-action="edit-episode" title="${hint}">${entry.episodesWatched}${total ? `/${total}` : ''}</button></div>`;
+  // The watched count sits in its own span so a +1 can slide the old digit out
+  // and the new one in (actions.js playIncrement).
+  return html`<div class="${cls('progress-row', watched && 'watched-progress-row')}"><div class="progress-track"><div class="progress-fill" style="--p:${pct / 100}"></div></div><button class="progress-label" data-action="edit-episode" title="${hint}"><span class="ep"><span class="ep-now">${entry.episodesWatched}</span></span>${total ? `/${total}` : ''}</button></div>`;
 }
 
 function cardBodyForList(entry, list, isSeasonRow) {
@@ -90,7 +92,7 @@ function cardBodyForList(entry, list, isSeasonRow) {
   if (list === 'watching') {
     const total = entry.totalEpisodes;
     const pct = total ? Math.min(100, (entry.episodesWatched / total) * 100) : 0;
-    const showCompletionPrompt = Boolean(total) && entry.episodesWatched >= total;
+    const showCompletionPrompt = Boolean(total) && entry.episodesWatched >= total && !completingIds.has(entry.anilistId);
     const unseen = Airing.getUnseenCount(entry.anilistId);
     // Forward-looking ("next episode airs in ...") and backward-looking
     // (unseen) are separate signals and can both show; no known airing time
@@ -147,7 +149,7 @@ export function cardHtml(entry, list, seasonLabel = null) {
   const isFinished = list === 'watched' || (list === 'watching' && Boolean(entry.totalEpisodes) && entry.episodesWatched >= entry.totalEpisodes);
   const isNew = list === 'watching' && Airing.getUnseenCount(entry.anilistId) > 0;
   const noteOpen = openNoteIds.has(entry.anilistId);
-  return html`<article class="${cls('card', seasonLabel && 'season-row', isSelected && 'selected', isFinished && 'finished', list === 'dropped' && 'dropped')}" data-id="${entry.anilistId}" tabindex="0">
+  return html`<article class="${cls('card', seasonLabel && 'season-row', isSelected && 'selected', isFinished && 'finished', completingIds.has(entry.anilistId) && 'completing', list === 'dropped' && 'dropped')}" data-id="${entry.anilistId}" tabindex="0">
       <svg class="hold-ring" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle></svg>
       <div class="card-cover-wrap">
         ${coverMediaHtml(src)}
@@ -296,10 +298,18 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
   const towards = exitTarget;
   exitTarget = null;
   if (!sameList) return reconcile();
+  // A focused card that leaves the list (a status move, a finished series)
+  // hands focus to the card now in its place, so the keyboard keeps its spot.
+  const focusedCard = document.activeElement?.closest?.('#grid > .card');
+  const focusedIndex = focusedCard ? [...grid.children].indexOf(focusedCard) : -1;
   let pass;
   flip(grid, () => {
     pass = reconcile();
   }, { exitTowards: towards });
+  if (focusedCard && !focusedCard.isConnected && !grid.contains(document.activeElement)) {
+    const cards = grid.querySelectorAll(':scope > .card');
+    cards[Math.min(focusedIndex, cards.length - 1)]?.focus({ preventScroll: true });
+  }
   return pass;
 }
 
