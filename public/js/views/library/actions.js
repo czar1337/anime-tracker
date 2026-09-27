@@ -113,16 +113,16 @@ function playIncrement(card, before) {
   if (!card) return;
   const btn = card.querySelector('.plus');
   if (btn) restartClass(btn, 'pulse');
-  const num = card.querySelector('.progress-label .ep');
-  if (!num || !motionAllowed()) return;
-  num.querySelector('.ep-old')?.remove();
+  const label = card.querySelector('.progress-label');
+  if (!label?.querySelector('.ep-now') || !motionAllowed()) return;
+  label.querySelector('.ep-old')?.remove();
   const old = document.createElement('span');
   old.className = 'ep-old';
   old.setAttribute('aria-hidden', 'true');
   old.dataset.n = String(before);
   old.addEventListener('animationend', () => old.remove());
-  num.append(old);
-  restartClass(num, 'ep-swap');
+  label.append(old);
+  restartClass(label, 'ep-swap');
 }
 
 // Sets a score from the completion toast's rating row, quietly (the toast is

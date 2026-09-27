@@ -48,7 +48,7 @@ test('+1: the button springs back, the bar grows from the old value, the digit s
         scale,
         barTransition: fill.getAnimations().some((a) => a.transitionProperty === 'transform'),
         ghost: ghost && ghost.dataset.n,
-        swapping: card.querySelector('.progress-label .ep').classList.contains('ep-swap'),
+        swapping: card.querySelector('.progress-label').classList.contains('ep-swap'),
         plusAnimation: card.querySelector('.plus').getAnimations().map((a) => a.animationName),
       };
     });

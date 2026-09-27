@@ -36,6 +36,21 @@ Entries are added phase by phase and rewritten into final release notes at the e
 - **Fix: a cover image address with a quote in it could break the page's styling.**
 - Internal: the server is split into modules under `src/`, all files are written through one safe-save routine, the exe is built with esbuild, and there is an exe smoke test (`scripts/smoke-exe.js`).
 
+### Look and motion
+
+- **One motion system, and the Animation slider now reaches every animation.** Many animations used fixed lengths the slider never touched. At Off, nothing moves at all. With Windows' "reduce motion", nothing slides or scales; you get short fades instead.
+- **Finishing a series is a small moment.** Marking the last episode turns the bar green with a sweep of light, one feather falls from that card, and the series moves to Watched by itself. The message offers Undo and lets you rate it 1 to 10 right there.
+- **+1 feels like a press.** The button springs back, the bar grows from where it was (never from zero), and the episode number slides to the next one. The message names the series: "Frieren · episode 19 marked watched · Undo".
+- **Moving between tabs slides a little in the direction you're going**, and the tab underline now follows the tab exactly (it used to be narrower than wide tabs).
+- **Opening a series grows its cover out of the card**, and closing puts it back.
+- **Cards glide to their new place** when you change the sort order. A card you move to another list fades towards that list's tab, and the tab's count pops.
+- **Loading shows the shape of what's coming** instead of "Loading…" text, on startup, in the series details, in Discover and in the Schedule. It only appears if loading takes longer than a moment.
+- **Windows and messages close smoothly** instead of vanishing.
+- **The header gets slimmer as you scroll**, and Discover shelves and Statistics bars ease in as they come into view.
+- **Keyboard: moving or finishing the focused card keeps your place** by focusing the card that takes its spot.
+- Removed the endless shimmer on every progress bar, the scanning and blinking loops, the counting-up numbers and the ripples on cards and score dots.
+- The card title now follows your text-size setting. Colours, text sizes and corner radii come from one token file, and a check in the test suite stops raw values from coming back.
+
 ## 2.3.0
 
 Two new features requested after trying 2.2.2 for real, plus a note on the rest of that feedback round.

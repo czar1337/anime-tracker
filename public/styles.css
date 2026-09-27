@@ -1507,10 +1507,11 @@ kbd {
 
 /* The watched count's slide-swap: the new digit rises 6px into place while
    the old one (a ghost, text from data-n) leaves upwards at 70% of that. */
-.progress-label .ep { position: relative; display: inline-block; }
+.progress-label { position: relative; }
 .progress-label .ep-now { display: inline-block; }
-.progress-label .ep.ep-swap .ep-now { animation: epIn var(--dur-base) var(--ease-enter); }
-.progress-label .ep-old { position: absolute; left: 0; top: 0; animation: epOut calc(var(--dur-base) * .7) var(--ease-exit) forwards; }
+.progress-label.ep-swap .ep-now { animation: epIn var(--dur-base) var(--ease-enter); }
+/* Sits exactly over .ep-now: the label's own padding (2px var(--sp-1)). */
+.progress-label .ep-old { position: absolute; left: var(--sp-1); top: 2px; animation: epOut calc(var(--dur-base) * .7) var(--ease-exit) forwards; }
 .progress-label .ep-old::before { content: attr(data-n); }
 @keyframes epIn { from { opacity: 0; transform: translateY(calc(var(--move-sm) * 1.5)); } }
 @keyframes epOut { to { opacity: 0; transform: translateY(calc(var(--move-sm) * -1.5)); } }

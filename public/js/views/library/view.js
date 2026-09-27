@@ -84,7 +84,7 @@ function progressRowHtml(entry, pct, { watched = false } = {}) {
   const hint = watched ? 'Click to correct the episode count' : 'Click to type an exact episode number';
   // The watched count sits in its own span so a +1 can slide the old digit out
   // and the new one in (actions.js playIncrement).
-  return html`<div class="${cls('progress-row', watched && 'watched-progress-row')}"><div class="progress-track"><div class="progress-fill" style="--p:${pct / 100}"></div></div><button class="progress-label" data-action="edit-episode" title="${hint}"><span class="ep"><span class="ep-now">${entry.episodesWatched}</span></span>${total ? `/${total}` : ''}</button></div>`;
+  return html`<div class="${cls('progress-row', watched && 'watched-progress-row')}"><div class="progress-track"><div class="progress-fill" style="--p:${pct / 100}"></div></div><button class="progress-label" data-action="edit-episode" title="${hint}"><span class="ep-now">${entry.episodesWatched}</span>${total ? `/${total}` : ''}</button></div>`;
 }
 
 function cardBodyForList(entry, list, isSeasonRow) {
