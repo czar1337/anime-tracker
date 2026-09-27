@@ -318,6 +318,23 @@ function restoreWatchRecord(record) {
   touch();
 }
 
+// v3 Phase 5: one record per import (importCore.js), newest last.
+function getImports() {
+  return state.imports;
+}
+function addImportRecord(record) {
+  state.imports.push(record);
+  touch();
+  return record;
+}
+function updateImportRecord(id, patch) {
+  const record = state.imports.find((r) => r.id === id);
+  if (!record) return null;
+  Object.assign(record, patch);
+  touch();
+  return record;
+}
+
 function getTags() {
   return state.tags;
 }
@@ -895,6 +912,9 @@ export const Store = {
   updateWatchRecord,
   removeWatchRecord,
   restoreWatchRecord,
+  getImports,
+  addImportRecord,
+  updateImportRecord,
   createCustomList,
   renameCustomList,
   deleteCustomList,

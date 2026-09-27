@@ -342,6 +342,28 @@ Phase 3 (design system and motion):
   an entry. "Watch again" resets progress to 0 without an episode event (lifetime
   counts only add what is watched; the rewatched episodes add again) and emits
   `rewatch_started`, the first time that type is reachable.
+- **Imports share one flow and one record.** MAL, AniList (by username, POINT_10
+  scores) and backup files become the same items; step 2 lists what is new and merges
+  what is already in the library field by field. The merge defaults to "theirs" only
+  where the library has nothing (no score, no dates, no note, no rewatches) and to
+  "mine" everywhere else, so nothing is overwritten without a choice; "newest" uses the
+  source's change time and keeps mine when the source has none (a MAL export).
+  Comments and notes are appended under a dated "Imported from …" line, never replace
+  a note. MAL partial dates round to the first of the month or year.
+- **The pre-import snapshot is pinned and taken in the write.** The import PUT carries
+  a `pre-import-<source>-<time>` label; the server takes the snapshot inside the same
+  lock as the If-Match check and the write, and writes nothing if it cannot. Pinned,
+  because an unpinned one rotates away after three more snapshots, which would break
+  the promise that an import stays revertable.
+- **Revert works from the import record, not the snapshot.** It removes what the import
+  added (and the history it wrote) and puts back each field it changed, only where
+  the field still has the imported value; the record stays, marked reverted, so this
+  survives reloads. Restoring the snapshot remains the whole-library fallback. The log
+  is append-only and the counter fold only adds, so lifetime counters keep counting a
+  reverted import's episodes.
+- **A backup file now merges instead of replacing.** Backup's "Import series from a
+  backup file" opens the import flow (series only). Replacing the whole library is what
+  the backups and snapshots lists are for.
 - **Streaks and sittings are new on the Stats page.** The brief asks that they read live
   events only, and there was no streak or session logic to restrict, so Phase 5 adds
   them: a day counts when its live progress nets above zero; a sitting is live episodes

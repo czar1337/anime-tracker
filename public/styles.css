@@ -3389,3 +3389,29 @@ a.btn { text-decoration: none; }
 .diary-title:hover { color: var(--accent-lit); }
 .diary-note { grid-column: 2 / 4; font: var(--t-meta); color: var(--dim); }
 .diary-badge { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--accent-lit); }
+
+/* v3 Phase 5: the import sources and the merge review. */
+.import-sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); margin: var(--sp-3) 0; }
+.import-source { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-4); display: grid; gap: var(--sp-2); align-content: start; }
+.import-source h3 { margin: 0; }
+.import-source p { margin: 0; font: var(--t-meta); color: var(--dim); }
+.import-source form input { flex: 1; min-width: 0; }
+.import-safety { margin-left: auto; }
+.import-merge { margin-top: var(--sp-4); }
+.merge-head h3 { margin-top: 0; }
+.merge-all { margin: var(--sp-2) 0 var(--sp-3); }
+.merge-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); max-height: 46vh; overflow-y: auto; }
+.merge-row { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--sp-3); }
+.merge-row.off { opacity: .55; }
+.merge-title { display: flex; align-items: center; gap: var(--sp-2); font: var(--t-body); font-weight: var(--w-strong); color: var(--text); }
+.merge-fields { width: 100%; border-collapse: collapse; margin-top: var(--sp-2); font: var(--t-meta); }
+.merge-fields th, .merge-fields td { text-align: left; padding: var(--sp-1) var(--sp-2); border-top: 1px solid color-mix(in srgb, var(--text) 5%, transparent); vertical-align: middle; }
+.merge-fields thead th { color: var(--faint); font-weight: var(--w-med); border-top: 0; }
+.merge-fields td { color: var(--dim); overflow-wrap: anywhere; }
+.merge-seg button { padding: var(--sp-1) var(--sp-2); }
+@media (max-width: 720px) {
+  .merge-fields thead { display: none; }
+  .merge-fields tr { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-1); padding: var(--sp-2) 0; border-top: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
+  .merge-fields th, .merge-fields td { border-top: 0; padding: 0; }
+  .merge-fields th[scope="row"], .merge-fields td:last-child { grid-column: 1 / 3; }
+}

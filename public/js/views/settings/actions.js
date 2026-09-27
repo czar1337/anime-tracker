@@ -18,6 +18,7 @@ import { EventLog } from '../../eventLog.js';
 import { copy, setCopyTier } from '../../copy.js';
 import { LISTS_AND_TAGS, UI_TIMING } from '../../../../config/tuning.js';
 import { registerCommand, registerCommandProvider } from '../../core/commands.js';
+import { revertImport } from '../../importCore.js';
 import { bindRovingTablist } from '../../core/focus.js';
 import {
   renderSettingsPanel,
@@ -272,6 +273,25 @@ export function bindSettingsActions(context) {
           } catch (err) {
             Render.showToast(copy('restore.failed', undefined, { message: err.message }));
           }
+        },
+      });
+      return;
+    }
+
+    const revertBtn = e.target.closest('[data-action="revert-import"]');
+    if (revertBtn) {
+      const id = revertBtn.dataset.importId;
+      confirmDialog({
+        title: copy('settings.imports.confirmTitle'),
+        body: copy('settings.imports.confirmBody'),
+        confirmLabel: copy('settings.imports.revert'),
+        onConfirm: () => {
+          const result = revertImport(id);
+          if (!result) return;
+          persist();
+          refreshView();
+          repaintSettings();
+          Render.showToast(copy('import.reverted', undefined, { removed: result.removed.length, restored: result.restored.length }));
         },
       });
       return;

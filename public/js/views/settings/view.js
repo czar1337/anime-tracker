@@ -341,9 +341,28 @@ function notificationsHtml() {
   return rowHtml(copy('settings.notifications.heading'), copy('settings.notifications.description'), commandButton('notifications.open', 'command.notifications'));
 }
 
+// v3 Phase 5: every import, newest first, each revertable for as long as it is
+// kept (the imports store is Class A, so this survives a reload).
+function importsHtml() {
+  const imports = Store.getImports().slice().reverse();
+  if (!imports.length) return `<p class="manager-empty">${escapeHtml(copy('settings.imports.empty'))}</p>`;
+  const date = (iso) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return `<ul class="manager-list imports-list">${imports
+    .map((r) => `
+      <li class="manager-row wrap" data-key="import-${escapeHtml(r.id)}">
+        <span class="nm">${escapeHtml(copy(`settings.imports.source.${r.source}`))} · ${escapeHtml(date(r.at))}</span>
+        <span class="count">${escapeHtml(copy('settings.imports.counts', undefined, { added: r.counts?.added || 0, updated: r.counts?.updated || 0 }))}</span>
+        <span class="actions">${r.revertedAt
+          ? `<span class="card-meta">${escapeHtml(copy('settings.imports.reverted', undefined, { date: date(r.revertedAt) }))}</span>`
+          : `<button type="button" class="btn btn-ghost sm" data-action="revert-import" data-import-id="${escapeHtml(r.id)}">${escapeHtml(copy('settings.imports.revert'))}</button>`}</span>
+      </li>`)
+    .join('')}</ul>`;
+}
+
 function dataHtml() {
   return `
     ${rowHtml(copy('settings.backup.heading'), copy('settings.backup.description'), `<div class="row">${commandButton('backup.open', 'command.backup')}${commandButton('import.open', 'command.import')}</div>`)}
+    ${rowHtml(copy('settings.imports.heading'), copy('settings.imports.description'), importsHtml())}
     ${rowHtml(copy('dataSafety.heading'), copy('dataSafety.description'), `
       <ul id="snapshot-list" class="backup-list" data-morph-key="snapshots"><li class="backup-empty">${escapeHtml(copy('dataSafety.snapshotList.loading'))}</li></ul>
       <div class="row">

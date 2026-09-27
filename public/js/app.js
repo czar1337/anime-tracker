@@ -22,6 +22,7 @@ import { syncShimmers } from './core/motion.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 import { UI_TIMING } from '../../config/tuning.js';
+import { setImportSaver } from './importCore.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -166,6 +167,35 @@ function persist() {
   clearTimeout(retryTimer);
   saveDebounceTimer = setTimeout(requestSave, 300);
 }
+
+// v3 Phase 5: an import's save. It goes through the same one-at-a-time queue
+// (waits for a save in flight, takes over a pending debounced one) and asks the
+// server for a named pre-import snapshot taken with the write. Rejects on any
+// failure, so the importer can tell the user and leave the import record out.
+async function saveImportNow(importLabel) {
+  while (saveInFlight) await new Promise((r) => setTimeout(r, 50));
+  clearTimeout(saveDebounceTimer);
+  clearTimeout(retryTimer);
+  saveInFlight = true;
+  saveQueued = false;
+  dirtySinceSend = false;
+  setSaveIndicator('saving', 'Saving');
+  EventLog.flush().catch(() => {});
+  try {
+    const result = await Api.saveLibrary(Store.toJSON(), Store.getEtag(), { kind: 'import', importLabel });
+    Store.setEtag(result.etag);
+    hasUnsavedChanges = dirtySinceSend;
+    setSaveIndicator('saved', 'Saved');
+    return result;
+  } catch (err) {
+    setSaveIndicator('failed', copy('save.indicator.conflict'));
+    throw err;
+  } finally {
+    saveInFlight = false;
+    if (!runQueuedSave() && dirtySinceSend) persist();
+  }
+}
+setImportSaver(saveImportNow);
 
 // Best-effort guard against closing the tab while a save is still pending —
 // covers the case of rapid edits followed by an immediate close.
@@ -497,7 +527,7 @@ async function boot() {
   document.addEventListener('library-imported', (e) => {
     refreshCurrentView(); // whatever's on screen — Home/Statistics included, not just the list view
     persist();
-    Render.showToast(`Imported ${e.detail.added} entries from MyAnimeList.`);
+    Render.showToast(copy('import.toast', undefined, { n: e.detail.added }));
   });
 
   // Background data: never re-render under someone typing (v3 Phase 1 item 10).
