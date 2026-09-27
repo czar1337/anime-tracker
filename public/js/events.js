@@ -275,12 +275,14 @@ function updateTabPill() {
   const pill = document.getElementById('tab-pill');
   if (!pill) return;
   const activeTab = document.querySelector('.tab[aria-selected="true"]');
+  // v3: transform only. The pill is 100px wide in CSS, translated to the tab
+  // and scaled to its width; no active tab (Home) collapses it in place.
   if (!activeTab) {
-    pill.style.width = '0px';
+    pill.style.transform = `translateX(${pill.dataset.x || 0}px) scaleX(0)`;
     return;
   }
-  pill.style.left = `${activeTab.offsetLeft}px`;
-  pill.style.width = `${activeTab.offsetWidth}px`;
+  pill.dataset.x = String(activeTab.offsetLeft);
+  pill.style.transform = `translateX(${activeTab.offsetLeft}px) scaleX(${activeTab.offsetWidth / 100})`;
 }
 
 function showListView(list) {
@@ -1185,7 +1187,11 @@ function bindHoldToSelect() {
 function bindRipple() {
   document.addEventListener('pointerdown', (e) => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const host = e.target.closest('.rip-host, .btn, .chip, .icn, .card, .plus, .seg button, .themegrid button, .score-dot, .quick-move-btn');
+    // Animation set to Off (--motion 0): no ripple at all.
+    if (Number(getComputedStyle(document.documentElement).getPropertyValue('--motion')) === 0) return;
+    // v3 Phase 3: not on cards or score dots (brief), where it competed with
+    // the card's own feedback.
+    const host = e.target.closest('.rip-host, .btn, .chip, .icn, .plus, .seg button, .themegrid button, .quick-move-btn');
     if (!host) return;
     const rect = host.getBoundingClientRect();
     const rip = document.createElement('span');

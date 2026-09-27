@@ -70,10 +70,15 @@ function reducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+// The animation setting at Off (tokens.css --motion 0) stops the decoration too.
+function motionOff() {
+  return Number(getComputedStyle(document.documentElement).getPropertyValue('--motion')) === 0;
+}
+
 // Whether canopy/leaves/feathers (not moon glow/vignette) are allowed to
 // exist at all right now.
 function decorativeLayerAllowed() {
-  return document.documentElement.dataset.decor !== 'off' && !reducedMotion() && !isLightTheme();
+  return document.documentElement.dataset.decor !== 'off' && !reducedMotion() && !motionOff() && !isLightTheme();
 }
 
 function rand(min, max) {
@@ -162,7 +167,8 @@ export function initAtmosphere() {
 
   sync();
 
-  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-decor', 'data-color-theme'] });
+  // `style` carries the animation setting (--motion, set inline by the slider).
+  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-decor', 'data-color-theme', 'style'] });
   window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', sync);
 }
 

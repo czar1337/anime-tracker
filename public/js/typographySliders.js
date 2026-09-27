@@ -70,7 +70,6 @@ const RADIUS_TOKEN_CAPS = {
   '--radius': RADIUS_SURFACE_CAP_PX,
   '--radius-lg': RADIUS_SURFACE_CAP_PX,
 };
-const BASE_DURATION_MS = { '--d-press': 90, '--d-1': 120, '--d-2': 200, '--d-3': 280, '--d-4': 380, '--d-5': 800 };
 export const BASE_COVER_WIDTH_PX = 170;
 
 // Always exactly 1.0 at step 5 (a number divided by itself), for any array
@@ -125,7 +124,9 @@ export function computeSliderTokens(key, step) {
     case 'coverWidth':
       return { '--cover-width': `${Math.round(BASE_COVER_WIDTH_PX * ratioAt(TYPOGRAPHY_STEPS.coverWidth, step) * 100) / 100}px` };
     case 'animation':
-      return scaleMap(BASE_DURATION_MS, ratioAt(TYPOGRAPHY_STEPS.animationDurationMult, step), 'ms');
+      // v3: one multiplier, --motion, that every --dur-* token reads
+      // (tokens.css). Step 1 is 0: Off.
+      return { '--motion': String(Math.round(ratioAt(TYPOGRAPHY_STEPS.animationDurationMult, step) * 100) / 100) };
     default:
       throw new Error(`Unknown slider key: ${key}`);
   }

@@ -937,9 +937,7 @@ async function run() {
       '--radius-xs': '4px', '--radius-sm': '7px', '--radius': '12px', '--radius-lg': '16px',
     });
     assert.deepEqual(computeSliderTokens('coverWidth', DEFAULT_STEP), { '--cover-width': '170px' });
-    assert.deepEqual(computeSliderTokens('animation', DEFAULT_STEP), {
-      '--d-press': '90ms', '--d-1': '120ms', '--d-2': '200ms', '--d-3': '280ms', '--d-4': '380ms', '--d-5': '800ms',
-    });
+    assert.deepEqual(computeSliderTokens('animation', DEFAULT_STEP), { '--motion': '1' });
   });
 
   await test('textSize/textWeight scale correctly at the extremes', () => {
@@ -953,16 +951,12 @@ async function run() {
     });
   });
 
-  await test('animation step 1 (animationDurationMult[0] = 0) yields 0ms everywhere — "step 1 is off"', () => {
-    assert.deepEqual(computeSliderTokens('animation', 1), {
-      '--d-press': '0ms', '--d-1': '0ms', '--d-2': '0ms', '--d-3': '0ms', '--d-4': '0ms', '--d-5': '0ms',
-    });
+  await test('animation step 1 (animationDurationMult[0] = 0) sets --motion to 0 — "step 1 is off"', () => {
+    assert.deepEqual(computeSliderTokens('animation', 1), { '--motion': '0' });
   });
 
-  await test('animation step 10 scales every duration by the same ratio', () => {
-    assert.deepEqual(computeSliderTokens('animation', 10), {
-      '--d-press': '205.71ms', '--d-1': '274.29ms', '--d-2': '457.14ms', '--d-3': '640ms', '--d-4': '868.57ms', '--d-5': '1828.57ms',
-    });
+  await test('animation step 10 scales every duration through one multiplier', () => {
+    assert.deepEqual(computeSliderTokens('animation', 10), { '--motion': '2.29' });
   });
 
   await test('radius step 10 caps controls at 12px and surfaces at 24px — never turns inputs into pills', () => {

@@ -51,7 +51,7 @@ function episodesBlockHtml(entry) {
     return html`
       <p class="detail-lbl">Episodes</p>
       <div class="row detail-ep-summary"><span>Progress</span><span class="num">${watched} watched${total ? ` of ${total}` : ' · no total known'}</span></div>
-      <div class="barfallback"><i style="width:${pct}%"></i></div>
+      <div class="barfallback"><i style="--p:${pct / 100}"></i></div>
       <div class="row detail-jump-row">
         <span class="field detail-jump-field">Jump to episode<input type="number" min="0" ${total ? html`max="${total}"` : ''} data-action="detail-jump-episode" aria-label="Jump to episode"><kbd>↵</kbd></span>
         <button class="btn btn-ghost sm rip-host" data-action="detail-mark-next">Mark episode ${nextEp}</button>

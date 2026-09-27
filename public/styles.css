@@ -9,15 +9,16 @@
 /* P3.2: the [data-text-size]/[data-text-weight] attribute blocks that used
    to live here are gone — replaced, not left dead alongside the new
    sliders (the spec's own framing: "replace the... controls"). --text-scale/
-   --w-body/--w-med/--w-strong/--w-display now come from this block's own
-   defaults above (today's exact "normal"/"s" values, unchanged) until a
+   --w-body/--w-med/--w-strong/--w-display now come from tokens.css's
+   defaults (today's exact "normal"/"s" values, unchanged) until a
    slider overrides them via an inline style on documentElement — public/js/
    preferences.js's sliderPref, the same override mechanism P3.1's font
    pickers already use for --ui/--display/--numbers. */
 
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{animation:none!important;transition:none!important}
-}
+/* Reduced motion is handled by the motion tokens (tokens.css): distances and
+   scale amplitudes go to 0 and every duration is capped at a 120ms fade, so
+   nothing moves but state changes still read. v2 switched every animation
+   and transition off here, which also removed those fades. */
 
 :root{
   font-synthesis: none;
@@ -42,7 +43,7 @@ html, body {
 
 body {
   min-height: 100vh;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard);
   /* P3.2's lineHeight/letterSpacing sliders: computed correctly (see
      typographySliders.js) but had no CSS consumer anywhere until now (a
      post-2.2.0 feedback fix) — the fallback matches each token's own
@@ -163,7 +164,7 @@ body {
   width: 9px; height: 24px;
   background: linear-gradient(180deg, var(--glow), transparent);
   border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-  animation: featherFall var(--f-dur, 2.4s) var(--e-out) forwards;
+  animation: featherFall var(--f-dur, 2.4s) var(--ease-enter) forwards;
   opacity: 0;
 }
 .atmo-feather.reward { width: 13px; height: 32px; }
@@ -209,29 +210,6 @@ kbd {
   top: 0;
   z-index: 30;
 }
-/* Ambient "Status Window" idle detail: a dim accent-colored line permanently
-   sweeping the header's bottom edge, so the chrome reads as a live HUD
-   rather than a static toolbar. Deliberately subdued (thin, low opacity) —
-   meant to be felt more than noticed. Recolors automatically with the
-   active theme since it's driven entirely by --accent. */
-.app-header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
-  background-size: 200% 100%;
-  opacity: 0.5;
-  pointer-events: none;
-  animation: hudScan 6s linear infinite;
-}
-@keyframes hudScan {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
 .brand {
   appearance: none;
   border: none;
@@ -267,18 +245,19 @@ kbd {
 .tabs::-webkit-scrollbar { display: none; }
 
 /* A single underline slides between tabs on selection (design/moonlit-
-   shrine-design-system.md §10: "Tab change · 240ms · --e-out · the single
-   underline slides") — position/width set from JS (measured off the
-   active tab via getBoundingClientRect, same mechanism regardless of
-   whether this renders as a fill or a line), this only owns the motion. */
+   shrine-design-system.md §10: "the single underline slides"). v3: it moves
+   with transform only — a 100px line translated to the active tab and scaled
+   to its width (events.js's updateTabPill measures both). */
 .tab-pill {
   position: absolute;
   left: 0;
   bottom: -1px;
-  width: 0;
+  width: 100px;
   height: 1px;
   background: var(--accent);
-  transition: left 240ms var(--e-out), width 240ms var(--e-out);
+  transform-origin: 0 50%;
+  transform: translateX(0) scaleX(0);
+  transition: transform var(--dur-base) var(--ease-enter);
   z-index: 1;
   pointer-events: none;
 }
@@ -297,7 +276,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  transition: color var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  transition: color var(--dur-base) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
   white-space: nowrap;
 }
 
@@ -341,10 +320,10 @@ kbd {
    unrelated re-render) — see setCountWithPop in render.js. `display:
    inline-block` above is required for the transform to apply at all;
    plain inline boxes silently ignore transforms. */
-.badge-pop { animation: badgePop 0.4s cubic-bezier(.34,1.56,.64,1); }
+.badge-pop { animation: badgePop var(--dur-slow) var(--ease-spring); }
 @keyframes badgePop {
-  0% { transform: scale(0.5); }
-  60% { transform: scale(1.25); }
+  0% { transform: scale(calc(1 - .5 * var(--move-scale))); }
+  60% { transform: scale(calc(1 + .25 * var(--move-scale))); }
   100% { transform: scale(1); }
 }
 
@@ -407,7 +386,7 @@ kbd {
   border-radius: 50%;
   background: var(--positive);
 }
-.save[data-state="saving"] i { background: var(--warning); animation: savePulse 1.2s ease-in-out infinite; }
+.save[data-state="saving"] i { background: var(--warning); animation: savePulse var(--dur-loop) var(--ease-standard) infinite; }
 .save[data-state="failed"] { color: var(--accent-lit); }
 .save[data-state="failed"] i { background: var(--accent); }
 @keyframes savePulse { 50% { opacity: 0.3; } }
@@ -427,7 +406,7 @@ kbd {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  transition: border-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard), background-color var(--dur-base) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
 }
 .icn:hover { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
 .icn:active { transform: scale(var(--press-icon)); }
@@ -455,9 +434,9 @@ kbd {
   padding: 10px var(--sp-4);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform var(--d-2) var(--e-out), filter var(--d-2), background var(--d-2), border-color var(--d-2), box-shadow var(--d-2);
+  transition: transform var(--dur-base) var(--ease-enter), background-color var(--dur-base), border-color var(--dur-base);
 }
-.btn:active { transform: scale(var(--press-btn)); transition-duration: var(--d-press); transition-timing-function: var(--e-press); }
+.btn:active { transform: scale(var(--press-btn)); transition-duration: var(--dur-press); transition-timing-function: var(--ease-standard); }
 .btn-primary {
   background: var(--accent-fill);
   color: var(--accent-contrast);
@@ -485,7 +464,7 @@ kbd {
   opacity: 0.55;
   background: color-mix(in srgb, var(--accent-contrast) 100%, transparent);
   pointer-events: none;
-  animation: ripple 520ms var(--e-out) forwards;
+  animation: ripple var(--dur-emph) var(--ease-enter) forwards;
 }
 @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
 
@@ -571,7 +550,7 @@ kbd {
   padding: var(--sp-2) var(--sp-3);
   color: var(--faint);
   font: var(--t-body);
-  transition: border-color var(--d-2) var(--e-inout);
+  transition: border-color var(--dur-base) var(--ease-standard);
 }
 .field:hover { border-color: var(--line-lit); }
 .field kbd { margin-left: auto; font: var(--t-nano); border: 1px solid var(--line); border-radius: 3px; padding: 2px 6px; color: var(--faint); }
@@ -603,7 +582,7 @@ kbd {
   color: var(--dim);
   background: none;
   cursor: pointer;
-  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  transition: border-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard), background-color var(--dur-base) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
 }
 .chip:hover { border-color: var(--line-lit); color: var(--text); }
 .chip:active { transform: scale(0.95); }
@@ -622,7 +601,7 @@ kbd {
   background: none;
   cursor: pointer;
   appearance: none;
-  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout);
+  transition: border-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard);
 }
 .sel:hover { border-color: var(--line-lit); color: var(--text); }
 
@@ -732,7 +711,7 @@ kbd {
   font-weight: 600;
   cursor: pointer;
   padding: 6px var(--sp-1);
-  transition: transform 0.12s ease;
+  transition: transform var(--dur-fast) var(--ease-standard);
 }
 .text-btn:hover { text-decoration: underline; }
 .text-btn:active { transform: scale(0.93); }
@@ -741,7 +720,7 @@ kbd {
   color: var(--accent-contrast);
   padding: var(--sp-2) var(--sp-4);
   border-radius: var(--radius-sm);
-  transition: background-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard);
 }
 .text-btn.primary:hover { background: var(--accent-lit); text-decoration: none; }
 
@@ -786,9 +765,9 @@ kbd {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4), background var(--d-4);
+  transition: transform var(--dur-slow) var(--ease-enter), border-color var(--dur-slow), background-color var(--dur-slow);
   position: relative;
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
+  animation: cardEnter var(--dur-emph) var(--ease-enter) backwards;
 }
 .card:hover, .card:focus-within {
   transform: translateY(-5px);
@@ -821,12 +800,16 @@ kbd {
 }
 .card.holding .hold-ring { opacity: 1; }
 @media (prefers-reduced-motion: no-preference) {
-  .card.holding .hold-ring circle { animation: holdRing 500ms linear forwards; }
+  .card.holding .hold-ring circle { animation: holdRing var(--dur-hold) linear forwards; }
 }
 @media (prefers-reduced-motion: reduce) {
   .card.holding .hold-ring circle { stroke-dashoffset: 0; } /* "ring fills without animation" — still shows, just not as a sweep */
 }
-@keyframes holdRing { to { stroke-dashoffset: 0; } }
+@keyframes holdRing {
+  /* motion-exception: a 40px SVG ring filling while a card is held (design
+     §10); it runs only during the hold, never in a loop. */
+  to { stroke-dashoffset: 0; }
+}
 
 /* The single accent signal on hover: a hairline that draws itself across
    the top edge, left of centre... actually right-to-left per the design
@@ -835,16 +818,18 @@ kbd {
   content: '';
   position: absolute;
   z-index: 3;
-  top: 0; left: 0; right: 100%;
+  top: 0; left: 0; right: 0;
   height: 1px;
   background: var(--accent);
-  transition: right 450ms var(--e-out);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  transition: transform var(--dur-slow) var(--ease-enter);
   pointer-events: none;
 }
 .card:hover::before, .card:focus-within::before,
 .discover-card:hover::before, .discover-card:focus-within::before,
 .franchise-card:hover::before, .franchise-card:focus-within::before {
-  right: 0;
+  transform: scaleX(1);
 }
 
 /* Entrance animations use `backwards` fill: the `from` keyframe applies during the
@@ -863,7 +848,7 @@ kbd {
 #grid > .card, #grid > .franchise-card { content-visibility: auto; contain-intrinsic-size: auto 320px; }
 
 @keyframes cardEnter {
-  from { opacity: 0; transform: translateY(16px); }
+  from { opacity: 0; transform: translateY(var(--move-md)); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -883,8 +868,8 @@ kbd {
   border-radius: var(--radius);
   background: var(--card);
   padding: var(--sp-4);
-  transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4);
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
+  transition: transform var(--dur-slow) var(--ease-enter), border-color var(--dur-slow);
+  animation: cardEnter var(--dur-emph) var(--ease-enter) backwards;
 }
 .discover-card:hover {
   transform: translateY(-4px);
@@ -919,7 +904,7 @@ kbd {
   max-height: 0;
   opacity: 0;
   overflow: hidden;
-  transition: max-height var(--d-2), opacity var(--d-2);
+  transition: opacity var(--dur-base);
 }
 .discover-card:hover .discover-card-title-alt,
 .discover-card:focus-within .discover-card-title-alt {
@@ -943,7 +928,7 @@ kbd {
   place-items: center;
   font-size: var(--fs-body);
   opacity: 0;
-  transition: opacity var(--d-2), border-color var(--d-2), color var(--d-2);
+  transition: opacity var(--dur-base), border-color var(--dur-base), color var(--dur-base);
 }
 .discover-card:hover .x, .discover-card:focus-within .x { opacity: 1; }
 .discover-card .x:hover { border-color: var(--accent); color: var(--accent-lit); }
@@ -961,7 +946,7 @@ kbd {
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: border-color var(--d-2), color var(--d-2), background var(--d-2);
+  transition: border-color var(--dur-base), color var(--dur-base), background-color var(--dur-base);
 }
 .discover-card .thumb-btn:hover { border-color: var(--line-lit); color: var(--text); }
 .discover-card .thumb-btn.on { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
@@ -1017,7 +1002,7 @@ kbd {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity var(--d-2);
+  transition: opacity var(--dur-base);
   z-index: 20;
 }
 .info-hint:hover .info-hint-bubble,
@@ -1065,7 +1050,7 @@ kbd {
   background: none;
   cursor: pointer;
   flex: 0 0 auto;
-  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  transition: border-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard), background-color var(--dur-base) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
 }
 .mood-chip:hover { border-color: var(--line-lit); color: var(--text); }
 .mood-chip:active { transform: scale(0.95); }
@@ -1095,8 +1080,8 @@ kbd {
   border-radius: var(--radius-card);
   overflow: hidden;
   position: relative;
-  transition: border-color var(--d-4), transform var(--d-4) var(--e-out), box-shadow var(--d-4), background var(--d-4);
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
+  transition: border-color var(--dur-slow), transform var(--dur-slow) var(--ease-enter), background-color var(--dur-slow);
+  animation: cardEnter var(--dur-emph) var(--ease-enter) backwards;
 }
 .franchise-card:hover {
   border-color: var(--line-lit);
@@ -1138,7 +1123,7 @@ kbd {
   flex-direction: column;
   gap: var(--sp-2);
   padding: 0 var(--sp-4) var(--sp-4);
-  animation: cardEnter 0.35s ease-out backwards;
+  animation: cardEnter var(--dur-slow) var(--ease-enter) backwards;
 }
 
 .season-row {
@@ -1213,20 +1198,34 @@ kbd {
   display: block;
   opacity: 0;
   filter: var(--cover-filter);
-  transition: opacity 0.3s ease, filter 420ms;
+  /* motion-exception: covers regain their colour on hover (design §9, a
+     single image at a time); the filter is the treatment itself. */
+  transition: opacity var(--dur-slow) var(--ease-standard), filter var(--dur-slow) var(--ease-standard);
 }
 .card-cover-wrap img.loaded { opacity: 1; }
 .card:hover .card-cover-wrap img, .card:focus-within .card-cover-wrap img { filter: var(--cover-filter-hover); }
 .card-cover-wrap .skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 37%, var(--card) 63%);
-  background-size: 400% 100%;
-  animation: shimmer 1.4s ease infinite;
+  background: var(--card);
+  overflow: hidden;
+}
+
+/* The one shimmer (v3 Phase 3): a soft band moved across with transform, on
+   every skeleton surface. It replaces three background-position loops. Under
+   reduced motion --dur-loop is 0, so the band stays out of view. */
+.card-cover-wrap .skeleton::after,
+.search-skeleton-row:not(.dim) .search-skeleton-cover::after,
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 7%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: shimmer var(--dur-loop) linear infinite;
 }
 @keyframes shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
+  to { transform: translateX(100%); }
 }
 
 /* New episode — accent dot, top left of the art (design §8). */
@@ -1250,13 +1249,10 @@ kbd {
 .card.skeleton .card-cover-wrap,
 .card.skeleton .card-title,
 .card.skeleton .progress-track {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--text) 5%, transparent), color-mix(in srgb, var(--text) 11%, transparent), color-mix(in srgb, var(--text) 5%, transparent));
-  background-size: 220% 100%;
-  animation: cardSkeletonShimmer 1.5s linear infinite;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
 }
 .card.skeleton .card-title { height: 11px; min-height: 0; border-radius: 3px; color: transparent; }
 .card.skeleton .card-meta { visibility: hidden; }
-@keyframes cardSkeletonShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 
 .card-format-badge {
   position: absolute;
@@ -1294,7 +1290,7 @@ kbd {
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 2.7em;
-  transition: color 0.12s ease;
+  transition: color var(--dur-fast) var(--ease-standard);
 }
 /* Two lines at m/l/xl, one below that (design §4.2) — the plain
    single-line ellipsis technique, not -webkit-line-clamp:1, which is
@@ -1357,24 +1353,13 @@ kbd {
   background: linear-gradient(90deg, var(--accent), var(--accent-lit));
   border-radius: 999px;
   overflow: hidden;
-  /* Rendered at width:0 with the real value in data-target-width; render.js
-     flips it to the target on next frame so this transition actually plays
-     on mount instead of just snapping straight to the final width. */
-  transition: width 1s cubic-bezier(.16,1,.3,1);
-}
-/* Diagonal light sweep looping over the filled portion only (clipped by the
-   fill's own overflow:hidden, so it never bleeds past the current progress). */
-.progress-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(75deg, transparent 30%, color-mix(in srgb, var(--on-shade) 40%, transparent) 50%, transparent 70%);
-  background-size: 250% 100%;
-  animation: shimmerSweep 2.4s linear infinite;
-}
-@keyframes shimmerSweep {
-  0% { background-position: 150% 0; }
-  100% { background-position: -50% 0; }
+  /* v3: the bar is full width and scaled to the progress (--p, 0 to 1, set
+     by the template), so a +1 animates from the old value to the new one on
+     the spring, and a first render shows the real value at once. */
+  width: 100%;
+  transform-origin: 0 50%;
+  transform: scaleX(var(--p, 0));
+  transition: transform var(--dur-slow) var(--ease-spring);
 }
 .watched-progress-row { justify-content: flex-start; }
 .watched-progress-label-prefix { font-size: var(--fs-meta); color: var(--faint); }
@@ -1426,17 +1411,17 @@ kbd {
   line-height: 1;
   opacity: 0;
   transform: scale(0.85);
-  transition: 280ms var(--e-spring);
+  transition: var(--dur-slow) var(--ease-spring);
   backdrop-filter: blur(4px);
   cursor: pointer;
 }
 .card:hover .plus, .card:focus-within .plus { opacity: 1; transform: none; }
 .plus:hover { background: var(--accent-fill); color: var(--accent-contrast); }
 .plus:active { transform: scale(0.88); }
-.plus.pulse { animation: plusPulse 0.35s ease; }
+.plus.pulse { animation: plusPulse var(--dur-slow) var(--ease-standard); }
 @keyframes plusPulse {
   0% { transform: scale(1); }
-  40% { transform: scale(1.25); }
+  40% { transform: scale(calc(1 + .25 * var(--move-scale))); }
   100% { transform: scale(1); }
 }
 
@@ -1482,7 +1467,7 @@ kbd {
   background: none;
   color: var(--dim);
   cursor: pointer;
-  transition: border-color var(--d-2), transform var(--d-2);
+  transition: border-color var(--dur-base), transform var(--dur-base);
 }
 .tag-chip-toggle:hover { transform: translateY(-1px); }
 .tag-chip-toggle.on { border-color: currentColor; font-weight: 600; }
@@ -1513,7 +1498,7 @@ kbd {
   font-size: var(--fs-micro);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 .score-dot:hover { border-color: var(--warning); color: var(--warning); }
 .score-dot.filled { background: var(--warning); border-color: var(--warning); color: var(--bg-deep); font-weight: 700; }
@@ -1538,7 +1523,7 @@ kbd {
   border-radius: 6px;
   cursor: pointer;
   flex: 1;
-  transition: all 0.12s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 .quick-move-btn:hover { border-color: var(--accent); color: var(--text); }
 .quick-move-btn:active { transform: scale(0.93); }
@@ -1554,7 +1539,7 @@ kbd {
   gap: var(--sp-1);
   z-index: 2;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--dur-base) var(--ease-standard);
 }
 .card:hover .card-corner-actions,
 .card:focus-within .card-corner-actions {
@@ -1573,7 +1558,7 @@ kbd {
   justify-content: center;
   cursor: pointer;
   backdrop-filter: blur(2px);
-  transition: background-color 0.12s ease, transform 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 .corner-btn:hover { background: color-mix(in srgb, var(--shade) 85%, transparent); }
 .corner-btn:active { transform: scale(0.93); }
@@ -1606,7 +1591,7 @@ kbd {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background var(--d-2), border-color var(--d-2);
+  transition: background-color var(--dur-base), border-color var(--dur-base);
 }
 .card-select-box::after { content: '✓'; font-size: var(--fs-meta); color: transparent; }
 .card-select-box:has(input:checked) { background: var(--accent-fill); border-color: var(--accent-fill); }
@@ -1684,7 +1669,7 @@ kbd {
    .pop is added only when the count just increased from what was already
    shown for this title (tracked in render.js) — never on an unrelated
    re-render where the number hasn't actually changed. */
-.unseen-badge.pop { animation: badgePop 0.4s cubic-bezier(.34,1.56,.64,1); }
+.unseen-badge.pop { animation: badgePop var(--dur-slow) var(--ease-spring); }
 .unseen-badge {
   align-self: flex-start;
   font-size: var(--fs-meta);
@@ -1762,7 +1747,7 @@ kbd {
   align-items: flex-start;
   gap: 6px;
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
 .home-tile:hover { transform: translateY(-3px); box-shadow: var(--sh-2); }
 .home-tile-icon { font-size: var(--fs-num-s); color: var(--tile-accent, var(--accent-lit)); }
@@ -1836,7 +1821,7 @@ kbd {
 .hero h2:hover { color: var(--accent-lit); }
 .hero .sub { font: var(--t-meta); color: var(--dim); margin-bottom: 20px; }
 .hero .track { height: 3px; background: color-mix(in srgb, var(--text) 13%, transparent); position: relative; max-width: 380px; margin-bottom: 10px; border-radius: 999px; overflow: hidden; }
-.hero .track i { position: absolute; left: 0; top: 0; height: 3px; background: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 85%, transparent); transition: width 0.8s var(--e-out); }
+.hero .track i { position: absolute; left: 0; top: 0; width: 100%; height: 3px; background: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 85%, transparent); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform var(--dur-slow) var(--ease-spring); }
 .hero .n { font: var(--t-meta); font-variant-numeric: tabular-nums; color: var(--faint); margin-bottom: 20px; }
 .hero .row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 
@@ -1904,7 +1889,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  animation: cardEnter 0.5s cubic-bezier(.16,1,.3,1) backwards;
+  animation: cardEnter var(--dur-emph) var(--ease-enter) backwards;
 }
 .schedule-day.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .schedule-day-label {
@@ -1930,7 +1915,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 .schedule-item:hover { border-color: var(--accent); transform: translateY(-1px); }
 .schedule-item-title {
@@ -1962,7 +1947,7 @@ kbd {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 22px;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-standard);
 }
 .stats-section:hover { border-color: var(--line-lit); }
 .stats-section h3 {
@@ -1986,7 +1971,7 @@ kbd {
 }
 .stat-bar-label { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-bar-track { height: 7px; background: var(--line); border-radius: 999px; overflow: hidden; }
-.stat-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-lit)); border-radius: 999px; transition: width 0.5s ease; }
+.stat-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-lit)); border-radius: 999px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
 .stat-bar-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--faint); font-weight: 600; }
 
 /* Distinct accent per chart so the four sections read apart at a glance */
@@ -2065,7 +2050,7 @@ dialog.overlay::backdrop { background: transparent; }
   justify-content: center;
   padding: 10vh 20px 20px;
   z-index: 100;
-  animation: fadeIn var(--d-3) var(--e-out);
+  animation: fadeIn var(--dur-slow) var(--ease-enter);
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -2085,24 +2070,24 @@ dialog.overlay::backdrop { background: transparent; }
   max-height: 76vh;
   overflow-y: auto;
   padding: 20px;
-  animation: overlayEnter var(--d-4) var(--e-out);
+  animation: overlayEnter var(--dur-slow) var(--ease-enter);
 }
-@keyframes overlayEnter { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes overlayEnter { from { opacity: 0; transform: translateY(var(--move-md)) scale(calc(1 - .015 * var(--move-scale))); } to { opacity: 1; transform: none; } }
 
 /* View-switch crossfade (Home/Watching/Discover/Schedule/Stats): played by
    JS toggling this class on whichever view container just became visible
    (see playViewEnter in events.js) rather than baking the animation into
    the container's base rule, since these nodes persist across renders
    (only `hidden` toggles) and need a forced restart each time. */
-.view-fade-in { animation: viewEnter 0.22s ease-out; }
-@keyframes viewEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.view-fade-in { animation: viewEnter var(--dur-base) var(--ease-enter); }
+@keyframes viewEnter { from { opacity: 0; transform: translateY(var(--move-md)); } to { opacity: 1; transform: translateY(0); } }
 
 /* Color theme picker: crossfades the whole page via the View Transitions
    API when the browser supports it (see setColorTheme in themes.js) —
    pinning the duration here keeps it consistent instead of relying on each
    browser's own default. Unsupported browsers/engines simply never create
    these pseudo-elements, so this rule is a no-op there. */
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.25s; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-base); }
 
 .overlay-close {
   position: absolute;
@@ -2122,7 +2107,7 @@ dialog.overlay::backdrop { background: transparent; }
   line-height: 1;
   cursor: pointer;
   z-index: 1;
-  transition: border-color var(--d-2), color var(--d-2), background var(--d-2);
+  transition: border-color var(--dur-base), color var(--dur-base), background-color var(--dur-base);
 }
 .overlay-close:hover { color: var(--accent-lit); border-color: var(--accent); }
 
@@ -2163,12 +2148,12 @@ dialog.overlay::backdrop { background: transparent; }
 .set-row .k b { display: block; font: var(--t-card); margin-bottom: 3px; }
 .set-row .k span { font: var(--t-meta); color: var(--faint); line-height: 1.5; }
 .seg { display: inline-flex; gap: var(--sp-1); background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid var(--line); border-radius: 9px; padding: var(--sp-1); }
-.seg button { position: relative; overflow: hidden; background: none; border: 0; border-radius: 6px; color: var(--dim); font: var(--t-meta); padding: var(--sp-2) var(--sp-3); cursor: pointer; transition: color var(--d-2), background var(--d-2); }
+.seg button { position: relative; overflow: hidden; background: none; border: 0; border-radius: 6px; color: var(--dim); font: var(--t-meta); padding: var(--sp-2) var(--sp-3); cursor: pointer; transition: color var(--dur-base), background-color var(--dur-base); }
 .seg button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
 .seg button.on { background: var(--accent-fill); color: var(--accent-contrast); }
 .set-row .note { display: block; margin-top: 6px; font: var(--t-meta); color: var(--faint); }
 .themegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: var(--sp-2); max-height: 280px; overflow-y: auto; padding-right: 2px; }
-.themegrid button { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: none; cursor: pointer; transition: border-color var(--d-2), transform var(--d-2); }
+.themegrid button { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: none; cursor: pointer; transition: border-color var(--dur-base), transform var(--dur-base); }
 .themegrid button:hover { border-color: var(--line-lit); transform: translateY(-2px); }
 .themegrid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .themegrid .sw2 { height: 34px; display: flex; align-items: flex-end; gap: 3px; padding: 5px; }
@@ -2178,7 +2163,7 @@ dialog.overlay::backdrop { background: transparent; }
 /* P5A.2: the cold-start onboarding grid — same scrollable-grid/.on-state
    shape as .themegrid above, cover art instead of colour swatches. */
 .coldstart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: var(--sp-2); max-height: 420px; overflow-y: auto; padding-right: 2px; margin-top: var(--sp-3); }
-.coldstart-tile { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: var(--card); cursor: pointer; transition: border-color var(--d-2), transform var(--d-2); }
+.coldstart-tile { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: var(--card); cursor: pointer; transition: border-color var(--dur-base), transform var(--dur-base); }
 .coldstart-tile:hover { border-color: var(--line-lit); transform: translateY(-2px); }
 .coldstart-tile.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .coldstart-tile img, .coldstart-tile-noimg { display: block; width: 100%; aspect-ratio: 2/3; object-fit: cover; background: color-mix(in srgb, var(--text) 6%, transparent); }
@@ -2250,7 +2235,7 @@ dialog.overlay::backdrop { background: transparent; }
   color: var(--text);
   font-size: var(--fs-body);
   cursor: pointer;
-  transition: border-color var(--d-2), background var(--d-2);
+  transition: border-color var(--dur-base), background-color var(--dur-base);
 }
 .font-grid button:hover { border-color: var(--line-lit); background: color-mix(in srgb, var(--text) 3%, transparent); }
 .font-grid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
@@ -2268,7 +2253,7 @@ dialog.overlay::backdrop { background: transparent; }
 .help-tabs button.on { color: var(--text); border-color: var(--accent); }
 .faq { display: grid; gap: 2px; }
 .faq details { border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
-.faq summary { cursor: pointer; padding: var(--sp-3) 2px; font: var(--t-card); font-size: var(--fs-action); list-style: none; display: flex; align-items: center; gap: 10px; transition: color var(--d-2); }
+.faq summary { cursor: pointer; padding: var(--sp-3) 2px; font: var(--t-card); font-size: var(--fs-action); list-style: none; display: flex; align-items: center; gap: 10px; transition: color var(--dur-base); }
 .faq summary::-webkit-details-marker { display: none; }
 .faq summary::before { content: "+"; color: var(--accent-lit); font-size: var(--fs-title); width: 12px; }
 .faq details[open] summary::before { content: "–"; }
@@ -2323,7 +2308,7 @@ dialog.overlay::backdrop { background: transparent; }
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: var(--sp-3) var(--sp-3);
-  transition: border-color var(--d-2);
+  transition: border-color var(--dur-base);
 }
 .search-result:hover { border-color: var(--line-lit); }
 /* Missing cover (design system §9): the first letter, faint, on a flat panel. */
@@ -2374,13 +2359,7 @@ dialog.overlay::backdrop { background: transparent; }
   padding: var(--sp-3) var(--sp-3);
 }
 .search-skeleton-row.dim { opacity: .6; }
-.search-skeleton-cover { width: 44px; height: 60px; border-radius: 5px; background: color-mix(in srgb, var(--text) 6%, transparent); }
-.search-skeleton-row:not(.dim) .search-skeleton-cover {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--text) 5%, transparent), color-mix(in srgb, var(--text) 11%, transparent), color-mix(in srgb, var(--text) 5%, transparent));
-  background-size: 220% 100%;
-  animation: searchShimmer 1.5s linear infinite;
-}
-@keyframes searchShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.search-skeleton-cover { position: relative; overflow: hidden; width: 44px; height: 60px; border-radius: 5px; background: color-mix(in srgb, var(--text) 6%, transparent); }
 .search-skeleton-lines { display: flex; flex-direction: column; gap: var(--sp-2); }
 .search-skeleton-lines span { display: block; height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); }
 .search-skeleton-lines span:first-child { width: 58%; }
@@ -2408,7 +2387,7 @@ dialog.overlay::backdrop { background: transparent; }
   font: var(--t-body);
   font-size: var(--fs-action);
   cursor: pointer;
-  transition: border-color var(--d-2);
+  transition: border-color var(--dur-base);
 }
 .backup-row:hover { border-color: var(--line-lit); }
 .backup-time { font-variant-numeric: tabular-nums; color: var(--faint); flex-shrink: 0; }
@@ -2448,7 +2427,7 @@ dialog.overlay::backdrop { background: transparent; }
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
-  transition: transform var(--d-2), border-color var(--d-2);
+  transition: transform var(--dur-base), border-color var(--dur-base);
 }
 .color-swatch-grid button:hover { transform: scale(1.12); }
 .color-swatch-grid button.on { border-color: var(--text); }
@@ -2581,7 +2560,7 @@ dialog.overlay::backdrop { background: transparent; }
   aspect-ratio: 16 / 9;
   background: color-mix(in srgb, var(--text) 6%, transparent);
 }
-.detail-trailer img { display: block; width: 100%; height: 100%; object-fit: cover; filter: var(--cover-filter); transition: filter var(--d-2); }
+.detail-trailer img { display: block; width: 100%; height: 100%; object-fit: cover; filter: var(--cover-filter); transition: none; }
 .detail-trailer:hover img, .detail-trailer:focus-visible img { filter: var(--cover-filter-hover); }
 .detail-trailer-play {
   position: absolute;
@@ -2613,17 +2592,16 @@ dialog.overlay::backdrop { background: transparent; }
 /* Episode squares (design/HANDOVER §14: stay up to 50, one <i> per episode,
    f = watched, n = the next one to mark, pulsing to invite a click). */
 .eps { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
-.eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background var(--d-2); }
+.eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background-color var(--dur-base); }
 .eps i.f { background: color-mix(in srgb, var(--accent) 80%, transparent); }
-.eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); animation: epsBlip 2.4s ease-in-out infinite; }
-@keyframes epsBlip { 50% { background: color-mix(in srgb, var(--accent) 55%, transparent); } }
+.eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
 
 /* >50 episodes: squares become a compact bar plus a jump-to-episode field,
    with only the last 18 squares still shown as a tail (design/HANDOVER §14). */
 .detail-ep-summary { justify-content: space-between; margin-bottom: 10px; font: var(--t-card); }
 .detail-ep-summary .num { font: var(--t-meta); color: var(--faint); }
 .barfallback { height: 5px; background: color-mix(in srgb, var(--text) 9%, transparent); border-radius: 99px; position: relative; overflow: hidden; margin-bottom: var(--sp-3); }
-.barfallback i { position: absolute; left: 0; top: 0; height: 5px; background: var(--accent); border-radius: 99px; }
+.barfallback i { position: absolute; left: 0; top: 0; width: 100%; height: 5px; background: var(--accent); border-radius: 99px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform var(--dur-slow) var(--ease-spring); }
 .detail-jump-row { margin-bottom: var(--sp-1); }
 .detail-jump-field { max-width: 190px; }
 .detail-jump-field input { flex: 1; border: none; background: transparent; color: var(--text); font: var(--t-body); min-width: 0; }
@@ -2699,9 +2677,9 @@ dialog.overlay::backdrop { background: transparent; }
   gap: var(--sp-4);
   font: var(--t-body);
   font-size: var(--fs-action);
-  animation: toastIn var(--d-3) var(--e-out);
+  animation: toastIn var(--dur-slow) var(--ease-enter);
 }
-@keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(var(--move-md)); } to { opacity: 1; transform: translateY(0); } }
 .toast button {
   appearance: none;
   border: none;
@@ -2711,7 +2689,7 @@ dialog.overlay::backdrop { background: transparent; }
   padding: var(--sp-1) 10px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background var(--d-2);
+  transition: background-color var(--dur-base);
 }
 .toast button:hover { background: var(--accent-soft); }
 
@@ -2752,7 +2730,7 @@ dialog.overlay::backdrop { background: transparent; }
   color: var(--dim);
   font: var(--t-body);
   cursor: pointer;
-  transition: background var(--d-2), color var(--d-2);
+  transition: background-color var(--dur-base), color var(--dur-base);
 }
 .nav-menu-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
 .nav-menu-item.on { color: var(--text); background: var(--accent-soft); }

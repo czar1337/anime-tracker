@@ -4,7 +4,7 @@
 import { formatReleaseDate } from '../../scheduleLogic.js';
 import { html, cls, raw } from '../../core/html.js';
 import { titleBlockHtml } from '../library/view.js';
-import { staggerDelayMs, relativeAgeText, formatEnumLabel, coverOrInitialHtml } from '../shared/format.js';
+import { staggerDelay, relativeAgeText, formatEnumLabel, coverOrInitialHtml } from '../shared/format.js';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -21,7 +21,7 @@ function weekStripHtml(week) {
     <div class="schedule-week">
       ${week.map(
         ({ date, items }, i) => html`
-        <div class="${cls('schedule-day', isSameDay(date, today) && 'is-today')}" style="animation-delay:${staggerDelayMs(i)}ms">
+        <div class="${cls('schedule-day', isSameDay(date, today) && 'is-today')}" style="animation-delay:${staggerDelay(i)}">
           <div class="schedule-day-label">
             <span class="schedule-day-name">${isSameDay(date, today) ? 'Today' : DAY_NAMES[date.getDay()]}</span>
             <span class="schedule-day-date">${date.getMonth() + 1}/${date.getDate()}</span>
@@ -45,7 +45,7 @@ function weekStripHtml(week) {
 function scheduleCardHtml(item, index = 0) {
   const m = item.media;
   return html`
-    <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelayMs(index)}ms">
+    <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelay(index)}">
       <div class="card-cover-wrap">
         <div class="skeleton"></div>
         ${coverOrInitialHtml(m.coverImage?.large, m.title?.english || m.title?.romaji)}

@@ -13,6 +13,7 @@ import { titlesInOrder } from '../../titles.js';
 import { html, raw, cls } from '../../core/html.js';
 import { reconcileListChunked } from '../../core/reconcile.js';
 import { UI_TIMING } from '../../../../config/tuning.js';
+import { staggerDelay } from '../shared/format.js';
 import { expandedGroups, openNoteIds, selectedIds, isSelectMode, groupKey } from './model.js';
 
 export const QUICK_MOVE_LISTS = [
@@ -80,7 +81,7 @@ function statusSelectHtml(entry) {
 function progressRowHtml(entry, pct, { watched = false } = {}) {
   const total = entry.totalEpisodes;
   const hint = watched ? 'Click to correct the episode count' : 'Click to type an exact episode number';
-  return html`<div class="${cls('progress-row', watched && 'watched-progress-row')}"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div><button class="progress-label" data-action="edit-episode" title="${hint}">${entry.episodesWatched}${total ? `/${total}` : ''}</button></div>`;
+  return html`<div class="${cls('progress-row', watched && 'watched-progress-row')}"><div class="progress-track"><div class="progress-fill" style="--p:${pct / 100}"></div></div><button class="progress-label" data-action="edit-episode" title="${hint}">${entry.episodesWatched}${total ? `/${total}` : ''}</button></div>`;
 }
 
 function cardBodyForList(entry, list, isSeasonRow) {
@@ -204,12 +205,10 @@ export function franchiseCardHtml(group, list) {
 
 // Entrance: only brand-new nodes get .enter (a card that is merely moved or
 // updated does not replay it). The stagger covers the first screen only.
-const ENTER_STAGGER_MS = 45;
-const ENTER_STAGGER_CAP = 12;
 const ENTER_MAX_ANIMATED = 36;
 function playEnter(el, index) {
   el.classList.add('enter');
-  el.style.animationDelay = `${Math.min(index, ENTER_STAGGER_CAP) * ENTER_STAGGER_MS}ms`;
+  el.style.animationDelay = staggerDelay(index);
   let timer = 0;
   const done = () => {
     clearTimeout(timer);
@@ -219,7 +218,8 @@ function playEnter(el, index) {
     if (!el.getAttribute('style')) el.removeAttribute('style');
   };
   el.addEventListener('animationend', (e) => e.target === el && done(), { once: true });
-  // Reduced motion turns animations off, so animationend never fires.
+  // A fallback in case animationend never fires (the element was hidden, or
+  // animations are off).
   timer = setTimeout(done, 1500);
 }
 

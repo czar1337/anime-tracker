@@ -7,7 +7,6 @@ import { EventHistory } from '../../eventHistory.js';
 import { computeLibraryStats } from '../../statsLogic.js';
 import { html } from '../../core/html.js';
 import { coverSrc } from '../library/view.js';
-import { animateProgressBars, animateCountUp } from '../shared/animate.js';
 
 const LIST_META = {
   watching: { label: 'Watching', icon: '▶' },
@@ -23,7 +22,7 @@ export function barChartHtml(data, { formatValue = (v) => v } = {}) {
     (d) => html`
     <div class="stat-bar-row">
       <span class="stat-bar-label" title="${d.label}">${d.label}</span>
-      <div class="stat-bar-track"><div class="stat-bar-fill" style="width:0%" data-target-width="${(d.value / max) * 100}"></div></div>
+      <div class="stat-bar-track"><div class="stat-bar-fill" style="--p:${d.value / max}"></div></div>
       <span class="stat-bar-value">${formatValue(d.value)}</span>
     </div>`
   );
@@ -43,8 +42,9 @@ function miniListHtml(entries) {
   );
 }
 
-function statHtml(target, initial, label) {
-  return html`<div class="stat"><span class="stat-value" data-count-target="${target}">${initial}</span><span class="stat-label">${label}</span></div>`;
+// The value is shown as it is: the design system forbids counting numbers up.
+function statHtml(value, label) {
+  return html`<div class="stat"><span class="stat-value">${value}</span><span class="stat-label">${label}</span></div>`;
 }
 
 export function renderStatsPage(container) {
@@ -107,14 +107,14 @@ export function renderStatsPage(container) {
     </div>
 
     <div class="home-stats">
-      ${statHtml(entries.length, '0', 'Titles')}
-      ${statHtml(totalEpisodes, '0', 'Episodes watched')}
-      ${statHtml(totalDays, '0', `Days watched (${totalHours} h)`)}
-      ${statHtml(meanScore, meanScore === '—' ? '—' : '0.00', 'Mean score')}
-      ${statHtml(completedThisYear.length, '0', `Completed in ${thisYear}`)}
-      ${statHtml(episodesThisYear, '0', `Episodes in ${thisYear}`)}
-      ${statHtml(`${dropRate}%`, '0%', 'Drop rate')}
-      ${statHtml(Store.allGenres().length, '0', 'Genres explored')}
+      ${statHtml(entries.length, 'Titles')}
+      ${statHtml(totalEpisodes, 'Episodes watched')}
+      ${statHtml(totalDays, `Days watched (${totalHours} h)`)}
+      ${statHtml(meanScore, 'Mean score')}
+      ${statHtml(completedThisYear.length, `Completed in ${thisYear}`)}
+      ${statHtml(episodesThisYear, `Episodes in ${thisYear}`)}
+      ${statHtml(`${dropRate}%`, 'Drop rate')}
+      ${statHtml(Store.allGenres().length, 'Genres explored')}
     </div>
 
     <div class="home-tiles">
@@ -158,6 +158,4 @@ export function renderStatsPage(container) {
       </div>
     </div>
   `);
-  animateProgressBars(container);
-  animateCountUp(container);
 }

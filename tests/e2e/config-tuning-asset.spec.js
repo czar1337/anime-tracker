@@ -2,8 +2,9 @@
 // P1.4's static-serving proof: config/tuning.js is the one browser-loaded
 // module that lives outside public/ (docs/v2-plan.md's file list), so
 // server.js needed a small extension (a second bounded static root,
-// CONFIG_DIR, alongside the existing PUBLIC_DIR) for public/js/tokens.js's
+// CONFIG_DIR, alongside the existing PUBLIC_DIR) for a browser module's
 // `import ... from '../../config/tuning.js'` to actually resolve over HTTP.
+// (v3 Phase 3: tokens.js was retired; statsLogic.js carries the same import.)
 // This proves that end to end against a real running server, not just by
 // reading the code.
 
@@ -27,14 +28,13 @@ test('GET /config/tuning.js serves the real module with the right content type',
   }
 });
 
-test('public/js/tokens.js actually imports config/tuning.js correctly when loaded as a real ES module over HTTP', async () => {
+test('a browser module imports config/tuning.js with the specifier the server serves', async () => {
   const server = await startFixtureServer(FIXTURE);
   try {
-    const res = await fetch(`${server.url}/js/tokens.js`);
-    // tokens.js lives under /js/ per index.html's existing <script type="module">
-    // base — confirm the import specifier inside it is the one server.js now
-    // knows how to serve, so the browser's own module resolution (not just a
-    // raw fetch) will succeed.
+    const res = await fetch(`${server.url}/js/statsLogic.js`);
+    // statsLogic.js lives under /js/ — confirm the import specifier inside it
+    // is the one the server knows how to serve, so the browser's own module
+    // resolution (not just a raw fetch) succeeds.
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toMatch(/from ['"]\.\.\/\.\.\/config\/tuning\.js['"]/);

@@ -97,12 +97,14 @@
   --press-icon: calc(1 - .10 * var(--move-scale));
   --press-card: calc(1 - .005 * var(--move-scale));
   --press-chip: calc(1 - .05 * var(--move-scale));
-  /* v2 motion tokens, removed once every rule reads the ones above. */
-  --e-out:cubic-bezier(.2,1,.3,1);
-  --e-spring:cubic-bezier(.2,1.5,.3,1);
-  --e-inout:cubic-bezier(.4,0,.2,1);
-  --e-press:cubic-bezier(.3,0,.6,1);
-  --d-press:90ms; --d-1:120ms; --d-2:200ms; --d-3:280ms; --d-4:380ms; --d-5:800ms;
+  /* Loops (skeleton shimmer, the saving dot): stopped under reduced motion. */
+  --dur-loop: calc(1400ms * var(--motion));
+  /* The completion reward (one feather from the card); the whole moment
+     stays under 2.4s (design §10). */
+  --dur-reward: calc(2000ms * var(--motion));
+  /* Hold-to-select: mirrors the 500ms timer in events.js, so it does not
+     scale with the animation setting. */
+  --dur-hold: 500ms;
 
   /* rhythm */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
@@ -122,5 +124,7 @@
     --dur-base: min(calc(220ms * var(--motion)), 120ms);
     --dur-slow: min(calc(360ms * var(--motion)), 120ms);
     --dur-emph: min(calc(520ms * var(--motion)), 120ms);
+    --dur-reward: 0ms;
+    --dur-loop: 0ms;
   }
 }
