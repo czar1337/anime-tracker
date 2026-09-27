@@ -1071,6 +1071,10 @@ export const COPY_REGISTRY = {
   'settings.imports.reverted': same((p) => `Reverted ${p.date}`),
   'settings.imports.confirmTitle': same('Revert this import?'),
   'settings.imports.confirmBody': same('Series it added are removed and fields it changed go back to what they were. Anything you changed since is kept. The pre-import snapshot stays in Data safety.'),
+  // v3 Phase 5: where to watch.
+  'detail.watch.heading': same('Where to watch'),
+  'detail.watch.episodes': same((p) => `${p.n} episode ${p.n === 1 ? 'link' : 'links'}`),
+  'detail.watch.region': same("From AniList, not by country: a service may not have it where you live."),
   // v3 Phase 5: dates, rewatches and the watch history.
   'detail.history.heading': same('Watch history'),
   'detail.history.started': same('Started'),

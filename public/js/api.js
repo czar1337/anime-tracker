@@ -686,6 +686,8 @@ query ($id: Int) {
     endDate { year month day }
     studios(isMain: true) { nodes { name } }
     relations { edges { relationType node { id type format seasonYear episodes title { romaji english } } } }
+    externalLinks { site url type language isDisabled icon color }
+    streamingEpisodes { title thumbnail url site }
   }
 }`;
 

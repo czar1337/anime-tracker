@@ -154,6 +154,24 @@ function franchiseTimelineHtml(m) {
   })}</ol></section>`;
 }
 
+// v3 Phase 5: where to watch, from AniList's externalLinks (streaming ones
+// that are not disabled) and streamingEpisodes. Links only, no third-party
+// images; https only. AniList's links are not region-aware, and the section
+// says so.
+const httpsUrl = (u) => (typeof u === 'string' && /^https:\/\//i.test(u) ? u : null);
+const EPISODE_LINKS_MAX = 6;
+function whereToWatchHtml(m) {
+  const links = (m.externalLinks || []).filter((l) => l && l.type === 'STREAMING' && !l.isDisabled && httpsUrl(l.url));
+  const episodes = (m.streamingEpisodes || []).filter((e) => e && httpsUrl(e.url));
+  if (!links.length && !episodes.length) return '';
+  return html`<section class="detail-section detail-watch">
+    <p class="detail-lbl">${copy('detail.watch.heading')}</p>
+    ${links.length ? html`<div class="row detail-watch-links">${links.map((l) => html`<a class="btn btn-ghost sm watch-link" href="${httpsUrl(l.url)}" target="_blank" rel="noopener noreferrer">${l.color && /^#[0-9a-f]{6}$/i.test(l.color) ? html`<span class="watch-dot" style="background:${l.color}" aria-hidden="true"></span>` : ''}${l.site}${l.language ? html` <span class="card-meta">${l.language}</span>` : ''}</a>`)}</div>` : ''}
+    ${episodes.length ? html`<details class="detail-watch-episodes"><summary>${copy('detail.watch.episodes', undefined, { n: episodes.length })}</summary><ol>${episodes.slice(0, EPISODE_LINKS_MAX).map((e) => html`<li><a href="${httpsUrl(e.url)}" target="_blank" rel="noopener noreferrer">${e.title || e.site}</a></li>`)}</ol></details>` : ''}
+    <p class="card-meta">${copy('detail.watch.region')}</p>
+  </section>`;
+}
+
 // AniList's trailer thumbnail with a play overlay linking out to the video —
 // no embedded player (no third-party embeds anywhere in the app).
 function detailTrailerHtml(trailer) {
@@ -321,6 +339,7 @@ export function renderDetailOverlay(container, state) {
         ${detailSynopsisHtml(description)}
       </section>
       ${franchiseTimelineHtml(m)}
+      ${whereToWatchHtml(m)}
       ${m.trailer?.thumbnail && html`<section class="detail-section"><p class="detail-lbl">${copy('detail.trailer')}</p>${detailTrailerHtml(m.trailer)}</section>`}
     </div>
     <footer class="detail-actions">
