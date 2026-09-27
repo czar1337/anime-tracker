@@ -842,6 +842,7 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .card.holding .hold-ring circle { stroke-dashoffset: 0; } /* "ring fills without animation" — still shows, just not as a sweep */
 }
+:root[data-motion="reduced"] .card.holding .hold-ring circle { animation: none; stroke-dashoffset: 0; }
 @keyframes holdRing {
   /* motion-exception: a 40px SVG ring filling while a card is held (design
      §10); it runs only during the hold, never in a loop. */
@@ -1488,7 +1489,11 @@ kbd {
   line-height: 1;
   opacity: 0;
   transform: scale(0.85);
-  transition: var(--dur-slow) var(--ease-spring);
+  transition:
+    transform var(--dur-slow) var(--ease-spring),
+    opacity var(--dur-slow) var(--ease-spring),
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
   backdrop-filter: blur(4px);
   cursor: pointer;
 }

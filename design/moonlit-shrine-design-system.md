@@ -255,7 +255,7 @@ v3 replaced the v2 motion tokens (`--e-*`, `--d-*`) with the set below. All of t
 
 **The animation setting.** `--motion` is the Settings animation slider as a multiplier (1 = full, 0 = Off). Every duration token is `calc(<ms> * var(--motion))`, so the slider reaches every animation. Off means nothing animates, including scroll-driven animations, which a `@container style(--motion: 0)` query switches off.
 
-Durations: `--dur-press 80ms` · `--dur-fast 140ms` · `--dur-base 220ms` · `--dur-slow 360ms` · `--dur-emph 520ms` · `--dur-reward 2000ms` (the reward feather) · `--dur-loop 1400ms` (the one shimmer, the saving dot) · `--dur-hold 500ms` (does not scale; it mirrors the hold timer) · `--delay-skeleton 150ms` (a wait, not motion).
+Durations: `--dur-press 80ms` · `--dur-fast 140ms` · `--dur-base 220ms` · `--dur-slow 360ms` · `--dur-emph 520ms` · `--dur-reward 2000ms` (the reward feather, at most 2.3 s) · `--dur-loop 1400ms` (the one shimmer, the saving dot) · `--dur-hold 500ms` (does not scale; it mirrors the hold timer) · `--delay-skeleton 150ms` (a wait, not motion).
 
 Easings: `--ease-standard cubic-bezier(.2,0,0,1)` default · `--ease-enter cubic-bezier(.05,.7,.1,1)` things arriving · `--ease-exit cubic-bezier(.3,0,.8,.15)` things leaving · `--ease-spring` a `linear()` spring with a small overlap (cubic-bezier fallback), for the plus button, progress bars and rewards only.
 
@@ -289,7 +289,7 @@ Forbidden: flash, screen shake, glitch, mouse-following parallax, counting numbe
 
 `@media (hover:none)`: hover states are dropped and press scales step up one level, since a finger hides the feedback. Holding becomes the primary route into select mode.
 
-Reduced motion (the OS setting): `--move-scale` becomes 0, so nothing moves or scales. Every duration is capped at 120 ms, so what remains are short opacity fades. Loops and the reward stop, there is no shared cover and no FLIP, and the atmosphere layer turns off.
+Reduced motion (the OS setting, or Motion: Reduced in the app, `data-motion="reduced"` on `<html>`): `--move-scale` becomes 0, so nothing moves or scales. Every duration is capped at 120 ms, so what remains are short opacity fades. Loops and the reward stop, there is no shared cover and no FLIP, and the atmosphere layer turns off.
 
 ---
 
@@ -420,7 +420,7 @@ Full FAQ copy is in `27-07-2026-moonlit-shrine-remaining-surfaces.html` §07 and
   --dur-slow: calc(360ms * var(--motion));
   --dur-emph: calc(520ms * var(--motion));
   --dur-loop: calc(1400ms * var(--motion));
-  --dur-reward:calc(2000ms * var(--motion));
+  --dur-reward:min(calc(2000ms * var(--motion)),2300ms);
   --dur-hold:500ms; --delay-skeleton:150ms;
   --ease-standard:cubic-bezier(.2,0,0,1);
   --ease-enter:cubic-bezier(.05,.7,.1,1);

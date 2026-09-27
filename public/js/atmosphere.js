@@ -17,6 +17,7 @@
 // and a matchMedia listener watches reduced-motion.
 
 import { Preferences } from './preferences.js';
+import { reducedMotion as reducedMotionSetting } from './core/motion.js';
 
 let container = null;
 let leavesEl = null;
@@ -66,9 +67,8 @@ function isLightTheme() {
   return getComputedStyle(document.documentElement).colorScheme === 'light';
 }
 
-function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
+// The OS setting or the app's Motion: Reduced (core/motion.js).
+const reducedMotion = reducedMotionSetting;
 
 // The animation setting at Off (tokens.css --motion 0) stops the decoration too.
 function motionOff() {
@@ -173,7 +173,7 @@ export function initAtmosphere() {
   sync();
 
   // `style` carries the animation setting (--motion, set inline by the slider).
-  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-decor', 'data-color-theme', 'style'] });
+  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-decor', 'data-color-theme', 'data-motion', 'style'] });
   window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', sync);
 }
 

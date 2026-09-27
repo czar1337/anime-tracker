@@ -80,29 +80,30 @@ function checkFile(file) {
   for (const m of masked.matchAll(/font-size\s*:\s*[^;}]*?\b\d+(\.\d+)?px/g)) add(m.index, 'pixel font size (use an --fs-* token)');
   for (const m of masked.matchAll(/(?<![\w-])font\s*:\s*[^;}]*?\b\d+(\.\d+)?px/g)) add(m.index, 'pixel font size in the font shorthand (use a --t-*/--fs-* token)');
 
-  if (!VALUES_ONLY) {
-    // Keyframes: transform and opacity only.
-    for (const b of blocks(raw)) {
-      const kf = /^@keyframes\s+([\w-]+)/.exec(b.prelude);
-      if (kf) {
-        if (/motion-exception:/.test(b.rawBody)) continue;
-        for (const p of new Set([...b.body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]))) {
-          if (p !== 'transform' && p !== 'opacity') add(b.start, `@keyframes ${kf[1]} animates "${p}" (only transform and opacity)`);
-        }
-        continue;
-      }
-      checkDeclarations(b, add);
-    }
-  }
+  if (!VALUES_ONLY) for (const b of blocks(raw)) checkBlock(b, add);
   return problems;
 }
 
-// Nested blocks (@media, @supports) are walked recursively.
-function checkDeclarations(block, add) {
-  if (/^@(media|supports|container|layer)/.test(block.prelude)) {
-    for (const inner of blocks(block.rawBody)) checkDeclarations({ ...inner, start: block.start + inner.start }, add);
+// Keyframes may animate only transform and opacity. Nested blocks (@media,
+// @supports, @container, @layer, @starting-style) are walked recursively, so
+// a keyframe or rule inside them is checked like a top-level one.
+function checkBlock(block, add) {
+  const kf = /^@keyframes\s+([\w-]+)/.exec(block.prelude);
+  if (kf) {
+    if (/motion-exception:/.test(block.rawBody)) return;
+    for (const p of new Set([...block.body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]))) {
+      if (p !== 'transform' && p !== 'opacity') add(block.start, `@keyframes ${kf[1]} animates "${p}" (only transform and opacity)`);
+    }
     return;
   }
+  if (/^@(media|supports|container|layer|starting-style)/.test(block.prelude)) {
+    for (const inner of blocks(block.rawBody)) checkBlock({ ...inner, start: block.start + inner.start }, add);
+    return;
+  }
+  checkDeclarations(block, add);
+}
+
+function checkDeclarations(block, add) {
   if (block.prelude.startsWith('@')) return;
   const exempt = /motion-exception:/.test(block.rawBody);
   for (const m of block.body.matchAll(/(?:^|;)\s*(transition|transition-property|transition-duration|animation|animation-duration)\s*:\s*([^;]+)/g)) {
@@ -111,9 +112,16 @@ function checkDeclarations(block, add) {
     if (/\b\d+(\.\d+)?m?s\b/.test(value.replace(/var\([^)]*\)/g, ''))) add(at, `literal duration in ${prop}: "${value.trim()}" (use --dur-* tokens)`);
     if (exempt) continue;
     if (prop === 'transition' || prop === 'transition-property') {
-      for (const part of value.split(',')) {
+      for (const part of value.split(/,(?![^(]*\))/)) {
         const name = part.trim().split(/\s+/)[0];
-        if (!name || name === 'none' || /^var\(/.test(name) || /^\d/.test(name)) continue;
+        if (!name || name === 'none') continue;
+        // A shorthand that names no property ("var(--dur) var(--ease)")
+        // transitions everything, the same as `all`.
+        if (prop === 'transition' && (/^var\(/.test(name) || /^\d/.test(name))) {
+          add(at, `transition without a property ("${part.trim()}" is an implicit all; name the properties)`);
+          continue;
+        }
+        if (/^var\(/.test(name) || /^\d/.test(name)) continue;
         if (name === 'all') add(at, 'transition: all (name the properties)');
         else if (!ALLOWED_TRANSITION.has(name)) add(at, `transition on "${name}" (only transform, opacity and colours)`);
       }

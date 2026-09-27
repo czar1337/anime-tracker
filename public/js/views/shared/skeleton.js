@@ -23,10 +23,11 @@ export function shelfSkeletonHtml({ shelves = 3, cards = 6 } = {}) {
 }
 
 // The detail view's layout: cover and score on the side, title, meta, chips
-// and synopsis lines in the body.
-export function detailSkeletonHtml() {
+// and synopsis lines in the body. `coverNow`: the side shows at once (no
+// 150ms wait), because the clicked card's cover is morphing into it.
+export function detailSkeletonHtml({ coverNow = false } = {}) {
   return html`
-    <div class="detail-side skeleton-set shimmer" aria-hidden="true"><div class="sk detail-cover"></div></div>
+    <div class="${coverNow ? 'detail-side shimmer' : 'detail-side skeleton-set shimmer'}" aria-hidden="true"><div class="sk detail-cover"></div></div>
     <div class="detail-body skeleton-set shimmer" aria-hidden="true">
       <div class="sk sk-title"></div>
       <div class="sk sk-line short"></div>

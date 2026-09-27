@@ -300,14 +300,17 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
   if (!sameList) return reconcile();
   // A focused card that leaves the list (a status move, a finished series)
   // hands focus to the card now in its place, so the keyboard keeps its spot.
+  // Counted among the top-level cards only (franchise groups and the section
+  // heading are not focusable cards), before and after alike.
+  const topCards = () => [...grid.querySelectorAll(':scope > .card')];
   const focusedCard = document.activeElement?.closest?.('#grid > .card');
-  const focusedIndex = focusedCard ? [...grid.children].indexOf(focusedCard) : -1;
+  const focusedIndex = focusedCard ? topCards().indexOf(focusedCard) : -1;
   let pass;
   flip(grid, () => {
     pass = reconcile();
   }, { exitTowards: towards });
   if (focusedCard && !focusedCard.isConnected && !grid.contains(document.activeElement)) {
-    const cards = grid.querySelectorAll(':scope > .card');
+    const cards = topCards();
     cards[Math.min(focusedIndex, cards.length - 1)]?.focus({ preventScroll: true });
   }
   return pass;

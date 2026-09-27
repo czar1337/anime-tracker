@@ -219,10 +219,25 @@ Phase 3 (design system and motion):
   cover's `filter` eases on hover (design §9's treatment). Both carry a
   `motion-exception:` comment, which `check-css-tokens.js` honours.
 - **The animation setting is `--motion`, a duration multiplier.** It replaces the v2
-  per-duration tokens; 0 is Off. The in-app reduced-motion override was removed: the
-  OS setting drives `--move-scale`, and the slider covers "less motion".
-  Scroll-driven animations are not timed, so Off turns them off with
-  `@container style(--motion: 0)`.
+  per-duration tokens; 0 is Off. Scroll-driven animations are not timed, so Off turns
+  them off with `@container style(--motion: 0)`.
+- **Motion: Reduced is built now; its control comes with the settings rebuild.** D2
+  turns the sliders into Motion (Full/Reduced/Off) in Phase 4. Phase 3 provides the
+  mechanism: `data-motion="reduced"` on `<html>` (`setReducedMotion()` in
+  `core/motion.js`) is treated exactly like the OS setting by `tokens.css`, the JS
+  checks, the hold ring and the atmosphere layer. (The first version said the slider
+  covered "less motion"; the independent review showed it only slows things down.)
+- **Colour transitions are allowed next to transform and opacity.** Hover and state
+  colour changes on buttons and chips are not movement and repaint only the element;
+  the checker allows them and still refuses layout properties and implicit `all`.
+- **The completion toast appears with the press.** The move to Watched follows after
+  the sweep, but the toast (and so ctrl+z) is the finishing press's Undo from the
+  first moment; an Undo during the sweep cancels the move. The wait before the move
+  and the feather's fall are capped (`UI_TIMING.completionMoveMaxMs`, `--dur-reward`
+  at most 2.3 s), so a slow animation setting still stays under 2.4 s.
+- **The shared cover also runs on a first open.** An uncached series morphs into the
+  skeleton's cover, which then shows at once instead of after 150 ms; when AniList
+  answers mid-morph, the real cover takes the name over.
 - **Programmatic closes stay instant; user dismissals transition.** `closeAllOverlays`
   (used before opening another overlay, and on boot/recovery paths) stays synchronous.
   Escape, the close buttons and the backdrop go through `dismissOverlays()`, which
@@ -232,7 +247,7 @@ Phase 3 (design system and motion):
   after the click must already act on the new view.
 - **Finishing a series moves it by itself.** The +1 that marks the last episode plays
   the completion moment and moves the series to Watched after the sweep (about 660 ms,
-  scaled by the animation setting). Its Undo reverses the move and the episode (one
+  scaled by the animation setting, at most 900 ms). Its Undo reverses the move and the episode (one
   press did both). A score given in the toast's rating row stays after Undo, because
   it was its own choice. A series finished some other way (a typed episode number)
   keeps the v2 "Move to Watched?" prompt.

@@ -643,7 +643,11 @@ function dismissToast(toast) {
   }
   // The timer is the fallback for a transition that never runs (a hidden tab).
   const done = () => toast.remove();
-  toast.addEventListener('transitionend', done, { once: true });
+  // Only the toast's own fade ends it: a button's colour transition inside
+  // (hover ending as it turns inert) bubbles up too.
+  toast.addEventListener('transitionend', (e) => {
+    if (e.target === toast && e.propertyName === 'opacity') done();
+  });
   setTimeout(done, exitMs + 50);
 }
 

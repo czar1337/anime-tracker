@@ -159,7 +159,7 @@ export function renderDetailOverlay(container, state) {
   container.removeAttribute('aria-busy');
   if (state.status === 'loading') {
     container.setAttribute('aria-busy', 'true');
-    container.innerHTML = String(detailSkeletonHtml());
+    container.innerHTML = String(detailSkeletonHtml({ coverNow: Boolean(state.coverNow) }));
     return;
   }
   if (state.status === 'error') {

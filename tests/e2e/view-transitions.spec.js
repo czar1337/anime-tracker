@@ -60,19 +60,13 @@ test('tab changes run a View Transition typed by the direction of travel', async
   }
 });
 
-test('opening a cached series morphs the card cover into the detail cover, and back on Escape', async ({ page }) => {
+test('opening a series morphs the card cover into the detail cover (first open and cached), and back on Escape', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await mockDetail(page);
     await page.goto(server.url);
     await page.waitForSelector('.card');
     test.skip(!(await page.evaluate(() => typeof document.startViewTransition === 'function')), 'no View Transitions in this browser');
-    const card = page.locator('#grid > .card').first();
-    // First open fetches (no shared element yet); close it; the second open is cached.
-    await card.locator('[data-action="show-detail"]').click();
-    await expect(page.locator('#detail-overlay .detail-title')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#detail-overlay')).toBeHidden();
 
     const sharedDuring = (action) =>
       page.evaluate(async (what) => {
@@ -93,8 +87,15 @@ test('opening a cached series morphs the card cover into the detail cover, and b
         return seen;
       }, action);
 
+    // First open: the series is fetched, and the cover morphs into the
+    // skeleton's cover, which is then filled in.
     expect(await sharedDuring('open')).toBe(360);
-    await expect(page.locator('#detail-overlay')).toBeVisible();
+    await expect(page.locator('#detail-overlay .detail-title')).toBeVisible();
+    expect(await sharedDuring('close')).toBe(360);
+    await expect(page.locator('#detail-overlay')).toBeHidden();
+    // Second open, cached.
+    expect(await sharedDuring('open')).toBe(360);
+    await expect(page.locator('#detail-overlay .detail-title')).toBeVisible();
     expect(await sharedDuring('close')).toBe(360);
     await expect(page.locator('#detail-overlay')).toBeHidden();
     // The name never stays on anything once the transition is over.

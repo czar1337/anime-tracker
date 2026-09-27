@@ -7,15 +7,30 @@
 
 import { tokenMs, tokenEase, movementAllowed } from './motion.js';
 
+// Children are in reading order, so their tops never decrease: a binary
+// search finds the first one near the screen, and the walk stops at the first
+// one past it. About two screens of reads, however long the grid.
 function visibleRects(container) {
   const rects = new Map();
+  const kids = container.children;
+  const top = -window.innerHeight * 0.25;
   const bottom = window.innerHeight * 1.25;
-  for (const el of container.children) {
-    const key = el.getAttribute('data-key');
-    if (!key) continue;
+  let lo = 0;
+  let hi = kids.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (kids[mid].getBoundingClientRect().bottom < top) lo = mid + 1;
+    else hi = mid;
+  }
+  // A row holds several children with the same top: step back to the row's
+  // first one, which the search may have skipped past on a wide row.
+  while (lo > 0 && kids[lo - 1].getBoundingClientRect().bottom >= top) lo--;
+  for (let i = lo; i < kids.length; i++) {
+    const el = kids[i];
     const r = el.getBoundingClientRect();
-    if (r.bottom < -window.innerHeight * 0.25 || r.top > bottom) continue;
-    rects.set(key, { el, r });
+    if (r.top > bottom) break;
+    const key = el.getAttribute('data-key');
+    if (key && r.bottom >= top) rects.set(key, { el, r });
   }
   return rects;
 }

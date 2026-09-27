@@ -16,7 +16,7 @@ import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
 import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs, keepAboveDialogs } from './core/dialog.js';
 import { trapTab } from './core/focus.js';
-import { runViewTransition } from './core/motion.js';
+import { runViewTransition, movementAllowed } from './core/motion.js';
 import { bindStatsActions } from './views/stats/actions.js';
 import {
   initLibraryActions,
@@ -1223,9 +1223,8 @@ function bindHoldToSelect() {
 // reduced motion, same as the rest of the app's motion.
 function bindRipple() {
   document.addEventListener('pointerdown', (e) => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    // Animation set to Off (--motion 0): no ripple at all.
-    if (Number(getComputedStyle(document.documentElement).getPropertyValue('--motion')) === 0) return;
+    // Reduced motion (OS or app) and animation Off: no ripple at all.
+    if (!movementAllowed()) return;
     // v3 Phase 3: not on cards or score dots (brief), where it competed with
     // the card's own feedback.
     const host = e.target.closest('.rip-host, .btn, .chip, .icn, .plus, .seg button, .themegrid button, .quick-move-btn');

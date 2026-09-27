@@ -151,6 +151,34 @@ test('keyboard focus stays on a card that moves, and inside it when its controls
   }
 });
 
+test('FLIP on a 2,000-entry grid measures about a screen of cards, not all of them', async ({ page }) => {
+  const server = await startFixtureServer(PERF_FIXTURE);
+  try {
+    await page.goto(server.url);
+    await allCardsRendered(page, 2000);
+    await page.evaluate(() => window.scrollTo(0, 20000)); // far down: the search, not a walk from the top
+    await page.waitForTimeout(200);
+    const reads = await page.evaluate(() => {
+      let n = 0;
+      const original = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function (...args) {
+        if (this.parentElement?.id === 'grid') n++;
+        return original.apply(this, args);
+      };
+      try {
+        document.getElementById('sort-dir').click();
+      } finally {
+        Element.prototype.getBoundingClientRect = original;
+      }
+      return n;
+    });
+    expect(reads).toBeGreaterThan(0);
+    expect(reads).toBeLessThan(400);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('the first screen of a 2,000-entry grid is in the DOM before the rest', async ({ page }) => {
   const server = await startFixtureServer(PERF_FIXTURE);
   try {

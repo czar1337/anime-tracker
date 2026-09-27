@@ -55,7 +55,9 @@ test('jump to episode records the progress as an event, and the cover URL cannot
 
     const style = await dialog.locator('.detail-cover').getAttribute('style');
     const bg = await dialog.locator('.detail-cover').evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(style.startsWith('background-image:url("')).toBe(true);
+    // Whitespace-insensitive: the shared-cover transition sets a name through
+    // el.style, which re-serializes the attribute ("background-image: url(").
+    expect(style.replace(/\s+/g, '').startsWith('background-image:url("')).toBe(true);
     expect(bg).not.toBe('rgb(255, 0, 0)');
 
     // An action inside the overlay re-renders it in place: focus stays on the

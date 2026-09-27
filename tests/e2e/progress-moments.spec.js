@@ -83,10 +83,12 @@ test('the last episode: finished bar with a sweep, a feather from the card, then
       const featherX = feather ? parseFloat(feather.style.getPropertyValue('--f-x')) : null;
       const featherMs = feather ? feather.getAnimations()[0]?.effect.getComputedTiming().endTime : null;
       return new Promise((resolve) => {
+        // The toast is up from the press; the move is when the card leaves.
+        const toastAtOnce = [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('finished'));
         const check = () => {
-          const toast = [...document.querySelectorAll('.toast')].find((t) => t.textContent.includes('finished'));
-          if (toast) {
+          if (!document.querySelector('#grid > .card[data-id="401"]')) {
             resolve({
+              toastAtOnce,
               sweep,
               featherFromCard: featherX !== null && Math.abs(featherX - (rect.left + rect.width / 2)) < 2,
               featherMs,
@@ -97,6 +99,7 @@ test('the last episode: finished bar with a sweep, a feather from the card, then
         requestAnimationFrame(check);
       });
     });
+    expect(moment.toastAtOnce).toBe(true);
     expect(moment.sweep).toBe('hairSweep');
     expect(moment.featherFromCard).toBe(true);
     expect(moment.movedAfterMs).toBeLessThan(1200);
@@ -116,6 +119,64 @@ test('the last episode: finished bar with a sweep, a feather from the card, then
     await toast.getByRole('button', { name: 'Undo' }).click();
     await page.click('[data-tab="watching"]');
     await expect(page.locator('#grid > .card[data-id="401"] .progress-label')).toHaveText('11/12');
+    // The log records the undo as real transitions: back to watching, 12 -> 11.
+    await expect
+      .poll(async () => {
+        const { events } = await (await fetch(`${server.url}/api/events`)).json();
+        const mine = events.filter((e) => e.animeId === '401');
+        return {
+          back: mine.some((e) => e.type === 'status_changed' && e.from === 'watched' && e.to === 'watching'),
+          stepBack: mine.some((e) => e.type === 'episode_watched' && e.from === 12 && e.to === 11),
+        };
+      })
+      .toEqual({ back: true, stepBack: true });
+  } finally {
+    await server.stop();
+  }
+});
+
+test('ctrl+z during the completion moment undoes that series, not the toast before it', async ({ page }) => {
+  const server = await startFixtureServer(fixtureOneFromEnd());
+  try {
+    await openWatching(page, server.url);
+    // A +1 on Entry D first: its toast would be the ctrl+z target if the
+    // finishing press showed nothing yet.
+    await page.locator('#grid > .card[data-id="404"]').hover();
+    await page.locator('#grid > .card[data-id="404"] [data-action="increment"]').click();
+    await expect(page.locator('#grid > .card[data-id="404"] .progress-label')).toHaveText('1/10');
+    await page.locator('#grid > .card[data-id="401"]').hover();
+    await page.evaluate(() => {
+      document.querySelector('#grid > .card[data-id="401"] [data-action="increment"]').click();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    });
+    await page.waitForTimeout(1200); // past the moment: nothing may move
+    await expect(page.locator('#grid > .card[data-id="401"] .progress-label')).toHaveText('11/12');
+    await expect(page.locator('#grid > .card[data-id="404"] .progress-label')).toHaveText('1/10');
+    const lib = await (await fetch(`${server.url}/api/library`)).json();
+    expect(lib.entries.find((e) => e.anilistId === 401).listStatus).toBe('watching');
+  } finally {
+    await server.stop();
+  }
+});
+
+test('a slow animation setting still keeps the completion moment under 2.4s', async ({ page }) => {
+  const server = await startFixtureServer(fixtureOneFromEnd());
+  try {
+    await openWatching(page, server.url);
+    await page.evaluate(() => document.documentElement.style.setProperty('--motion', '4.6')); // the slowest step
+    await page.locator('#grid > .card[data-id="401"]').hover();
+    const moment = await page.evaluate(() => {
+      const t0 = performance.now();
+      document.querySelector('#grid > .card[data-id="401"] [data-action="increment"]').click();
+      const feather = document.querySelector('.atmo-feather.reward');
+      const featherMs = feather ? feather.getAnimations()[0]?.effect.getComputedTiming().endTime : 0;
+      return new Promise((resolve) => {
+        const check = () => (document.querySelector('#grid > .card[data-id="401"]') ? requestAnimationFrame(check) : resolve({ featherMs, movedAfterMs: performance.now() - t0 }));
+        requestAnimationFrame(check);
+      });
+    });
+    expect(moment.featherMs).toBeLessThanOrEqual(2301);
+    expect(moment.movedAfterMs).toBeLessThan(1400);
   } finally {
     await server.stop();
   }
@@ -151,6 +212,29 @@ test('finishing a series from the keyboard hands focus to the card that takes it
     });
     expect(focused.isCard).toBe(true);
     expect(focused.index).toBe(Math.min(index, (await page.locator('#grid > .card').count()) - 1));
+  } finally {
+    await server.stop();
+  }
+});
+
+test('the focus handoff skips franchise groups: it lands on the card that took the place', async ({ page }) => {
+  // A franchise pair sorted (by title) ahead of Entry A.
+  const lib = JSON.parse(fs.readFileSync(fixtureOneFromEnd(), 'utf8'));
+  const base = { listStatus: 'watching', format: 'TV', totalEpisodes: 12, episodesWatched: 2, genres: [], myScore: null };
+  lib.entries.push({ ...base, anilistId: 501, titleRomaji: 'AAA Saga', titleEnglish: 'AAA Saga', relatedIds: [502] });
+  lib.entries.push({ ...base, anilistId: 502, titleRomaji: 'AAA Saga Part 2', titleEnglish: 'AAA Saga Part 2', relatedIds: [501] });
+  lib.preferences = { ...lib.preferences, sort: { ...(lib.preferences?.sort || {}), watching: 'title' }, sortDir: { ...(lib.preferences?.sortDir || {}), watching: 'asc' } };
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'progress-moments-')), 'library.json');
+  fs.writeFileSync(file, JSON.stringify(lib));
+  const server = await startFixtureServer(file);
+  try {
+    await openWatching(page, server.url);
+    const order = await page.evaluate(() => [...document.querySelectorAll('#grid > *')].map((el) => (el.classList.contains('franchise-card') ? 'group' : el.dataset.id)));
+    expect(order.slice(0, 3)).toEqual(['group', '401', '402']);
+    await page.locator('#grid > .card[data-id="401"]').focus();
+    await page.keyboard.press('Space');
+    await expect(page.locator('#grid > .card[data-id="401"]')).toHaveCount(0);
+    expect(await page.evaluate(() => document.activeElement?.dataset?.id)).toBe('402');
   } finally {
     await server.stop();
   }

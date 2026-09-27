@@ -27,8 +27,17 @@ export function tokenEase(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || 'ease';
 }
 
+// The OS setting, or the app's own Motion: Reduced (data-motion="reduced" on
+// <html>, which tokens.css treats exactly like the OS setting).
 export function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduced';
+}
+
+// The app's Motion: Reduced switch. The Settings control arrives with the
+// Phase 4 settings rebuild (D2: Motion Full/Reduced/Off).
+export function setReducedMotion(on) {
+  if (on) document.documentElement.dataset.motion = 'reduced';
+  else delete document.documentElement.dataset.motion;
 }
 
 // False when the animation setting is Off.

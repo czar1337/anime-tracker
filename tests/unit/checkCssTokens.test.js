@@ -44,6 +44,17 @@ test('transitions name transform, opacity or colours and read duration tokens', 
   assert.strictEqual(check('@media (hover: hover) { .a { transition: height var(--dur-base); } }').code, 1);
 });
 
+test('keyframes nested in @supports, @media and @container are checked too', () => {
+  assert.match(check('@supports (animation-timeline: view()) { @keyframes a { to { height: 0; } } }').out, /animates "height"/);
+  assert.match(check('@media (min-width: 1px) { @supports (display: grid) { @keyframes b { to { left: 0; } } } }').out, /animates "left"/);
+  assert.strictEqual(check('@supports (animation-timeline: view()) { @keyframes c { from { opacity: 0; } } .x { animation: c linear both; } }').code, 0);
+});
+
+test('a transition shorthand that names no property is an implicit all', () => {
+  assert.match(check('.a { transition: var(--dur-slow) var(--ease-spring); }').out, /implicit all/);
+  assert.strictEqual(check('.a { transition: transform var(--dur-slow) var(--ease-spring), opacity var(--dur-slow); }').code, 0);
+});
+
 test('--values-only skips the motion rules', () => {
   assert.strictEqual(check('.a { transition: width 1s; }', '--values-only').code, 0);
 });

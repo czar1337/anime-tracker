@@ -147,33 +147,42 @@ function rateFromToast(id, score) {
 // Watched with an Undo toast that carries a 1-10 rating row. The whole moment
 // (sweep, move, the feather's fall) stays under 2.4s. The Undo reverses the
 // move and the episode, which together were the one press.
-function playCompletion(id, card) {
+// The toast appears with the press, not after the move, so it is the Undo
+// (and the ctrl+z target) from the first moment: an Undo during the sweep
+// cancels the pending move and steps the episode back.
+// The wait before the move is capped (UI_TIMING.completionMoveMaxMs) so a slow
+// animation setting still keeps the whole moment under 2.4s; the feather's
+// --dur-reward is capped in tokens.css the same way.
+function playCompletion(id, card, entry) {
   Atmosphere.rewardFeather({ from: card?.getBoundingClientRect() });
-  const delay = tokenMs('--dur-emph') + tokenMs('--dur-fast');
-  setTimeout(() => {
+  const delay = Math.min(tokenMs('--dur-emph') + tokenMs('--dur-fast'), UI_TIMING.completionMoveMaxMs);
+  let revert = null;
+  const timer = setTimeout(() => {
     completingIds.delete(id);
-    const entry = Store.getEntry(id);
+    const now = Store.getEntry(id);
     // Something changed during the moment (a typed episode number, a move
     // from the detail view): leave the series where it is.
-    const stillFinished = entry && entry.listStatus === 'watching' && entry.totalEpisodes && entry.episodesWatched >= entry.totalEpisodes;
+    const stillFinished = now && now.listStatus === 'watching' && now.totalEpisodes && now.episodesWatched >= now.totalEpisodes;
     if (!stillFinished) {
       refreshGridOnly();
       return;
     }
-    const revert = moveToStatus(id, 'watched');
+    revert = moveToStatus(id, 'watched');
     refreshAfterMove(id);
-    Render.showToast(copy('toast.seriesFinished', undefined, { title: displayTitle(entry) }), {
-      actionLabel: copy('toast.undo'),
-      duration: UNDO_TOAST_MS,
-      onExpire: evaluateAchievementsAfterUndoWindow,
-      onAction: () => {
-        revert();
-        undoEpisodeStep(id, +1);
-        refreshAfterMove(id);
-      },
-      rating: { label: copy('toast.rateIt'), value: entry.myScore ?? null, onRate: (score) => rateFromToast(id, score) },
-    });
   }, delay);
+  Render.showToast(copy('toast.seriesFinished', undefined, { title: displayTitle(entry) }), {
+    actionLabel: copy('toast.undo'),
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      clearTimeout(timer);
+      completingIds.delete(id);
+      revert?.();
+      undoEpisodeStep(id, +1);
+      refreshAfterMove(id);
+    },
+    rating: { label: copy('toast.rateIt'), value: entry.myScore ?? null, onRate: (score) => rateFromToast(id, score) },
+  });
 }
 
 export function handleIncrement(card, id) {
@@ -194,7 +203,7 @@ export function handleIncrement(card, id) {
   Detail.refreshDetailIfOpen(id);
   persist();
   if (finishing) {
-    playCompletion(id, liveCard);
+    playCompletion(id, liveCard, entry);
     return;
   }
   Render.showToast(copy('toast.episodeWatched', undefined, { title: displayTitle(entry), episode: before + 1 }), {

@@ -101,7 +101,7 @@
   --dur-loop: calc(1400ms * var(--motion));
   /* The completion reward (one feather from the card); the whole moment
      stays under 2.4s (design §10). */
-  --dur-reward: calc(2000ms * var(--motion));
+  --dur-reward: min(calc(2000ms * var(--motion)), 2300ms);
   /* Hold-to-select: mirrors the 500ms timer in events.js, so it does not
      scale with the animation setting. */
   --dur-hold: 500ms;
@@ -118,8 +118,10 @@
   :where(:root) { --ease-spring: linear(0, .13 4%, .44 10%, .77 17%, .96 24%, 1.03 31%, 1.04 36%, 1.02 45%, 1 60%, 1); }
 }
 
-/* Reduced motion (the OS setting): no movement, and nothing longer than a
-   120ms fade. The animation setting still applies on top (Off stays off). */
+/* Reduced motion (the OS setting, or the app's own Motion: Reduced, which
+   sets data-motion="reduced" on <html>): no movement, and nothing longer
+   than a 120ms fade. The animation setting still applies on top (Off stays
+   off). The two blocks must stay identical. */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --move-scale: 0;
@@ -130,4 +132,13 @@
     --dur-reward: 0ms;
     --dur-loop: 0ms;
   }
+}
+:root[data-motion="reduced"] {
+  --move-scale: 0;
+  --dur-fast: min(calc(140ms * var(--motion)), 120ms);
+  --dur-base: min(calc(220ms * var(--motion)), 120ms);
+  --dur-slow: min(calc(360ms * var(--motion)), 120ms);
+  --dur-emph: min(calc(520ms * var(--motion)), 120ms);
+  --dur-reward: 0ms;
+  --dur-loop: 0ms;
 }

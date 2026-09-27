@@ -52,45 +52,55 @@ function detailCover() {
 
 export async function showDetail(anilistId, { origin } = {}) {
   const fromCover = origin?.querySelector?.('.card-cover-wrap');
-  if (cache.has(anilistId) && visible(fromCover) && sharedTransitionPossible()) {
+  const cached = cache.has(anilistId);
+  const shared = visible(fromCover) && sharedTransitionPossible();
+  const open = () => {
+    // Routes through the same focus-capture/close plumbing every other overlay
+    // uses (design system §13: overlays trap focus and restore it on close).
+    openOverlay('detail-overlay');
+    // A fresh open never inherits another entry's still-open "+ New tag"/"+ New
+    // list" form; refreshDetailIfOpen (below) re-renders the SAME entry and
+    // deliberately keeps them.
+    resetDetailState();
+    // Not cached yet: the skeleton, whose cover shows at once when the card's
+    // cover is morphing into it.
+    renderNow(cached ? { status: 'ready', media: cache.get(anilistId), localEntry: Store.getEntry(anilistId) } : { status: 'loading', coverNow: shared });
+  };
+  let vt = null;
+  let sharedPending = false;
+  if (shared) {
     const seq = ++sharedSeq;
     nameShared(fromCover, anilistId);
-    const vt = runViewTransition(() => {
+    vt = runViewTransition(() => {
       clearShared(fromCover);
-      openOverlay('detail-overlay');
-      resetDetailState();
-      renderNow({ status: 'ready', media: cache.get(anilistId), localEntry: Store.getEntry(anilistId) });
+      open();
       const to = detailCover();
       if (to) nameShared(to, anilistId);
     });
+    sharedPending = Boolean(vt);
     vt?.finished.finally(() => {
+      sharedPending = false;
       if (seq !== sharedSeq) return;
       const to = detailCover();
       if (to) clearShared(to);
     });
-    return;
-  }
-  // Routes through the same focus-capture/close plumbing every other overlay
-  // uses (design system §13: overlays trap focus and restore it on close).
-  openOverlay('detail-overlay');
-  // A fresh open never inherits another entry's still-open "+ New tag"/"+ New
-  // list" form; refreshDetailIfOpen (below) re-renders the SAME entry and
-  // deliberately keeps them.
-  resetDetailState();
+    // The overlay opens inside the transition's update, a frame later.
+    await vt?.updateCallbackDone.catch(() => {});
+  } else open();
+  if (cached) return;
   const myGeneration = generation;
-  const localEntry = Store.getEntry(anilistId);
 
-  if (cache.has(anilistId)) {
-    renderNow({ status: 'ready', media: cache.get(anilistId), localEntry });
-    return;
-  }
-
-  renderNow({ status: 'loading' });
   try {
     const media = await Api.fetchAnimeDetail(anilistId);
-    if (myGeneration !== generation) return; // overlay was closed while this was in flight
     cache.set(anilistId, media);
+    if (myGeneration !== generation) return; // overlay was closed while this was in flight
     renderNow({ status: 'ready', media, localEntry: Store.getEntry(anilistId) });
+    // An answer that lands mid-morph: the real cover takes over the name from
+    // the skeleton's, so the cover keeps flying into it (the new state is live).
+    if (vt && sharedPending) {
+      const to = detailCover();
+      if (to) nameShared(to, anilistId);
+    }
   } catch (err) {
     if (myGeneration !== generation) return;
     renderNow({ status: 'error', error: err.message });

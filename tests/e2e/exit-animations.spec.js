@@ -83,6 +83,14 @@ test('a toast leaves with an exit transition and is inert while it does', async 
       return { connected: t.isConnected, leaving: t.classList.contains('leaving'), inert: t.inert, hidden: t.getAttribute('aria-hidden') };
     });
     expect(leaving).toEqual({ connected: true, leaving: true, inert: true, hidden: 'true' });
+    // A transition ending inside the toast (a button's hover colour) does not
+    // cut its own fade short.
+    const afterChild = await page.evaluate(() => {
+      const t = document.querySelector('.toast.leaving');
+      t.querySelector('.toast-action').dispatchEvent(new TransitionEvent('transitionend', { propertyName: 'background-color', bubbles: true }));
+      return t.isConnected;
+    });
+    expect(afterChild).toBe(true);
     await expect(page.locator('.toast')).toHaveCount(0);
   } finally {
     await server.stop();

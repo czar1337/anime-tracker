@@ -48,6 +48,32 @@ test('reduced motion: nothing lasts longer than a 120ms fade, and nothing moves'
   }
 });
 
+test('the app\'s own Motion: Reduced behaves like the OS setting', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card');
+    const state = await page.evaluate(async () => {
+      const m = await import('/js/core/motion.js');
+      m.setReducedMotion(true);
+      // Let what started at load under full motion (the tab underline) finish.
+      await Promise.all(document.getAnimations().filter((a) => a.timeline === document.timeline && a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {})));
+      return { reduced: m.reducedMotion(), movement: m.movementAllowed(), slow: m.tokenMs('--dur-slow'), reward: m.tokenMs('--dur-reward') };
+    });
+    expect(state).toEqual({ reduced: true, movement: false, slow: 120, reward: 0 });
+    await page.locator(`.card[data-id="${ID}"] [data-action="increment"]`).click();
+    await page.keyboard.press('?');
+    const d = await longestDurations(page);
+    expect(d.transition).toBeLessThanOrEqual(120);
+    expect(d.animation).toBeLessThanOrEqual(120);
+    expect(await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--move-scale').trim())).toBe('0');
+    // The decoration layer turns off, as under the OS setting.
+    await expect.poll(() => page.evaluate(() => document.querySelectorAll('.atmo-leaf').length)).toBe(0);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('animation set to Off: every transition and animation is instant', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
