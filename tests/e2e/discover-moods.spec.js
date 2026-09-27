@@ -13,6 +13,7 @@
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { tune, notForMe, addAs } = require('./discoverHelpers.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
 const FILLER_COUNT = 30;
@@ -148,8 +149,10 @@ test('clicking a mood chip reshapes the page to that mood\'s own single shelf, c
     await openDiscover(page, server);
 
     // Normal view: the 10 named shelves, never a mood shelf or clear row.
-    await expect(page.locator('.shelf')).toHaveCount(10);
+    await expect(page.locator('.shelf, .shelves-quiet li')).toHaveCount(10); // rails plus the grouped empty shelves
     await expect(page.locator('.discover-mood-clear-row')).toHaveCount(0);
+
+    await tune(page);
 
     const moodChip = page.locator('[data-mood-id="make-me-cry"]');
     await expect(moodChip).toHaveAttribute('aria-pressed', 'false');
@@ -181,12 +184,14 @@ test('clicking the active mood chip again restores the normal 10-shelf view', as
     await page.route('**/graphql.anilist.co/**', (route) => route.abort());
     await openDiscover(page, server);
 
+    await tune(page);
+
     const moodChip = page.locator('[data-mood-id="make-me-cry"]');
     await moodChip.click();
     await expect(page.locator('.shelf')).toHaveCount(1);
 
     await moodChip.click();
-    await expect(page.locator('.shelf')).toHaveCount(10);
+    await expect(page.locator('.shelf, .shelves-quiet li')).toHaveCount(10); // rails plus the grouped empty shelves
     await expect(page.locator('.discover-mood-clear-row')).toHaveCount(0);
     await expect(moodChip).toHaveAttribute('aria-pressed', 'false');
   } finally {
@@ -201,11 +206,13 @@ test('the "Back to shelves" button clears the active mood the same way re-clicki
     await page.route('**/graphql.anilist.co/**', (route) => route.abort());
     await openDiscover(page, server);
 
+    await tune(page);
+
     await page.locator('[data-mood-id="make-me-cry"]').click();
     await expect(page.locator('.shelf')).toHaveCount(1);
 
     await page.click('[data-action="discover-mood-clear"]');
-    await expect(page.locator('.shelf')).toHaveCount(10);
+    await expect(page.locator('.shelf, .shelves-quiet li')).toHaveCount(10); // rails plus the grouped empty shelves
     await expect(page.locator('[data-mood-id="make-me-cry"]')).toHaveAttribute('aria-pressed', 'false');
   } finally {
     await server.stop();
@@ -219,8 +226,12 @@ test('switching directly from one active mood to another shows only the new mood
     await page.route('**/graphql.anilist.co/**', (route) => route.abort());
     await openDiscover(page, server);
 
+    await tune(page);
+
     await page.locator('[data-mood-id="make-me-cry"]').click();
     await expect(page.locator('.discover-card[data-anilist-id="9900"]')).toBeVisible();
+
+    await tune(page);
 
     await page.locator('[data-mood-id="peak-fiction"]').click();
     await expect(page.locator('.shelf')).toHaveCount(1);

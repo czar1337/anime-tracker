@@ -12,8 +12,6 @@ import * as LibraryView from './views/library/view.js';
 import { renderStatsPage } from './views/stats/view.js';
 import { renderHome, renderWatchingHero } from './views/home/view.js';
 import {
-  toggleReasonStrip,
-  closeReasonStrip,
   renderPickForMePanel,
   discoverActiveFilterChips,
   toggleIncludeTagsOverflow,
@@ -905,7 +903,6 @@ export const Render = {
   discoverActiveFilterChips,
   toggleIncludeTagsOverflow,
   toggleExcludeTagsOverflow,
-  toggleReasonStrip,
-  closeReasonStrip,
+
   renderPickForMePanel,
 };

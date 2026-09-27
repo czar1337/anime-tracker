@@ -11,6 +11,7 @@
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { tune, notForMe, addAs } = require('./discoverHelpers.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
 const FILLER_COUNT = 30;
@@ -99,10 +100,7 @@ test('dismissing with a reason removes the card and persists a real (not "manual
     const card = page.locator('.discover-card[data-anilist-id="9980"]');
     await expect(card).toBeVisible();
 
-    await card.locator('[data-action="discover-dismiss"]').click();
-    await expect(card.locator('.discover-reason-strip')).toBeVisible();
-
-    await card.locator('[data-action="discover-dismiss-reason"][data-reason="tooLong"]').click();
+    await notForMe(page, card, 'Too long');
     await expect(page.locator('.discover-card[data-anilist-id="9980"]')).toHaveCount(0);
 
     await waitForDebouncedPersist(page, (lib) => lib.dismissedItems.some((d) => d.anilistId === 9980));
@@ -125,8 +123,7 @@ test('a reason-tagged dismissal survives reload in the Dismissed list', async ({
     await openDiscover(page, server);
 
     const card = page.locator('.discover-card[data-anilist-id="9980"]');
-    await card.locator('[data-action="discover-dismiss"]').click();
-    await card.locator('[data-action="discover-dismiss-reason"][data-reason="wrongGenre"]').click();
+    await notForMe(page, card, 'Wrong genre');
     await waitForDebouncedPersist(page, (lib) => lib.dismissedItems.some((d) => d.anilistId === 9980));
 
     await page.reload();
@@ -240,6 +237,7 @@ test('"Pick for me" with filters returns a matching Watchlist entry, and "Start 
     await page.waitForSelector('.card, .empty');
     await page.click('[data-tab="discover"]');
 
+    await tune(page);
     await page.click('#pick-for-me-open');
     await expect(page.locator('#pick-for-me-overlay')).toBeVisible();
     await page.fill('#pick-for-me-max-episodes', '24');
@@ -268,6 +266,7 @@ test('the adventurousness "?" info hint is a real, focusable/hoverable control (
     await page.waitForSelector('.card, .empty');
     await page.click('[data-tab="discover"]');
 
+    await tune(page);
     const hint = page.locator('.discover-adventurousness-row .info-hint');
     await expect(hint).toBeVisible();
     const bubble = hint.locator('.info-hint-bubble');

@@ -182,6 +182,11 @@
   </dialog>
 
   <!-- Search overlay -->
+  <!-- v3 Phase 4: Discover's "Tune" popover (views/discover/view.js
+       renderDiscoverTune). Outside #discover-view, so rebuilding the shelves
+       never closes it. -->
+  <div id="discover-tune" class="tune-popover" popover role="dialog" aria-label="Tune Discover"></div>
+
   <!-- v3 Phase 4: the command palette (Ctrl/Cmd+K), views/palette/palette.js.
        The input is an ARIA combobox that owns the listbox of results. -->
   <dialog id="palette-overlay" class="overlay palette-overlay" aria-label="Command palette">

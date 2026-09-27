@@ -7,6 +7,7 @@
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { tune, notForMe, addAs } = require('./discoverHelpers.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
 
@@ -55,8 +56,9 @@ test('a rebuild requested during a running rebuild still runs, and the page sett
     slow = true;
     await page.click('#discover-refresh-btn'); // build A, held for 1.5s
     await page.waitForTimeout(200);
+    await tune(page);
     await page.locator('#discover-hide-owned-toggle').click(); // build B, requested while A runs
-    await expect(page.locator('#discover-refresh-btn')).toHaveText('Refresh shelves', { timeout: 10000 });
+    await expect(page.locator('#discover-refresh-btn')).toHaveText('Refresh', { timeout: 10000 });
     await expect(page.locator('#discover-hide-owned-toggle')).not.toBeChecked();
     await expect(page.locator('.discover-card').first()).toBeVisible();
   } finally {

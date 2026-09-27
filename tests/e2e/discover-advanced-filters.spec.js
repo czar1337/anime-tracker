@@ -13,6 +13,7 @@
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { tune, notForMe, addAs } = require('./discoverHelpers.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
 const FILLER_COUNT = 30;
@@ -102,6 +103,7 @@ const OTHER_STUDIO = {
 };
 
 async function openFiltersPanel(page) {
+  await tune(page);
   await page.click('[data-action="discover-filters-open"]');
   await expect(page.locator('#discover-filters-overlay')).toBeVisible();
 }

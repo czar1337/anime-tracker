@@ -1036,41 +1036,8 @@ kbd {
 .discover-card .why { font: var(--t-meta); color: var(--dim); line-height: 1.55; margin-bottom: var(--sp-3); padding-left: var(--sp-2); border-left: 1px solid var(--accent-deep); }
 .discover-card .why b { color: var(--accent-lit); font-weight: 500; }
 .discover-card .acts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-.discover-card .x {
-  position: absolute;
-  top: 10px; right: 10px;
-  width: 24px; height: 24px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg-deep) 70%, transparent);
-  color: var(--faint);
-  display: grid;
-  place-items: center;
-  font-size: var(--fs-body);
-  opacity: 0;
-  transition: opacity var(--dur-base), border-color var(--dur-base), color var(--dur-base);
-}
-.discover-card:hover .x, .discover-card:focus-within .x { opacity: 1; }
-.discover-card .x:hover { border-color: var(--accent); color: var(--accent-lit); }
 
-/* P5B.4: thumbs on the card's own .acts row, the dismiss-reason strip that
-   replaces .acts while open, the adventurousness slider row, and the
-   Pick-for-me result card. */
-.discover-card .thumb-btn {
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: none;
-  color: var(--faint);
-  font-size: var(--fs-body);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: border-color var(--dur-base), color var(--dur-base), background-color var(--dur-base);
-}
-.discover-card .thumb-btn:hover { border-color: var(--line-lit); color: var(--text); }
-.discover-card .thumb-btn.on { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
-.discover-reason-strip { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
 .discover-adventurousness-row {
   display: flex;
   align-items: center;
@@ -1158,9 +1125,94 @@ kbd {
   @keyframes shelfEnter { from { opacity: 0; transform: translateY(var(--move-md)); } }
   @container style(--motion: 0) { .shelf { animation: none; } }
 }
-.shelf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--sp-4); }
 .shelf-empty { margin: 0; }
-.shelf-view-more { display: block; margin: var(--sp-3) auto 0; }
+/* v3 Phase 4: empty shelves, grouped after the rails. */
+.shelves-quiet { margin-top: var(--sp-8); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+.shelves-quiet h3 { margin: 0 0 var(--sp-3); font-size: var(--fs-meta); color: var(--dim); font-weight: 600; }
+.shelves-quiet ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.shelves-quiet li { font-size: var(--fs-body); }
+.shelves-quiet .quiet-title { font-weight: 600; margin-right: var(--sp-2); color: var(--text); }
+
+/* v3 Phase 4: Discover's shelves are horizontal scroll-snap rails of
+   portrait cards; "View more" sits in the rail's head. */
+.rail-head .shelf-view-more { margin: 0; flex-shrink: 0; }
+.rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc(var(--cover-width, 170px) * var(--text-scale));
+  gap: var(--sp-4);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+  padding: 2px 2px var(--sp-3);
+  scrollbar-width: thin;
+}
+.discover-card.dc-portrait {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  scroll-snap-align: start;
+}
+.discover-card.dc-portrait:hover { transform: translateY(-3px); }
+.discover-card.dc-portrait:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dc-portrait .cov { height: auto; aspect-ratio: 2 / 3; border-radius: 0; background: var(--bg-elevated); display: grid; place-items: center; }
+.discover-card-initial { font: var(--t-display-l); color: color-mix(in srgb, var(--text) 22%, transparent); }
+.dc-body { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); flex: 1; }
+.dc-portrait h4 { margin: 0; font: var(--t-title); font-weight: var(--w-strong); cursor: pointer; }
+.dc-portrait h4 .discover-card-title-primary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The reason is the headline: body size, the full text colour, the anchor
+   in the accent colour. */
+.dc-portrait .why { margin: 0; font: var(--t-body); color: var(--text); line-height: 1.45; padding: 0; border: 0; }
+.why-anchor { font-style: normal; color: var(--accent-lit); }
+.dc-portrait .m { margin: 0; }
+.dc-portrait .acts { margin-top: auto; padding-top: var(--sp-2); align-items: center; flex-wrap: nowrap; gap: var(--sp-1); }
+.split-btn { display: inline-flex; margin-right: auto; }
+.split-btn .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-btn .split-caret { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 6px; border-left: 1px solid color-mix(in srgb, var(--accent-contrast) 25%, transparent); }
+.dc-icon { width: 30px; height: 30px; flex-shrink: 0; }
+.dc-icon.on { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
+
+/* The Discover header row and the Tune popover. */
+.discover-head { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+.discover-title { margin: 0; font: var(--t-display-m); letter-spacing: var(--tr-display); }
+.discover-head-spacer { flex: 1; }
+.tune-popover {
+  position: fixed;
+  inset: auto;
+  top: calc(var(--sp-16) * 2);
+  right: var(--sp-6);
+  margin: 0;
+  width: min(420px, calc(100vw - var(--sp-8)));
+  max-height: calc(100vh - var(--sp-16) * 3);
+  overflow-y: auto;
+  padding: var(--sp-4);
+  border: 1px solid var(--line-lit);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--sh-3);
+  opacity: 1;
+  transition:
+    opacity calc(var(--dur-base) * .7) var(--ease-exit),
+    display calc(var(--dur-base) * .7) allow-discrete,
+    overlay calc(var(--dur-base) * .7) allow-discrete;
+}
+.tune-popover:not(:popover-open) { display: none; opacity: 0; }
+.tune-popover:popover-open { transition-duration: var(--dur-base); transition-timing-function: var(--ease-enter); }
+@starting-style { .tune-popover:popover-open { opacity: 0; } }
+.tune-title { margin: 0 0 var(--sp-3); font: var(--t-display-xs, var(--t-title)); font-size: var(--fs-display-xs); }
+.tune-popover .discover-mood-row { margin: 0 0 var(--sp-4); }
+.tune-popover .discover-adventurousness-row { margin-bottom: var(--sp-3); }
+.tune-popover .discover-hide-owned-row { margin-bottom: var(--sp-4); white-space: normal; }
+.tune-actions { gap: var(--sp-2); }
+@media (max-width: 900px) {
+  .rail { grid-auto-columns: 46%; }
+  .split-btn .btn:first-child { padding-inline: var(--sp-2); }
+  .tune-popover { top: auto; bottom: calc(var(--sp-16) + var(--sp-2)); right: var(--sp-2); left: var(--sp-2); width: auto; }
+}
 .franchise-count { font: var(--t-nano); color: var(--faint); font-weight: 400; vertical-align: middle; }
 .discover-hide-owned-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-card); color: var(--dim); white-space: nowrap; cursor: pointer; }
 .discover-hide-owned-row input { width: 16px; height: 16px; }

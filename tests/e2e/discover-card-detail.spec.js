@@ -13,6 +13,7 @@
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
+const { tune, notForMe, addAs } = require('./discoverHelpers.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
 const FILLER_COUNT = 30;
@@ -204,7 +205,7 @@ test('one-tap add with a status choice lands the entry directly in Watching, sur
 
     const card = page.locator('.discover-card[data-anilist-id="9102"]');
     await expect(card).toBeVisible();
-    await card.locator('[data-action="discover-add"][data-add-status="watching"]').click();
+    await addAs(page, card, 'Watching');
     await expect(card).toHaveCount(0);
 
     await waitForDebouncedPersist(page, (lib) => lib.entries.some((e) => e.anilistId === 9102));
