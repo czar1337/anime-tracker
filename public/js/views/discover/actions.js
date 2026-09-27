@@ -484,9 +484,14 @@ export function initDiscover({ persistFn } = {}) {
       return;
     }
 
-    if (e.target.closest('#discover-refresh-btn')) {
+    if (e.target.closest('#discover-refresh-btn, [data-action="discover-refresh"]')) {
       buildGeneration += 1;
       buildShelvesNow().catch(() => {});
+      return;
+    }
+
+    if (e.target.closest('[data-action="discover-open-tune"]')) {
+      document.getElementById('discover-tune')?.showPopover();
       return;
     }
 

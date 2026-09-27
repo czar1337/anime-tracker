@@ -14,6 +14,7 @@ import { reconcileListChunked } from '../../core/reconcile.js';
 import { flip } from '../../core/flip.js';
 import { UI_TIMING } from '../../../../config/tuning.js';
 import { staggerDelay } from '../shared/format.js';
+import { emptyStateHtml } from '../shared/emptyState.js';
 import { expandedGroups, selectedIds, completingIds, isSelectMode, groupKey } from './model.js';
 
 export const QUICK_MOVE_LISTS = [
@@ -201,12 +202,45 @@ function playEnter(el, index) {
   timer = setTimeout(done, 1500);
 }
 
-const EMPTY_STATES = {
-  watching: { title: 'Nothing in progress', body: 'Press n or Ctrl+K to search AniList and add something to start watching.' },
-  watchlist: { title: 'Your watchlist is empty', body: 'Add anime you want to watch next — sort by AniList score to decide.' },
-  watched: { title: 'No completed anime yet', body: 'Finish something in Watching and it will land here with your score.' },
-  dropped: { title: 'Nothing dropped', body: 'Anime you stop watching show up here.' },
-};
+// v3 Phase 4: one sentence, one primary action and one secondary (design
+// system §8). A list that has series but none match the filters says so and
+// offers to clear them, instead of claiming the list is empty.
+const EMPTY_START_MAX = 3;
+
+function emptyStateFor(list) {
+  if (Store.getEntriesByList(list).length > 0) {
+    return { mark: 'feather', title: copy('empty.filtered.title'), body: copy('empty.filtered.body'), primary: { label: copy('empty.filtered.clear'), command: 'filters.clear' }, secondary: { label: copy('empty.addSeries'), command: 'search.add' } };
+  }
+  const add = { label: copy('empty.addSeries'), command: 'search.add' };
+  if (list === 'watching') {
+    // Offer the oldest-queued Watchlist series right here, each with Start.
+    const queued = Store.getEntriesByList('watchlist')
+      .slice()
+      .sort((a, b) => (Date.parse(a.addedAt) || 0) - (Date.parse(b.addedAt) || 0))
+      .slice(0, EMPTY_START_MAX);
+    const extra = queued.length
+      ? html`<ul class="empty-start" aria-label="${copy('empty.watching.fromWatchlist')}">${queued.map((e) => {
+          const src = coverSrc(e);
+          return html`<li class="empty-start-item">
+            <span class="empty-start-cover">${src ? html`<img src="${src}" alt="" loading="lazy">` : html`<span class="cover-initial" aria-hidden="true">${(displayTitle(e) || '?').trim().charAt(0).toUpperCase()}</span>`}</span>
+            <span class="empty-start-title">${displayTitle(e)}</span>
+            <button type="button" class="btn btn-ghost sm" data-action="empty-start" data-id="${e.anilistId}" aria-label="${copy('home.startLabel', undefined, { title: displayTitle(e) })}">${copy('home.start')}</button>
+          </li>`;
+        })}</ul>`
+      : '';
+    return queued.length
+      ? { mark: 'moon', title: copy('empty.watching.title'), body: copy('empty.watching.withQueue'), extra, primary: add, secondary: { label: copy('empty.discover'), command: 'go.discover' } }
+      : { mark: 'moon', title: copy('empty.watching.title'), body: copy('empty.watching.body'), primary: add, secondary: { label: copy('empty.import'), command: 'import.open' } };
+  }
+  if (list === 'watchlist') {
+    return { mark: 'moon', title: copy('empty.watchlist.title'), body: copy('empty.watchlist.body'), primary: { label: copy('empty.discover'), command: 'go.discover' }, secondary: add };
+  }
+  if (list === 'watched') {
+    const watching = Store.getEntriesByList('watching').length > 0;
+    return { mark: 'feather', title: copy('empty.watched.title'), body: copy('empty.watched.body'), primary: watching ? { label: copy('empty.goWatching'), command: 'go.watching' } : add, secondary: { label: copy('empty.import'), command: 'import.open' } };
+  }
+  return { mark: 'feather', title: copy('empty.dropped.title'), body: copy('empty.dropped.body'), primary: { label: copy('empty.goWatching'), command: 'go.watching' } };
+}
 
 const AIRING_HEADING_KEY = '__still-airing';
 let renderedList = null;
@@ -225,14 +259,7 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
   if (groups.length === 0) {
     grid.hidden = true;
     emptyState.hidden = false;
-    const info = EMPTY_STATES[list];
-    emptyState.innerHTML = String(html`
-      <h2>${info.title}</h2>
-      <p>${info.body}</p>
-      <div class="row">
-        <button class="btn btn-primary rip-host" data-action="open-search">Add series</button>
-        <button class="btn btn-quiet" data-action="open-import">Import</button>
-      </div>`);
+    emptyState.innerHTML = String(emptyStateHtml(emptyStateFor(list)));
     return Promise.resolve();
   }
   grid.hidden = false;

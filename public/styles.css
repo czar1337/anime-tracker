@@ -2328,7 +2328,20 @@ kbd {
    placeholders elsewhere that reuse this same class with just a heading and
    a line of text. */
 #empty-state { border: 1px dashed var(--line-lit); border-radius: var(--radius); margin: 20px 0; }
-#empty-state .row { justify-content: center; }
+/* v3 Phase 4: the mark, and the actions centred under the sentence. */
+.empty-mark { width: 48px; height: 48px; color: var(--accent-lit); opacity: .85; }
+.empty-actions { justify-content: center; margin-top: var(--sp-2); }
+.empty-start { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-4); }
+.empty-start-item { width: 120px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+.empty-start-cover { width: 96px; aspect-ratio: 2 / 3; border-radius: var(--radius-sm); overflow: hidden; background: var(--card); display: grid; place-items: center; }
+.empty-start-cover img { width: 100%; height: 100%; object-fit: cover; filter: var(--cover-filter); }
+.empty-start-title { font: var(--t-meta); color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 720px) {
+  .empty-state { padding: var(--sp-12) var(--sp-4); }
+  .empty-start { gap: var(--sp-3); }
+  .empty-start-item { width: 92px; }
+  .empty-start-cover { width: 76px; }
+}
 
 /* ---------- Overlays ---------- */
 /* Overlays are native <dialog>s opened with showModal() (v3 Phase 2,

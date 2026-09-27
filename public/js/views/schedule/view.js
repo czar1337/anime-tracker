@@ -3,6 +3,8 @@
 
 import { formatReleaseDate } from '../../scheduleLogic.js';
 import { html, cls, raw } from '../../core/html.js';
+import { emptyStateHtml } from '../shared/emptyState.js';
+import { copy } from '../../copy.js';
 import { titleBlockHtml } from '../library/view.js';
 import { staggerDelay, relativeAgeText, formatEnumLabel, coverOrInitialHtml } from '../shared/format.js';
 import { shelfSkeletonHtml } from '../shared/skeleton.js';
@@ -105,9 +107,9 @@ export function renderSchedulePage(container, viewState) {
   if (status === 'loading' && items.length === 0) {
     comingSoonBody = shelfSkeletonHtml({ shelves: 1, cards: 8 });
   } else if (status === 'error' && items.length === 0) {
-    comingSoonBody = html`<div class="empty-state"><h2>Could not load upcoming releases</h2><p>${progressText || 'Check your internet connection and try refreshing.'}</p></div>`;
+    comingSoonBody = html`<div class="empty-state">${emptyStateHtml({ mark: 'feather', title: copy('empty.scheduleError.title'), body: progressText || copy('empty.scheduleError.body'), primary: { label: copy('empty.tryAgain'), action: 'schedule-refresh' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`;
   } else if (items.length === 0) {
-    comingSoonBody = html`<div class="empty-state"><h2>Nothing new to show right now</h2><p>You've already added or dismissed everything we found. Try refreshing later.</p></div>`;
+    comingSoonBody = html`<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.scheduleNothing.title'), body: copy('empty.scheduleNothing.body'), primary: { label: copy('empty.discover'), command: 'go.discover' }, secondary: { label: copy('empty.addSeries'), command: 'search.add' } })}</div>`;
   } else {
     const visibleItems = items.slice(0, visibleCount);
     const loadMore =

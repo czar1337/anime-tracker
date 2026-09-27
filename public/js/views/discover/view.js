@@ -8,6 +8,7 @@ import { copy } from '../../copy.js';
 import { RECOMMENDATIONS } from '../../../../config/tuning.js';
 import { MOOD_REGISTRY } from '../../moodRegistry.js';
 import { escapeHtml } from '../../core/html.js';
+import { emptyStateHtml } from '../shared/emptyState.js';
 import { staggerDelay, relativeAgeText, formatEnumLabel, infoHintHtml } from '../shared/format.js';
 import { shelfSkeletonHtml } from '../shared/skeleton.js';
 
@@ -463,7 +464,7 @@ export function renderDiscoverPage(container, viewState) {
   `;
 
   if (status === 'degraded') {
-    container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state"><h2>Still building your recommendation corpus</h2><p>Shelves appear automatically once there's enough to work with — usually within a few minutes.</p></div>`;
+    container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverBuilding.title'), body: copy('empty.discoverBuilding.body'), primary: { label: copy('empty.addSeries'), command: 'search.add' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`;
     return;
   }
   if (status === 'loading' && shelves.length === 0) {
@@ -471,7 +472,7 @@ export function renderDiscoverPage(container, viewState) {
     return;
   }
   if (status === 'error' && shelves.length === 0) {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>Could not build shelves</h2><p>Check that the app is running normally, then try refreshing.</p></div>`;
+    container.innerHTML = `${banner}<div class="empty-state">${emptyStateHtml({ mark: 'feather', title: copy('empty.discoverError.title'), body: copy('empty.discoverError.body'), primary: { label: copy('empty.tryAgain'), action: 'discover-refresh' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`;
     return;
   }
 
@@ -490,7 +491,7 @@ export function renderDiscoverPage(container, viewState) {
   }
 
   if (shelves.length === 0 || shelves.every((s) => s.empty)) {
-    container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state"><h2>Nothing to show right now</h2><p>Rate a few more shows, or turn off "Hide titles already in my library" to see more.</p></div>`;
+    container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverNothing.title'), body: copy('empty.discoverNothing.body'), primary: { label: copy('empty.openTune'), action: 'discover-open-tune' }, secondary: { label: copy('empty.goWatched'), command: 'go.watched' } })}</div>`;
     return;
   }
   // v3 Phase 4: shelves with cards come first, so the rails above the fold

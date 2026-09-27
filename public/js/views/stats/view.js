@@ -6,6 +6,8 @@ import { Store } from '../../state.js';
 import { EventHistory } from '../../eventHistory.js';
 import { computeLibraryStats } from '../../statsLogic.js';
 import { html } from '../../core/html.js';
+import { emptyStateHtml } from '../shared/emptyState.js';
+import { copy } from '../../copy.js';
 import { coverSrc } from '../library/view.js';
 
 const LIST_META = {
@@ -53,10 +55,7 @@ export function renderStatsPage(container) {
 
   if (entries.length === 0) {
     container.innerHTML = String(html`
-      <div class="empty-state">
-        <h2>No stats yet</h2>
-        <p>Add some anime to your library and your statistics will show up here.</p>
-      </div>`);
+      <div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.stats.title'), body: copy('empty.stats.body'), primary: { label: copy('empty.addSeries'), command: 'search.add' }, secondary: { label: copy('empty.import'), command: 'import.open' } })}</div>`);
     return;
   }
 

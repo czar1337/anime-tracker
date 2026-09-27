@@ -169,7 +169,7 @@ export function initSchedule({ persistFn } = {}) {
   bindMediaFilterControls(container, persist);
 
   container.addEventListener('click', (e) => {
-    if (e.target.closest('#schedule-refresh-btn')) {
+    if (e.target.closest('#schedule-refresh-btn, [data-action="schedule-refresh"]')) {
       refreshGeneration += 1;
       runRefresh().catch(() => {});
       // "This week" comes from Airing's own cache, not the "Coming soon" pool

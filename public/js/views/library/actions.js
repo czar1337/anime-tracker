@@ -22,7 +22,7 @@ import { completingIds } from './model.js';
 import { openMenu, isMenuOpen } from '../../core/menu.js';
 import { exitTowardsOnNextRender, QUICK_MOVE_LISTS, renderSavedViews, setSavedViewFormOpen, renderLayoutToggle } from './view.js';
 import { bindRovingTablist } from '../../core/focus.js';
-import { runCommand } from '../../core/commands.js';
+import { runCommand, registerCommand } from '../../core/commands.js';
 import { SAVED_VIEWS_MAX, SAVED_VIEW_NAME_MAX } from '../../settingsSchema.js';
 
 // Spec: "Every destructive or lossy action, bulk or single, fires an Undo
@@ -860,16 +860,11 @@ export function bindGridEvents() {
       return;
     }
 
-    // The real "nothing here yet" empty state's two actions (design system
-    // §8: "empty state with a Mincho heading and two actions").
-    const emptyAction = e.target.closest('[data-action="open-search"], [data-action="open-import"]');
-    if (emptyAction) {
-      if (emptyAction.dataset.action === 'open-search') {
-        openOverlay('search-overlay');
-        document.getElementById('search-input').focus();
-      } else {
-        openOverlay('import-overlay');
-      }
+    // An empty Watching list offers Watchlist series to start (the empty
+    // state's other actions are commands).
+    const emptyStart = e.target.closest('[data-action="empty-start"]');
+    if (emptyStart) {
+      handleSetStatus(Number(emptyStart.dataset.id), 'watching');
       return;
     }
 
@@ -1221,6 +1216,22 @@ export function bindFilterBar() {
 
   bindLayoutToggle();
   bindSavedViews();
+
+  // The filter-empty state's "Clear filters", also in the palette.
+  registerCommand({
+    id: 'filters.clear',
+    title: copy('command.clearFilters'),
+    section: 'actions',
+    keywords: 'reset filter',
+    run: () => {
+      Store.setPreference(['filters', activeList()], { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' });
+      Store.setTitleFilter(activeList(), '');
+      const input = document.getElementById('title-filter');
+      if (input) input.value = '';
+      Render.renderAll(activeList());
+      persist();
+    },
+  });
 }
 
 // Covers or the compact list (v3 Phase 4): a radiogroup with arrow keys.
