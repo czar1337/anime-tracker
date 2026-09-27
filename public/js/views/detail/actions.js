@@ -9,6 +9,7 @@ import { Render } from '../../render.js';
 import { copy } from '../../copy.js';
 import { openOverlay } from '../../events.js';
 import { isDialogOpen, onDialogClose } from '../../core/dialog.js';
+import { runViewTransition, movementAllowed } from '../../core/motion.js';
 import { renderDetailOverlay } from './view.js';
 import { detailState, resetDetailState, showNewTagForm } from './model.js';
 
@@ -20,7 +21,46 @@ function renderNow(state) {
   if (content) renderDetailOverlay(content, state);
 }
 
-export async function showDetail(anilistId) {
+// v3 Phase 3: when the series is cached and motion is allowed, the clicked
+// card's cover becomes the detail view's cover (a shared-element View
+// Transition); closing reverses it. The name is set on that one card only,
+// and only for the length of the transition.
+const SHARED = 'detail-cover';
+// Each transition's cleanup clears names only if no newer transition started,
+// so reopening quickly never loses the name the new one just set.
+let sharedSeq = 0;
+function sharedTransitionPossible() {
+  return typeof document.startViewTransition === 'function' && movementAllowed();
+}
+function visible(el) {
+  if (!el || !el.isConnected) return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
+}
+function detailCover() {
+  return document.querySelector('#detail-content .detail-cover');
+}
+
+export async function showDetail(anilistId, { origin } = {}) {
+  const fromCover = origin?.querySelector?.('.card-cover-wrap');
+  if (cache.has(anilistId) && visible(fromCover) && sharedTransitionPossible()) {
+    const seq = ++sharedSeq;
+    fromCover.style.viewTransitionName = SHARED;
+    const vt = runViewTransition(() => {
+      fromCover.style.viewTransitionName = '';
+      openOverlay('detail-overlay');
+      resetDetailState();
+      renderNow({ status: 'ready', media: cache.get(anilistId), localEntry: Store.getEntry(anilistId) });
+      const to = detailCover();
+      if (to) to.style.viewTransitionName = SHARED;
+    });
+    vt?.finished.finally(() => {
+      if (seq !== sharedSeq) return;
+      const to = detailCover();
+      if (to) to.style.viewTransitionName = '';
+    });
+    return;
+  }
   // Routes through the same focus-capture/close plumbing every other overlay
   // uses (design system §13: overlays trap focus and restore it on close).
   openOverlay('detail-overlay');
@@ -66,6 +106,28 @@ export function refreshDetailIfOpen(anilistId) {
   if (Number(content.dataset.anilistId) !== anilistId) return;
   if (!cache.has(anilistId)) return;
   renderNow({ status: 'ready', media: cache.get(anilistId), localEntry: Store.getEntry(anilistId) });
+}
+
+// Closing the detail view back into its card (the reverse of showDetail's
+// shared transition). Returns false when there is no card to go back to, in
+// which case the caller closes normally.
+export function closeDetailWithTransition(close) {
+  if (!isDialogOpen('detail-overlay') || !sharedTransitionPossible()) return false;
+  const id = document.getElementById('detail-content')?.dataset.anilistId;
+  const from = detailCover();
+  const toCover = id ? [...document.querySelectorAll(`.card[data-id="${id}"] .card-cover-wrap`)].find(visible) : null;
+  if (!from || !toCover) return false;
+  const seq = ++sharedSeq;
+  from.style.viewTransitionName = SHARED;
+  const vt = runViewTransition(() => {
+    from.style.viewTransitionName = '';
+    close();
+    toCover.style.viewTransitionName = SHARED;
+  });
+  vt?.finished.finally(() => {
+    if (seq === sharedSeq) toCover.style.viewTransitionName = '';
+  });
+  return true;
 }
 
 // "Already watched, not tracked" needs the full media object to build an entry.
@@ -230,4 +292,4 @@ export function bindDetailActions(lib) {
   });
 }
 
-export const Detail = { showDetail, initDetail, refreshDetailIfOpen, getCachedMedia, bindDetailActions };
+export const Detail = { showDetail, initDetail, refreshDetailIfOpen, getCachedMedia, bindDetailActions, closeDetailWithTransition };

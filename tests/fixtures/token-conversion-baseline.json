@@ -1716,7 +1716,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "home::div.home-view.view-fade-in#1": {
+  "home::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -15112,7 +15112,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.home-view.view-fade-in#1": {
+  "tab-watching::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -20229,7 +20229,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div.view-fade-in#1": {
+  "tab-watching::div#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -20246,7 +20246,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#4": {
+  "tab-watching::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -24853,7 +24853,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#5": {
+  "tab-watching::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25023,7 +25023,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#6": {
+  "tab-watching::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25312,7 +25312,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#7": {
+  "tab-watching::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25601,7 +25601,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#8": {
+  "tab-watching::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -25873,7 +25873,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#9": {
+  "tab-watching::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26213,7 +26213,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#10": {
+  "tab-watching::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26298,7 +26298,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#11": {
+  "tab-watching::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -26587,7 +26587,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#12": {
+  "tab-watching::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -27097,7 +27097,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching::div#13": {
+  "tab-watching::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -28508,7 +28508,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.home-view.view-fade-in#1": {
+  "tab-watchlist::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -33625,7 +33625,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div.view-fade-in#1": {
+  "tab-watchlist::div#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -33642,7 +33642,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#4": {
+  "tab-watchlist::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -35631,7 +35631,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#5": {
+  "tab-watchlist::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -35801,7 +35801,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#6": {
+  "tab-watchlist::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36090,7 +36090,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#7": {
+  "tab-watchlist::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36379,7 +36379,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#8": {
+  "tab-watchlist::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36651,7 +36651,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#9": {
+  "tab-watchlist::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -36991,7 +36991,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#10": {
+  "tab-watchlist::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37076,7 +37076,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#11": {
+  "tab-watchlist::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37365,7 +37365,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#12": {
+  "tab-watchlist::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -37875,7 +37875,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watchlist::div#13": {
+  "tab-watchlist::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -39286,7 +39286,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.home-view.view-fade-in#1": {
+  "tab-watched::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -44403,7 +44403,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div.view-fade-in#1": {
+  "tab-watched::div#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -44420,7 +44420,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#4": {
+  "tab-watched::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -46851,7 +46851,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#5": {
+  "tab-watched::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47021,7 +47021,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#6": {
+  "tab-watched::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47310,7 +47310,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#7": {
+  "tab-watched::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47599,7 +47599,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#8": {
+  "tab-watched::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -47871,7 +47871,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#9": {
+  "tab-watched::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48211,7 +48211,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#10": {
+  "tab-watched::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48296,7 +48296,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#11": {
+  "tab-watched::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -48585,7 +48585,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#12": {
+  "tab-watched::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -49095,7 +49095,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watched::div#13": {
+  "tab-watched::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -50506,7 +50506,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.home-view.view-fade-in#1": {
+  "tab-dropped::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -55623,7 +55623,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div.view-fade-in#1": {
+  "tab-dropped::div#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -55640,7 +55640,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#4": {
+  "tab-dropped::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -57833,7 +57833,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#5": {
+  "tab-dropped::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58003,7 +58003,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#6": {
+  "tab-dropped::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58292,7 +58292,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#7": {
+  "tab-dropped::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58581,7 +58581,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#8": {
+  "tab-dropped::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -58853,7 +58853,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#9": {
+  "tab-dropped::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59193,7 +59193,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#10": {
+  "tab-dropped::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59278,7 +59278,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#11": {
+  "tab-dropped::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -59567,7 +59567,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#12": {
+  "tab-dropped::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -60077,7 +60077,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-dropped::div#13": {
+  "tab-dropped::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -61488,7 +61488,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.home-view.view-fade-in#1": {
+  "schedule::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -65636,7 +65636,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.discover-view.view-fade-in#1": {
+  "schedule::div.discover-view#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -66639,7 +66639,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div.view-fade-in#1": {
+  "schedule::div#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -66656,7 +66656,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#4": {
+  "schedule::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -68849,7 +68849,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#5": {
+  "schedule::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69019,7 +69019,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#6": {
+  "schedule::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69308,7 +69308,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#7": {
+  "schedule::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69597,7 +69597,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#8": {
+  "schedule::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -69869,7 +69869,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#9": {
+  "schedule::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70209,7 +70209,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#10": {
+  "schedule::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70294,7 +70294,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#11": {
+  "schedule::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -70583,7 +70583,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#12": {
+  "schedule::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -71093,7 +71093,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "schedule::div#13": {
+  "schedule::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -72504,7 +72504,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.home-view.view-fade-in#1": {
+  "discover::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -76091,7 +76091,7 @@
     "rowGap": "28px",
     "columnGap": "28px"
   },
-  "discover::div.discover-view.view-fade-in#1": {
+  "discover::div.discover-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -76652,7 +76652,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.discover-view.view-fade-in#2": {
+  "discover::div.discover-view#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -77655,7 +77655,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div.view-fade-in#1": {
+  "discover::div#4": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -77672,7 +77672,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#4": {
+  "discover::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -79865,7 +79865,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#5": {
+  "discover::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80035,7 +80035,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#6": {
+  "discover::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80324,7 +80324,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#7": {
+  "discover::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80613,7 +80613,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#8": {
+  "discover::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -80885,7 +80885,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#9": {
+  "discover::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81225,7 +81225,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#10": {
+  "discover::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81310,7 +81310,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#11": {
+  "discover::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -81599,7 +81599,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#12": {
+  "discover::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -82109,7 +82109,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "discover::div#13": {
+  "discover::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -83520,7 +83520,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.home-view.view-fade-in#1": {
+  "statistics::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -87090,7 +87090,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.stats-view.view-fade-in#1": {
+  "statistics::div.stats-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -90558,7 +90558,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "statistics::div.discover-view.view-fade-in#1": {
+  "statistics::div.discover-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -91119,7 +91119,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.discover-view.view-fade-in#2": {
+  "statistics::div.discover-view#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -92122,7 +92122,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div.view-fade-in#1": {
+  "statistics::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -92139,7 +92139,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#5": {
+  "statistics::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -94332,7 +94332,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#6": {
+  "statistics::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -94502,7 +94502,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#7": {
+  "statistics::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -94791,7 +94791,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#8": {
+  "statistics::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95080,7 +95080,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#9": {
+  "statistics::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95352,7 +95352,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#10": {
+  "statistics::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95692,7 +95692,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#11": {
+  "statistics::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -95777,7 +95777,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#12": {
+  "statistics::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -96066,7 +96066,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#13": {
+  "statistics::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -96576,7 +96576,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "statistics::div#14": {
+  "statistics::div#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -97987,7 +97987,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.home-view.view-fade-in#1": {
+  "tab-watching-franchise-expanded::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -101557,7 +101557,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.stats-view.view-fade-in#1": {
+  "tab-watching-franchise-expanded::div.stats-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -105025,7 +105025,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watching-franchise-expanded::div.discover-view.view-fade-in#1": {
+  "tab-watching-franchise-expanded::div.discover-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -105586,7 +105586,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.discover-view.view-fade-in#2": {
+  "tab-watching-franchise-expanded::div.discover-view#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -106589,7 +106589,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div.view-fade-in#1": {
+  "tab-watching-franchise-expanded::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -106606,7 +106606,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#5": {
+  "tab-watching-franchise-expanded::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -111417,7 +111417,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#6": {
+  "tab-watching-franchise-expanded::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -111587,7 +111587,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#7": {
+  "tab-watching-franchise-expanded::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -111876,7 +111876,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#8": {
+  "tab-watching-franchise-expanded::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112165,7 +112165,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#9": {
+  "tab-watching-franchise-expanded::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112437,7 +112437,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#10": {
+  "tab-watching-franchise-expanded::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112777,7 +112777,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#11": {
+  "tab-watching-franchise-expanded::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -112862,7 +112862,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#12": {
+  "tab-watching-franchise-expanded::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -113151,7 +113151,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#13": {
+  "tab-watching-franchise-expanded::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -113661,7 +113661,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-franchise-expanded::div#14": {
+  "tab-watching-franchise-expanded::div#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -115072,7 +115072,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.home-view.view-fade-in#1": {
+  "tab-watching-select-mode::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -118642,7 +118642,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.stats-view.view-fade-in#1": {
+  "tab-watching-select-mode::div.stats-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -122110,7 +122110,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watching-select-mode::div.discover-view.view-fade-in#1": {
+  "tab-watching-select-mode::div.discover-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -122671,7 +122671,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.discover-view.view-fade-in#2": {
+  "tab-watching-select-mode::div.discover-view#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -123674,7 +123674,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div.view-fade-in#1": {
+  "tab-watching-select-mode::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -123691,7 +123691,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#5": {
+  "tab-watching-select-mode::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -127941,7 +127941,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#6": {
+  "tab-watching-select-mode::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128111,7 +128111,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#7": {
+  "tab-watching-select-mode::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128400,7 +128400,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#8": {
+  "tab-watching-select-mode::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128689,7 +128689,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#9": {
+  "tab-watching-select-mode::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -128961,7 +128961,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#10": {
+  "tab-watching-select-mode::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129301,7 +129301,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#11": {
+  "tab-watching-select-mode::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129386,7 +129386,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#12": {
+  "tab-watching-select-mode::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -129675,7 +129675,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#13": {
+  "tab-watching-select-mode::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -130185,7 +130185,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-select-mode::div#14": {
+  "tab-watching-select-mode::div#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -131596,7 +131596,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.home-view.view-fade-in#1": {
+  "tab-watching-episode-edit::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -135166,7 +135166,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.stats-view.view-fade-in#1": {
+  "tab-watching-episode-edit::div.stats-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -138634,7 +138634,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "tab-watching-episode-edit::div.discover-view.view-fade-in#1": {
+  "tab-watching-episode-edit::div.discover-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -139195,7 +139195,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.discover-view.view-fade-in#2": {
+  "tab-watching-episode-edit::div.discover-view#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -140198,7 +140198,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div.view-fade-in#1": {
+  "tab-watching-episode-edit::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -140215,7 +140215,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#5": {
+  "tab-watching-episode-edit::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145213,7 +145213,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#6": {
+  "tab-watching-episode-edit::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145383,7 +145383,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#7": {
+  "tab-watching-episode-edit::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145672,7 +145672,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#8": {
+  "tab-watching-episode-edit::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -145961,7 +145961,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#9": {
+  "tab-watching-episode-edit::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146233,7 +146233,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#10": {
+  "tab-watching-episode-edit::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146573,7 +146573,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#11": {
+  "tab-watching-episode-edit::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146658,7 +146658,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#12": {
+  "tab-watching-episode-edit::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -146947,7 +146947,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#13": {
+  "tab-watching-episode-edit::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -147457,7 +147457,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "tab-watching-episode-edit::div#14": {
+  "tab-watching-episode-edit::div#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -177309,7 +177309,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.home-view.view-fade-in#1": {
+  "mobile-nav-menu::div.home-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -180879,7 +180879,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.stats-view.view-fade-in#1": {
+  "mobile-nav-menu::div.stats-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -184347,7 +184347,7 @@
     "rowGap": "6px",
     "columnGap": "6px"
   },
-  "mobile-nav-menu::div.discover-view.view-fade-in#1": {
+  "mobile-nav-menu::div.discover-view#1": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -184908,7 +184908,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.discover-view.view-fade-in#2": {
+  "mobile-nav-menu::div.discover-view#2": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -185911,7 +185911,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div.view-fade-in#1": {
+  "mobile-nav-menu::div#5": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -185928,7 +185928,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#5": {
+  "mobile-nav-menu::div#6": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -190926,7 +190926,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#6": {
+  "mobile-nav-menu::div#7": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -191810,7 +191810,7 @@
     "rowGap": "22px",
     "columnGap": "22px"
   },
-  "mobile-nav-menu::div#7": {
+  "mobile-nav-menu::div#8": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -192031,7 +192031,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#8": {
+  "mobile-nav-menu::div#9": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -192405,7 +192405,7 @@
     "rowGap": "12px",
     "columnGap": "20px"
   },
-  "mobile-nav-menu::div#9": {
+  "mobile-nav-menu::div#10": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -192456,7 +192456,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#10": {
+  "mobile-nav-menu::div#11": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -192507,7 +192507,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#11": {
+  "mobile-nav-menu::div#12": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -193187,7 +193187,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#12": {
+  "mobile-nav-menu::div#13": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -193561,7 +193561,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#13": {
+  "mobile-nav-menu::div#14": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -193850,7 +193850,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#14": {
+  "mobile-nav-menu::div#15": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -194122,7 +194122,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#15": {
+  "mobile-nav-menu::div#16": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -194207,7 +194207,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#16": {
+  "mobile-nav-menu::div#17": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -197658,7 +197658,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#17": {
+  "mobile-nav-menu::div#18": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -197828,7 +197828,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#18": {
+  "mobile-nav-menu::div#19": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -198117,7 +198117,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#19": {
+  "mobile-nav-menu::div#20": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -198508,7 +198508,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#20": {
+  "mobile-nav-menu::div#21": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -198661,7 +198661,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#21": {
+  "mobile-nav-menu::div#22": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -198831,7 +198831,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#22": {
+  "mobile-nav-menu::div#23": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -198984,7 +198984,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#23": {
+  "mobile-nav-menu::div#24": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -199137,7 +199137,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#24": {
+  "mobile-nav-menu::div#25": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -199290,7 +199290,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#25": {
+  "mobile-nav-menu::div#26": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -199443,7 +199443,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#26": {
+  "mobile-nav-menu::div#27": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -199596,7 +199596,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#27": {
+  "mobile-nav-menu::div#28": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -199749,7 +199749,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#28": {
+  "mobile-nav-menu::div#29": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -199851,7 +199851,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#29": {
+  "mobile-nav-menu::div#30": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -199970,7 +199970,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#30": {
+  "mobile-nav-menu::div#31": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -200123,7 +200123,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#31": {
+  "mobile-nav-menu::div#32": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -200259,7 +200259,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#32": {
+  "mobile-nav-menu::div#33": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -200412,7 +200412,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#33": {
+  "mobile-nav-menu::div#34": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -200667,7 +200667,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#34": {
+  "mobile-nav-menu::div#35": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201143,7 +201143,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#35": {
+  "mobile-nav-menu::div#36": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201670,7 +201670,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#36": {
+  "mobile-nav-menu::div#37": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -201755,7 +201755,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#37": {
+  "mobile-nav-menu::div#38": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -202044,7 +202044,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#38": {
+  "mobile-nav-menu::div#39": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",
@@ -203183,7 +203183,7 @@
     "rowGap": "normal",
     "columnGap": "normal"
   },
-  "mobile-nav-menu::div#39": {
+  "mobile-nav-menu::div#40": {
     "fontSize": "16px",
     "fontWeight": "400",
     "lineHeight": "24px",

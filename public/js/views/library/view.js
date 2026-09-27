@@ -12,6 +12,7 @@ import { tagColorHex } from '../../listsAndTags.js';
 import { titlesInOrder } from '../../titles.js';
 import { html, raw, cls } from '../../core/html.js';
 import { reconcileListChunked } from '../../core/reconcile.js';
+import { flip } from '../../core/flip.js';
 import { UI_TIMING } from '../../../../config/tuning.js';
 import { staggerDelay } from '../shared/format.js';
 import { expandedGroups, openNoteIds, selectedIds, isSelectMode, groupKey } from './model.js';
@@ -232,6 +233,13 @@ const EMPTY_STATES = {
 
 const AIRING_HEADING_KEY = '__still-airing';
 let renderedList = null;
+let exitTarget = null;
+
+// A status move names where the card went (its new list's tab), so the card
+// leaving the grid fades out in that direction on the next render.
+export function exitTowardsOnNextRender(target) {
+  exitTarget = target;
+}
 
 // Renders `list` into #grid. The first screen of cards is synchronous; the rest
 // follow in chunks on the next frames. Resolves when every card is in place.
@@ -254,7 +262,8 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
   emptyState.hidden = true;
   // Switching lists shows different cards: start from an empty grid so the new
   // list plays its entrance and nothing from the old one lingers during chunking.
-  if (renderedList !== list) grid.replaceChildren();
+  const sameList = renderedList === list && grid.children.length > 0;
+  if (!sameList) grid.replaceChildren();
   renderedList = list;
 
   const items = groups.map((g) => ({ group: g }));
@@ -264,7 +273,7 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
   if (airingCount > 0) items.splice(items.length - airingCount, 0, { heading: copy('sort.stillAiringHeading') });
 
   let createdIndex = 0;
-  return reconcileListChunked(grid, items, {
+  const reconcile = () => reconcileListChunked(grid, items, {
     key: (item) => (item.heading ? AIRING_HEADING_KEY : item.group.length === 1 ? `e${item.group[0].anilistId}` : `g${groupKey(item.group)}`),
     render: (item) =>
       item.heading
@@ -281,6 +290,17 @@ export function renderGrid(list, grid = document.getElementById('grid'), emptySt
       createdIndex++;
     },
   }, { firstCount: UI_TIMING.gridFirstChunk, chunkSize: UI_TIMING.gridChunkSize });
+
+  // A re-render of the same list (a sort, a status move, a +1 that re-sorts):
+  // cards on screen glide to their new places instead of jumping (FLIP).
+  const towards = exitTarget;
+  exitTarget = null;
+  if (!sameList) return reconcile();
+  let pass;
+  flip(grid, () => {
+    pass = reconcile();
+  }, { exitTowards: towards });
+  return pass;
 }
 
 // For tests and the list switch in events.js: forget which list the grid shows.

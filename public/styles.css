@@ -2087,7 +2087,28 @@ dialog.overlay::backdrop { background: transparent; }
    pinning the duration here keeps it consistent instead of relying on each
    browser's own default. Unsupported browsers/engines simply never create
    these pseudo-elements, so this rule is a no-op there. */
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-base); }
+::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-standard);
+}
+
+/* v3 Phase 3: tab changes (events.js switchView). The view area slides a
+   little in the direction of travel and crossfades; the header does not
+   move. The leaving view runs at about 70% of the entering one. Under
+   reduced motion --move-md is 0, which leaves a short crossfade. */
+#home-view, #list-view, #schedule-view, #discover-view, #stats-view { view-transition-name: view; }
+html:active-view-transition-type(tab)::view-transition-old(view) { animation: vt-leave-forward calc(var(--dur-base) * .7) var(--ease-exit) both; }
+html:active-view-transition-type(tab)::view-transition-new(view) { animation: vt-enter-forward var(--dur-base) var(--ease-enter) both; }
+html:active-view-transition-type(back)::view-transition-old(view) { animation-name: vt-leave-back; }
+html:active-view-transition-type(back)::view-transition-new(view) { animation-name: vt-enter-back; }
+@keyframes vt-leave-forward { to { opacity: 0; transform: translateX(calc(var(--move-md) * -1)); } }
+@keyframes vt-enter-forward { from { opacity: 0; transform: translateX(var(--move-md)); } }
+@keyframes vt-leave-back { to { opacity: 0; transform: translateX(var(--move-md)); } }
+@keyframes vt-enter-back { from { opacity: 0; transform: translateX(calc(var(--move-md) * -1)); } }
+
+/* Card cover to the detail view's cover as one shared element (detail
+   actions set the name on the one card that was clicked). */
+::view-transition-group(detail-cover) { animation-duration: var(--dur-slow); animation-timing-function: var(--ease-enter); }
 
 .overlay-close {
   position: absolute;

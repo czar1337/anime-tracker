@@ -16,6 +16,7 @@ import { triggerDownload } from '../../download.js';
 import { forget as forgetRendered } from '../../core/reconcile.js';
 import { Detail } from '../detail/actions.js';
 import { toggleNoteOpen } from './model.js';
+import { exitTowardsOnNextRender } from './view.js';
 
 // Spec: "Every destructive or lossy action, bulk or single, fires an Undo
 // toast lasting at least 8 seconds".
@@ -264,6 +265,8 @@ export function handleSetStatus(id, newStatus) {
   // design system §10, "Series finished": ripple (already happens on
   // whatever button was pressed) plus one feather drifting down.
   if (newStatus === 'watched') Atmosphere.rewardFeather();
+  // The card leaves this list: it fades out towards its new list's tab.
+  exitTowardsOnNextRender(document.querySelector(`.tab[data-tab="${newStatus}"]`));
   refreshView();
   Detail.refreshDetailIfOpen(id);
   persist();
@@ -675,7 +678,7 @@ export function bindGridEvents() {
     // must open details, not also expand/collapse the season list.
     const titleBlock = e.target.closest('[data-action="show-detail"]');
     if (titleBlock) {
-      Detail.showDetail(Number(titleBlock.dataset.detailId));
+      Detail.showDetail(Number(titleBlock.dataset.detailId), { origin: titleBlock.closest('.card') });
       return;
     }
 
