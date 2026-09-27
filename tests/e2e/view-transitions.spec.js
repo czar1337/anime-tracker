@@ -78,20 +78,24 @@ test('opening a cached series morphs the card cover into the detail cover, and b
       page.evaluate(async (what) => {
         const seen = new Promise((resolve) => {
           const check = () => {
-            if (document.getAnimations().some((a) => a.effect?.pseudoElement === '::view-transition-group(detail-cover)')) return resolve(true);
+            // The brief's name: cover-<id>, for the clicked card's series.
+            const id = document.querySelector('#grid > .card').dataset.id;
+            const group = document.getAnimations().find((a) => a.effect?.pseudoElement === `::view-transition-group(cover-${id})`);
+            // Timed by the "cover" class rule: --dur-slow, not the 220ms default.
+            if (group) return resolve(group.effect.getComputedTiming().duration);
             requestAnimationFrame(check);
           };
           requestAnimationFrame(check);
-          setTimeout(() => resolve(false), 1500);
+          setTimeout(() => resolve(0), 1500);
         });
         if (what === 'open') document.querySelector('#grid > .card [data-action="show-detail"]').click();
         else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         return seen;
       }, action);
 
-    expect(await sharedDuring('open')).toBe(true);
+    expect(await sharedDuring('open')).toBe(360);
     await expect(page.locator('#detail-overlay')).toBeVisible();
-    expect(await sharedDuring('close')).toBe(true);
+    expect(await sharedDuring('close')).toBe(360);
     await expect(page.locator('#detail-overlay')).toBeHidden();
     // The name never stays on anything once the transition is over.
     await page.waitForTimeout(600);

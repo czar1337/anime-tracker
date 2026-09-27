@@ -2242,9 +2242,10 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 @keyframes vt-leave-back { to { opacity: 0; transform: translateX(var(--move-md)); } }
 @keyframes vt-enter-back { from { opacity: 0; transform: translateX(calc(var(--move-md) * -1)); } }
 
-/* Card cover to the detail view's cover as one shared element (detail
-   actions set the name on the one card that was clicked). */
-::view-transition-group(detail-cover) { animation-duration: var(--dur-slow); animation-timing-function: var(--ease-enter); }
+/* Card cover to the detail view's cover as one shared element: detail
+   actions name the one clicked card's cover cover-<id> (class "cover") for
+   the length of the transition. */
+::view-transition-group(*.cover) { animation-duration: var(--dur-slow); animation-timing-function: var(--ease-enter); }
 
 .overlay-close {
   position: absolute;

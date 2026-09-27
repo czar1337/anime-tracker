@@ -25,7 +25,16 @@ function renderNow(state) {
 // card's cover becomes the detail view's cover (a shared-element View
 // Transition); closing reverses it. The name is set on that one card only,
 // and only for the length of the transition.
-const SHARED = 'detail-cover';
+// The name is cover-<id> (the brief's naming); the class "cover" is what
+// styles.css times the morph by.
+function nameShared(el, id) {
+  el.style.viewTransitionName = `cover-${id}`;
+  el.style.viewTransitionClass = 'cover';
+}
+function clearShared(el) {
+  el.style.viewTransitionName = '';
+  el.style.viewTransitionClass = '';
+}
 // Each transition's cleanup clears names only if no newer transition started,
 // so reopening quickly never loses the name the new one just set.
 let sharedSeq = 0;
@@ -45,19 +54,19 @@ export async function showDetail(anilistId, { origin } = {}) {
   const fromCover = origin?.querySelector?.('.card-cover-wrap');
   if (cache.has(anilistId) && visible(fromCover) && sharedTransitionPossible()) {
     const seq = ++sharedSeq;
-    fromCover.style.viewTransitionName = SHARED;
+    nameShared(fromCover, anilistId);
     const vt = runViewTransition(() => {
-      fromCover.style.viewTransitionName = '';
+      clearShared(fromCover);
       openOverlay('detail-overlay');
       resetDetailState();
       renderNow({ status: 'ready', media: cache.get(anilistId), localEntry: Store.getEntry(anilistId) });
       const to = detailCover();
-      if (to) to.style.viewTransitionName = SHARED;
+      if (to) nameShared(to, anilistId);
     });
     vt?.finished.finally(() => {
       if (seq !== sharedSeq) return;
       const to = detailCover();
-      if (to) to.style.viewTransitionName = '';
+      if (to) clearShared(to);
     });
     return;
   }
@@ -118,14 +127,14 @@ export function closeDetailWithTransition(close) {
   const toCover = id ? [...document.querySelectorAll(`.card[data-id="${id}"] .card-cover-wrap`)].find(visible) : null;
   if (!from || !toCover) return false;
   const seq = ++sharedSeq;
-  from.style.viewTransitionName = SHARED;
+  nameShared(from, id);
   const vt = runViewTransition(() => {
-    from.style.viewTransitionName = '';
+    clearShared(from);
     close();
-    toCover.style.viewTransitionName = SHARED;
+    nameShared(toCover, id);
   });
   vt?.finished.finally(() => {
-    if (seq === sharedSeq) toCover.style.viewTransitionName = '';
+    if (seq === sharedSeq) clearShared(toCover);
   });
   return true;
 }
