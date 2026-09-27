@@ -311,6 +311,7 @@ export const PALETTE = {
   anilistMinChars: 3, // AniList is searched from this many typed characters
   anilistDebounceMs: 350,
   anilistResults: 5,
+  minMatchRatio: 0.15, // a fuzzy match must cover at least this share of the name
 };
 
 export const UI_TIMING = {
@@ -321,4 +322,9 @@ export const UI_TIMING = {
   // series moves to Watched, however slow the animation setting, so the whole
   // moment stays under 2.4s.
   completionMoveMaxMs: 900,
+  // v3 Phase 4.
+  conflictToastMs: 20000, // the "changed elsewhere, reloaded" toast
+  appearanceNoticeToastMs: 12000, // the one-time D2 "your look was updated" toast
+  accentSaveDebounceMs: 1500, // learned cover colours are saved in batches
+  menuCloseScrollPx: 48, // a popup menu closes once the page scrolls this far
 };

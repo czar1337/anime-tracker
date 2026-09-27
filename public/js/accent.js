@@ -16,6 +16,7 @@ import { Store } from './state.js';
 import { Airing } from './airing.js';
 import { coverSrc } from './views/library/view.js';
 import { buildPalette, css, cssA, themeInputFromAccent } from './themeBuilder.js';
+import { UI_TIMING } from '../../config/tuning.js';
 
 const ACCENT_PROPS = ['--accent', '--accent-lit', '--accent-fill', '--accent-soft', '--accent-deep', '--accent-contrast', '--glow'];
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -26,6 +27,7 @@ let saveTimer = null;
 const reading = new Map(); // anilistId -> Promise, so one cover is read once
 
 export async function initAccent() {
+  window.addEventListener('appearancechange', repaintAll);
   try {
     const body = await Api.getCoverHues();
     if (body?.entries && typeof body.entries === 'object') hues = body.entries;
@@ -47,7 +49,7 @@ function remember(id, color, source) {
     } catch {
       // Regenerable: the next time the cover is shown it is learned again.
     }
-  }, 1500);
+  }, UI_TIMING.accentSaveDebounceMs);
 }
 
 // AniList's own colour for a cover, when a response carried one.
@@ -152,11 +154,16 @@ export function applyAccent(el, color) {
   if (!color || !HEX.test(color)) {
     for (const p of ACCENT_PROPS) el.style.removeProperty(p);
     delete el.dataset.accent;
+    delete el.dataset.accentKey;
     return;
   }
-  if (el.dataset.accent === color) return;
+  // The derived tokens depend on the page's own background and light/dark
+  // mode too, so the cache key includes them: a theme change re-derives.
   const light = getComputedStyle(document.documentElement).colorScheme === 'light';
-  const c = buildPalette(themeInputFromAccent(color, light, currentBackgroundHex())).colours;
+  const bg = currentBackgroundHex();
+  const key = `${color}|${bg}|${light}`;
+  if (el.dataset.accentKey === key) return;
+  const c = buildPalette(themeInputFromAccent(color, light, bg)).colours;
   el.style.setProperty('--accent', css(c.accent));
   el.style.setProperty('--accent-lit', css(c.accentLit));
   el.style.setProperty('--accent-fill', css(c.accentFill));
@@ -165,6 +172,13 @@ export function applyAccent(el, color) {
   el.style.setProperty('--accent-contrast', css(c.accentContrast));
   el.style.setProperty('--glow', css(c.glow));
   el.dataset.accent = color;
+  el.dataset.accentKey = key;
+}
+
+// After a theme change (themes.js dispatches 'appearancechange'), every tinted
+// element is re-derived against the new background.
+function repaintAll() {
+  for (const el of document.querySelectorAll('[data-accent]')) applyAccent(el, el.dataset.accent);
 }
 
 // Tints every [data-accent-id] element inside `root` (the Home hero and the

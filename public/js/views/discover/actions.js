@@ -337,6 +337,18 @@ export function initDiscover({ persistFn } = {}) {
 
   // v3 Phase 4: a card's actions, shared by its buttons and its menus.
   // `ctx` is { anilistId, shelfId, cardData, candidate, card }.
+  // A card leaving a rail (added or dismissed) hands keyboard focus to its
+  // neighbour, so the keyboard user keeps their place in the rail.
+  const renderHandingFocusOn = (card) => {
+    const neighbour = card && (card.nextElementSibling || card.previousElementSibling);
+    const key = neighbour?.dataset.key;
+    const hadFocus = card && (card.contains(document.activeElement) || document.activeElement === document.body);
+    renderNow();
+    if (!hadFocus || (document.activeElement && document.activeElement !== document.body && document.activeElement.isConnected)) return;
+    const target = key && container.querySelector(`[data-key="${CSS.escape(key)}"]`);
+    target?.focus({ preventScroll: true });
+  };
+
   const addCandidate = (ctx, addStatus) => {
     const { anilistId, shelfId, cardData, candidate } = ctx;
     if (Store.getEntry(anilistId)) return;
@@ -376,7 +388,7 @@ export function initDiscover({ persistFn } = {}) {
         meta: { adventurousness: Store.state.preferences.adventurousness, membersAtSurfacing: candidate.popularity ?? null, because: cardData.because, hiddenCount: cardData.hiddenCount },
       });
       removeCardEverywhere(anilistId);
-      renderNow();
+      renderHandingFocusOn(ctx.card);
       Render.renderTabCounts();
       persist();
       Render.showToast(`Added "${candidate.titleRomaji}" to ${ADD_STATUS_LABELS[addStatus] || 'Watchlist'}`);
@@ -412,7 +424,7 @@ export function initDiscover({ persistFn } = {}) {
     collapseThen(card, () => {
       FeedbackLoop.dismissRecommendation({ anilistId, shelfId, title: candidate.titleEnglish || candidate.titleRomaji, reason });
       removeCardEverywhere(anilistId);
-      renderNow();
+      renderHandingFocusOn(card);
       persist();
     });
   };
@@ -616,7 +628,7 @@ export function initDiscover({ persistFn } = {}) {
     else if (action === 'discover-add-menu') openAddMenu(ctx, actionEl);
     else if (action === 'discover-not-for-me') openNotForMeMenu(ctx, actionEl);
     else if (action === 'discover-thumb-up') {
-      FeedbackLoop.recordLike(anilistId);
+      if (!FeedbackLoop.recordLike(anilistId)) FeedbackLoop.removeLike(anilistId);
       renderNow();
       persist();
     }

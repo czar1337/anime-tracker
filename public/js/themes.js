@@ -207,6 +207,8 @@ function applyAppearance(appearance) {
   const { resolvedMode, slot } = resolveAppearance(appearance);
   applySlot(slot, resolvedMode === 'light');
   mirrorPrepaintKeys(appearance);
+  // Anything derived from the theme's colours (the cover-art accent) re-derives.
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('appearancechange'));
   if (appearance.mode === 'system' && !systemModeListenerAttached) {
     systemModeListenerAttached = true;
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {

@@ -42,3 +42,12 @@ test('custom themes keep the focus ring at 3:1 or more, whatever the accent and 
     }
   }
 });
+
+// Not contrast, but the same theme list: prepaint.js (a classic script that
+// cannot import) keeps its own copy of the retired-theme map.
+test("prepaint.js's retired-theme map matches themes.js", async () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'js', 'prepaint.js'), 'utf8');
+  const literal = /var RETIRED = (\{[^}]*\});/.exec(src)[1];
+  const { RETIRED_THEMES } = await import(pathToFileURL(path.join(__dirname, '..', '..', 'public', 'js', 'themes.js')).href);
+  assert.deepEqual(JSON.parse(literal), Object.fromEntries(Object.entries(RETIRED_THEMES).map(([id, t]) => [id, t.to])));
+});

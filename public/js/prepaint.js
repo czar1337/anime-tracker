@@ -17,7 +17,11 @@
   var isDark = mode === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : mode !== 'light';
   var slotType = localStorage.getItem(isDark ? 'anime-tracker-appearance-dark-type' : 'anime-tracker-appearance-light-type');
   var slotId = localStorage.getItem(isDark ? 'anime-tracker-appearance-dark-id' : 'anime-tracker-appearance-light-id');
-  document.documentElement.dataset.colorTheme = slotType === 'preset' && slotId ? slotId : 'moonlit-shrine';
+  // v3 Phase 4 (D2): a theme retired since this was stored paints as its
+  // nearest curated one (themes.js RETIRED_THEMES; a unit test pins the copy).
+  var RETIRED = {"crow-feather":"moonlit-shrine","crimson-core":"moonlit-shrine","blood-moon":"ember","eclipse":"bloom","rogue":"moonlit-shrine","nightshade":"bloom","mystic":"amethyst","phantom":"bloom","venom":"amethyst","sunflare":"solar","copper":"ember","radiant":"parchment","verdant":"jade","viridian":"jade","moss-shrine":"jade","cedar":"jade","glacial-rift":"frost","holo-deck":"frost","tidal":"frost","deep-sea":"cobalt","clean-interface":"daybreak","arcane-ward":"amethyst","nebula":"amethyst","indigo-night":"amethyst","celestial":"cobalt","wisteria":"amethyst","inferno":"ember","wildfire":"ember","aurora":"solar","void":"obsidian","storm":"frost","static":"obsidian","wraith":"obsidian","ashen":"obsidian","olive-grove":"solar","amberlight":"parchment","marigold":"solar","abyssal":"cobalt","orchid-veil":"bloom","seafoam":"jade","cinderglass":"rosequartz"};
+  var id = slotType === 'preset' && slotId ? RETIRED[slotId] || slotId : 'moonlit-shrine';
+  document.documentElement.dataset.colorTheme = id;
 })();
 // P3.2: text size/weight used to get the same synchronous pre-paint
 // treatment as the theme above, via [data-text-size]/[data-text-weight].

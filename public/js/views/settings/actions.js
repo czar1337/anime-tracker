@@ -16,7 +16,7 @@ import { Atmosphere } from '../../atmosphere.js';
 import { BackupClient } from '../../backupClient.js';
 import { EventLog } from '../../eventLog.js';
 import { copy, setCopyTier } from '../../copy.js';
-import { LISTS_AND_TAGS } from '../../../../config/tuning.js';
+import { LISTS_AND_TAGS, UI_TIMING } from '../../../../config/tuning.js';
 import { registerCommand, registerCommandProvider } from '../../core/commands.js';
 import { bindRovingTablist } from '../../core/focus.js';
 import {
@@ -30,6 +30,7 @@ import {
   setSettingsNewTagName,
   toggleSettingsNewListForm,
   toggleManagerListExpanded,
+  appearanceNoticeLines,
 } from './view.js';
 
 let ctx = null;
@@ -139,11 +140,14 @@ export function bindSettingsActions(context) {
   // The one-time notice after the D2 migration: a toast at boot that opens the
   // Appearance section, where the notice lists what changed until dismissed.
   const notice = Store.state.preferences.appearanceNotice;
-  if (notice && !notice.seenAt) {
-    Render.showToast(copy('settings.notice.toast'), {
+  // Shown once (toastShownAt); the list stays in Settings until dismissed.
+  if (notice && !notice.seenAt && !notice.toastShownAt) {
+    Store.setPreference(['appearanceNotice'], { ...notice, toastShownAt: new Date().toISOString() });
+    persist();
+    Render.showToast(copy('settings.notice.toast', undefined, { n: appearanceNoticeLines(notice).length }), {
       actionLabel: copy('settings.notice.toastAction'),
       onAction: () => openSettings('appearance'),
-      duration: 12000,
+      duration: UI_TIMING.appearanceNoticeToastMs,
       trackUndo: false,
     });
   }

@@ -283,11 +283,16 @@ function bulkBarCountText(selectedCount, visibleCount) {
     : `<b>${selectedCount}</b> selected`;
 }
 
+// The selection count is announced through the stable live region
+// (core/announce.js): the bar itself is rebuilt on every render.
+let announcedBulkCount = null;
+
 function renderBulkActionBar(list) {
   if (selectModeBtn) selectModeBtn.setAttribute('aria-pressed', String(isSelectMode()));
   if (!bulkActionBarEl) return;
   if (!isSelectMode()) {
     bulkActionBarEl.hidden = true;
+    announcedBulkCount = null;
     return;
   }
   bulkActionBarEl.hidden = false;
@@ -295,7 +300,7 @@ function renderBulkActionBar(list) {
   const visibleCount = list ? visibleIds(list).length : count;
   const disabled = count === 0 ? 'disabled' : '';
   bulkActionBarEl.innerHTML = `
-    <span class="count" aria-live="polite">${bulkBarCountText(count, visibleCount)}</span>
+    <span class="count">${bulkBarCountText(count, visibleCount)}</span>
     <span class="divider"></span>
     ${QUICK_MOVE_LISTS.map((l) => `<button class="btn btn-ghost sm" data-action="bulk-move" data-status="${l.key}" title="Move selected to ${l.label}" ${disabled}>${l.label}</button>`).join('')}
     <button class="btn btn-ghost sm" data-action="open-bulk-more" ${disabled}>More actions…</button>
@@ -304,6 +309,10 @@ function renderBulkActionBar(list) {
       <button class="btn btn-quiet sm" data-action="bulk-cancel">Cancel</button>
     </span>
   `;
+  if (announcedBulkCount !== count) {
+    if (announcedBulkCount !== null || count > 0) announce(bulkBarCountText(count, visibleCount).replace(/<\/?b>/g, ''));
+    announcedBulkCount = count;
+  }
 }
 
 // P4.4's remaining bulk verbs — score, progress, tags, lists, mark

@@ -160,7 +160,7 @@ test('the schema 15 migration: a retired theme carries over as its nearest one, 
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
     await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'frost');
-    const toast = page.locator('#toast-container .toast', { hasText: 'your look was carried over' });
+    const toast = page.locator('#toast-container .toast', { hasText: 'Your look was carried over, with 3 changes' });
     await expect(toast).toBeVisible();
     await toast.getByRole('button', { name: 'See what changed' }).click();
     const notice = page.locator('.settings-notice');
@@ -175,7 +175,25 @@ test('the schema 15 migration: a retired theme carries over as its nearest one, 
     await page.reload();
     await page.waitForSelector('.card, .empty');
     await page.waitForTimeout(500);
-    await expect(page.locator('#toast-container .toast', { hasText: 'your look was carried over' })).toHaveCount(0);
+    await expect(page.locator('#toast-container .toast', { hasText: 'Your look was carried over, with 3 changes' })).toHaveCount(0);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('the migration toast shows once; the list stays in Settings until "Got it"', async ({ page }) => {
+  const server = await startFixtureServer(V14_FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card, .empty');
+    await expect(page.locator('#toast-container .toast', { hasText: 'Your look was carried over' })).toBeVisible();
+    await expect.poll(async () => typeof (await prefs(server)).appearanceNotice?.toastShownAt).toBe('string');
+    await page.reload();
+    await page.waitForSelector('.card, .empty');
+    await page.waitForTimeout(500);
+    await expect(page.locator('#toast-container .toast', { hasText: 'Your look was carried over' })).toHaveCount(0);
+    await openSettings(page);
+    await expect(page.locator('.settings-notice')).toContainText('Holo Deck');
   } finally {
     await server.stop();
   }

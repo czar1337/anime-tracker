@@ -87,6 +87,8 @@ module.exports = function register({ route, prefix }) {
       if (!/^\d+$/.test(id) || !v || !/^#[0-9a-f]{6}$/i.test(v.color) || !['anilist', 'canvas'].includes(v.source)) continue;
       incoming[id] = { color: v.color.toLowerCase(), source: v.source };
     }
+    // Read, merge and write run synchronously (no await in between), so two
+    // overlapping saves cannot interleave and drop each other's colours.
     const data = { entries: { ...readCoverHues().entries, ...incoming } };
     const quota = ensureClassBWriteQuota(Buffer.byteLength(JSON.stringify(data)), 'coverHueCache');
     if (!quota.ok) {
@@ -98,7 +100,8 @@ module.exports = function register({ route, prefix }) {
     return;
   });
 
-  route('GET', '/api/upcoming', async ({ req, res, url, pathname }) => {    sendJson(res, 200, readUpcomingCache());
+  route('GET', '/api/upcoming', async ({ req, res, url, pathname }) => {
+    sendJson(res, 200, readUpcomingCache());
     return;
   });
 

@@ -1127,11 +1127,12 @@ kbd {
 .dc-portrait .cov { height: auto; aspect-ratio: 2 / 3; border-radius: 0; background: var(--bg-elevated); display: grid; place-items: center; }
 .discover-card-initial { font: var(--t-display-l); color: color-mix(in srgb, var(--text) 22%, transparent); }
 .dc-body { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); flex: 1; }
-.dc-portrait h4 { margin: 0; font: var(--t-title); font-weight: var(--w-strong); cursor: pointer; }
+/* The title follows the reason, as the second line. */
+.dc-portrait h4 { margin: 0; font: var(--t-meta); font-weight: var(--w-strong); color: var(--dim); cursor: pointer; }
 .dc-portrait h4 .discover-card-title-primary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The reason is the headline: body size, the full text colour, the anchor
    in the accent colour. */
-.dc-portrait .why { margin: 0; font: var(--t-body); color: var(--text); line-height: 1.45; padding: 0; border: 0; }
+.dc-portrait .why { margin: 0; font: var(--t-body); font-weight: var(--w-med); color: var(--text); line-height: 1.45; padding: 0; border: 0; }
 .why-anchor { font-style: normal; color: var(--accent-lit); }
 .dc-portrait .m { margin: 0; }
 .dc-portrait .acts { margin-top: auto; padding-top: var(--sp-2); align-items: center; flex-wrap: nowrap; gap: var(--sp-1); }
@@ -1545,7 +1546,9 @@ kbd {
   text-align: left;
   cursor: pointer;
 }
-.popup-menu-item:hover, .popup-menu-item:focus-visible { background: var(--accent-soft); color: var(--text); outline: none; }
+.popup-menu-item:hover { background: var(--accent-soft); color: var(--text); }
+/* Keyboard focus: the soft fill plus a ring in --accent-lit, so it stays visible on every theme (hover alone keeps just the fill). */
+.popup-menu-item:focus-visible { background: var(--accent-soft); color: var(--text); outline: none; box-shadow: inset 0 0 0 2px var(--accent-lit); }
 .popup-menu-item.danger { color: var(--accent-lit); }
 .popup-menu-item kbd { font-size: var(--fs-micro); }
 .popup-menu-sep { height: 1px; margin: var(--sp-1) var(--sp-2); background: var(--line); }
@@ -2331,6 +2334,7 @@ kbd {
 /* v3 Phase 4: the mark, and the actions centred under the sentence. */
 .empty-mark { width: 48px; height: 48px; color: var(--accent-lit); opacity: .85; }
 .empty-actions { justify-content: center; margin-top: var(--sp-2); }
+.empty-state.compact { padding: var(--sp-8) var(--sp-4); border: 1px dashed var(--line-lit); border-radius: var(--radius); }
 .empty-start { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-4); }
 .empty-start-item { width: 120px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
 .empty-start-cover { width: 96px; aspect-ratio: 2 / 3; border-radius: var(--radius-sm); overflow: hidden; background: var(--card); display: grid; place-items: center; }
@@ -3192,7 +3196,7 @@ a.btn { text-decoration: none; }
   font: var(--t-body);
   cursor: pointer;
 }
-.palette-option[aria-selected="true"] { background: var(--accent-soft); color: var(--text); }
+.palette-option[aria-selected="true"] { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 2px var(--accent-lit); }
 .palette-option-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-option-hint { font: var(--t-meta); color: var(--faint); white-space: nowrap; }
 .palette-foot {

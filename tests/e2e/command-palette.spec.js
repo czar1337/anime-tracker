@@ -172,3 +172,19 @@ test('recently opened series come back first when the palette opens empty', asyn
     await server.stop();
   }
 });
+
+test('Ctrl+K works from inside an open window, and pressed again closes the palette', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await open(page, server.url);
+    await page.click('#settings-trigger');
+    await expect(page.locator('#settings-overlay')).toBeVisible();
+    await page.keyboard.press('Control+k');
+    await expect(page.locator('#palette-overlay')).toBeVisible();
+    await expect(page.locator('#palette-input')).toBeFocused();
+    await page.keyboard.press('Control+k');
+    await expect(page.locator('#palette-overlay')).toBeHidden();
+  } finally {
+    await server.stop();
+  }
+});

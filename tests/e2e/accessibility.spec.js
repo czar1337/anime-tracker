@@ -81,3 +81,25 @@ test('keyboard focus shows a ring in a light theme, in the theme\'s own accent',
     await server.stop();
   }
 });
+
+test('a focused popup menu item has an accent ring, not just a faint fill', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await open(page, server);
+    await page.locator('#grid > .card').first().focus();
+    await page.keyboard.press('Shift+F10');
+    const item = page.locator('[role="menu"] [role^="menuitem"]').first();
+    await expect(item).toBeFocused();
+    const { shadow, accentLit } = await item.evaluate((el) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--accent-lit)';
+      el.appendChild(probe);
+      const accentLit = getComputedStyle(probe).color;
+      probe.remove();
+      return { shadow: getComputedStyle(el).boxShadow, accentLit };
+    });
+    expect(shadow).toContain(accentLit);
+  } finally {
+    await server.stop();
+  }
+});

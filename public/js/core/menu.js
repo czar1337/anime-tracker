@@ -12,6 +12,7 @@
 // side (the 1-10 rating).
 
 import { html, cls } from './html.js';
+import { UI_TIMING } from '../../../config/tuning.js';
 
 let menuEl = null;
 let returnTo = null;
@@ -44,7 +45,7 @@ function ensureMenu() {
   // A real scroll of the page closes it (it stays where it opened); the small
   // scrolls of bringing a card into view do not.
   window.addEventListener('scroll', () => {
-    if (isMenuOpen() && Math.abs(window.scrollY - openedAtScrollY) > 48) closeMenu({ restoreFocus: false });
+    if (isMenuOpen() && Math.abs(window.scrollY - openedAtScrollY) > UI_TIMING.menuCloseScrollPx) closeMenu({ restoreFocus: false });
   }, { passive: true });
   return menuEl;
 }

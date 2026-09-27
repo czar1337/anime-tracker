@@ -104,18 +104,22 @@ test("the card menu's Select enters select mode and selects that card in one ste
   }
 });
 
-test('the bulk bar count is an aria-live region and updates as selections change', async ({ page }) => {
+// v3 Phase 4: the bar is rebuilt on every change, so the count is announced
+// through the page's stable live region (core/announce.js) instead.
+test('the bulk bar count updates as selections change and is announced through the stable live region', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await gotoSortedByTitle(page, server);
     await page.click('#select-mode-toggle');
     const count = page.locator('#bulk-action-bar .count');
-    await expect(count).toHaveAttribute('aria-live', 'polite');
+    const region = page.locator('#live-region');
     await expect(count).toContainText('0 selected');
     await toggleCheckbox(page, 301).click();
     await expect(count).toContainText('1 selected');
+    await expect(region).toHaveText('1 selected');
     await toggleCheckbox(page, 302).click();
     await expect(count).toContainText('2 selected');
+    await expect(region).toHaveText('2 selected');
   } finally {
     await server.stop();
   }

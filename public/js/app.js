@@ -21,6 +21,7 @@ import { whenSettled } from './core/reconcile.js';
 import { syncShimmers } from './core/motion.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
+import { UI_TIMING } from '../../config/tuning.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -48,7 +49,7 @@ function setSaveIndicator(state, text) {
 // never succeed, only a fresh load can, so this stops the indefinite retry
 // loop and asks the user to reload instead of hammering the server with a
 // doomed request forever.
-const CONFLICT_TOAST_MS = 20000;
+const CONFLICT_TOAST_MS = UI_TIMING.conflictToastMs;
 let conflictToastUntil = 0;
 
 async function reloadAfterConflict() {

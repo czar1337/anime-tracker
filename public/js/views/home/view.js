@@ -14,6 +14,7 @@ import { copy } from '../../copy.js';
 import { titlesInOrder } from '../../titles.js';
 import { episodesWatchedInYear } from '../../statsLogic.js';
 import { html, cls, cssUrl } from '../../core/html.js';
+import { emptyStateHtml } from '../shared/emptyState.js';
 import { morphInto } from '../../core/reconcile.js';
 import { coverSrc } from '../library/view.js';
 import { HOME } from '../../../../config/tuning.js';
@@ -164,7 +165,7 @@ export function renderHome(container) {
       <div class="disc-head"><h3>${copy('home.continue')}</h3><span class="rule"></span></div>
       ${rail.length
         ? html`<div class="continue-rail" role="list" aria-label="${copy('home.rail')}">${rail.map((e, i) => continueCardHtml(e, { hero: i === 0 }))}</div>`
-        : html`<p class="card-meta">${copy('home.nothingWatching')}</p>`}
+        : html`<div class="empty-state compact">${emptyStateHtml({ mark: 'moon', title: copy('empty.watching.title'), body: copy('home.nothingWatching'), primary: { label: copy('empty.addSeries'), command: 'search.add' }, secondary: { label: copy('empty.discover'), command: 'go.discover' } })}</div>`}
     </section>
     <div class="home-cols">
       <section>
@@ -189,7 +190,7 @@ export function renderHome(container) {
                 <button type="button" class="btn btn-ghost sm" data-action="home-start" data-id="${e.anilistId}" aria-label="${copy('home.startLabel', undefined, { title: title(e) })}">${copy('home.start')}</button>
               </li>`;
             })}</ul>`
-          : html`<p class="card-meta">${copy('home.upNextEmpty')}</p>`}
+          : html`<p class="card-meta">${copy('home.upNextEmpty')} <button type="button" class="text-btn" data-command="go.discover">${copy('empty.discover')}</button></p>`}
         <div class="disc-head home-year-head"><h3>${copy('home.thisYear')}</h3><span class="rule"></span></div>
         <div class="row home-year">
           ${stat(episodesThisYear, copy('home.statEpisodes'))}

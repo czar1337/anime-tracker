@@ -124,7 +124,7 @@ test('"Not for me" offers reasons in a menu, and a reason removes the card and r
   }
 });
 
-test('"More like this" is a toggle button', async ({ page }) => {
+test('"More like this" is a toggle button that keeps focus', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await openDiscover(page, server);
@@ -132,6 +132,12 @@ test('"More like this" is a toggle button', async ({ page }) => {
     await expect(btn).toHaveAttribute('aria-pressed', 'false');
     await btn.click();
     await expect(page.locator('.discover-card[data-anilist-id="9811"] [data-action="discover-thumb-up"]')).toHaveAttribute('aria-pressed', 'true');
+    // The page is morphed, not rebuilt: the same button keeps focus, and a
+    // second press takes the like back.
+    await expect(btn).toBeFocused();
+    await btn.click();
+    await expect(btn).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(async () => (await getLibrary(server)).preferences.likedRecommendationIds.includes(9811)).toBe(false);
   } finally {
     await server.stop();
   }
@@ -179,6 +185,27 @@ test('Tune opens as a popover holding moods, hide owned, filters and Pick for me
     await expect(pop.locator('#pick-for-me-open')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(pop).toBeHidden();
+  } finally {
+    await server.stop();
+  }
+});
+
+test('a card action keeps every rail where it was scrolled, and a dismissal hands focus to the next card', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 });
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await openDiscover(page, server);
+    const index = await page.evaluate(() => [...document.querySelectorAll('#discover-view .rail')].findIndex((r) => r.children.length > 1));
+    expect(index).toBeGreaterThanOrEqual(0);
+    const rail = page.locator('#discover-view .rail').nth(index);
+    const cards = rail.locator('> .discover-card');
+    await rail.evaluate((el) => { el.scrollLeft = 40; });
+    const left = await rail.evaluate((el) => el.scrollLeft);
+    const nextKey = await cards.nth(1).getAttribute('data-key');
+    await cards.first().locator('[data-action="discover-not-for-me"]').click();
+    await page.getByRole('menuitem', { name: 'Skip', exact: true }).click();
+    await expect(page.locator(`[data-key="${nextKey}"]`)).toBeFocused();
+    expect(await rail.evaluate((el) => el.scrollLeft)).toBeGreaterThanOrEqual(Math.min(left, 1));
   } finally {
     await server.stop();
   }

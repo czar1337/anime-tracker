@@ -9,6 +9,7 @@ import { RECOMMENDATIONS } from '../../../../config/tuning.js';
 import { MOOD_REGISTRY } from '../../moodRegistry.js';
 import { escapeHtml } from '../../core/html.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
+import { morphInto } from '../../core/reconcile.js';
 import { staggerDelay, relativeAgeText, formatEnumLabel, infoHintHtml } from '../shared/format.js';
 import { shelfSkeletonHtml } from '../shared/skeleton.js';
 
@@ -102,11 +103,11 @@ function shelfCardHtml(shelf, cardData, index = 0) {
     ? `<img class="discover-card-cover" src="${escapeHtml(c.coverMedium)}" alt="" loading="lazy" decoding="async">`
     : `<span class="discover-card-initial" aria-hidden="true">${escapeHtml((title.primary || '?').trim().charAt(0))}</span>`;
   return `
-    <article class="discover-card dc-portrait" role="listitem" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
+    <article class="discover-card dc-portrait" role="listitem" data-key="card-${escapeHtml(shelf.id)}-${c.anilistId}" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
       <div class="cov">${coverHtml}</div>
       <div class="dc-body">
-        <h4 data-action="show-detail" data-detail-id="${c.anilistId}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}${franchiseBadge}</h4>
         <p class="why">${reasonHtml(cardData.because)}</p>
+        <h4 data-action="show-detail" data-detail-id="${c.anilistId}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}${franchiseBadge}</h4>
         <div class="m">${metaBits.map(escapeHtml).join(' · ')}${c.normalizedScore != null ? ` · ★ ${c.normalizedScore}` : ''}</div>
         <div class="acts">
           <span class="split-btn">
@@ -160,13 +161,13 @@ function shelfHtml(shelf) {
   const head = `<div class="disc-head rail-head"><h3 id="${headId}">${escapeHtml(shelf.title)}</h3><span class="rule"></span>${canExpand ? `<button class="text-btn shelf-view-more" data-action="discover-view-more" data-shelf-id="${escapeHtml(shelf.id)}">${escapeHtml(copy('discoverFeedback.viewMore'))}</button>` : ''}</div>`;
   if (shelf.empty) {
     return `
-      <section class="shelf">
+      <section class="shelf" data-key="shelf-${escapeHtml(shelf.id)}">
         ${head}
         <p class="shelf-empty card-meta">${escapeHtml(shelf.emptyReason || copy('discover.shelfEmpty'))}</p>
       </section>`;
   }
   return `
-    <section class="shelf">
+    <section class="shelf" data-key="shelf-${escapeHtml(shelf.id)}">
       ${head}
       <div class="rail" role="list" aria-labelledby="${headId}">${shelf.cards.map((c, i) => shelfCardHtml(shelf, c, i)).join('')}</div>
     </section>`;
@@ -464,15 +465,15 @@ export function renderDiscoverPage(container, viewState) {
   `;
 
   if (status === 'degraded') {
-    container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverBuilding.title'), body: copy('empty.discoverBuilding.body'), primary: { label: copy('empty.addSeries'), command: 'search.add' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`;
+    morphInto(container, `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverBuilding.title'), body: copy('empty.discoverBuilding.body'), primary: { label: copy('empty.addSeries'), command: 'search.add' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`);
     return;
   }
   if (status === 'loading' && shelves.length === 0) {
-    container.innerHTML = `${banner}${shelfSkeletonHtml({ shelves: 3 })}`;
+    morphInto(container, `${banner}${shelfSkeletonHtml({ shelves: 3 })}`);
     return;
   }
   if (status === 'error' && shelves.length === 0) {
-    container.innerHTML = `${banner}<div class="empty-state">${emptyStateHtml({ mark: 'feather', title: copy('empty.discoverError.title'), body: copy('empty.discoverError.body'), primary: { label: copy('empty.tryAgain'), action: 'discover-refresh' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`;
+    morphInto(container, `${banner}<div class="empty-state">${emptyStateHtml({ mark: 'feather', title: copy('empty.discoverError.title'), body: copy('empty.discoverError.body'), primary: { label: copy('empty.tryAgain'), action: 'discover-refresh' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`);
     return;
   }
 
@@ -486,12 +487,12 @@ export function renderDiscoverPage(container, viewState) {
   if (activeMoodId && moodShelf) {
     const clearBtn = `<button class="text-btn" data-action="discover-mood-clear">${escapeHtml(copy('discoverMood.clear'))}</button>`;
     const shelfMarkup = shelfHtml({ ...moodShelf, title: copy(moodShelf.copyKey) });
-    container.innerHTML = `${banner}<div class="discover-mood-clear-row">${clearBtn}</div>${shelfMarkup}`;
+    morphInto(container, `${banner}<div class="discover-mood-clear-row">${clearBtn}</div>${shelfMarkup}`);
     return;
   }
 
   if (shelves.length === 0 || shelves.every((s) => s.empty)) {
-    container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverNothing.title'), body: copy('empty.discoverNothing.body'), primary: { label: copy('empty.openTune'), action: 'discover-open-tune' }, secondary: { label: copy('empty.goWatched'), command: 'go.watched' } })}</div>`;
+    morphInto(container, `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverNothing.title'), body: copy('empty.discoverNothing.body'), primary: { label: copy('empty.openTune'), action: 'discover-open-tune' }, secondary: { label: copy('empty.goWatched'), command: 'go.watched' } })}</div>`);
     return;
   }
   // v3 Phase 4: shelves with cards come first, so the rails above the fold
@@ -504,5 +505,5 @@ export function renderDiscoverPage(container, viewState) {
       .map((s) => `<li><span class="quiet-title">${escapeHtml(s.title)}</span> <span class="shelf-empty card-meta">${escapeHtml(s.emptyReason || copy('discover.shelfEmpty'))}</span></li>`)
       .join('')}</ul></section>`
     : '';
-  container.innerHTML = `${banner}${corpusStatusHtml(corpusStatus)}${filled.map(shelfHtml).join('')}${quietHtml}`;
+  morphInto(container, `${banner}${corpusStatusHtml(corpusStatus)}${filled.map(shelfHtml).join('')}${quietHtml}`);
 }

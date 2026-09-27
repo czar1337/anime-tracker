@@ -860,7 +860,7 @@ export const COPY_REGISTRY = {
   'home.statEpisodes': same('Episodes'),
   'home.statScore': same('Average score'),
   'home.statFinished': same('Finished'),
-  'home.nothingWatching': same('Nothing in progress. Start something from your Watchlist, or add a series.'),
+  'home.nothingWatching': same('Start something from your Watchlist, or add a series.'),
   'home.rail': same('Series in progress'),
   // The detail drawer (v3 Phase 4).
   'detail.progress': same('Progress'),
@@ -949,7 +949,7 @@ export const COPY_REGISTRY = {
   'settings.notice.approximated': same((p) => `${p.names} now have fewer steps. Yours were set to the nearest one.`),
   'settings.notice.retired': same((p) => `${p.names} are fixed now, at their defaults.`),
   'settings.notice.dismiss': same('Got it'),
-  'settings.notice.toast': same('Settings have fewer, clearer options now, and your look was carried over.'),
+  'settings.notice.toast': same((p) => `Settings have fewer, clearer options now. Your look was carried over, with ${p.n} ${p.n === 1 ? 'change' : 'changes'}.`),
   'settings.notice.toastAction': same('See what changed'),
   'settings.originalTitles.heading': same('Original titles'),
   'settings.originalTitles.description': same('Show the Japanese title next to the English one.'),

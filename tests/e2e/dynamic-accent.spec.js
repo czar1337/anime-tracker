@@ -123,3 +123,33 @@ test('with no AniList colour, one read of the local cover gives the colour', asy
     await server.stop();
   }
 });
+
+test('a theme change re-derives the drawer accent, also when the series reopens from the cache', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.route('**/graphql.anilist.co/**', (route) => {
+      const id = route.request().postDataJSON?.()?.variables?.id;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: id ? { Media: media(id, '#3a7bd5') } : { Page: { media: [] } } }) });
+    });
+    await page.goto(server.url);
+    await page.waitForSelector('#grid > .card');
+    const open = async () => {
+      await page.locator('#grid > .card[data-id="401"] [data-action="show-detail"]').click();
+      await expect(page.locator('.detail-panel')).toHaveAttribute('data-accent', '#3a7bd5');
+    };
+    const litOnBg = () => page.locator('.detail-panel').evaluate((el) => ({ lit: getComputedStyle(el).getPropertyValue('--accent-lit').trim(), bg: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() }));
+    await open();
+    const dark = await litOnBg();
+    await page.keyboard.press('Escape');
+    await page.evaluate(async () => {
+      const { Themes } = await import('/js/themes.js');
+      Themes.applyAppearance({ mode: 'light', light: { type: 'preset', id: 'daybreak' }, dark: { type: 'preset', id: 'moonlit-shrine' } });
+    });
+    await open();
+    const light = await litOnBg();
+    expect(light.lit).not.toBe(dark.lit);
+    expect(await page.evaluate(`(${CONTRAST})(${JSON.stringify(light.lit)}, ${JSON.stringify(light.bg)})`)).toBeGreaterThanOrEqual(4.5);
+  } finally {
+    await server.stop();
+  }
+});

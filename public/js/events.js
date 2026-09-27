@@ -992,14 +992,17 @@ function bindKeyboardShortcuts() {
     // v3 Phase 2: page shortcuts are off while an overlay is open (the page
     // behind it is inert). The one exception is "d", which also closes the
     // scorer debug panel it opens.
-    if (isAnyDialogOpen() && !(e.key === 'd' && isDialogOpen('scorer-debug-overlay'))) return;
-
-    // Ctrl/Cmd+K: the command palette (search, jump, actions), also from a field.
+    // Ctrl/Cmd+K: the command palette (search, jump, actions), also from a
+    // field and from any open window; pressed in the palette it closes it.
+    // Always handled, so the browser's own Ctrl+K never fires.
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      runCommand('palette.open');
+      if (isDialogOpen('palette-overlay')) dismissOverlays();
+      else runCommand('palette.open');
       return;
     }
+
+    if (isAnyDialogOpen() && !(e.key === 'd' && isDialogOpen('scorer-debug-overlay'))) return;
 
     if (isTypingTarget(e.target)) return;
 
