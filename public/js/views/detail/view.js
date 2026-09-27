@@ -19,6 +19,7 @@ import { scoreStripHtml, statusRowHtml } from '../library/view.js';
 import { formatEnumLabel } from '../shared/format.js';
 import { morphInto } from '../../core/reconcile.js';
 import { detailState } from './model.js';
+import { detailSkeletonHtml } from '../shared/skeleton.js';
 
 // design/HANDOVER.md §14 "More than 50 episodes": squares up to 50; past that,
 // a compact bar plus a "jump to episode" field, with only the last 18 squares
@@ -155,8 +156,10 @@ function metaCell(label, value) {
 export function renderDetailOverlay(container, state) {
   const shownId = container.dataset.anilistId;
   delete container.dataset.anilistId;
+  container.removeAttribute('aria-busy');
   if (state.status === 'loading') {
-    container.innerHTML = String(html`<div class="empty-state"><h2>Loading…</h2><p>Fetching details from AniList.</p></div>`);
+    container.setAttribute('aria-busy', 'true');
+    container.innerHTML = String(detailSkeletonHtml());
     return;
   }
   if (state.status === 'error') {

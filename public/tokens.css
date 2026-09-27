@@ -105,6 +105,9 @@
   /* Hold-to-select: mirrors the 500ms timer in events.js, so it does not
      scale with the animation setting. */
   --dur-hold: 500ms;
+  /* Skeletons appear only when loading takes longer than this, so a fast
+     load never flashes one. A wait, not a motion: it does not scale. */
+  --delay-skeleton: 150ms;
 
   /* rhythm */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;

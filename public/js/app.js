@@ -16,6 +16,7 @@ import { EventLog } from './eventLog.js';
 import { EventHistory } from './eventHistory.js';
 import { openDialog, closeDialog, isAnyDialogOpen } from './core/dialog.js';
 import { whenSettled } from './core/reconcile.js';
+import { syncShimmers } from './core/motion.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 
@@ -374,6 +375,7 @@ for (const type of ['pointerdown', 'keydown']) {
 }
 
 async function boot() {
+  syncShimmers(); // before the library arrives: the boot skeleton is already sweeping
   let loaded;
   try {
     loaded = await loadLibraryOrRetry();
@@ -452,6 +454,7 @@ async function boot() {
   // last chunk being in place.
   performance.mark('library:render-start');
   Render.renderAll(initialList);
+  document.getElementById('grid').removeAttribute('aria-busy'); // the boot skeleton is gone
   requestAnimationFrame(() => setTimeout(() => performance.mark('library:first-paint'), 0));
   // Only when the latest render pass has placed every card (a newer render
   // during the first chunks would otherwise end an older pass early).

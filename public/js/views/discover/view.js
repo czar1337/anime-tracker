@@ -9,6 +9,7 @@ import { RECOMMENDATIONS } from '../../../../config/tuning.js';
 import { MOOD_REGISTRY } from '../../moodRegistry.js';
 import { escapeHtml } from '../../core/html.js';
 import { staggerDelay, relativeAgeText, formatEnumLabel, infoHintHtml } from '../shared/format.js';
+import { shelfSkeletonHtml } from '../shared/skeleton.js';
 
 // P5A.4: one card per shelf row. `cardData` is whatever
 // shelvesLogic.js's buildShelves() produced: {anilistId, candidate, because,
@@ -450,7 +451,7 @@ export function renderDiscoverPage(container, viewState) {
     return;
   }
   if (status === 'loading' && shelves.length === 0) {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>Building your shelves…</h2></div>`;
+    container.innerHTML = `${banner}${shelfSkeletonHtml({ shelves: 3 })}`;
     return;
   }
   if (status === 'error' && shelves.length === 0) {

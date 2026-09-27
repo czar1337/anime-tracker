@@ -42,6 +42,23 @@ export function movementAllowed() {
   return motionAllowed() && !reducedMotion();
 }
 
+// One shimmer clock (v3 Phase 3, "one shared, synced shimmer"): every
+// skeleton's shimmer band is pinned to the document timeline's zero, so all
+// bands on screen sweep in step however far apart they appeared. Installed
+// once at boot; it also pins the ones already running (the boot skeleton).
+function pinShimmer(animation) {
+  if (animation.animationName === 'shimmer' && animation.startTime !== 0) animation.startTime = 0;
+}
+export function syncShimmers() {
+  for (const a of document.getAnimations()) pinShimmer(a);
+  document.addEventListener('animationstart', (e) => {
+    if (e.animationName !== 'shimmer') return;
+    for (const a of e.target.getAnimations({ subtree: true })) {
+      if (a.effect?.target === e.target) pinShimmer(a);
+    }
+  });
+}
+
 // Runs `update` inside a same-document View Transition when the browser has
 // them and motion is on; otherwise runs it directly and calls `onFallback`.
 // `types` select the CSS (:active-view-transition-type()). Returns the

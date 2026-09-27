@@ -10,7 +10,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 0 Verify, decide, plan | `v3/0-plan` | done | — |
 | 1 Safety and correctness | `v3/1-foundation-safety` | done | — |
 | 2 Render engine and structure | `v3/2-render-engine` | done | — |
-| 3 Design system and motion | `v3/3-design-motion` | in progress | Done: tokens.css + check-css-tokens.js, motion system (tokens, removals, scaleX bars, reduced/Off). Next: View Transitions + FLIP, +1 micro-interaction, completion moment, skeletons, exit animations, scroll-driven, videos, design doc |
+| 3 Design system and motion | `v3/3-design-motion` | in progress | Done: tokens.css + check-css-tokens.js, motion system (tokens, removals, scaleX bars, reduced/Off), View Transitions + FLIP, +1 micro-interaction, completion moment. Next: skeletons, exit animations, scroll-driven, videos, design doc, decisions, checkpoint. Known for Phase 4: the sort-direction button is clipped ("west f"), pre-existing since v2.3.0 |
 | 4 Flow and screens | `v3/4-flow-screens` | not started | |
 | 5 Features | `v3/5-features` | not started | |
 | 6 Discover rebuild | `v3/6-discover` | not started | |

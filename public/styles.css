@@ -1230,6 +1230,34 @@ kbd {
   to { transform: translateX(100%); }
 }
 
+/* Skeletons (v3 Phase 3, views/shared/skeleton.js and the boot grid in
+   index.html): the shape of what is loading. A set stays invisible for
+   --delay-skeleton, so a fast load never flashes one, then fades in; its
+   shimmer runs on the shared clock (core/motion.js syncShimmers). */
+.skeleton-set { animation: skeletonReveal var(--dur-fast) var(--ease-standard) var(--delay-skeleton) both; }
+@keyframes skeletonReveal { from { opacity: 0; } }
+.shimmer { position: relative; overflow: hidden; }
+.sk { background: var(--line); border-radius: var(--radius-xs); }
+.sk-line { height: calc(var(--fs-meta) * 1.1); margin-top: var(--sp-2); }
+.sk-line.short { width: 60%; }
+.sk-title { height: var(--fs-display-s); width: 70%; border-radius: var(--radius-sm); }
+.sk-heading { height: var(--fs-heading); width: 30%; margin-bottom: var(--sp-3); }
+.sk-bar { height: 6px; margin-top: var(--sp-3); border-radius: var(--radius-pill); }
+.sk-chips { display: flex; gap: var(--sp-2); margin: var(--sp-3) 0; }
+.sk-chip { display: block; height: calc(var(--fs-meta) * 1.8); width: calc(var(--fs-meta) * 5); border-radius: var(--radius-pill); }
+.card-skeleton {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding-bottom: var(--sp-4);
+}
+.card-skeleton .sk-cover { height: calc(126px * var(--text-scale)); border-radius: 0; background: var(--bg-elevated); margin-bottom: var(--sp-2); }
+.card-skeleton .sk-line, .card-skeleton .sk-bar { margin-left: var(--sp-3); margin-right: var(--sp-3); }
+.shelf-skeleton { margin-bottom: var(--sp-8); }
+.shelf-skeleton-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale)), 1fr)); gap: var(--sp-4); }
+.detail-body.skeleton-set .sk-title { margin-bottom: var(--sp-3); }
+.detail-side.skeleton-set .sk.detail-cover { border-radius: 0; background: var(--bg-elevated); }
+
 /* New episode — accent dot, top left of the art (design §8). */
 .dot {
   position: absolute;

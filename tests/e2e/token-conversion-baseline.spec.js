@@ -214,11 +214,11 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     await page.waitForTimeout(150);
     await page.waitForSelector('#save-indicator[data-state="saved"]');
     // Discover builds its shelves after the tab opens; capture the settled page,
-    // not the "Building your shelves" moment (which one a fixed wait caught
+    // not the skeleton shelves (which one a fixed wait caught
     // varied with load, more so since tab changes are View Transitions).
     await page.waitForFunction(() => {
       const view = document.getElementById('discover-view');
-      return view && !view.hidden && view.children.length > 0 && !view.textContent.includes('Building your shelves');
+      return view && !view.hidden && view.children.length > 0 && !view.querySelector('.shelf-skeletons');
     });
     await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'discover', '#app'));

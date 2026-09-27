@@ -5,6 +5,7 @@ import { formatReleaseDate } from '../../scheduleLogic.js';
 import { html, cls, raw } from '../../core/html.js';
 import { titleBlockHtml } from '../library/view.js';
 import { staggerDelay, relativeAgeText, formatEnumLabel, coverOrInitialHtml } from '../shared/format.js';
+import { shelfSkeletonHtml } from '../shared/skeleton.js';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -102,7 +103,7 @@ export function renderSchedulePage(container, viewState) {
 
   let comingSoonBody;
   if (status === 'loading' && items.length === 0) {
-    comingSoonBody = html`<div class="empty-state"><h2>Finding what's coming up…</h2><p>Talking to AniList…</p></div>`;
+    comingSoonBody = shelfSkeletonHtml({ shelves: 1, cards: 8 });
   } else if (status === 'error' && items.length === 0) {
     comingSoonBody = html`<div class="empty-state"><h2>Could not load upcoming releases</h2><p>${progressText || 'Check your internet connection and try refreshing.'}</p></div>`;
   } else if (items.length === 0) {
