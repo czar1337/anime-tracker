@@ -2096,7 +2096,15 @@ dialog.overlay {
   overflow: auto;
 }
 dialog.overlay::backdrop { background: transparent; }
-.overlay:not([open]) { display: none; }
+/* v3 Phase 3: opening fades in from @starting-style; closing fades out at
+   about 70% of that, with display and overlay held (allow-discrete) so the
+   dialog stays in the top layer until its exit is done. A closing dialog is
+   already closed (no [open]), so it takes no clicks. */
+.overlay:not([open]) {
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+}
 .overlay {
   position: fixed;
   inset: 0;
@@ -2107,9 +2115,14 @@ dialog.overlay::backdrop { background: transparent; }
   justify-content: center;
   padding: 10vh 20px 20px;
   z-index: 100;
-  animation: fadeIn var(--dur-slow) var(--ease-enter);
+  opacity: 1;
+  transition:
+    opacity calc(var(--dur-slow) * .7) var(--ease-exit),
+    display calc(var(--dur-slow) * .7) allow-discrete,
+    overlay calc(var(--dur-slow) * .7) allow-discrete;
 }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.overlay[open] { transition-duration: var(--dur-slow); transition-timing-function: var(--ease-enter); }
+@starting-style { .overlay[open] { opacity: 0; } }
 
 /* design/moonlit-shrine-design-system.md §10: "Overlay open · 340ms ·
    --e-out · opacity plus 14px up and scale 0.985 -> 1" — one shared entrance
@@ -2127,9 +2140,16 @@ dialog.overlay::backdrop { background: transparent; }
   max-height: 76vh;
   overflow-y: auto;
   padding: 20px;
-  animation: overlayEnter var(--dur-slow) var(--ease-enter);
+  transition: opacity var(--dur-slow) var(--ease-enter), transform var(--dur-slow) var(--ease-enter);
 }
-@keyframes overlayEnter { from { opacity: 0; transform: translateY(var(--move-md)) scale(calc(1 - .015 * var(--move-scale))); } to { opacity: 1; transform: none; } }
+/* The panel's own entrance, and its exit (a little down, 70% of the time). */
+@starting-style { .overlay[open] .overlay-panel { opacity: 0; transform: translateY(var(--move-md)) scale(calc(1 - .015 * var(--move-scale))); } }
+.overlay:not([open]) .overlay-panel {
+  opacity: 0;
+  transform: translateY(var(--move-sm)) scale(calc(1 - .01 * var(--move-scale)));
+  transition-duration: calc(var(--dur-slow) * .7);
+  transition-timing-function: var(--ease-exit);
+}
 
 /* View-switch crossfade (Home/Watching/Discover/Schedule/Stats): played by
    JS toggling this class on whichever view container just became visible
@@ -2755,9 +2775,17 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
   gap: var(--sp-4);
   font: var(--t-body);
   font-size: var(--fs-action);
-  animation: toastIn var(--dur-slow) var(--ease-enter);
+  transition: opacity var(--dur-slow) var(--ease-enter), transform var(--dur-slow) var(--ease-enter);
 }
-@keyframes toastIn { from { opacity: 0; transform: translateY(var(--move-md)); } to { opacity: 1; transform: translateY(0); } }
+/* Rises in from @starting-style; leaves (render.js dismissToast) sinking a
+   little and fading, at about 70% of the entry. */
+@starting-style { .toast { opacity: 0; transform: translateY(var(--move-md)); } }
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(var(--move-sm));
+  transition-duration: calc(var(--dur-slow) * .7);
+  transition-timing-function: var(--ease-exit);
+}
 .toast button {
   appearance: none;
   border: none;

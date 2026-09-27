@@ -6,6 +6,7 @@ import { tagColorHex } from './listsAndTags.js';
 import { episodesWatchedInYear } from './statsLogic.js';
 import { EventHistory } from './eventHistory.js';
 import { SORT_KEYS, SORT_KEY_ORDER } from './sortLogic.js';
+import { tokenMs } from './core/motion.js';
 import * as LibraryModel from './views/library/model.js';
 import * as LibraryView from './views/library/view.js';
 import { renderStatsPage } from './views/stats/view.js';
@@ -627,6 +628,25 @@ function ratingRowHtml({ label, value }) {
   return `<div class="toast-rate" role="group" aria-label="${escapeHtml(label)}"><span>${escapeHtml(label)}</span>${buttons.join('')}</div>`;
 }
 
+// A toast leaves with its exit transition (styles.css .toast.leaving), then is
+// removed. While leaving it is inert and hidden from assistive technology, so
+// its Undo can no longer be pressed or found.
+function dismissToast(toast) {
+  if (toast.classList.contains('leaving')) return;
+  toast.classList.add('leaving');
+  toast.inert = true;
+  toast.setAttribute('aria-hidden', 'true');
+  const exitMs = tokenMs('--dur-slow') * 0.7;
+  if (!exitMs) {
+    toast.remove();
+    return;
+  }
+  // The timer is the fallback for a transition that never runs (a hidden tab).
+  const done = () => toast.remove();
+  toast.addEventListener('transitionend', done, { once: true });
+  setTimeout(done, exitMs + 50);
+}
+
 function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true, onExpire, rating } = {}) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
@@ -638,7 +658,7 @@ function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo 
     btn.addEventListener('click', () => {
       actioned = true;
       onAction();
-      toast.remove();
+      dismissToast(toast);
       if (lastUndoBtn === btn) lastUndoBtn = null;
     });
     if (trackUndo) lastUndoBtn = btn;
@@ -653,7 +673,7 @@ function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo 
   }
   container.appendChild(toast);
   setTimeout(() => {
-    toast.remove();
+    dismissToast(toast);
     if (btn && btn === lastUndoBtn) lastUndoBtn = null;
     if (onExpire && !actioned) onExpire();
   }, duration);
