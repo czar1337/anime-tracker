@@ -11,8 +11,8 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 1 Safety and correctness | `v3/1-foundation-safety` | done | — |
 | 2 Render engine and structure | `v3/2-render-engine` | done | — |
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
-| 4 Flow and screens | `v3/4-flow-screens` | in progress | Done: before click counts (9), five-section nav + Library segments + bottom bar, command palette, library cards (2:3, toolbar, context menu, compact list, saved views, sort label fix), detail drawer, Home, dynamic accent (cover-hues Class B store), Discover layout (rails, portrait cards, split Add, Not for me menu, Tune popover, empty shelves grouped last), settings drawer + D2 migration (schema 15, dry run on the real copy: evidence/4/d2-migration-dryrun.json). empty states (mark, one sentence, primary + secondary; filtered-out lists say so; empty Watching offers Watchlist starts). a11y (role="alert" banner, stable live regions incl. one per dialog, focus rings in --accent-lit on every theme with a contrast test, custom theme contrast). help copy in the registry + design system §13. Next: evidence, after click counts, checkpoint |
-| 5 Features | `v3/5-features` | not started | |
+| 4 Flow and screens | `v3/4-flow-screens` | done | — |
+| 5 Features | `v3/5-features` | in progress | Next: read the Phase 5 brief section, plan, schema 16 |
 | 6 Discover rebuild | `v3/6-discover` | not started | |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |
 
@@ -156,6 +156,55 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
   under parallel stress and in every later full run; not reproduced.
 - **Deferred:** nothing. The Motion control and the clipped sort control are Phase 4
   items (D2 settings rebuild, "7 visible problems").
+
+## Checkpoint 4 (2026-09-27)
+
+- **Changed:** five-section nav (Home, Library, Schedule, Discover, Stats) with Library
+  list segments and a phone bottom bar; command palette (fuzzy, commands registry,
+  `aria-activedescendant`, Ctrl+K from anywhere); Home (Continue rail with banner or
+  blurred cover, Airing tonight, Up next, This year); 2:3 library cards with a toolbar,
+  context menu (right-click, long-press, Shift+F10), compact list and saved views;
+  detail drawer; cover-art accent (Class B `cover-hues.json`); Discover rails with the
+  reason as headline, split Add, More like this, Not for me with reasons, Tune popover;
+  Settings drawer (six sections, morphed in place); D2 (12 themes, Text size, Density,
+  Motion, Decoration; grain/gradient and share codes removed); empty states; a11y
+  (alert banner, stable live regions incl. per dialog, `--accent-lit` focus rings on
+  every theme); Help in the registry; design system §13.
+- **The 7 visible problems:** sort label reads "Newest first"; the score strip left the
+  card; Discover cards have one split Add and two stroke icons, no emoji; the Watching
+  hero uses the banner or a blurred cover; the tab count shows once; the phone header is
+  ≤ 64 px; the shortcut copy is right (`/` filters, `n` adds). Tests: library-cards,
+  navigation, home-view, detail-drawer, discover-layout; screenshots in
+  `docs/v3-evidence/4/`.
+- **Schema 15 (D2):** additive, idempotent, old fields untouched, one-time notice.
+  Dry run on a fresh real-library copy: 222 entries, 16 events, counters 6388 intact,
+  pinned `pre-migration-14-to-15` snapshot, one change noticed (the gradient layer),
+  theme and every control carried over exactly (`evidence/4/d2-migration-dryrun.json`).
+- **Tests before → after:** unit 436 + 99 → 435 + 114 (the share-code tests went with
+  the archived module; migration, fuzzy, saved views, focus-ring contrast added); e2e
+  239 + 1 skipped → 283 + 1 skipped. New specs: navigation, command-palette,
+  library-cards, detail-drawer, home-tonight, dynamic-accent, discover-layout,
+  settings-drawer, empty-states, accessibility. Retired to `archive/tests/`: token
+  baseline, typography sliders, decoration density slider.
+- **Perf (`npm run perf`, p95):** library render of all 2,000 cards **110 ms** (budget
+  200); first cards 65 ms; warm Discover **120 ms** (budget 400); snapshot + verify
+  106 ms.
+- **Click counts (core loop):** 9 before → 10 after. Only "rate a Watched series from a
+  cold start" grew (2 → 3; the score strip left the card by design); finish-and-rate is
+  2 via the completion toast (`evidence/4/click-count-{before,after}.json`).
+- **Browser check:** `node scripts/capture-evidence.js 4` and `--theme parchment`, every
+  screen plus detail, Settings and palette at 1440/390, motion and reduced: no errors,
+  every card visible.
+- **Exe:** rebuilt and smoke-tested on a throwaway data folder: 10/10.
+- **Independent review:** no HIGH; 4 MEDIUM, all fixed in `c7eab2c` with tests: the
+  cover accent went stale after a theme change; Discover rebuilt with innerHTML (rail
+  scroll and focus lost); menu and palette focus was only a 12% fill; the bulk count's
+  live region was recreated. LOW, all fixed: one-time toast, Ctrl+K inside a dialog,
+  un-pressable "More like this", the reason not leading the card, Home empty sections,
+  stray tunables, prepaint retired ids, a formatting slip (the cover-hues merge was
+  already synchronous; documented).
+- **Deferred:** nothing. Paused list, notifications settings and import revert are
+  Phase 5.
 
 ## Evidence index
 
