@@ -119,8 +119,17 @@ test('keyboard focus stays on a card that moves, and inside it when its controls
     await allCardsRendered(page, 2000);
     await page.selectOption('#sort-select', 'progressPercent');
     await page.waitForTimeout(200);
-    const id = await page.locator('#grid > .card').nth(30).getAttribute('data-id');
+    // A card at least four episodes from the end: three +1s move it without
+    // finishing it (a finished series leaves Watching, v3 Phase 3).
+    const id = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('#grid > .card')].slice(30);
+      return cards.find((c) => {
+        const [done, total] = c.querySelector('.progress-label').textContent.split('/').map(Number);
+        return total && total - done >= 4;
+      }).dataset.id;
+    });
     const card = page.locator(`#grid > .card[data-id="${id}"]`);
+    const startIndex = await page.evaluate((cardId) => [...document.querySelectorAll('#grid > .card')].findIndex((c) => c.dataset.id === cardId), id);
     await card.focus();
     // A few +1s move the card up the progress sort.
     for (let i = 0; i < 3; i++) await page.keyboard.press('Space');
@@ -128,7 +137,7 @@ test('keyboard focus stays on a card that moves, and inside it when its controls
       const cards = [...document.querySelectorAll('#grid > .card')];
       return { index: cards.findIndex((c) => c.dataset.id === cardId), focused: document.activeElement?.dataset?.id };
     }, id);
-    expect(moved.index, 'the card moved in the sort').not.toBe(30);
+    expect(moved.index, 'the card moved in the sort').not.toBe(startIndex);
     expect(moved.focused).toBe(id);
 
     // Entering select mode replaces the card's corner controls.
@@ -137,6 +146,34 @@ test('keyboard focus stays on a card that moves, and inside it when its controls
     await page.keyboard.press('Space');
     await expect(page.locator('#bulk-action-bar')).toBeVisible();
     expect(await page.evaluate((cardId) => Boolean(document.activeElement?.closest(`.card[data-id="${cardId}"]`)), id)).toBe(true);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('FLIP on a 2,000-entry grid measures about a screen of cards, not all of them', async ({ page }) => {
+  const server = await startFixtureServer(PERF_FIXTURE);
+  try {
+    await page.goto(server.url);
+    await allCardsRendered(page, 2000);
+    await page.evaluate(() => window.scrollTo(0, 20000)); // far down: the search, not a walk from the top
+    await page.waitForTimeout(200);
+    const reads = await page.evaluate(() => {
+      let n = 0;
+      const original = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function (...args) {
+        if (this.parentElement?.id === 'grid') n++;
+        return original.apply(this, args);
+      };
+      try {
+        document.getElementById('sort-dir').click();
+      } finally {
+        Element.prototype.getBoundingClientRect = original;
+      }
+      return n;
+    });
+    expect(reads).toBeGreaterThan(0);
+    expect(reads).toBeLessThan(400);
   } finally {
     await server.stop();
   }

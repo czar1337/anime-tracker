@@ -64,10 +64,13 @@ async function captureScene(page, sceneName, rootSelector) {
       // How many backups exist depends on whether the scene's saves cross a
       // minute boundary (saves within a minute share one backup since v3
       // Phase 1). The rows are identical in style, so only the first counts.
-      const firstBackupRow = root.querySelector('.backup-row');
+      // A row is an <li> of a backup list, or a .backup-row outside one; only
+      // the first row of each list is captured.
+      const rowOf = (el) => el.closest('.backup-list > li') || el.closest('.backup-row');
+      const isFirstRow = (row) => row.parentElement.querySelector(`:scope > ${row.matches('li') ? 'li' : '.backup-row'}`) === row;
       for (const el of all) {
-        const row = el.closest('.backup-row');
-        if (row && row !== firstBackupRow) continue;
+        const row = rowOf(el);
+        if (row && !isFirstRow(row)) continue;
         // Transient decoration is skipped: `enter` (a just-created grid card),
         // `pulse` (the +1 button) and ripple spans. Since v3 Phase 2 the grid
         // keeps its nodes across renders, so whether these are still present
@@ -210,6 +213,14 @@ test('token conversion baseline: every scene\'s computed styles match the checke
     await page.click('[data-tab="discover"]');
     await page.waitForTimeout(150);
     await page.waitForSelector('#save-indicator[data-state="saved"]');
+    // Discover builds its shelves after the tab opens; capture the settled page,
+    // not the skeleton shelves (which one a fixed wait caught
+    // varied with load, more so since tab changes are View Transitions).
+    await page.waitForFunction(() => {
+      const view = document.getElementById('discover-view');
+      return view && !view.hidden && view.children.length > 0 && !view.querySelector('.shelf-skeletons');
+    });
+    await page.waitForTimeout(150);
     Object.assign(captured, await captureScene(page, 'discover', '#app'));
 
     await page.click('[data-tab="stats"]');

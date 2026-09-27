@@ -15,7 +15,11 @@ import { buildSelectionJSON, buildSelectionCSV } from '../../selectionExport.js'
 import { triggerDownload } from '../../download.js';
 import { forget as forgetRendered } from '../../core/reconcile.js';
 import { Detail } from '../detail/actions.js';
-import { toggleNoteOpen } from './model.js';
+import { copy } from '../../copy.js';
+import { titlesInOrder } from '../../titles.js';
+import { tokenMs, motionAllowed } from '../../core/motion.js';
+import { toggleNoteOpen, completingIds } from './model.js';
+import { exitTowardsOnNextRender, QUICK_MOVE_LISTS } from './view.js';
 
 // Spec: "Every destructive or lossy action, bulk or single, fires an Undo
 // toast lasting at least 8 seconds".
@@ -79,6 +83,108 @@ function undoEpisodeStep(id, step) {
   recordProgressEvent(entry, current, target);
 }
 
+// The series' title as the cards show it, for toasts.
+function displayTitle(entry) {
+  return titlesInOrder(entry, Store.state.preferences.titleLanguage)[0];
+}
+
+// The card for `id` in the grid, if one is on screen (the hero, the detail
+// view and the keyboard can all act on a series without passing its card).
+function cardOnScreen(id) {
+  const card = document.querySelector(`#grid .card[data-id="${id}"]`);
+  if (!card) return null;
+  const r = card.getBoundingClientRect();
+  return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight ? card : null;
+}
+
+function restartClass(el, name) {
+  el.classList.remove(name);
+  void el.offsetWidth; // restart the animation on a repeat press
+  el.classList.add(name);
+}
+
+// v3 Phase 3, "+1 micro-interaction": the button springs back from its 0.9
+// press, and the episode digit does one 6px slide-swap (the old digit leaves
+// upwards as a ghost whose text is CSS content, so the label's text stays the
+// real count). The bar's own spring from the old value is CSS (--p). Runs
+// after the re-render: the card node survives it (keyed reconcile), and a
+// class added before it would be removed again by the morph.
+function playIncrement(card, before) {
+  if (!card) return;
+  const btn = card.querySelector('.plus');
+  if (btn) restartClass(btn, 'pulse');
+  const label = card.querySelector('.progress-label');
+  if (!label?.querySelector('.ep-now') || !motionAllowed()) return;
+  label.querySelector('.ep-old')?.remove();
+  const old = document.createElement('span');
+  old.className = 'ep-old';
+  old.setAttribute('aria-hidden', 'true');
+  old.dataset.n = String(before);
+  old.addEventListener('animationend', () => old.remove());
+  label.append(old);
+  restartClass(label, 'ep-swap');
+}
+
+// Sets a score from the completion toast's rating row, quietly (the toast is
+// the feedback; a second toast would push it away). Same toggle as the card:
+// the same score again clears it. Returns the score now stored.
+function rateFromToast(id, score) {
+  const entry = Store.getEntry(id);
+  if (!entry) return null;
+  const beforeScore = entry.myScore ?? null;
+  const newScore = beforeScore === score ? null : score;
+  Store.updateEntry(id, { myScore: newScore });
+  EventLog.recordForEntry('score_set', id, { from: beforeScore, to: newScore });
+  refreshView();
+  Detail.refreshDetailIfOpen(id);
+  persist();
+  return newScore;
+}
+
+// v3 Phase 3, "Completion moment": the +1 that marks the last episode. The
+// bar has turned positive and a hairline sweeps it (CSS, .card.completing),
+// one feather falls from the card, and after the sweep the series moves to
+// Watched with an Undo toast that carries a 1-10 rating row. The whole moment
+// (sweep, move, the feather's fall) stays under 2.4s. The Undo reverses the
+// move and the episode, which together were the one press.
+// The toast appears with the press, not after the move, so it is the Undo
+// (and the ctrl+z target) from the first moment: an Undo during the sweep
+// cancels the pending move and steps the episode back.
+// The wait before the move is capped (UI_TIMING.completionMoveMaxMs) so a slow
+// animation setting still keeps the whole moment under 2.4s; the feather's
+// --dur-reward is capped in tokens.css the same way.
+function playCompletion(id, card, entry) {
+  Atmosphere.rewardFeather({ from: card?.getBoundingClientRect() });
+  const delay = Math.min(tokenMs('--dur-emph') + tokenMs('--dur-fast'), UI_TIMING.completionMoveMaxMs);
+  let revert = null;
+  const timer = setTimeout(() => {
+    completingIds.delete(id);
+    const now = Store.getEntry(id);
+    // Something changed during the moment (a typed episode number, a move
+    // from the detail view): leave the series where it is.
+    const stillFinished = now && now.listStatus === 'watching' && now.totalEpisodes && now.episodesWatched >= now.totalEpisodes;
+    if (!stillFinished) {
+      refreshGridOnly();
+      return;
+    }
+    revert = moveToStatus(id, 'watched');
+    refreshAfterMove(id);
+  }, delay);
+  Render.showToast(copy('toast.seriesFinished', undefined, { title: displayTitle(entry) }), {
+    actionLabel: copy('toast.undo'),
+    duration: UNDO_TOAST_MS,
+    onExpire: evaluateAchievementsAfterUndoWindow,
+    onAction: () => {
+      clearTimeout(timer);
+      completingIds.delete(id);
+      revert?.();
+      undoEpisodeStep(id, +1);
+      refreshAfterMove(id);
+    },
+    rating: { label: copy('toast.rateIt'), value: entry.myScore ?? null, onRate: (score) => rateFromToast(id, score) },
+  });
+}
+
 export function handleIncrement(card, id) {
   const entry = Store.getEntry(id);
   if (!entry) return;
@@ -86,22 +192,22 @@ export function handleIncrement(card, id) {
   // v3 Phase 1 item 12: never past the known total (the typed-number path
   // already clamped; +1, Space, the hero and the detail button did not).
   if (entry.totalEpisodes && before >= entry.totalEpisodes) return;
+  const finishing = entry.listStatus === 'watching' && Boolean(entry.totalEpisodes) && before + 1 === entry.totalEpisodes;
+  if (finishing) completingIds.add(id);
   Store.updateEntry(id, { episodesWatched: entry.episodesWatched + 1 });
   recordProgressEvent(entry, before, before + 1);
   refreshGridOnly();
-  // After the re-render: the card node survives it (keyed reconcile), and a
-  // class added before it would be removed again by the morph.
-  const btn = card?.isConnected ? card.querySelector('.plus') : null;
-  if (btn) {
-    btn.classList.remove('pulse');
-    void btn.offsetWidth;
-    btn.classList.add('pulse');
-  }
+  const liveCard = card?.isConnected ? card : cardOnScreen(id);
+  playIncrement(liveCard, before);
   Render.renderTabCounts();
   Detail.refreshDetailIfOpen(id);
   persist();
-  Render.showToast(`Episode ${before + 1}`, {
-    actionLabel: 'Undo',
+  if (finishing) {
+    playCompletion(id, liveCard, entry);
+    return;
+  }
+  Render.showToast(copy('toast.episodeWatched', undefined, { title: displayTitle(entry), episode: before + 1 }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -175,8 +281,8 @@ export function handleDecrement(id) {
   refreshGridOnly();
   Detail.refreshDetailIfOpen(id);
   persist();
-  Render.showToast(`Episode ${before - 1}`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.episodeBack', undefined, { title: displayTitle(entry), episode: before - 1 }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -248,9 +354,12 @@ function recordStatusChange(entry, before, newStatus, patch) {
   }
 }
 
-export function handleSetStatus(id, newStatus) {
+// The mutation half of a status move, shared by the move buttons and the
+// completion moment. Returns the function that reverts it (mutation only;
+// the caller re-renders), or null when there was nothing to move.
+function moveToStatus(id, newStatus) {
   const entry = Store.getEntry(id);
-  if (!entry || entry.listStatus === newStatus) return;
+  if (!entry || entry.listStatus === newStatus) return null;
   const before = entry.listStatus;
   const patch = buildStatusPatch(entry, newStatus);
   recordStatusChange(entry, before, newStatus, patch); // before the mutation, while old values are still readable
@@ -261,25 +370,42 @@ export function handleSetStatus(id, newStatus) {
   // progress behind" bug: the undo now reverses the *whole* patch, because
   // it replays the entry's actual prior state instead of a hand-picked field.
   const { before: fullBefore } = Store.updateEntry(id, patch);
-  // design system §10, "Series finished": ripple (already happens on
-  // whatever button was pressed) plus one feather drifting down.
-  if (newStatus === 'watched') Atmosphere.rewardFeather();
+  // The card leaves this list: it fades out towards its new list's tab,
+  // whose count badge pops (renderTabCounts).
+  exitTowardsOnNextRender(document.querySelector(`.tab[data-tab="${newStatus}"]`));
+  return () => {
+    // Only the fields this move changed (status, and the fast-forwarded
+    // progress/completion date), and only if still untouched since.
+    const reverted = Store.revertEntryPatch(id, patch, fullBefore);
+    if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
+    if ('episodesWatched' in reverted) recordProgressEvent(entry, patch.episodesWatched, fullBefore.episodesWatched);
+  };
+}
+
+function refreshAfterMove(id) {
   refreshView();
   Detail.refreshDetailIfOpen(id);
   persist();
-  Render.showToast(`Moved to ${newStatus}`, {
-    actionLabel: 'Undo',
+}
+
+export function handleSetStatus(id, newStatus) {
+  // design system §10, "Series finished": one feather drifting down, from
+  // the card itself when it is on screen (measured before it leaves).
+  if (newStatus === 'watched' && Store.getEntry(id)?.listStatus !== 'watched') {
+    Atmosphere.rewardFeather({ from: cardOnScreen(id)?.getBoundingClientRect() });
+  }
+  const revert = moveToStatus(id, newStatus);
+  if (!revert) return;
+  refreshAfterMove(id);
+  const entry = Store.getEntry(id);
+  const list = QUICK_MOVE_LISTS.find((l) => l.key === newStatus)?.label || newStatus;
+  Render.showToast(copy('toast.movedTo', undefined, { title: displayTitle(entry), list }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
-      // Only the fields this move changed (status, and the fast-forwarded
-      // progress/completion date), and only if still untouched since.
-      const reverted = Store.revertEntryPatch(id, patch, fullBefore);
-      if ('listStatus' in reverted) EventLog.recordForEntry('status_changed', id, { from: newStatus, to: before });
-      if ('episodesWatched' in reverted) recordProgressEvent(entry, patch.episodesWatched, fullBefore.episodesWatched);
-      refreshView();
-      Detail.refreshDetailIfOpen(id);
-      persist();
+      revert();
+      refreshAfterMove(id);
     },
   });
 }
@@ -675,7 +801,7 @@ export function bindGridEvents() {
     // must open details, not also expand/collapse the season list.
     const titleBlock = e.target.closest('[data-action="show-detail"]');
     if (titleBlock) {
-      Detail.showDetail(Number(titleBlock.dataset.detailId));
+      Detail.showDetail(Number(titleBlock.dataset.detailId), { origin: titleBlock.closest('.card') });
       return;
     }
 

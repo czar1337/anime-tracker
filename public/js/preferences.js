@@ -85,17 +85,6 @@ const decorPref = attrPref('decor', KEYS.decor, DECOR_LEVELS, DEFAULT_DECOR);
 // single-line titles exactly as it does today.
 const COMPACT_TITLE_MAX_STEP = 5;
 
-// P3.2: "prefers-reduced-motion clamps effective animation to instant,
-// without touching the stored step" (spec) — the animation slider is the
-// one slider the OS's own accessibility preference overrides. Same inline
-// matchMedia query atmosphere.js/events.js/render.js already each use ad
-// hoc; no shared helper exists in this codebase for it, so this follows
-// that established pattern rather than importing atmosphere.js here (which
-// already imports this module, the other direction).
-function prefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 function sliderPref(key, def) {
   return {
     get: () => {
@@ -106,12 +95,9 @@ function sliderPref(key, def) {
       const n = Number(step);
       if (!Number.isInteger(n) || n < 1 || n > 10) return;
       const tokens = computeSliderTokens(key, n);
-      // Clamp only the DOM-applied tokens, never localStorage below — a
-      // user who later disables OS reduced-motion should see their real
-      // chosen step come back, not step 5.
-      if (key === 'animation' && prefersReducedMotion()) {
-        for (const name of Object.keys(tokens)) tokens[name] = '0ms';
-      }
+      // v3: reduced motion is applied by tokens.css (no movement, fades of
+      // at most 120ms) on top of whatever step is chosen, so the step is
+      // applied as it is.
       for (const [name, value] of Object.entries(tokens)) {
         document.documentElement.style.setProperty(name, value);
       }

@@ -6,6 +6,7 @@ import { tagColorHex } from './listsAndTags.js';
 import { episodesWatchedInYear } from './statsLogic.js';
 import { EventHistory } from './eventHistory.js';
 import { SORT_KEYS, SORT_KEY_ORDER } from './sortLogic.js';
+import { tokenMs } from './core/motion.js';
 import * as LibraryModel from './views/library/model.js';
 import * as LibraryView from './views/library/view.js';
 import { renderStatsPage } from './views/stats/view.js';
@@ -614,26 +615,70 @@ let lastUndoBtn = null;
 // evaluation deferred until the Undo window expires" hook every
 // destructive/lossy call site passes, so an undone action never gets
 // evaluated against a state it no longer produced.
-function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true, onExpire } = {}) {
+//
+// `rating` (v3 Phase 3, the completion moment): `{ label, value, onRate }`
+// adds a 1-10 row under the message. `onRate(score)` applies the score and
+// returns the value now stored (a second click on the same score clears it),
+// which the row then shows as pressed. Rating does not close the toast.
+function ratingRowHtml({ label, value }) {
+  const buttons = [];
+  for (let i = 1; i <= 10; i++) {
+    buttons.push(`<button type="button" data-score="${i}" aria-pressed="${value === i}" aria-label="${escapeHtml(label)} ${i}">${i}</button>`);
+  }
+  return `<div class="toast-rate" role="group" aria-label="${escapeHtml(label)}"><span>${escapeHtml(label)}</span>${buttons.join('')}</div>`;
+}
+
+// A toast leaves with its exit transition (styles.css .toast.leaving), then is
+// removed. While leaving it is inert and hidden from assistive technology, so
+// its Undo can no longer be pressed or found.
+function dismissToast(toast) {
+  if (toast.classList.contains('leaving')) return;
+  toast.classList.add('leaving');
+  toast.inert = true;
+  toast.setAttribute('aria-hidden', 'true');
+  const exitMs = tokenMs('--dur-slow') * 0.7;
+  if (!exitMs) {
+    toast.remove();
+    return;
+  }
+  // The timer is the fallback for a transition that never runs (a hidden tab).
+  const done = () => toast.remove();
+  // Only the toast's own fade ends it: a button's colour transition inside
+  // (hover ending as it turns inert) bubbles up too.
+  toast.addEventListener('transitionend', (e) => {
+    if (e.target === toast && e.propertyName === 'opacity') done();
+  });
+  setTimeout(done, exitMs + 50);
+}
+
+function showToast(message, { actionLabel, onAction, duration = 5000, trackUndo = true, onExpire, rating } = {}) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = `<span>${escapeHtml(message)}</span>${actionLabel ? `<button>${escapeHtml(actionLabel)}</button>` : ''}`;
+  toast.className = rating ? 'toast has-rating' : 'toast';
+  toast.innerHTML = `<span class="toast-msg">${escapeHtml(message)}</span>${actionLabel ? `<button class="toast-action">${escapeHtml(actionLabel)}</button>` : ''}${rating ? ratingRowHtml(rating) : ''}`;
   let actioned = false;
-  if (actionLabel && onAction) {
-    const btn = toast.querySelector('button');
+  const btn = toast.querySelector('.toast-action');
+  if (btn && onAction) {
     btn.addEventListener('click', () => {
       actioned = true;
       onAction();
-      toast.remove();
+      dismissToast(toast);
       if (lastUndoBtn === btn) lastUndoBtn = null;
     });
     if (trackUndo) lastUndoBtn = btn;
   }
+  if (rating) {
+    toast.querySelector('.toast-rate').addEventListener('click', (e) => {
+      const scoreBtn = e.target.closest('button[data-score]');
+      if (!scoreBtn) return;
+      const stored = rating.onRate(Number(scoreBtn.dataset.score));
+      for (const b of toast.querySelectorAll('.toast-rate button')) b.setAttribute('aria-pressed', String(Number(b.dataset.score) === stored));
+    });
+  }
   container.appendChild(toast);
   setTimeout(() => {
-    toast.remove();
-    if (toast.querySelector('button') === lastUndoBtn) lastUndoBtn = null;
+    dismissToast(toast);
+    if (btn && btn === lastUndoBtn) lastUndoBtn = null;
     if (onExpire && !actioned) onExpire();
   }, duration);
 }

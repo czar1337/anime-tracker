@@ -3,120 +3,23 @@
    only). Do not hand-edit that file — see scripts/generate-themes.js and
    design/moonlit-shrine-design-system.md §3.2.
    ===================================================================== */
+@import url('tokens.css');
 @import url('moonlit-shrine-themes.css');
-
-/* ---------- Moonlit Shrine tokens — design/moonlit-shrine-design-system.md §15
-   Copied verbatim from the design system. Colour tokens are NOT here —
-   they live per-theme in the imported file above, EXCEPT for the fallback
-   block right below: if data-color-theme is ever missing or holds a key
-   that doesn't match any [data-color-theme] block (corrupted localStorage,
-   a key from a future version), there is otherwise nothing to fall back to
-   and the whole app renders unstyled. The old token system had real
-   default values for exactly this reason — this restores that safety net
-   using moonlit-shrine's own values, rather than regressing it. Wrapped in
-   :where() to zero out its specificity — every [data-color-theme] block
-   below has normal specificity, so it always wins regardless of source
-   order, instead of the two silently tying and the later one in the file
-   winning unconditionally (which is what let this stay broken unnoticed:
-   the fallback's values happen to equal moonlit-shrine's, so only the
-   default theme ever rendered correctly). ---------- */
-:where(:root){
-  --bg: hsl(222 18% 5%); --bg-deep: hsl(222 18% 3.5%); --bg-elevated: hsl(222 16.2% 9%);
-  --card: hsl(222 15.3% 10.5%); --card-hover: hsl(222 14.4% 13.5%);
-  --line: hsl(222 12.6% 17%); --line-lit: hsl(222 9.9% 27%);
-  --text: hsl(222 10% 92%); --dim: hsl(222 12% 70%); --faint: hsl(222 12% 55%);
-  --accent: hsl(356 64% 54%); --accent-lit: hsl(356 58% 68%); --accent-fill: hsl(356 64% 53%);
-  --accent-soft: hsl(356 64% 54% / 0.12); --accent-deep: hsl(356 64% 29.7%); --accent-contrast: hsl(0 0% 100%);
-  --support: hsl(240 26% 62%); --positive: hsl(142 20% 62%); --warning: hsl(38 45% 60%);
-  --glow: hsl(214 42% 78%); --deco: hsl(4 48% 54%);
-  --cover-filter: saturate(.66) brightness(.9) contrast(1.05);
-  --cover-filter-hover: saturate(.96) brightness(1) contrast(1.03);
-  color-scheme: dark;
-
-  /* form */
-  --radius-xs:4px; --radius-sm:7px; --radius:12px; --radius-lg:16px;
-  --sh-1:0 2px 8px -2px rgba(0,0,0,.5);
-  --sh-2:0 12px 28px -14px rgba(0,0,0,.8);
-  --sh-3:0 22px 42px -22px rgba(0,0,0,.95);
-
-  /* type families */
-  --display:"Zen Old Mincho",Georgia,serif;
-  --ui:"Schibsted Grotesk",system-ui,sans-serif;
-  --mono:ui-monospace,"Cascadia Mono","SF Mono",monospace;
-  /* P3.1: font picker overrides --ui/--display/--numbers directly via an
-     inline style on documentElement (see preferences.js) — this block's
-     own values stay the fallback for anyone who's never opened the
-     picker. --numbers defaults to var(--ui) (today's actual, implicit
-     behaviour for .stat-value/.home-tile-count — neither ever set
-     font-family before, they just inherited body's --ui), not a new
-     hardcoded family, so introducing this token changes nothing until a
-     user actually picks a numbersFont. */
-  --numbers:var(--ui);
-
-  /* user-controlled typography */
-  --text-scale:1;
-  --w-body:400; --w-med:500; --w-strong:600; --w-display:600;
-  /* P3.2: "minimum effective font size after scaling: 12px" (tuning table) --
-     floored with max(), not clamp() (no ceiling wanted), and only for the
-     6 tokens whose UNSCALED base is already >=12px. --fs-meta/-micro/-nano
-     are already below 12px at scale 1 today (11/10.5/9.5px) -- an existing,
-     unrelated design choice; flooring those too would change today's
-     default rendering, violating "zero visual change until opt-in". The
-     floor only ever engages once the new text-size slider actually scales
-     one of the 6 down past 12px -- at the default scale (1) every one of
-     them already clears it, so max() is a no-op there. */
-  --fs-display-l:max(12px, calc(30px * var(--text-scale)));
-  --fs-display-m:max(12px, calc(21px * var(--text-scale)));
-  --fs-display-s:max(12px, calc(19px * var(--text-scale)));
-  --fs-body:max(12px, calc(13px * var(--text-scale)));
-  --fs-action:max(12px, calc(12.5px * var(--text-scale)));
-  --fs-card:max(12px, calc(12px * var(--text-scale)));
-  --fs-meta:calc(11px * var(--text-scale));
-  --fs-micro:calc(10.5px * var(--text-scale));
-  --fs-nano:calc(9.5px * var(--text-scale));
-  --t-display-l:var(--w-display) var(--fs-display-l)/1.16 var(--display);
-  --t-display-m:var(--w-display) var(--fs-display-m)/1.24 var(--display);
-  --t-display-s:var(--w-display) var(--fs-display-s)/1.2 var(--display);
-  --t-body:var(--w-body) var(--fs-body)/1.62 var(--ui);
-  --t-action:var(--w-med) var(--fs-action)/1 var(--ui);
-  --t-card:var(--w-med) var(--fs-card)/1.3 var(--ui);
-  --t-meta:var(--w-body) var(--fs-meta)/1.5 var(--ui);
-  --t-micro:var(--w-med) var(--fs-micro)/1 var(--ui);
-  --t-nano:var(--w-med) var(--fs-nano)/1 var(--ui);
-  --tr-display:.015em; --tr-brand:.055em; --tr-micro:.16em; --tr-nano:.22em;
-
-  /* motion */
-  --e-out:cubic-bezier(.2,1,.3,1);
-  --e-spring:cubic-bezier(.2,1.5,.3,1);
-  --e-inout:cubic-bezier(.4,0,.2,1);
-  --e-press:cubic-bezier(.3,0,.6,1);
-  --d-press:90ms; --d-1:120ms; --d-2:200ms; --d-3:280ms; --d-4:380ms; --d-5:800ms;
-  --press-btn:.97; --press-icon:.90; --press-card:.995; --press-chip:.95;
-
-  /* rhythm */
-  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
-  --sp-6:24px; --sp-8:32px; --sp-12:48px; --sp-16:64px;
-}
 
 /* P3.2: the [data-text-size]/[data-text-weight] attribute blocks that used
    to live here are gone — replaced, not left dead alongside the new
    sliders (the spec's own framing: "replace the... controls"). --text-scale/
-   --w-body/--w-med/--w-strong/--w-display now come from this block's own
-   defaults above (today's exact "normal"/"s" values, unchanged) until a
+   --w-body/--w-med/--w-strong/--w-display now come from tokens.css's
+   defaults (today's exact "normal"/"s" values, unchanged) until a
    slider overrides them via an inline style on documentElement — public/js/
    preferences.js's sliderPref, the same override mechanism P3.1's font
    pickers already use for --ui/--display/--numbers. */
 
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{animation:none!important;transition:none!important}
-}
+/* Reduced motion is handled by the motion tokens (tokens.css): distances and
+   scale amplitudes go to 0 and every duration is capped at a 120ms fade, so
+   nothing moves but state changes still read. v2 switched every animation
+   and transition off here, which also removed those fades. */
 
-/* The Phase 1 "Status Window" compatibility bridge that used to live here
-   has been fully removed — every component rule in this file now
-   references a real Moonlit Shrine token directly, so the alias layer had
-   nothing left pointing at it. --card-title and .disc-head h3 (both below
-   Mincho's 17px floor) keep an inline Sora/Inter fallback stack instead of
-   a token, since no Moonlit Shrine name covers that specific pairing. */
 :root{
   font-synthesis: none;
 }
@@ -140,7 +43,7 @@ html, body {
 
 body {
   min-height: 100vh;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard);
   /* P3.2's lineHeight/letterSpacing sliders: computed correctly (see
      typographySliders.js) but had no CSS consumer anywhere until now (a
      post-2.2.0 feedback fix) — the fallback matches each token's own
@@ -256,15 +159,17 @@ body {
 
 .atmo-feather {
   position: absolute;
-  top: -30px;
+  top: var(--f-y, -30px);
   left: var(--f-x);
   width: 9px; height: 24px;
   background: linear-gradient(180deg, var(--glow), transparent);
   border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-  animation: featherFall var(--f-dur, 2.4s) var(--e-out) forwards;
+  animation: featherFall var(--f-dur, 2.4s) var(--ease-enter) forwards;
   opacity: 0;
 }
-.atmo-feather.reward { width: 13px; height: 32px; }
+/* The reward feather is part of the completion moment, which stays under
+   2.4s: it falls in --dur-reward (2s). */
+.atmo-feather.reward { width: 13px; height: 32px; animation-duration: var(--dur-reward); }
 @keyframes featherFall {
   0% { transform: translate(0, 0) rotate(-12deg); opacity: 0; }
   10% { opacity: var(--f-op, .95); }
@@ -307,29 +212,6 @@ kbd {
   top: 0;
   z-index: 30;
 }
-/* Ambient "Status Window" idle detail: a dim accent-colored line permanently
-   sweeping the header's bottom edge, so the chrome reads as a live HUD
-   rather than a static toolbar. Deliberately subdued (thin, low opacity) —
-   meant to be felt more than noticed. Recolors automatically with the
-   active theme since it's driven entirely by --accent. */
-.app-header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
-  background-size: 200% 100%;
-  opacity: 0.5;
-  pointer-events: none;
-  animation: hudScan 6s linear infinite;
-}
-@keyframes hudScan {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
 .brand {
   appearance: none;
   border: none;
@@ -353,6 +235,41 @@ kbd {
   flex-shrink: 0;
 }
 
+/* v3 Phase 3, scroll-driven: the header condenses over the first 80px of
+   scroll. It rises 6px (its top padding slides out of view), the brand
+   shrinks to 0.9 and a shadow fades in under it; only transform and opacity
+   move. Reduced motion keeps the shadow fade and drops the movement.
+   Scroll-driven animations are not timed, so the animation setting's Off
+   (--motion: 0) turns them off with a style query. */
+@supports (animation-timeline: scroll()) {
+  .app-header, .app-header .brand {
+    animation: headerCondense linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 80px;
+  }
+  .app-header .brand { animation-name: brandCondense; transform-origin: 0 50%; }
+  .app-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 12px;
+    transform: translateY(100%);
+    box-shadow: inset 0 12px 12px -12px var(--shade);
+    pointer-events: none;
+    animation: headerShadow linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 80px;
+  }
+  @keyframes headerCondense { to { transform: translateY(calc(var(--move-sm) * -1.5)); } }
+  @keyframes brandCondense { to { transform: scale(calc(1 - .1 * var(--move-scale))); } }
+  @keyframes headerShadow { from { opacity: 0; } to { opacity: 1; } }
+  @container style(--motion: 0) {
+    .app-header, .app-header .brand, .app-header::after { animation: none; }
+  }
+}
+
 .tabs {
   position: relative;
   display: flex;
@@ -365,18 +282,19 @@ kbd {
 .tabs::-webkit-scrollbar { display: none; }
 
 /* A single underline slides between tabs on selection (design/moonlit-
-   shrine-design-system.md §10: "Tab change · 240ms · --e-out · the single
-   underline slides") — position/width set from JS (measured off the
-   active tab via getBoundingClientRect, same mechanism regardless of
-   whether this renders as a fill or a line), this only owns the motion. */
+   shrine-design-system.md §10: "the single underline slides"). v3: it moves
+   with transform only — a 100px line translated to the active tab and scaled
+   to its width (events.js's updateTabPill measures both). */
 .tab-pill {
   position: absolute;
   left: 0;
   bottom: -1px;
-  width: 0;
+  width: 100px;
   height: 1px;
   background: var(--accent);
-  transition: left 240ms var(--e-out), width 240ms var(--e-out);
+  transform-origin: 0 50%;
+  transform: translateX(0) scaleX(0);
+  transition: transform var(--dur-base) var(--ease-enter);
   z-index: 1;
   pointer-events: none;
 }
@@ -390,12 +308,12 @@ kbd {
   font: var(--t-micro);
   letter-spacing: var(--tr-micro);
   text-transform: uppercase;
-  padding: 0 0 13px;
+  padding: 0 0 var(--sp-3);
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  transition: color var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  transition: color var(--dur-base) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
   white-space: nowrap;
 }
 
@@ -424,7 +342,7 @@ kbd {
    have unwatched aired episodes right now — a call to action, not a tally. */
 .tab-unseen-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 800;
   background: var(--warning);
   color: var(--bg-deep);
@@ -439,10 +357,10 @@ kbd {
    unrelated re-render) — see setCountWithPop in render.js. `display:
    inline-block` above is required for the transform to apply at all;
    plain inline boxes silently ignore transforms. */
-.badge-pop { animation: badgePop 0.4s cubic-bezier(.34,1.56,.64,1); }
+.badge-pop { animation: badgePop var(--dur-slow) var(--ease-spring); }
 @keyframes badgePop {
-  0% { transform: scale(0.5); }
-  60% { transform: scale(1.25); }
+  0% { transform: scale(calc(1 - .5 * var(--move-scale))); }
+  60% { transform: scale(calc(1 + .25 * var(--move-scale))); }
   100% { transform: scale(1); }
 }
 
@@ -453,7 +371,7 @@ kbd {
 }
 
 .app-version {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   color: var(--faint);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -467,7 +385,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 10px 14px;
+  padding: 10px var(--sp-4);
   border-radius: var(--radius-sm);
   font: var(--t-meta);
   font-size: var(--fs-card);
@@ -494,7 +412,7 @@ kbd {
 .save {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--sp-2);
   font: var(--t-meta);
   color: var(--faint);
   white-space: nowrap;
@@ -505,7 +423,7 @@ kbd {
   border-radius: 50%;
   background: var(--positive);
 }
-.save[data-state="saving"] i { background: var(--warning); animation: savePulse 1.2s ease-in-out infinite; }
+.save[data-state="saving"] i { background: var(--warning); animation: savePulse var(--dur-loop) var(--ease-standard) infinite; }
 .save[data-state="failed"] { color: var(--accent-lit); }
 .save[data-state="failed"] i { background: var(--accent); }
 @keyframes savePulse { 50% { opacity: 0.3; } }
@@ -525,7 +443,7 @@ kbd {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  transition: border-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard), background-color var(--dur-base) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
 }
 .icn:hover { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
 .icn:active { transform: scale(var(--press-icon)); }
@@ -553,9 +471,9 @@ kbd {
   padding: 10px var(--sp-4);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform var(--d-2) var(--e-out), filter var(--d-2), background var(--d-2), border-color var(--d-2), box-shadow var(--d-2);
+  transition: transform var(--dur-base) var(--ease-enter), background-color var(--dur-base), border-color var(--dur-base);
 }
-.btn:active { transform: scale(var(--press-btn)); transition-duration: var(--d-press); transition-timing-function: var(--e-press); }
+.btn:active { transform: scale(var(--press-btn)); transition-duration: var(--dur-press); transition-timing-function: var(--ease-standard); }
 .btn-primary {
   background: var(--accent-fill);
   color: var(--accent-contrast);
@@ -583,7 +501,7 @@ kbd {
   opacity: 0.55;
   background: color-mix(in srgb, var(--accent-contrast) 100%, transparent);
   pointer-events: none;
-  animation: ripple 520ms var(--e-out) forwards;
+  animation: ripple var(--dur-emph) var(--ease-enter) forwards;
 }
 @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
 
@@ -647,7 +565,7 @@ kbd {
 /* Shared by the Watched-tab mini stats header, the Home dashboard, and the
    Statistics page — every "big number + small label" stat uses this. */
 .stat { display: flex; flex-direction: column; gap: var(--sp-1); }
-.stat-value { font-family: var(--numbers); font-size: 20px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat-value { font-family: var(--numbers); font-size: var(--fs-num-s); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat-label { font-size: var(--fs-meta); color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---------- Filter bar ----------
@@ -663,13 +581,13 @@ kbd {
 .field {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--sp-2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 9px var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
   color: var(--faint);
   font: var(--t-body);
-  transition: border-color var(--d-2) var(--e-inout);
+  transition: border-color var(--dur-base) var(--ease-standard);
 }
 .field:hover { border-color: var(--line-lit); }
 .field kbd { margin-left: auto; font: var(--t-nano); border: 1px solid var(--line); border-radius: 3px; padding: 2px 6px; color: var(--faint); }
@@ -697,11 +615,11 @@ kbd {
   font: var(--t-meta);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 6px 13px;
+  padding: 6px var(--sp-3);
   color: var(--dim);
   background: none;
   cursor: pointer;
-  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  transition: border-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard), background-color var(--dur-base) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
 }
 .chip:hover { border-color: var(--line-lit); color: var(--text); }
 .chip:active { transform: scale(0.95); }
@@ -711,16 +629,16 @@ kbd {
 .sel {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--sp-2);
   font: var(--t-meta);
   color: var(--dim);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: var(--sp-2) 11px;
+  padding: var(--sp-2) var(--sp-3);
   background: none;
   cursor: pointer;
   appearance: none;
-  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout);
+  transition: border-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard);
 }
 .sel:hover { border-color: var(--line-lit); color: var(--text); }
 
@@ -768,12 +686,12 @@ kbd {
   border: 1px solid var(--line-lit);
   display: grid;
   place-items: center;
-  font-size: 9px;
+  font-size: var(--fs-nano);
   color: transparent;
 }
 .togg.on { border-color: var(--accent); color: var(--accent-lit); }
 .togg.on b { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
-.notifications-toggle-row { margin: 14px 0; font-size: var(--fs-body); white-space: normal; }
+.notifications-toggle-row { margin: var(--sp-4) 0; font-size: var(--fs-body); white-space: normal; }
 .notifications-toggle-row input { width: 16px; height: 16px; }
 .notifications-description { font-size: var(--fs-body); color: var(--dim); line-height: 1.5; }
 .notifications-status { font-size: var(--fs-card); color: var(--warning); }
@@ -830,16 +748,16 @@ kbd {
   font-weight: 600;
   cursor: pointer;
   padding: 6px var(--sp-1);
-  transition: transform 0.12s ease;
+  transition: transform var(--dur-fast) var(--ease-standard);
 }
 .text-btn:hover { text-decoration: underline; }
 .text-btn:active { transform: scale(0.93); }
 .text-btn.primary {
   background: var(--accent);
   color: var(--accent-contrast);
-  padding: 9px var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
   border-radius: var(--radius-sm);
-  transition: background-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard);
 }
 .text-btn.primary:hover { background: var(--accent-lit); text-decoration: none; }
 
@@ -856,7 +774,7 @@ kbd {
      matches its own step-5 default (170px) exactly, so a library that
      never touches this slider renders at today's identical column width. */
   grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale)), 1fr));
-  gap: 14px;
+  gap: var(--sp-4);
 }
 /* P4.1: the progressPercent/episodesRemaining "still airing" trailing
    group's heading — spans every column so it reads as a section break in
@@ -880,13 +798,13 @@ kbd {
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-card);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4), background var(--d-4);
+  transition: transform var(--dur-slow) var(--ease-enter), border-color var(--dur-slow), background-color var(--dur-slow);
   position: relative;
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
+  animation: cardEnter var(--dur-emph) var(--ease-enter) backwards;
 }
 .card:hover, .card:focus-within {
   transform: translateY(-5px);
@@ -919,12 +837,17 @@ kbd {
 }
 .card.holding .hold-ring { opacity: 1; }
 @media (prefers-reduced-motion: no-preference) {
-  .card.holding .hold-ring circle { animation: holdRing 500ms linear forwards; }
+  .card.holding .hold-ring circle { animation: holdRing var(--dur-hold) linear forwards; }
 }
 @media (prefers-reduced-motion: reduce) {
   .card.holding .hold-ring circle { stroke-dashoffset: 0; } /* "ring fills without animation" — still shows, just not as a sweep */
 }
-@keyframes holdRing { to { stroke-dashoffset: 0; } }
+:root[data-motion="reduced"] .card.holding .hold-ring circle { animation: none; stroke-dashoffset: 0; }
+@keyframes holdRing {
+  /* motion-exception: a 40px SVG ring filling while a card is held (design
+     §10); it runs only during the hold, never in a loop. */
+  to { stroke-dashoffset: 0; }
+}
 
 /* The single accent signal on hover: a hairline that draws itself across
    the top edge, left of centre... actually right-to-left per the design
@@ -933,16 +856,18 @@ kbd {
   content: '';
   position: absolute;
   z-index: 3;
-  top: 0; left: 0; right: 100%;
+  top: 0; left: 0; right: 0;
   height: 1px;
   background: var(--accent);
-  transition: right 450ms var(--e-out);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  transition: transform var(--dur-slow) var(--ease-enter);
   pointer-events: none;
 }
 .card:hover::before, .card:focus-within::before,
 .discover-card:hover::before, .discover-card:focus-within::before,
 .franchise-card:hover::before, .franchise-card:focus-within::before {
-  right: 0;
+  transform: scaleX(1);
 }
 
 /* Entrance animations use `backwards` fill: the `from` keyframe applies during the
@@ -961,7 +886,7 @@ kbd {
 #grid > .card, #grid > .franchise-card { content-visibility: auto; contain-intrinsic-size: auto 320px; }
 
 @keyframes cardEnter {
-  from { opacity: 0; transform: translateY(16px); }
+  from { opacity: 0; transform: translateY(var(--move-md)); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -976,13 +901,13 @@ kbd {
   position: relative;
   display: grid;
   grid-template-columns: 90px 1fr;
-  gap: 14px;
+  gap: var(--sp-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
-  padding: 14px;
-  transition: transform var(--d-4) var(--e-out), border-color var(--d-4), box-shadow var(--d-4);
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
+  padding: var(--sp-4);
+  transition: transform var(--dur-slow) var(--ease-enter), border-color var(--dur-slow);
+  animation: cardEnter var(--dur-emph) var(--ease-enter) backwards;
 }
 .discover-card:hover {
   transform: translateY(-4px);
@@ -1017,7 +942,7 @@ kbd {
   max-height: 0;
   opacity: 0;
   overflow: hidden;
-  transition: max-height var(--d-2), opacity var(--d-2);
+  transition: opacity var(--dur-base);
 }
 .discover-card:hover .discover-card-title-alt,
 .discover-card:focus-within .discover-card-title-alt {
@@ -1025,10 +950,10 @@ kbd {
   opacity: 1;
   margin-top: 2px;
 }
-.discover-card .m { font: var(--t-meta); color: var(--faint); margin-bottom: 9px; }
-.discover-card .why { font: var(--t-meta); color: var(--dim); line-height: 1.55; margin-bottom: 11px; padding-left: 9px; border-left: 1px solid var(--accent-deep); }
+.discover-card .m { font: var(--t-meta); color: var(--faint); margin-bottom: var(--sp-2); }
+.discover-card .why { font: var(--t-meta); color: var(--dim); line-height: 1.55; margin-bottom: var(--sp-3); padding-left: var(--sp-2); border-left: 1px solid var(--accent-deep); }
 .discover-card .why b { color: var(--accent-lit); font-weight: 500; }
-.discover-card .acts { display: flex; flex-wrap: wrap; gap: 7px; }
+.discover-card .acts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .discover-card .x {
   position: absolute;
   top: 10px; right: 10px;
@@ -1041,7 +966,7 @@ kbd {
   place-items: center;
   font-size: var(--fs-body);
   opacity: 0;
-  transition: opacity var(--d-2), border-color var(--d-2), color var(--d-2);
+  transition: opacity var(--dur-base), border-color var(--dur-base), color var(--dur-base);
 }
 .discover-card:hover .x, .discover-card:focus-within .x { opacity: 1; }
 .discover-card .x:hover { border-color: var(--accent); color: var(--accent-lit); }
@@ -1055,15 +980,15 @@ kbd {
   border: 1px solid var(--line);
   background: none;
   color: var(--faint);
-  font-size: 13px;
+  font-size: var(--fs-body);
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: border-color var(--d-2), color var(--d-2), background var(--d-2);
+  transition: border-color var(--dur-base), color var(--dur-base), background-color var(--dur-base);
 }
 .discover-card .thumb-btn:hover { border-color: var(--line-lit); color: var(--text); }
 .discover-card .thumb-btn.on { border-color: var(--accent); color: var(--accent-lit); background: var(--accent-soft); }
-.discover-reason-strip { display: flex; flex-wrap: wrap; gap: 7px; }
+.discover-reason-strip { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .discover-adventurousness-row {
   display: flex;
   align-items: center;
@@ -1074,7 +999,7 @@ kbd {
 }
 .discover-adventurousness-row input[type="range"] { flex: 1 1 160px; max-width: 220px; }
 .discover-adventurousness-row input[type="range"]:disabled { opacity: .4; }
-.discover-adventurousness-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.discover-adventurousness-toggle { display: flex; align-items: center; gap: var(--sp-2); cursor: pointer; }
 
 /* A visible "?" badge with a real tooltip bubble — a plain `title`
    attribute on text gave no visual signal that hovering did anything
@@ -1103,7 +1028,7 @@ kbd {
   left: 50%;
   transform: translateX(-50%);
   width: 220px;
-  padding: 9px 11px;
+  padding: var(--sp-2) var(--sp-3);
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--bg-elevated);
@@ -1115,7 +1040,7 @@ kbd {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity var(--d-2);
+  transition: opacity var(--dur-base);
   z-index: 20;
 }
 .info-hint:hover .info-hint-bubble,
@@ -1139,6 +1064,18 @@ kbd {
    .discover-card markup/animation the P1-era flat pool already used —
    reused as-is rather than duplicated, see shelfCardHtml's own comment. */
 .shelf { margin-bottom: var(--sp-8); }
+/* v3 Phase 3, scroll-driven: each shelf rises in as it enters the viewport.
+   A shelf already on screen at load is past its entry range, so it simply
+   shows. Off (--motion: 0) turns it off; reduced motion leaves the fade. */
+@supports (animation-timeline: view()) {
+  .shelf {
+    animation: shelfEnter linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 70%;
+  }
+  @keyframes shelfEnter { from { opacity: 0; transform: translateY(var(--move-md)); } }
+  @container style(--motion: 0) { .shelf { animation: none; } }
+}
 .shelf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--sp-4); }
 .shelf-empty { margin: 0; }
 .shelf-view-more { display: block; margin: var(--sp-3) auto 0; }
@@ -1158,12 +1095,12 @@ kbd {
   font: var(--t-meta);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 6px 13px;
+  padding: 6px var(--sp-3);
   color: var(--dim);
   background: none;
   cursor: pointer;
   flex: 0 0 auto;
-  transition: border-color var(--d-2) var(--e-inout), color var(--d-2) var(--e-inout), background var(--d-2) var(--e-inout), transform var(--d-press) var(--e-press);
+  transition: border-color var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard), background-color var(--dur-base) var(--ease-standard), transform var(--dur-press) var(--ease-standard);
 }
 .mood-chip:hover { border-color: var(--line-lit); color: var(--text); }
 .mood-chip:active { transform: scale(0.95); }
@@ -1178,7 +1115,7 @@ kbd {
   flex-wrap: wrap;
   margin-bottom: var(--sp-6);
 }
-.discover-controls { display: flex; align-items: center; gap: 14px; }
+.discover-controls { display: flex; align-items: center; gap: var(--sp-4); }
 .discover-age { font-size: var(--fs-card); color: var(--faint); white-space: nowrap; }
 .corpus-status { display: flex; align-items: center; gap: var(--sp-2); font: var(--t-meta); color: var(--dim); margin: -8px 0 var(--sp-4); }
 .discover-media-filter { margin: -12px 0 var(--sp-3); align-items: center; }
@@ -1190,11 +1127,11 @@ kbd {
 .franchise-card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-card);
   overflow: hidden;
   position: relative;
-  transition: border-color var(--d-4), transform var(--d-4) var(--e-out), box-shadow var(--d-4), background var(--d-4);
-  animation: cardEnter 0.6s cubic-bezier(.16,1,.3,1) backwards;
+  transition: border-color var(--dur-slow), transform var(--dur-slow) var(--ease-enter), background-color var(--dur-slow);
+  animation: cardEnter var(--dur-emph) var(--ease-enter) backwards;
 }
 .franchise-card:hover {
   border-color: var(--line-lit);
@@ -1236,7 +1173,7 @@ kbd {
   flex-direction: column;
   gap: var(--sp-2);
   padding: 0 var(--sp-4) var(--sp-4);
-  animation: cardEnter 0.35s ease-out backwards;
+  animation: cardEnter var(--dur-slow) var(--ease-enter) backwards;
 }
 
 .season-row {
@@ -1271,7 +1208,7 @@ kbd {
 }
 .season-row .card-title-sub { display: none; }
 .season-row .card-meta { margin-top: -2px; }
-.season-row .notes-toggle { font-size: 10px; padding: 0; }
+.season-row .notes-toggle { font-size: var(--fs-micro); padding: 0; }
 .card-format-badge.season-badge { background: var(--accent); color: var(--accent-contrast); }
 
 /* Two compact <select> controls side by side instead of a 10-button score
@@ -1298,7 +1235,7 @@ kbd {
   position: absolute;
   z-index: 1;
   inset: 0;
-  background: linear-gradient(transparent 50%, color-mix(in srgb, var(--card) 92%, black));
+  background: linear-gradient(transparent 50%, color-mix(in srgb, var(--card) 92%, var(--shade)));
   pointer-events: none;
 }
 /* Library cards wrap the image and its skeleton so a re-render can leave a
@@ -1311,21 +1248,63 @@ kbd {
   display: block;
   opacity: 0;
   filter: var(--cover-filter);
-  transition: opacity 0.3s ease, filter 420ms;
+  /* motion-exception: covers regain their colour on hover (design §9, a
+     single image at a time); the filter is the treatment itself. */
+  transition: opacity var(--dur-slow) var(--ease-standard), filter var(--dur-slow) var(--ease-standard);
 }
 .card-cover-wrap img.loaded { opacity: 1; }
 .card:hover .card-cover-wrap img, .card:focus-within .card-cover-wrap img { filter: var(--cover-filter-hover); }
 .card-cover-wrap .skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 37%, var(--card) 63%);
-  background-size: 400% 100%;
-  animation: shimmer 1.4s ease infinite;
+  background: var(--card);
+  overflow: hidden;
+}
+
+/* The one shimmer (v3 Phase 3): a soft band moved across with transform, on
+   every skeleton surface. It replaces three background-position loops. Under
+   reduced motion --dur-loop is 0, so the band stays out of view. */
+.card-cover-wrap .skeleton::after,
+.search-skeleton-row:not(.dim) .search-skeleton-cover::after,
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 7%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: shimmer var(--dur-loop) linear infinite;
 }
 @keyframes shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
+  to { transform: translateX(100%); }
 }
+
+/* Skeletons (v3 Phase 3, views/shared/skeleton.js and the boot grid in
+   index.html): the shape of what is loading. A set stays invisible for
+   --delay-skeleton, so a fast load never flashes one, then fades in; its
+   shimmer runs on the shared clock (core/motion.js syncShimmers). */
+.skeleton-set { animation: skeletonReveal var(--dur-fast) var(--ease-standard) var(--delay-skeleton) both; }
+@keyframes skeletonReveal { from { opacity: 0; } }
+.shimmer { position: relative; overflow: hidden; }
+.sk { background: var(--line); border-radius: var(--radius-xs); }
+.sk-line { height: calc(var(--fs-meta) * 1.1); margin-top: var(--sp-2); }
+.sk-line.short { width: 60%; }
+.sk-title { height: var(--fs-display-s); width: 70%; border-radius: var(--radius-sm); }
+.sk-heading { height: var(--fs-heading); width: 30%; margin-bottom: var(--sp-3); }
+.sk-bar { height: 6px; margin-top: var(--sp-3); border-radius: var(--radius-pill); }
+.sk-chips { display: flex; gap: var(--sp-2); margin: var(--sp-3) 0; }
+.sk-chip { display: block; height: calc(var(--fs-meta) * 1.8); width: calc(var(--fs-meta) * 5); border-radius: var(--radius-pill); }
+.card-skeleton {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding-bottom: var(--sp-4);
+}
+.card-skeleton .sk-cover { height: calc(126px * var(--text-scale)); border-radius: 0; background: var(--bg-elevated); margin-bottom: var(--sp-2); }
+.card-skeleton .sk-line, .card-skeleton .sk-bar { margin-left: var(--sp-3); margin-right: var(--sp-3); }
+.shelf-skeleton { margin-bottom: var(--sp-8); }
+.shelf-skeleton-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale)), 1fr)); gap: var(--sp-4); }
+.detail-body.skeleton-set .sk-title { margin-bottom: var(--sp-3); }
+.detail-side.skeleton-set .sk.detail-cover { border-radius: 0; background: var(--bg-elevated); }
 
 /* New episode — accent dot, top left of the art (design §8). */
 .dot {
@@ -1348,22 +1327,19 @@ kbd {
 .card.skeleton .card-cover-wrap,
 .card.skeleton .card-title,
 .card.skeleton .progress-track {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--text) 5%, transparent), color-mix(in srgb, var(--text) 11%, transparent), color-mix(in srgb, var(--text) 5%, transparent));
-  background-size: 220% 100%;
-  animation: cardSkeletonShimmer 1.5s linear infinite;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
 }
 .card.skeleton .card-title { height: 11px; min-height: 0; border-radius: 3px; color: transparent; }
 .card.skeleton .card-meta { visibility: hidden; }
-@keyframes cardSkeletonShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 
 .card-format-badge {
   position: absolute;
   z-index: 2;
   top: 8px;
   left: 8px;
-  background: rgba(0,0,0,0.65);
-  color: white;
-  font-size: 10px;
+  background: color-mix(in srgb, var(--shade) 65%, transparent);
+  color: var(--on-shade);
+  font-size: var(--fs-micro);
   font-weight: 700;
   padding: 3px var(--sp-2);
   border-radius: 999px;
@@ -1382,19 +1358,17 @@ kbd {
 .card-title-block:hover .card-title { color: var(--accent-lit); }
 
 .card-title {
-  /* Below Mincho's 17px floor — stays on the pre-redesign fallback stack
-     directly rather than through a token, since no Moonlit Shrine token
-     names this specific "not Mincho, not quite --ui either" pairing. */
-  font-family: 'Sora', 'Inter', system-ui, sans-serif;
-  font-size: 14.5px;
-  font-weight: 600;
+  /* v3: on the type scale (it was Sora 14.5px, a legacy font that ignored the
+     text size setting). */
+  font: var(--t-title);
+  font-weight: var(--w-strong);
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 2.7em;
-  transition: color 0.12s ease;
+  transition: color var(--dur-fast) var(--ease-standard);
 }
 /* Two lines at m/l/xl, one below that (design §4.2) — the plain
    single-line ellipsis technique, not -webkit-line-clamp:1, which is
@@ -1420,7 +1394,7 @@ kbd {
 }
 
 .card-title-sub {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 400;
   color: var(--faint);
   opacity: 0.8;
@@ -1457,24 +1431,13 @@ kbd {
   background: linear-gradient(90deg, var(--accent), var(--accent-lit));
   border-radius: 999px;
   overflow: hidden;
-  /* Rendered at width:0 with the real value in data-target-width; render.js
-     flips it to the target on next frame so this transition actually plays
-     on mount instead of just snapping straight to the final width. */
-  transition: width 1s cubic-bezier(.16,1,.3,1);
-}
-/* Diagonal light sweep looping over the filled portion only (clipped by the
-   fill's own overflow:hidden, so it never bleeds past the current progress). */
-.progress-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(75deg, transparent 30%, rgba(255, 255, 255, 0.4) 50%, transparent 70%);
-  background-size: 250% 100%;
-  animation: shimmerSweep 2.4s linear infinite;
-}
-@keyframes shimmerSweep {
-  0% { background-position: 150% 0; }
-  100% { background-position: -50% 0; }
+  /* v3: the bar is full width and scaled to the progress (--p, 0 to 1, set
+     by the template), so a +1 animates from the old value to the new one on
+     the spring, and a first render shows the real value at once. */
+  width: 100%;
+  transform-origin: 0 50%;
+  transform: scaleX(var(--p, 0));
+  transition: transform var(--dur-slow) var(--ease-spring);
 }
 .watched-progress-row { justify-content: flex-start; }
 .watched-progress-label-prefix { font-size: var(--fs-meta); color: var(--faint); }
@@ -1526,19 +1489,51 @@ kbd {
   line-height: 1;
   opacity: 0;
   transform: scale(0.85);
-  transition: 280ms var(--e-spring);
+  transition:
+    transform var(--dur-slow) var(--ease-spring),
+    opacity var(--dur-slow) var(--ease-spring),
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
   backdrop-filter: blur(4px);
   cursor: pointer;
 }
 .card:hover .plus, .card:focus-within .plus { opacity: 1; transform: none; }
 .plus:hover { background: var(--accent-fill); color: var(--accent-contrast); }
-.plus:active { transform: scale(0.88); }
-.plus.pulse { animation: plusPulse 0.35s ease; }
-@keyframes plusPulse {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.25); }
-  100% { transform: scale(1); }
+/* v3 +1: pressed to 0.9 at once, then back on the spring when released. A
+   keyboard +1 has no press, so .pulse (added after the save) plays the same
+   press-and-spring; after a click it starts from the pressed scale it is
+   already at. */
+.plus:active { transform: scale(var(--press-icon)); transition-duration: var(--dur-press); transition-timing-function: var(--ease-standard); }
+.plus.pulse { animation: plusPress var(--dur-slow) var(--ease-spring); }
+@keyframes plusPress {
+  from { transform: scale(var(--press-icon)); }
+  to { transform: none; }
 }
+
+/* The watched count's slide-swap: the new digit rises 6px into place while
+   the old one (a ghost, text from data-n) leaves upwards at 70% of that. */
+.progress-label { position: relative; }
+.progress-label .ep-now { display: inline-block; }
+.progress-label.ep-swap .ep-now { animation: epIn var(--dur-base) var(--ease-enter); }
+/* Sits exactly over .ep-now: the label's own padding (2px var(--sp-1)). */
+.progress-label .ep-old { position: absolute; left: var(--sp-1); top: 2px; animation: epOut calc(var(--dur-base) * .7) var(--ease-exit) forwards; }
+.progress-label .ep-old::before { content: attr(data-n); }
+@keyframes epIn { from { opacity: 0; transform: translateY(calc(var(--move-sm) * 1.5)); } }
+@keyframes epOut { to { opacity: 0; transform: translateY(calc(var(--move-sm) * -1.5)); } }
+
+/* The completion moment: the finished bar (--positive, below) gets one
+   hairline sweeping across it. Under reduced motion the band never moves
+   into view. */
+.card.completing .progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 16%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 75%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: hairSweep var(--dur-emph) var(--ease-standard) forwards;
+}
+@keyframes hairSweep { to { transform: translateX(calc(-100% + 725% * var(--move-scale))); } }
 
 /* Tags — used where a state must never rely on colour alone (§8, §13). */
 .tag {
@@ -1566,7 +1561,7 @@ kbd {
 .tag-chip {
   font: var(--t-nano);
   letter-spacing: .06em;
-  padding: 3px 9px;
+  padding: 3px var(--sp-2);
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -1576,13 +1571,13 @@ kbd {
 .tag-chip-toggle {
   font: var(--t-nano);
   letter-spacing: .06em;
-  padding: var(--sp-1) 11px;
+  padding: var(--sp-1) var(--sp-3);
   border-radius: 999px;
   border: 1px solid var(--line);
   background: none;
   color: var(--dim);
   cursor: pointer;
-  transition: border-color var(--d-2), transform var(--d-2);
+  transition: border-color var(--dur-base), transform var(--dur-base);
 }
 .tag-chip-toggle:hover { transform: translateY(-1px); }
 .tag-chip-toggle.on { border-color: currentColor; font-weight: 600; }
@@ -1610,10 +1605,10 @@ kbd {
   flex: 1;
   min-width: 0;
   height: 20px;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 .score-dot:hover { border-color: var(--warning); color: var(--warning); }
 .score-dot.filled { background: var(--warning); border-color: var(--warning); color: var(--bg-deep); font-weight: 700; }
@@ -1630,7 +1625,7 @@ kbd {
   border: 1px solid var(--line);
   background: var(--bg-elevated);
   color: var(--faint);
-  font-size: 9px;
+  font-size: var(--fs-nano);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -1638,7 +1633,7 @@ kbd {
   border-radius: 6px;
   cursor: pointer;
   flex: 1;
-  transition: all 0.12s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 .quick-move-btn:hover { border-color: var(--accent); color: var(--text); }
 .quick-move-btn:active { transform: scale(0.93); }
@@ -1654,7 +1649,7 @@ kbd {
   gap: var(--sp-1);
   z-index: 2;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--dur-base) var(--ease-standard);
 }
 .card:hover .card-corner-actions,
 .card:focus-within .card-corner-actions {
@@ -1666,16 +1661,16 @@ kbd {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55);
-  color: white;
+  background: color-mix(in srgb, var(--shade) 55%, transparent);
+  color: var(--on-shade);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   backdrop-filter: blur(2px);
-  transition: background-color 0.12s ease, transform 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
-.corner-btn:hover { background: rgba(0, 0, 0, 0.85); }
+.corner-btn:hover { background: color-mix(in srgb, var(--shade) 85%, transparent); }
 .corner-btn:active { transform: scale(0.93); }
 .corner-btn.danger:hover { background: var(--accent-fill); color: var(--accent-contrast); }
 
@@ -1706,7 +1701,7 @@ kbd {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background var(--d-2), border-color var(--d-2);
+  transition: background-color var(--dur-base), border-color var(--dur-base);
 }
 .card-select-box::after { content: '✓'; font-size: var(--fs-meta); color: transparent; }
 .card-select-box:has(input:checked) { background: var(--accent-fill); border-color: var(--accent-fill); }
@@ -1722,7 +1717,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 11px 14px;
+  padding: var(--sp-3) var(--sp-4);
   margin-top: 10px;
   border: 1px solid var(--accent);
   background: var(--accent-soft);
@@ -1735,7 +1730,7 @@ kbd {
 .bulkbar .r { margin-left: auto; display: flex; gap: var(--sp-2); }
 
 .list-badge {
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1784,7 +1779,7 @@ kbd {
    .pop is added only when the count just increased from what was already
    shown for this title (tracked in render.js) — never on an unrelated
    re-render where the number hasn't actually changed. */
-.unseen-badge.pop { animation: badgePop 0.4s cubic-bezier(.34,1.56,.64,1); }
+.unseen-badge.pop { animation: badgePop var(--dur-slow) var(--ease-spring); }
 .unseen-badge {
   align-self: flex-start;
   font-size: var(--fs-meta);
@@ -1826,8 +1821,8 @@ kbd {
   flex-direction: column;
   gap: 28px;
 }
-.home-hero h2 { margin: 0 0 var(--sp-1); font: 700 calc(22px * var(--text-scale))/1.2 var(--display); letter-spacing: var(--tr-display); }
-.home-hero p { margin: 0; color: var(--dim); font-size: 14px; }
+.home-hero h2 { margin: 0 0 var(--sp-1); font: 700 var(--fs-display-m)/1.2 var(--display); letter-spacing: var(--tr-display); }
+.home-hero p { margin: 0; color: var(--dim); font-size: var(--fs-title); }
 
 .home-stats {
   display: grid;
@@ -1843,7 +1838,7 @@ kbd {
   padding-left: var(--sp-4);
   border-left: 2px solid var(--line-lit);
 }
-.home-stats .stat-value { font-size: 24px; }
+.home-stats .stat-value { font-size: var(--fs-num-m); }
 
 .home-tiles {
   display: grid;
@@ -1862,11 +1857,11 @@ kbd {
   align-items: flex-start;
   gap: 6px;
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
 .home-tile:hover { transform: translateY(-3px); box-shadow: var(--sh-2); }
-.home-tile-icon { font-size: 20px; color: var(--tile-accent, var(--accent-lit)); }
-.home-tile-count { font-family: var(--numbers); font-size: 26px; font-weight: 800; }
+.home-tile-icon { font-size: var(--fs-num-s); color: var(--tile-accent, var(--accent-lit)); }
+.home-tile-count { font-family: var(--numbers); font-size: var(--fs-num-m); font-weight: 800; }
 .home-tile-label { font-size: var(--fs-body); color: var(--dim); }
 
 .home-tile[data-nav="watching"] { --tile-accent: var(--accent); }
@@ -1874,7 +1869,7 @@ kbd {
 .home-tile[data-nav="watched"] { --tile-accent: var(--positive); }
 .home-tile[data-nav="dropped"] { --tile-accent: var(--faint); }
 
-.home-continue h3 { margin: 0 0 14px; font-size: 14px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.home-continue h3 { margin: 0 0 var(--sp-4); font-size: var(--fs-title); color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---------- Hero — both modes, both placements ----------
    design/moonlit-shrine-design-system.md §5, §12: 210px on Home, 268px on
@@ -1936,9 +1931,9 @@ kbd {
 .hero h2:hover { color: var(--accent-lit); }
 .hero .sub { font: var(--t-meta); color: var(--dim); margin-bottom: 20px; }
 .hero .track { height: 3px; background: color-mix(in srgb, var(--text) 13%, transparent); position: relative; max-width: 380px; margin-bottom: 10px; border-radius: 999px; overflow: hidden; }
-.hero .track i { position: absolute; left: 0; top: 0; height: 3px; background: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 85%, transparent); transition: width 0.8s var(--e-out); }
+.hero .track i { position: absolute; left: 0; top: 0; width: 100%; height: 3px; background: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 85%, transparent); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform var(--dur-slow) var(--ease-spring); }
 .hero .n { font: var(--t-meta); font-variant-numeric: tabular-nums; color: var(--faint); margin-bottom: 20px; }
-.hero .row { display: flex; gap: 9px; flex-wrap: wrap; }
+.hero .row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 
 /* ---------- Home ----------
    Hero above, then two columns: pick-up-where-you-left-off cards on the
@@ -1947,12 +1942,12 @@ kbd {
 .home-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--sp-4); align-items: start; }
 @media (max-width: 900px) { .home-cols { grid-template-columns: 1fr; } }
 .disc-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
-.disc-head h3 { margin: 0; font-size: 16px; font-family: 'Sora', 'Inter', system-ui, sans-serif; font-weight: 600; }
+.disc-head h3 { margin: 0; font: var(--w-strong) var(--fs-heading)/1.3 var(--ui); }
 .disc-head .rule { flex: 1; height: 1px; background: var(--line); }
 .home-pickup { grid-template-columns: repeat(2, 1fr); }
 @media (min-width: 500px) { .home-pickup { grid-template-columns: repeat(4, 1fr); } }
 
-.tonight { display: grid; gap: 9px; }
+.tonight { display: grid; gap: var(--sp-2); }
 .tonight-row {
   display: grid;
   grid-template-columns: 52px 1fr;
@@ -1984,7 +1979,7 @@ kbd {
 
 /* ---------- Schedule page ---------- */
 .schedule-section { margin-bottom: var(--sp-8); }
-.schedule-section h3 { font-size: 15px; font-weight: 700; margin: 0 0 14px; color: var(--text); }
+.schedule-section h3 { font-size: var(--fs-heading); font-weight: 700; margin: 0 0 var(--sp-4); color: var(--text); }
 .schedule-release-date { color: var(--faint); }
 
 .schedule-week {
@@ -2004,7 +1999,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  animation: cardEnter 0.5s cubic-bezier(.16,1,.3,1) backwards;
+  animation: cardEnter var(--dur-emph) var(--ease-enter) backwards;
 }
 .schedule-day.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .schedule-day-label {
@@ -2016,7 +2011,7 @@ kbd {
 }
 .schedule-day-name { font-size: var(--fs-card); font-weight: 700; color: var(--text); }
 .schedule-day.is-today .schedule-day-name { color: var(--accent); }
-.schedule-day-date { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.schedule-day-date { font-size: var(--fs-micro); color: var(--faint); font-variant-numeric: tabular-nums; }
 .schedule-day-items { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .schedule-item {
   appearance: none;
@@ -2030,7 +2025,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 .schedule-item:hover { border-color: var(--accent); transform: translateY(-1px); }
 .schedule-item-title {
@@ -2042,7 +2037,7 @@ kbd {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.schedule-item-ep { font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.schedule-item-ep { font-size: var(--fs-micro); color: var(--faint); font-variant-numeric: tabular-nums; }
 /* Post-2.2.0 feedback: an already-aired-today entry stays visible in Today
    instead of vanishing once the hourly refresh advances past it — greyed
    out rather than removed, so it still answers "did this air yet?". */
@@ -2062,7 +2057,7 @@ kbd {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 22px;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-standard);
 }
 .stats-section:hover { border-color: var(--line-lit); }
 .stats-section h3 {
@@ -2086,7 +2081,19 @@ kbd {
 }
 .stat-bar-label { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-bar-track { height: 7px; background: var(--line); border-radius: 999px; overflow: hidden; }
-.stat-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-lit)); border-radius: 999px; transition: width 0.5s ease; }
+.stat-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-lit)); border-radius: 999px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); }
+/* v3 Phase 3, scroll-driven: a Stats bar grows to its value as it enters the
+   viewport (bars on screen at load are already past the range). Reduced
+   motion and Off show the value at once. */
+@supports (animation-timeline: view()) {
+  .stat-bar-fill {
+    animation: statBarEnter linear both;
+    animation-timeline: view();
+    animation-range: entry 20% cover 30%;
+  }
+  @keyframes statBarEnter { from { transform: scaleX(calc(var(--p, 0) * (1 - var(--move-scale)))); } to { transform: scaleX(var(--p, 0)); } }
+  @container style(--motion: 0) { .stat-bar-fill { animation: none; } }
+}
 .stat-bar-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--faint); font-weight: 600; }
 
 /* Distinct accent per chart so the four sections read apart at a glance */
@@ -2128,7 +2135,7 @@ kbd {
   padding: 100px 20px;
   color: var(--dim);
 }
-.empty-state h2 { margin: 0; font: var(--t-display-m); font-size: 18px; letter-spacing: var(--tr-display); color: var(--text); }
+.empty-state h2 { margin: 0; font: var(--t-display-m); font-size: var(--fs-display-xs); letter-spacing: var(--tr-display); color: var(--text); }
 .empty-state p { margin: 0; max-width: 360px; font: var(--t-body); }
 /* The real "nothing in this list yet" state (design system §8: "empty
    state with a Mincho heading and two actions") — not the loading/error
@@ -2154,7 +2161,15 @@ dialog.overlay {
   overflow: auto;
 }
 dialog.overlay::backdrop { background: transparent; }
-.overlay:not([open]) { display: none; }
+/* v3 Phase 3: opening fades in from @starting-style; closing fades out at
+   about 70% of that, with display and overlay held (allow-discrete) so the
+   dialog stays in the top layer until its exit is done. A closing dialog is
+   already closed (no [open]), so it takes no clicks. */
+.overlay:not([open]) {
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+}
 .overlay {
   position: fixed;
   inset: 0;
@@ -2165,9 +2180,14 @@ dialog.overlay::backdrop { background: transparent; }
   justify-content: center;
   padding: 10vh 20px 20px;
   z-index: 100;
-  animation: fadeIn var(--d-3) var(--e-out);
+  opacity: 1;
+  transition:
+    opacity calc(var(--dur-slow) * .7) var(--ease-exit),
+    display calc(var(--dur-slow) * .7) allow-discrete,
+    overlay calc(var(--dur-slow) * .7) allow-discrete;
 }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.overlay[open] { transition-duration: var(--dur-slow); transition-timing-function: var(--ease-enter); }
+@starting-style { .overlay[open] { opacity: 0; } }
 
 /* design/moonlit-shrine-design-system.md §10: "Overlay open · 340ms ·
    --e-out · opacity plus 14px up and scale 0.985 -> 1" — one shared entrance
@@ -2185,24 +2205,53 @@ dialog.overlay::backdrop { background: transparent; }
   max-height: 76vh;
   overflow-y: auto;
   padding: 20px;
-  animation: overlayEnter var(--d-4) var(--e-out);
+  transition: opacity var(--dur-slow) var(--ease-enter), transform var(--dur-slow) var(--ease-enter);
 }
-@keyframes overlayEnter { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+/* The panel's own entrance, and its exit (a little down, 70% of the time). */
+@starting-style { .overlay[open] .overlay-panel { opacity: 0; transform: translateY(var(--move-md)) scale(calc(1 - .015 * var(--move-scale))); } }
+.overlay:not([open]) .overlay-panel {
+  opacity: 0;
+  transform: translateY(var(--move-sm)) scale(calc(1 - .01 * var(--move-scale)));
+  transition-duration: calc(var(--dur-slow) * .7);
+  transition-timing-function: var(--ease-exit);
+}
 
 /* View-switch crossfade (Home/Watching/Discover/Schedule/Stats): played by
    JS toggling this class on whichever view container just became visible
    (see playViewEnter in events.js) rather than baking the animation into
    the container's base rule, since these nodes persist across renders
    (only `hidden` toggles) and need a forced restart each time. */
-.view-fade-in { animation: viewEnter 0.22s ease-out; }
-@keyframes viewEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.view-fade-in { animation: viewEnter var(--dur-base) var(--ease-enter); }
+@keyframes viewEnter { from { opacity: 0; transform: translateY(var(--move-md)); } to { opacity: 1; transform: translateY(0); } }
 
 /* Color theme picker: crossfades the whole page via the View Transitions
    API when the browser supports it (see setColorTheme in themes.js) —
    pinning the duration here keeps it consistent instead of relying on each
    browser's own default. Unsupported browsers/engines simply never create
    these pseudo-elements, so this rule is a no-op there. */
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.25s; }
+::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-standard);
+}
+
+/* v3 Phase 3: tab changes (events.js switchView). The view area slides a
+   little in the direction of travel and crossfades; the header does not
+   move. The leaving view runs at about 70% of the entering one. Under
+   reduced motion --move-md is 0, which leaves a short crossfade. */
+#home-view, #list-view, #schedule-view, #discover-view, #stats-view { view-transition-name: view; }
+html:active-view-transition-type(tab)::view-transition-old(view) { animation: vt-leave-forward calc(var(--dur-base) * .7) var(--ease-exit) both; }
+html:active-view-transition-type(tab)::view-transition-new(view) { animation: vt-enter-forward var(--dur-base) var(--ease-enter) both; }
+html:active-view-transition-type(back)::view-transition-old(view) { animation-name: vt-leave-back; }
+html:active-view-transition-type(back)::view-transition-new(view) { animation-name: vt-enter-back; }
+@keyframes vt-leave-forward { to { opacity: 0; transform: translateX(calc(var(--move-md) * -1)); } }
+@keyframes vt-enter-forward { from { opacity: 0; transform: translateX(var(--move-md)); } }
+@keyframes vt-leave-back { to { opacity: 0; transform: translateX(var(--move-md)); } }
+@keyframes vt-enter-back { from { opacity: 0; transform: translateX(calc(var(--move-md) * -1)); } }
+
+/* Card cover to the detail view's cover as one shared element: detail
+   actions name the one clicked card's cover cover-<id> (class "cover") for
+   the length of the transition. */
+::view-transition-group(*.cover) { animation-duration: var(--dur-slow); animation-timing-function: var(--ease-enter); }
 
 .overlay-close {
   position: absolute;
@@ -2218,11 +2267,11 @@ dialog.overlay::backdrop { background: transparent; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: var(--fs-heading);
   line-height: 1;
   cursor: pointer;
   z-index: 1;
-  transition: border-color var(--d-2), color var(--d-2), background var(--d-2);
+  transition: border-color var(--dur-base), color var(--dur-base), background-color var(--dur-base);
 }
 .overlay-close:hover { color: var(--accent-lit); border-color: var(--accent); }
 
@@ -2238,7 +2287,7 @@ dialog.overlay::backdrop { background: transparent; }
    destructive that always names what is kept." One shared overlay,
    populated per-use by events.js's confirmDialog(). */
 .dialog { max-width: 420px; padding: 22px; }
-.dialog h4 { margin: 0 0 var(--sp-2); font: var(--t-display-m); font-size: 18px; letter-spacing: var(--tr-display); }
+.dialog h4 { margin: 0 0 var(--sp-2); font: var(--t-display-m); font-size: var(--fs-display-xs); letter-spacing: var(--tr-display); }
 .dialog p { margin: 0 0 18px; font: var(--t-body); color: var(--dim); }
 .dialog-actions { justify-content: flex-end; }
 /* Type-to-confirm variant (currently only "Reset everything") — hidden by
@@ -2251,34 +2300,34 @@ dialog.overlay::backdrop { background: transparent; }
   background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 9px var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
   font: var(--t-body);
   color: var(--text);
 }
 .confirm-type-row input:focus { outline: none; border-color: var(--accent); }
 
 /* ---------- Settings panel ---------- */
-.set-row { display: grid; grid-template-columns: 170px 1fr; gap: 18px; align-items: start; padding: 14px 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
+.set-row { display: grid; grid-template-columns: 170px 1fr; gap: 18px; align-items: start; padding: var(--sp-4) 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
 .set-row:last-child { border-bottom: 0; }
 .set-row .k b { display: block; font: var(--t-card); margin-bottom: 3px; }
 .set-row .k span { font: var(--t-meta); color: var(--faint); line-height: 1.5; }
 .seg { display: inline-flex; gap: var(--sp-1); background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid var(--line); border-radius: 9px; padding: var(--sp-1); }
-.seg button { position: relative; overflow: hidden; background: none; border: 0; border-radius: 6px; color: var(--dim); font: var(--t-meta); padding: 7px 11px; cursor: pointer; transition: color var(--d-2), background var(--d-2); }
+.seg button { position: relative; overflow: hidden; background: none; border: 0; border-radius: 6px; color: var(--dim); font: var(--t-meta); padding: var(--sp-2) var(--sp-3); cursor: pointer; transition: color var(--dur-base), background-color var(--dur-base); }
 .seg button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
 .seg button.on { background: var(--accent-fill); color: var(--accent-contrast); }
 .set-row .note { display: block; margin-top: 6px; font: var(--t-meta); color: var(--faint); }
 .themegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: var(--sp-2); max-height: 280px; overflow-y: auto; padding-right: 2px; }
-.themegrid button { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: none; cursor: pointer; transition: border-color var(--d-2), transform var(--d-2); }
+.themegrid button { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: none; cursor: pointer; transition: border-color var(--dur-base), transform var(--dur-base); }
 .themegrid button:hover { border-color: var(--line-lit); transform: translateY(-2px); }
 .themegrid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .themegrid .sw2 { height: 34px; display: flex; align-items: flex-end; gap: 3px; padding: 5px; }
 .themegrid .sw2 i { width: 8px; height: 8px; border-radius: 2px; }
-.themegrid .nm { display: block; font: var(--t-nano); letter-spacing: .04em; color: var(--dim); padding: 6px 5px 7px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.themegrid .nm { display: block; font: var(--t-nano); letter-spacing: .04em; color: var(--dim); padding: 6px 5px var(--sp-2); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* P5A.2: the cold-start onboarding grid — same scrollable-grid/.on-state
    shape as .themegrid above, cover art instead of colour swatches. */
 .coldstart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: var(--sp-2); max-height: 420px; overflow-y: auto; padding-right: 2px; margin-top: var(--sp-3); }
-.coldstart-tile { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: var(--card); cursor: pointer; transition: border-color var(--d-2), transform var(--d-2); }
+.coldstart-tile { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: var(--card); cursor: pointer; transition: border-color var(--dur-base), transform var(--dur-base); }
 .coldstart-tile:hover { border-color: var(--line-lit); transform: translateY(-2px); }
 .coldstart-tile.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .coldstart-tile img, .coldstart-tile-noimg { display: block; width: 100%; aspect-ratio: 2/3; object-fit: cover; background: color-mix(in srgb, var(--text) 6%, transparent); }
@@ -2350,7 +2399,7 @@ dialog.overlay::backdrop { background: transparent; }
   color: var(--text);
   font-size: var(--fs-body);
   cursor: pointer;
-  transition: border-color var(--d-2), background var(--d-2);
+  transition: border-color var(--dur-base), background-color var(--dur-base);
 }
 .font-grid button:hover { border-color: var(--line-lit); background: color-mix(in srgb, var(--text) 3%, transparent); }
 .font-grid button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
@@ -2364,21 +2413,21 @@ dialog.overlay::backdrop { background: transparent; }
 
 /* ---------- Help panel ---------- */
 .help-tabs { display: flex; gap: 22px; padding: 0 0 var(--sp-3); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-4); }
-.help-tabs button { background: none; border: 0; padding: 0 0 var(--sp-3); margin-bottom: -13px; color: var(--faint); font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; border-bottom: 1px solid transparent; cursor: pointer; }
+.help-tabs button { background: none; border: 0; padding: 0 0 var(--sp-3); margin-bottom: calc(var(--sp-3) * -1); color: var(--faint); font: var(--t-micro); letter-spacing: var(--tr-micro); text-transform: uppercase; border-bottom: 1px solid transparent; cursor: pointer; }
 .help-tabs button.on { color: var(--text); border-color: var(--accent); }
 .faq { display: grid; gap: 2px; }
 .faq details { border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
-.faq summary { cursor: pointer; padding: 13px 2px; font: var(--t-card); font-size: var(--fs-action); list-style: none; display: flex; align-items: center; gap: 10px; transition: color var(--d-2); }
+.faq summary { cursor: pointer; padding: var(--sp-3) 2px; font: var(--t-card); font-size: var(--fs-action); list-style: none; display: flex; align-items: center; gap: 10px; transition: color var(--dur-base); }
 .faq summary::-webkit-details-marker { display: none; }
-.faq summary::before { content: "+"; color: var(--accent-lit); font-size: 14px; width: 12px; }
+.faq summary::before { content: "+"; color: var(--accent-lit); font-size: var(--fs-title); width: 12px; }
 .faq details[open] summary::before { content: "–"; }
 .faq summary:hover { color: var(--accent-lit); }
-.faq p { margin: 0 0 14px 22px; font: var(--t-body); color: var(--dim); max-width: 600px; }
-.keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: 9px; }
-.keys div { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line); border-radius: 8px; padding: 10px var(--sp-3); font: var(--t-meta); color: var(--dim); }
-.keys kbd { font-size: var(--fs-meta); border: 1px solid var(--line-lit); border-radius: 4px; padding: 2px 7px; color: var(--text); min-width: 22px; text-align: center; }
+.faq p { margin: 0 0 var(--sp-4) 22px; font: var(--t-body); color: var(--dim); max-width: 600px; }
+.keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: var(--sp-2); }
+.keys div { display: flex; align-items: center; gap: var(--sp-3); border: 1px solid var(--line); border-radius: 8px; padding: 10px var(--sp-3); font: var(--t-meta); color: var(--dim); }
+.keys kbd { font-size: var(--fs-meta); border: 1px solid var(--line-lit); border-radius: 4px; padding: 2px var(--sp-2); color: var(--text); min-width: 22px; text-align: center; }
 .tour { display: grid; gap: 10px; }
-.tour div { display: grid; grid-template-columns: 104px 1fr; gap: 14px; padding: 11px 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); font: var(--t-body); color: var(--dim); }
+.tour div { display: grid; grid-template-columns: 104px 1fr; gap: var(--sp-4); padding: var(--sp-3) 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); font: var(--t-body); color: var(--dim); }
 .tour div b { color: var(--text); font: var(--t-card); font-size: var(--fs-action); }
 .tour-h { margin: 22px 0 var(--sp-3); font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
 .tour-h:first-child { margin-top: 0; }
@@ -2412,18 +2461,18 @@ dialog.overlay::backdrop { background: transparent; }
   padding: var(--sp-2);
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: var(--sp-2);
 }
 
 .search-result {
   display: grid;
   grid-template-columns: 44px 1fr auto;
-  gap: 13px;
+  gap: var(--sp-3);
   align-items: center;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 11px 13px;
-  transition: border-color var(--d-2);
+  padding: var(--sp-3) var(--sp-3);
+  transition: border-color var(--dur-base);
 }
 .search-result:hover { border-color: var(--line-lit); }
 /* Missing cover (design system §9): the first letter, faint, on a flat panel. */
@@ -2467,32 +2516,26 @@ dialog.overlay::backdrop { background: transparent; }
 .search-skeleton-row {
   display: grid;
   grid-template-columns: 44px 1fr;
-  gap: 13px;
+  gap: var(--sp-3);
   align-items: center;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 11px 13px;
+  padding: var(--sp-3) var(--sp-3);
 }
 .search-skeleton-row.dim { opacity: .6; }
-.search-skeleton-cover { width: 44px; height: 60px; border-radius: 5px; background: color-mix(in srgb, var(--text) 6%, transparent); }
-.search-skeleton-row:not(.dim) .search-skeleton-cover {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--text) 5%, transparent), color-mix(in srgb, var(--text) 11%, transparent), color-mix(in srgb, var(--text) 5%, transparent));
-  background-size: 220% 100%;
-  animation: searchShimmer 1.5s linear infinite;
-}
-@keyframes searchShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
-.search-skeleton-lines { display: flex; flex-direction: column; gap: 7px; }
+.search-skeleton-cover { position: relative; overflow: hidden; width: 44px; height: 60px; border-radius: 5px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.search-skeleton-lines { display: flex; flex-direction: column; gap: var(--sp-2); }
 .search-skeleton-lines span { display: block; height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); }
 .search-skeleton-lines span:first-child { width: 58%; }
 .search-skeleton-lines span:last-child { width: 34%; height: 8px; }
 
 .search-empty { text-align: center; padding: 22px 10px; }
-.search-empty b { display: block; font: var(--t-display-m); font-size: 17px; letter-spacing: var(--tr-display); margin-bottom: 7px; }
+.search-empty b { display: block; font: var(--t-display-m); font-size: var(--fs-display-xs); letter-spacing: var(--tr-display); margin-bottom: var(--sp-2); }
 .search-empty p { margin: 0 0 var(--sp-4); font: var(--t-meta); color: var(--faint); max-width: 340px; margin-inline: auto; }
 .search-empty .row { justify-content: center; }
 
 .backup-actions { display: flex; gap: 10px; margin-bottom: var(--sp-2); align-items: center; }
-.backup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow-y: auto; }
+.backup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); max-height: 260px; overflow-y: auto; }
 .backup-list .backup-empty { font: var(--t-meta); color: var(--faint); padding: 6px 2px; }
 .backup-row {
   display: flex;
@@ -2503,12 +2546,12 @@ dialog.overlay::backdrop { background: transparent; }
   background: none;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 11px 13px;
+  padding: var(--sp-3) var(--sp-3);
   color: var(--text);
   font: var(--t-body);
   font-size: var(--fs-action);
   cursor: pointer;
-  transition: border-color var(--d-2);
+  transition: border-color var(--dur-base);
 }
 .backup-row:hover { border-color: var(--line-lit); }
 .backup-time { font-variant-numeric: tabular-nums; color: var(--faint); flex-shrink: 0; }
@@ -2519,7 +2562,7 @@ dialog.overlay::backdrop { background: transparent; }
    .backup-list above, but each row is a static container (name + inline
    action buttons) rather than one big clickable button, since a row here has
    several independent actions instead of one. */
-.manager-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow-y: auto; }
+.manager-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); max-height: 260px; overflow-y: auto; }
 .manager-list .manager-empty { font: var(--t-meta); color: var(--faint); padding: 6px 2px; }
 .manager-row {
   display: flex;
@@ -2527,7 +2570,7 @@ dialog.overlay::backdrop { background: transparent; }
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 9px var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
   font: var(--t-body);
   font-size: var(--fs-action);
 }
@@ -2548,7 +2591,7 @@ dialog.overlay::backdrop { background: transparent; }
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
-  transition: transform var(--d-2), border-color var(--d-2);
+  transition: transform var(--dur-base), border-color var(--dur-base);
 }
 .color-swatch-grid button:hover { transform: scale(1.12); }
 .color-swatch-grid button.on { border-color: var(--text); }
@@ -2565,11 +2608,11 @@ dialog.overlay::backdrop { background: transparent; }
    plain") — no accent fills, no glow, nothing that could look like it's
    guessing. Colour is limited to .tag.warn, which every other overlay in
    the app already uses the same way (a fact, not a judgement). */
-.safety-tag { margin-bottom: 14px; }
+.safety-tag { margin-bottom: var(--sp-4); }
 .safety-body p { margin: 0 0 6px; font: var(--t-body); color: var(--dim); }
 .safety-detail { margin: 0 0 18px; font: var(--t-meta); color: var(--faint); font-family: var(--mono); white-space: pre-wrap; }
-.safety-boxes { display: grid; gap: 9px; margin-bottom: var(--sp-4); }
-.safety-box { border: 1px solid var(--line); border-radius: 8px; padding: var(--sp-3) 13px; }
+.safety-boxes { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.safety-box { border: 1px solid var(--line); border-radius: 8px; padding: var(--sp-3) var(--sp-3); }
 .safety-box b { font: var(--t-card); display: block; margin-bottom: var(--sp-1); }
 .safety-box .path { font: var(--t-meta); color: var(--faint); font-family: var(--mono); display: block; margin-bottom: 5px; word-break: break-all; }
 .recovery-detail { font-family: var(--mono); font-size: var(--fs-card); background: var(--card); padding: var(--sp-2); border-radius: 6px; color: var(--faint); white-space: pre-wrap; }
@@ -2580,19 +2623,19 @@ dialog.overlay::backdrop { background: transparent; }
    and anything below 80 percent is unchecked by default." Shared by MAL
    import and screenshot import. */
 .steps { display: flex; align-items: center; gap: 0; margin-bottom: 20px; }
-.step { display: flex; align-items: center; gap: 9px; font: var(--t-meta); color: var(--faint); }
+.step { display: flex; align-items: center; gap: var(--sp-2); font: var(--t-meta); color: var(--faint); }
 .step i { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-lit); display: grid; place-items: center; font: var(--t-nano); font-variant-numeric: tabular-nums; font-style: normal; }
 .step.on { color: var(--text); }
 .step.on i { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
 .step.done i { border-color: var(--positive); color: var(--positive); }
-.step-line { flex: 1; height: 1px; background: var(--line); margin: 0 14px; }
+.step-line { flex: 1; height: 1px; background: var(--line); margin: 0 var(--sp-4); }
 
 .review { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.review .hd { display: grid; grid-template-columns: 26px 1fr 1fr 76px 78px; gap: var(--sp-3); padding: 10px 14px; background: color-mix(in srgb, var(--text) 2%, transparent); border-bottom: 1px solid var(--line); font: var(--t-nano); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
-.review .rw { display: grid; grid-template-columns: 26px 1fr 1fr 76px 78px; gap: var(--sp-3); align-items: center; padding: 11px 14px; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); font-size: var(--fs-action); }
+.review .hd { display: grid; grid-template-columns: 26px 1fr 1fr 76px 78px; gap: var(--sp-3); padding: 10px var(--sp-4); background: color-mix(in srgb, var(--text) 2%, transparent); border-bottom: 1px solid var(--line); font: var(--t-nano); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.review .rw { display: grid; grid-template-columns: 26px 1fr 1fr 76px 78px; gap: var(--sp-3); align-items: center; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); font-size: var(--fs-action); }
 .review .rw:last-child { border-bottom: 0; }
 .review .rw.row-removed { opacity: .45; }
-.review .rw .ck { appearance: none; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line-lit); display: grid; place-items: center; font-size: 10px; color: transparent; cursor: pointer; background: none; padding: 0; }
+.review .rw .ck { appearance: none; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line-lit); display: grid; place-items: center; font-size: var(--fs-micro); color: transparent; cursor: pointer; background: none; padding: 0; }
 .review .rw .ck.on { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-contrast); }
 .review .rw .src { color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .review .rw .src span, .review .rw .mt span { display: block; font: var(--t-meta); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2601,7 +2644,7 @@ dialog.overlay::backdrop { background: transparent; }
 .review .rw .conf.hi { color: var(--positive); }
 .review .rw .conf.mid { color: var(--warning); }
 .review .rw .conf.lo { color: var(--accent-lit); }
-.review .rw .fix { font: var(--t-meta); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 5px 9px; background: none; cursor: pointer; }
+.review .rw .fix { font: var(--t-meta); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 5px var(--sp-2); background: none; cursor: pointer; }
 .review .rw .fix:hover { border-color: var(--accent); color: var(--accent-lit); }
 .import-summary2 { display: flex; gap: 20px; flex-wrap: wrap; padding: var(--sp-1) 0 var(--sp-4); }
 .import-summary2 div { font: var(--t-meta); color: var(--faint); }
@@ -2615,7 +2658,7 @@ dialog.overlay::backdrop { background: transparent; }
 .import-row { display: flex; align-items: center; gap: 10px; padding: var(--sp-2); border-radius: 8px; background: var(--card); font-size: var(--fs-card); }
 .import-row.unmatched { border: 1px dashed var(--accent); }
 .import-row .import-title { flex: 1; }
-.import-actions { display: flex; gap: 10px; margin-top: 14px; }
+.import-actions { display: flex; gap: 10px; margin-top: var(--sp-4); }
 
 .screenshot-panel { max-width: 640px; }
 .screenshot-row-cover { width: 32px; height: 46px; object-fit: cover; border-radius: 4px; flex-shrink: 0; background: var(--line); }
@@ -2639,10 +2682,10 @@ dialog.overlay::backdrop { background: transparent; }
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(200deg, transparent 30%, color-mix(in srgb, var(--bg-elevated) 88%, black) 100%);
+  background: linear-gradient(200deg, transparent 30%, color-mix(in srgb, var(--bg-elevated) 88%, var(--shade)) 100%);
 }
 .detail-score { position: absolute; bottom: 18px; left: 18px; right: 18px; z-index: 1; }
-.detail-score b { display: block; font: var(--t-display-m); font-size: 27px; letter-spacing: var(--tr-display); color: var(--text); }
+.detail-score b { display: block; font: var(--t-display-m); font-size: var(--fs-num-m); letter-spacing: var(--tr-display); color: var(--text); }
 .detail-score span { font: var(--t-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 
 .detail-body { padding: 22px 24px 24px; min-width: 0; }
@@ -2650,10 +2693,10 @@ dialog.overlay::backdrop { background: transparent; }
 /* The one place italic Mincho is used (design system §4.3): the AniList
    native-script title, shown per the Settings panel's "Original titles"
    preference (default: detail view only — see Preferences.getOriginalTitlesMode). */
-.detail-native { font-family: var(--display); font-style: italic; font-size: 13.5px; color: var(--dim); margin: 0 0 14px; }
-.detail-meta-row { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px; }
+.detail-native { font-family: var(--display); font-style: italic; font-size: var(--fs-body); color: var(--dim); margin: 0 0 var(--sp-4); }
+.detail-meta-row { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: var(--sp-4); }
 .detail-score-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; margin-bottom: var(--sp-3); }
-.detail-genres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.detail-genres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--sp-4); }
 .detail-genre-chip {
   font: var(--t-nano);
   letter-spacing: .1em;
@@ -2676,22 +2719,22 @@ dialog.overlay::backdrop { background: transparent; }
   display: block;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  margin-bottom: 14px;
+  margin-bottom: var(--sp-4);
   max-width: 320px;
   aspect-ratio: 16 / 9;
   background: color-mix(in srgb, var(--text) 6%, transparent);
 }
-.detail-trailer img { display: block; width: 100%; height: 100%; object-fit: cover; filter: var(--cover-filter); transition: filter var(--d-2); }
+.detail-trailer img { display: block; width: 100%; height: 100%; object-fit: cover; filter: var(--cover-filter); transition: none; }
 .detail-trailer:hover img, .detail-trailer:focus-visible img { filter: var(--cover-filter-hover); }
 .detail-trailer-play {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 28px;
-  color: #fff;
-  background: color-mix(in srgb, black 25%, transparent);
-  text-shadow: 0 1px 4px color-mix(in srgb, black 60%, transparent);
+  font-size: var(--fs-num-m);
+  color: var(--on-shade);
+  background: color-mix(in srgb, var(--shade) 25%, transparent);
+  text-shadow: 0 1px 4px color-mix(in srgb, var(--shade) 60%, transparent);
 }
 .detail-owned-badge {
   font: var(--t-nano);
@@ -2703,27 +2746,26 @@ dialog.overlay::backdrop { background: transparent; }
   border: 1px solid var(--line);
   color: var(--dim);
   display: inline-block;
-  margin-bottom: 14px;
+  margin-bottom: var(--sp-4);
 }
 
-.detail-lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); margin: 0 0 9px; }
+.detail-lbl { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); margin: 0 0 var(--sp-2); }
 .detail-section { margin-bottom: 18px; }
 .detail-split { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 18px; }
 
 /* Episode squares (design/HANDOVER §14: stay up to 50, one <i> per episode,
    f = watched, n = the next one to mark, pulsing to invite a click). */
 .eps { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
-.eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background var(--d-2); }
+.eps i { width: 15px; height: 15px; border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); transition: background-color var(--dur-base); }
 .eps i.f { background: color-mix(in srgb, var(--accent) 80%, transparent); }
-.eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); animation: epsBlip 2.4s ease-in-out infinite; }
-@keyframes epsBlip { 50% { background: color-mix(in srgb, var(--accent) 55%, transparent); } }
+.eps i.n { background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--accent); }
 
 /* >50 episodes: squares become a compact bar plus a jump-to-episode field,
    with only the last 18 squares still shown as a tail (design/HANDOVER §14). */
 .detail-ep-summary { justify-content: space-between; margin-bottom: 10px; font: var(--t-card); }
 .detail-ep-summary .num { font: var(--t-meta); color: var(--faint); }
 .barfallback { height: 5px; background: color-mix(in srgb, var(--text) 9%, transparent); border-radius: 99px; position: relative; overflow: hidden; margin-bottom: var(--sp-3); }
-.barfallback i { position: absolute; left: 0; top: 0; height: 5px; background: var(--accent); border-radius: 99px; }
+.barfallback i { position: absolute; left: 0; top: 0; width: 100%; height: 5px; background: var(--accent); border-radius: 99px; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform var(--dur-slow) var(--ease-spring); }
 .detail-jump-row { margin-bottom: var(--sp-1); }
 .detail-jump-field { max-width: 190px; }
 .detail-jump-field input { flex: 1; border: none; background: transparent; color: var(--text); font: var(--t-body); min-width: 0; }
@@ -2748,7 +2790,7 @@ dialog.overlay::backdrop { background: transparent; }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: var(--sp-3) 20px;
-  padding: 14px 0;
+  padding: var(--sp-4) 0;
   margin-bottom: var(--sp-4);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -2766,7 +2808,7 @@ dialog.overlay::backdrop { background: transparent; }
 /* P5B.5: "Show more"/"Show less" past DETAIL_SYNOPSIS_COLLAPSE_LENGTH. */
 .detail-description .text-btn { font: var(--t-meta); padding: 0; }
 
-.detail-foot { display: flex; gap: 9px; flex-wrap: wrap; }
+.detail-foot { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .detail-foot .btn-danger { margin-left: auto; }
 
 @media (max-width: 720px) {
@@ -2791,17 +2833,25 @@ dialog.overlay::backdrop { background: transparent; }
   background: var(--bg-elevated);
   border: 1px solid var(--line-lit);
   color: var(--text);
-  padding: 11px var(--sp-3) 11px 18px;
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) 18px;
   border-radius: 999px;
   box-shadow: var(--sh-2);
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--sp-4);
   font: var(--t-body);
   font-size: var(--fs-action);
-  animation: toastIn var(--d-3) var(--e-out);
+  transition: opacity var(--dur-slow) var(--ease-enter), transform var(--dur-slow) var(--ease-enter);
 }
-@keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+/* Rises in from @starting-style; leaves (render.js dismissToast) sinking a
+   little and fading, at about 70% of the entry. */
+@starting-style { .toast { opacity: 0; transform: translateY(var(--move-md)); } }
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(var(--move-sm));
+  transition-duration: calc(var(--dur-slow) * .7);
+  transition-timing-function: var(--ease-exit);
+}
 .toast button {
   appearance: none;
   border: none;
@@ -2811,9 +2861,28 @@ dialog.overlay::backdrop { background: transparent; }
   padding: var(--sp-1) 10px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background var(--d-2);
+  transition: background-color var(--dur-base);
 }
 .toast button:hover { background: var(--accent-soft); }
+/* The completion toast's 1-10 rating row, on its own line under the message. */
+.toast.has-rating {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  row-gap: var(--sp-2);
+  border-radius: var(--radius-card);
+  width: min(440px, calc(100vw - var(--sp-4) * 2));
+}
+.toast-rate { flex-basis: 100%; display: flex; align-items: center; gap: var(--sp-1); }
+.toast-rate span { font: var(--t-meta); color: var(--dim); margin-right: var(--sp-1); white-space: nowrap; }
+.toast .toast-rate button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--sp-1) 0;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--dur-fast), color var(--dur-fast);
+}
+.toast .toast-rate button[aria-pressed="true"] { background: var(--accent-fill); color: var(--accent-contrast); }
 
 /* ---------- Responsive ---------- */
 /* 900px rather than the old 720px: the previous threshold left tablet-portrait
@@ -2848,11 +2917,11 @@ dialog.overlay::backdrop { background: transparent; }
   background: none;
   border: 0;
   border-radius: var(--radius-sm);
-  padding: 11px var(--sp-3);
+  padding: var(--sp-3) var(--sp-3);
   color: var(--dim);
   font: var(--t-body);
   cursor: pointer;
-  transition: background var(--d-2), color var(--d-2);
+  transition: background-color var(--dur-base), color var(--dur-base);
 }
 .nav-menu-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
 .nav-menu-item.on { color: var(--text); background: var(--accent-soft); }
@@ -2866,7 +2935,7 @@ dialog.overlay::backdrop { background: transparent; }
   .header-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 @media (max-width: 720px) {
-  .card-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-4); }
 }
 
 /* Reduced motion — superseded by the Moonlit Shrine §15 block at the top of

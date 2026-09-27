@@ -8,7 +8,8 @@ import { copy } from '../../copy.js';
 import { RECOMMENDATIONS } from '../../../../config/tuning.js';
 import { MOOD_REGISTRY } from '../../moodRegistry.js';
 import { escapeHtml } from '../../core/html.js';
-import { staggerDelayMs, relativeAgeText, formatEnumLabel, infoHintHtml } from '../shared/format.js';
+import { staggerDelay, relativeAgeText, formatEnumLabel, infoHintHtml } from '../shared/format.js';
+import { shelfSkeletonHtml } from '../shared/skeleton.js';
 
 // P5A.4: one card per shelf row. `cardData` is whatever
 // shelvesLogic.js's buildShelves() produced: {anilistId, candidate, because,
@@ -108,7 +109,7 @@ function shelfCardHtml(shelf, cardData, index = 0) {
   // entries simply render the empty placeholder until the next sync.
   const coverHtml = c.coverMedium ? `<img class="discover-card-cover" src="${escapeHtml(c.coverMedium)}" alt="" loading="lazy">` : '';
   return `
-    <article class="discover-card" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" tabindex="0" style="animation-delay:${staggerDelayMs(index)}ms">
+    <article class="discover-card" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
       <div class="cov">${coverHtml}</div>
       <div>
         <h4 data-action="show-detail" data-detail-id="${c.anilistId}" style="cursor:pointer" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}${franchiseBadge}</h4>
@@ -450,7 +451,7 @@ export function renderDiscoverPage(container, viewState) {
     return;
   }
   if (status === 'loading' && shelves.length === 0) {
-    container.innerHTML = `${banner}<div class="empty-state"><h2>Building your shelves…</h2></div>`;
+    container.innerHTML = `${banner}${shelfSkeletonHtml({ shelves: 3 })}`;
     return;
   }
   if (status === 'error' && shelves.length === 0) {

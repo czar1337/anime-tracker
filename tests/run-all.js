@@ -910,71 +910,6 @@ async function run() {
   });
 
   // -------------------------------------------------------------------------
-  // public/js/tokens.js (P1.4) — the token module, pure aside from the DOM
-  // calls in apply*() themselves, loaded via dynamic import().
-  // -------------------------------------------------------------------------
-  console.log('tokens.js');
-  const tokensUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'tokens.js').replace(/\\/g, '/');
-  const { computeTypographyTokens, applyTypographyStep, setColorTokens, TYPOGRAPHY_TOKEN_NAMES, COLOR_TOKEN_NAMES } =
-    await import(tokensUrl);
-
-  function fakeStyleTarget() {
-    const props = {};
-    return { props, style: { setProperty: (name, value) => { props[name] = value; } } };
-  }
-
-  await test('computeTypographyTokens(1) matches step-1 array values', () => {
-    const tokens = computeTypographyTokens(1);
-    assert.equal(tokens['--font-scale'], 0.82);
-    assert.equal(tokens['--font-weight-base'], 300);
-    assert.equal(tokens['--radius-surface'], '0px');
-    assert.equal(tokens['--radius-control'], '0px');
-  });
-
-  await test('computeTypographyTokens(10): --radius-control is capped well below --radius-surface (never turns inputs into pills)', () => {
-    const tokens = computeTypographyTokens(10);
-    assert.equal(tokens['--radius-surface'], '24px');
-    assert.equal(tokens['--radius-control'], '12px');
-  });
-
-  await test('computeTypographyTokens rejects an out-of-range or non-integer step rather than silently clamping', () => {
-    assert.throws(() => computeTypographyTokens(0), RangeError);
-    assert.throws(() => computeTypographyTokens(11), RangeError);
-    assert.throws(() => computeTypographyTokens(5.5), RangeError);
-  });
-
-  await test('applyTypographyStep sets every owned typography property on the given target', () => {
-    const target = fakeStyleTarget();
-    applyTypographyStep(5, target);
-    for (const name of TYPOGRAPHY_TOKEN_NAMES) {
-      assert.ok(name in target.props, `${name} should have been set`);
-    }
-  });
-
-  await test('setColorTokens only applies known token names, silently ignoring an unrecognized one', () => {
-    const target = fakeStyleTarget();
-    const applied = setColorTokens({ '--accent': '#ff0000', '--not-a-real-token': 'x' }, target);
-    assert.deepEqual(applied, ['--accent']);
-    assert.equal(target.props['--accent'], '#ff0000');
-    assert.equal('--not-a-real-token' in target.props, false);
-  });
-
-  await test('COLOR_TOKEN_NAMES matches the spec\'s exact 10 colour roles', () => {
-    assert.deepEqual(COLOR_TOKEN_NAMES, [
-      '--background',
-      '--surface',
-      '--border',
-      '--text-primary',
-      '--text-secondary',
-      '--accent',
-      '--accent-foreground',
-      '--success',
-      '--warning',
-      '--danger',
-    ]);
-  });
-
-  // -------------------------------------------------------------------------
   // public/js/typographySliders.js (P3.2) — the eight independent 1-10
   // typography sliders. Pure, DOM-free, loaded via dynamic import().
   // -------------------------------------------------------------------------
@@ -1002,9 +937,7 @@ async function run() {
       '--radius-xs': '4px', '--radius-sm': '7px', '--radius': '12px', '--radius-lg': '16px',
     });
     assert.deepEqual(computeSliderTokens('coverWidth', DEFAULT_STEP), { '--cover-width': '170px' });
-    assert.deepEqual(computeSliderTokens('animation', DEFAULT_STEP), {
-      '--d-press': '90ms', '--d-1': '120ms', '--d-2': '200ms', '--d-3': '280ms', '--d-4': '380ms', '--d-5': '800ms',
-    });
+    assert.deepEqual(computeSliderTokens('animation', DEFAULT_STEP), { '--motion': '1' });
   });
 
   await test('textSize/textWeight scale correctly at the extremes', () => {
@@ -1018,16 +951,12 @@ async function run() {
     });
   });
 
-  await test('animation step 1 (animationDurationMult[0] = 0) yields 0ms everywhere — "step 1 is off"', () => {
-    assert.deepEqual(computeSliderTokens('animation', 1), {
-      '--d-press': '0ms', '--d-1': '0ms', '--d-2': '0ms', '--d-3': '0ms', '--d-4': '0ms', '--d-5': '0ms',
-    });
+  await test('animation step 1 (animationDurationMult[0] = 0) sets --motion to 0 — "step 1 is off"', () => {
+    assert.deepEqual(computeSliderTokens('animation', 1), { '--motion': '0' });
   });
 
-  await test('animation step 10 scales every duration by the same ratio', () => {
-    assert.deepEqual(computeSliderTokens('animation', 10), {
-      '--d-press': '205.71ms', '--d-1': '274.29ms', '--d-2': '457.14ms', '--d-3': '640ms', '--d-4': '868.57ms', '--d-5': '1828.57ms',
-    });
+  await test('animation step 10 scales every duration through one multiplier', () => {
+    assert.deepEqual(computeSliderTokens('animation', 10), { '--motion': '2.29' });
   });
 
   await test('radius step 10 caps controls at 12px and surfaces at 24px — never turns inputs into pills', () => {

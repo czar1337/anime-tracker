@@ -16,6 +16,7 @@ import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
 import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs, keepAboveDialogs } from './core/dialog.js';
 import { trapTab } from './core/focus.js';
+import { runViewTransition, movementAllowed } from './core/motion.js';
 import { bindStatsActions } from './views/stats/actions.js';
 import {
   initLibraryActions,
@@ -230,6 +231,14 @@ function closeAllOverlays() {
   resetSearchState();
 }
 
+// A dismissal by the user (Escape, the backdrop, a close button): the detail
+// view closes back into its card when it can (a View Transition, so the close
+// lands a frame later); everything else closes at once.
+function dismissOverlays() {
+  if (Detail.closeDetailWithTransition(() => closeAllOverlays())) return;
+  closeAllOverlays();
+}
+
 // Re-renders whatever is currently on screen (home/stats dashboard or a list) after a mutation.
 function refreshView() {
   if (currentView === 'home') Render.renderHome(document.getElementById('home-view'));
@@ -275,76 +284,103 @@ function updateTabPill() {
   const pill = document.getElementById('tab-pill');
   if (!pill) return;
   const activeTab = document.querySelector('.tab[aria-selected="true"]');
+  // v3: transform only. The pill is 100px wide in CSS, translated to the tab
+  // and scaled to its width; no active tab (Home) collapses it in place.
   if (!activeTab) {
-    pill.style.width = '0px';
+    pill.style.transform = `translateX(${pill.dataset.x || 0}px) scaleX(0)`;
     return;
   }
-  pill.style.left = `${activeTab.offsetLeft}px`;
-  pill.style.width = `${activeTab.offsetWidth}px`;
+  pill.dataset.x = String(activeTab.offsetLeft);
+  pill.style.transform = `translateX(${activeTab.offsetLeft}px) scaleX(${activeTab.offsetWidth / 100})`;
+}
+
+// v3 Phase 3: a tab change is a View Transition, a short slide in the direction
+// of travel through the tab order plus a crossfade (styles.css,
+// :active-view-transition-type(tab)). Without View Transitions, or when the
+// view does not change, the view's own fade plays instead.
+const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'schedule', 'discover', 'stats'];
+function switchView(next, update, viewEl) {
+  const from = VIEW_ORDER.indexOf(currentView);
+  const to = VIEW_ORDER.indexOf(next);
+  if (from < 0 || to < 0 || from === to) {
+    update();
+    playViewEnter(viewEl());
+    return;
+  }
+  // The app is in the new view at once (a shortcut pressed during the
+  // transition's first frame must act on it); only the DOM change waits for
+  // the transition to capture the old state.
+  setCurrentView(next);
+  runViewTransition(update, { types: ['tab', to > from ? 'forward' : 'back'], onFallback: () => playViewEnter(viewEl()) });
 }
 
 function showListView(list) {
   if (list !== activeList) Render.clearSelection(); // stale selection from a different list would be confusing
-  setCurrentView(list);
   activeList = list;
-  hideAllViews();
-  const el = document.getElementById('list-view');
-  el.hidden = false;
-  playViewEnter(el);
-  Store.setPreference(['activeTab'], list);
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === list)));
-  updateTabPill();
-  Render.renderAll(list);
-  persist();
+  switchView(list, () => {
+    setCurrentView(list);
+    hideAllViews();
+    const el = document.getElementById('list-view');
+    el.hidden = false;
+    Store.setPreference(['activeTab'], list);
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === list)));
+    updateTabPill();
+    Render.renderAll(list);
+    persist();
+  }, () => document.getElementById('list-view'));
 }
 
 function showHomeView() {
-  Render.clearSelection();
-  setCurrentView('home');
-  hideAllViews();
-  const el = document.getElementById('home-view');
-  el.hidden = false;
-  playViewEnter(el);
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', 'false'));
-  updateTabPill();
-  Render.renderHome(el);
+  switchView('home', () => {
+    Render.clearSelection();
+    setCurrentView('home');
+    hideAllViews();
+    const el = document.getElementById('home-view');
+    el.hidden = false;
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', 'false'));
+    updateTabPill();
+    Render.renderHome(el);
+  }, () => document.getElementById('home-view'));
 }
 
 function showStatsView() {
-  Render.clearSelection();
-  setCurrentView('stats');
-  hideAllViews();
-  const el = document.getElementById('stats-view');
-  el.hidden = false;
-  playViewEnter(el);
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'stats')));
-  updateTabPill();
-  Render.renderStatsPage(el);
+  switchView('stats', () => {
+    Render.clearSelection();
+    setCurrentView('stats');
+    hideAllViews();
+    const el = document.getElementById('stats-view');
+    el.hidden = false;
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'stats')));
+    updateTabPill();
+    Render.renderStatsPage(el);
+  }, () => document.getElementById('stats-view'));
 }
 
 function showDiscoverView() {
-  Render.clearSelection();
-  setCurrentView('discover');
-  hideAllViews();
-  const el = document.getElementById('discover-view');
-  el.hidden = false;
-  playViewEnter(el);
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'discover')));
-  updateTabPill();
-  Discover.openView();
+  switchView('discover', () => {
+    Render.clearSelection();
+    setCurrentView('discover');
+    hideAllViews();
+    const el = document.getElementById('discover-view');
+    el.hidden = false;
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'discover')));
+    updateTabPill();
+    Discover.openView();
+  }, () => document.getElementById('discover-view'));
 }
 
 function showScheduleView() {
-  Render.clearSelection();
-  setCurrentView('schedule');
-  hideAllViews();
-  const el = document.getElementById('schedule-view');
-  el.hidden = false;
-  playViewEnter(el);
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'schedule')));
-  updateTabPill();
-  Render.renderSchedulePage(el, Schedule.getScheduleState());
-  Schedule.ensureFreshOnOpen();
+  switchView('schedule', () => {
+    Render.clearSelection();
+    setCurrentView('schedule');
+    hideAllViews();
+    const el = document.getElementById('schedule-view');
+    el.hidden = false;
+    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === 'schedule')));
+    updateTabPill();
+    Render.renderSchedulePage(el, Schedule.getScheduleState());
+    Schedule.ensureFreshOnOpen();
+  }, () => document.getElementById('schedule-view'));
 }
 
 // ---------------------------------------------------------------------------
@@ -649,7 +685,7 @@ function bindNotificationsOverlay() {
 // button, not just the Escape key.
 function bindOverlayCloseButtons() {
   document.querySelectorAll('[data-action="close-overlay"]').forEach((btn) => {
-    btn.addEventListener('click', () => closeAllOverlays());
+    btn.addEventListener('click', () => dismissOverlays());
   });
 }
 
@@ -658,7 +694,7 @@ function bindOverlayCloseButtons() {
 // wires both (a click whose target is the dialog itself landed outside
 // .overlay-panel; Escape is the dialog's native cancel event).
 function bindOverlayBackdropClose() {
-  initDialogs({ onDismiss: () => closeAllOverlays() });
+  initDialogs({ onDismiss: () => dismissOverlays() });
   // Toasts (Undo above all) stay reachable while an overlay is open.
   keepAboveDialogs(document.getElementById('toast-container'));
 }
@@ -905,7 +941,10 @@ function bindKeyboardShortcuts() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (isAnyDialogOpen()) closeAllOverlays();
+      if (isAnyDialogOpen()) {
+        e.preventDefault(); // handled here; the dialog's own cancel would dismiss twice
+        dismissOverlays();
+      }
       else if (Render.isSelectMode()) {
         Render.toggleSelectMode();
         refreshGridOnly();
@@ -997,7 +1036,7 @@ function bindKeyboardShortcuts() {
 
     if (e.key === 'Enter' && document.activeElement.matches('.card')) {
       e.preventDefault();
-      Detail.showDetail(Number(document.activeElement.dataset.id));
+      Detail.showDetail(Number(document.activeElement.dataset.id), { origin: document.activeElement });
       return;
     }
 
@@ -1184,8 +1223,11 @@ function bindHoldToSelect() {
 // reduced motion, same as the rest of the app's motion.
 function bindRipple() {
   document.addEventListener('pointerdown', (e) => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const host = e.target.closest('.rip-host, .btn, .chip, .icn, .card, .plus, .seg button, .themegrid button, .score-dot, .quick-move-btn');
+    // Reduced motion (OS or app) and animation Off: no ripple at all.
+    if (!movementAllowed()) return;
+    // v3 Phase 3: not on cards or score dots (brief), where it competed with
+    // the card's own feedback.
+    const host = e.target.closest('.rip-host, .btn, .chip, .icn, .plus, .seg button, .themegrid button, .quick-move-btn');
     if (!host) return;
     const rect = host.getBoundingClientRect();
     const rip = document.createElement('span');
@@ -1250,6 +1292,12 @@ export function initEvents({ initialList, persistFn }) {
   document.addEventListener('keydown', trapOverlayFocus);
   updateTabPill(); // positions it for the initial tab, set by app.js before this runs
   window.addEventListener('resize', updateTabPill);
+  // A tab also changes width on its own (a count or the new-episode badge
+  // arriving after load), which left the underline short of the tab in v2.
+  if (typeof ResizeObserver === 'function') {
+    const tabsResized = new ResizeObserver(() => updateTabPill());
+    document.querySelectorAll('.tab').forEach((tab) => tabsResized.observe(tab));
+  }
   // Tab label widths can shift slightly once the real webfont swaps in
   // (font-display:swap renders a fallback font first) — re-measure once
   // that's settled so the pill doesn't end up a few pixels off.

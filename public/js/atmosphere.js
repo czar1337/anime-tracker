@@ -17,6 +17,7 @@
 // and a matchMedia listener watches reduced-motion.
 
 import { Preferences } from './preferences.js';
+import { reducedMotion as reducedMotionSetting } from './core/motion.js';
 
 let container = null;
 let leavesEl = null;
@@ -66,14 +67,18 @@ function isLightTheme() {
   return getComputedStyle(document.documentElement).colorScheme === 'light';
 }
 
-function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// The OS setting or the app's Motion: Reduced (core/motion.js).
+const reducedMotion = reducedMotionSetting;
+
+// The animation setting at Off (tokens.css --motion 0) stops the decoration too.
+function motionOff() {
+  return Number(getComputedStyle(document.documentElement).getPropertyValue('--motion')) === 0;
 }
 
 // Whether canopy/leaves/feathers (not moon glow/vignette) are allowed to
 // exist at all right now.
 function decorativeLayerAllowed() {
-  return document.documentElement.dataset.decor !== 'off' && !reducedMotion() && !isLightTheme();
+  return document.documentElement.dataset.decor !== 'off' && !reducedMotion() && !motionOff() && !isLightTheme();
 }
 
 function rand(min, max) {
@@ -101,11 +106,16 @@ function removeFeather(el) {
   if (activeFeather === el) activeFeather = null;
 }
 
-function spawnFeather({ reward }) {
+function spawnFeather({ reward, from }) {
   if (activeFeather) removeFeather(activeFeather); // reward pre-empts a mid-flight ambient one; either way, only one at a time
   const f = document.createElement('span');
   f.className = reward ? 'atmo-feather reward' : 'atmo-feather';
-  f.style.setProperty('--f-x', `${rand(8, 92)}vw`);
+  if (from) {
+    // v3 Phase 3: the reward feather starts on the finished card itself (the
+    // layer is fixed to the viewport, so the card's client rect is in place).
+    f.style.setProperty('--f-x', `${Math.round(from.left + from.width / 2)}px`);
+    f.style.setProperty('--f-y', `${Math.round(from.top + from.height * 0.25)}px`);
+  } else f.style.setProperty('--f-x', `${rand(8, 92)}vw`);
   f.style.setProperty('--f-dx', `${rand(-10, 10)}vw`);
   f.style.setProperty('--f-rot', `${rand(-40, 40)}deg`);
   if (!reward) {
@@ -162,7 +172,8 @@ export function initAtmosphere() {
 
   sync();
 
-  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-decor', 'data-color-theme'] });
+  // `style` carries the animation setting (--motion, set inline by the slider).
+  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-decor', 'data-color-theme', 'data-motion', 'style'] });
   window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', sync);
 }
 
@@ -170,9 +181,10 @@ export function initAtmosphere() {
 // down from the card. The ripple already happens on whatever button was
 // pressed (bindRipple) — this is just the feather half of that moment.
 // Same three gates as the ambient ones (off/reduced-motion/light theme all
-// suppress it too — a reward feather is still a feather).
-export function rewardFeather() {
-  if (decorativeLayerAllowed()) spawnFeather({ reward: true });
+// suppress it too — a reward feather is still a feather). `from` (a DOMRect,
+// optional) is the card it falls from; without one it falls from the top.
+export function rewardFeather({ from } = {}) {
+  if (decorativeLayerAllowed()) spawnFeather({ reward: true, from });
 }
 
 // Called from Settings when the decoration amount changes — density isn't

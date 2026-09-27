@@ -1,0 +1,144 @@
+/* =====================================================================
+   Moonlit Shrine tokens (design/moonlit-shrine-design-system.md §15).
+   v3 Phase 3: the one place raw values live. styles.css uses only these
+   (scripts/check-css-tokens.js enforces it in npm test). Colour tokens per
+   theme live in the generated moonlit-shrine-themes.css.
+   ===================================================================== */
+
+/* Fallback colour block: if data-color-theme is missing or holds a key no
+   [data-color-theme] block matches (corrupted storage, a key from a future
+   version), the app would otherwise render unstyled. :where() gives it zero
+   specificity so every theme block wins regardless of source order. */
+:where(:root){
+  --bg: hsl(222 18% 5%); --bg-deep: hsl(222 18% 3.5%); --bg-elevated: hsl(222 16.2% 9%);
+  --card: hsl(222 15.3% 10.5%); --card-hover: hsl(222 14.4% 13.5%);
+  --line: hsl(222 12.6% 17%); --line-lit: hsl(222 9.9% 27%);
+  --text: hsl(222 10% 92%); --dim: hsl(222 12% 70%); --faint: hsl(222 12% 55%);
+  --accent: hsl(356 64% 54%); --accent-lit: hsl(356 58% 68%); --accent-fill: hsl(356 64% 53%);
+  --accent-soft: hsl(356 64% 54% / 0.12); --accent-deep: hsl(356 64% 29.7%); --accent-contrast: hsl(0 0% 100%);
+  --support: hsl(240 26% 62%); --positive: hsl(142 20% 62%); --warning: hsl(38 45% 60%);
+  --glow: hsl(214 42% 78%); --deco: hsl(4 48% 54%);
+  --cover-filter: saturate(.66) brightness(.9) contrast(1.05);
+  --cover-filter-hover: saturate(.96) brightness(1) contrast(1.03);
+  color-scheme: dark;
+
+  /* Neutral ink for scrims over cover art, whatever the theme: badges and
+     buttons sitting on an image, and the text on them. */
+  --shade: hsl(0 0% 0%);
+  --on-shade: hsl(0 0% 100%);
+
+  /* form */
+  --radius-xs:4px; --radius-sm:7px; --radius-card:11px; --radius:12px; --radius-lg:16px; --radius-pill:999px;
+  --sh-1:0 2px 8px -2px hsl(0 0% 0% / .5);
+  --sh-2:0 12px 28px -14px hsl(0 0% 0% / .8);
+  --sh-3:0 22px 42px -22px hsl(0 0% 0% / .95);
+
+  /* type families */
+  --display:"Zen Old Mincho",Georgia,serif;
+  --ui:"Schibsted Grotesk",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",monospace;
+  /* The font picker overrides --ui/--display/--numbers inline on <html>
+     (preferences.js); these are the defaults. */
+  --numbers:var(--ui);
+
+  /* user-controlled typography */
+  --text-scale:1;
+  --w-body:400; --w-med:500; --w-strong:600; --w-display:600;
+  /* Minimum effective size after scaling is 12px (tuning table), for the steps
+     whose base is already >= 12px; the three smaller steps are smaller by
+     design. */
+  --fs-display-l:max(12px, calc(30px * var(--text-scale)));
+  --fs-display-m:max(12px, calc(21px * var(--text-scale)));
+  --fs-display-s:max(12px, calc(19px * var(--text-scale)));
+  --fs-display-xs:max(12px, calc(18px * var(--text-scale)));  /* v3: small Mincho headings (dialogs, empty states) */
+  --fs-heading:max(12px, calc(16px * var(--text-scale)));     /* v3: section headings in the grotesk */
+  --fs-title:max(12px, calc(14px * var(--text-scale)));       /* v3: card titles, lead lines */
+  --fs-body:max(12px, calc(13px * var(--text-scale)));
+  --fs-action:max(12px, calc(12.5px * var(--text-scale)));
+  --fs-card:max(12px, calc(12px * var(--text-scale)));
+  --fs-meta:calc(11px * var(--text-scale));
+  --fs-micro:calc(10.5px * var(--text-scale));
+  --fs-nano:calc(9.5px * var(--text-scale));
+  --fs-num-s:calc(20px * var(--text-scale));                  /* v3: stat numbers */
+  --fs-num-m:calc(26px * var(--text-scale));                  /* v3: large stat numbers, the detail score */
+  --t-display-l:var(--w-display) var(--fs-display-l)/1.16 var(--display);
+  --t-display-m:var(--w-display) var(--fs-display-m)/1.24 var(--display);
+  --t-display-s:var(--w-display) var(--fs-display-s)/1.2 var(--display);
+  --t-title:var(--w-med) var(--fs-title)/1.3 var(--ui);
+  --t-body:var(--w-body) var(--fs-body)/1.62 var(--ui);
+  --t-action:var(--w-med) var(--fs-action)/1 var(--ui);
+  --t-card:var(--w-med) var(--fs-card)/1.3 var(--ui);
+  --t-meta:var(--w-body) var(--fs-meta)/1.5 var(--ui);
+  --t-micro:var(--w-med) var(--fs-micro)/1 var(--ui);
+  --t-nano:var(--w-med) var(--fs-nano)/1 var(--ui);
+  --tr-display:.015em; --tr-brand:.055em; --tr-micro:.16em; --tr-nano:.22em;
+
+  /* motion (v3 Phase 3, brief "Motion system"). --motion is the user's
+     animation setting as a multiplier: 1 is the default, 0 is Off (every
+     duration becomes 0). --move-scale is 1, or 0 under reduced motion, where
+     distances vanish and only short fades stay. */
+  --motion: 1;
+  --move-scale: 1;
+  --dur-press: calc(80ms  * var(--motion));
+  --dur-fast:  calc(140ms * var(--motion));
+  --dur-base:  calc(220ms * var(--motion));
+  --dur-slow:  calc(360ms * var(--motion));
+  --dur-emph:  calc(520ms * var(--motion));
+  --ease-standard: cubic-bezier(.2,0,0,1);
+  --ease-enter:    cubic-bezier(.05,.7,.1,1);
+  --ease-exit:     cubic-bezier(.3,0,.8,.15);
+  --ease-spring:   cubic-bezier(.2,1.2,.3,1);
+  --move-sm: calc(4px * var(--move-scale));
+  --move-md: calc(12px * var(--move-scale));
+  --move-lg: calc(24px * var(--move-scale));
+  --stagger: 30ms; /* per item, capped at 8 items */
+  /* Press scales (design §10), flattened to 1 under reduced motion. */
+  --press-btn: calc(1 - .03 * var(--move-scale));
+  --press-icon: calc(1 - .10 * var(--move-scale));
+  --press-card: calc(1 - .005 * var(--move-scale));
+  --press-chip: calc(1 - .05 * var(--move-scale));
+  /* Loops (skeleton shimmer, the saving dot): stopped under reduced motion. */
+  --dur-loop: calc(1400ms * var(--motion));
+  /* The completion reward (one feather from the card); the whole moment
+     stays under 2.4s (design §10). */
+  --dur-reward: min(calc(2000ms * var(--motion)), 2300ms);
+  /* Hold-to-select: mirrors the 500ms timer in events.js, so it does not
+     scale with the animation setting. */
+  --dur-hold: 500ms;
+  /* Skeletons appear only when loading takes longer than this, so a fast
+     load never flashes one. A wait, not a motion: it does not scale. */
+  --delay-skeleton: 150ms;
+
+  /* rhythm */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-6:24px; --sp-8:32px; --sp-12:48px; --sp-16:64px;
+}
+
+@supports (animation-timing-function: linear(0, 1)) {
+  :where(:root) { --ease-spring: linear(0, .13 4%, .44 10%, .77 17%, .96 24%, 1.03 31%, 1.04 36%, 1.02 45%, 1 60%, 1); }
+}
+
+/* Reduced motion (the OS setting, or the app's own Motion: Reduced, which
+   sets data-motion="reduced" on <html>): no movement, and nothing longer
+   than a 120ms fade. The animation setting still applies on top (Off stays
+   off). The two blocks must stay identical. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --move-scale: 0;
+    --dur-fast: min(calc(140ms * var(--motion)), 120ms);
+    --dur-base: min(calc(220ms * var(--motion)), 120ms);
+    --dur-slow: min(calc(360ms * var(--motion)), 120ms);
+    --dur-emph: min(calc(520ms * var(--motion)), 120ms);
+    --dur-reward: 0ms;
+    --dur-loop: 0ms;
+  }
+}
+:root[data-motion="reduced"] {
+  --move-scale: 0;
+  --dur-fast: min(calc(140ms * var(--motion)), 120ms);
+  --dur-base: min(calc(220ms * var(--motion)), 120ms);
+  --dur-slow: min(calc(360ms * var(--motion)), 120ms);
+  --dur-emph: min(calc(520ms * var(--motion)), 120ms);
+  --dur-reward: 0ms;
+  --dur-loop: 0ms;
+}

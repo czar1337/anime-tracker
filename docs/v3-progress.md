@@ -10,8 +10,8 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 0 Verify, decide, plan | `v3/0-plan` | done | — |
 | 1 Safety and correctness | `v3/1-foundation-safety` | done | — |
 | 2 Render engine and structure | `v3/2-render-engine` | done | — |
-| 3 Design system and motion | `v3/3-design-motion` | not started | token cleanup + check-css-tokens.js first |
-| 4 Flow and screens | `v3/4-flow-screens` | not started | |
+| 3 Design system and motion | `v3/3-design-motion` | done | — |
+| 4 Flow and screens | `v3/4-flow-screens` | in progress | Start: branch from main, read brief Phase 4 and the plan's Phase 4 row. Carry-overs: wire Motion (Full/Reduced/Off) to `setReducedMotion()` in the D2 settings rebuild; the clipped sort control ("west f") |
 | 5 Features | `v3/5-features` | not started | |
 | 6 Discover rebuild | `v3/6-discover` | not started | |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |
@@ -115,6 +115,47 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
   store subscriptions are not wired into views yet (Phase 4 rebuilds the screens).
 - **Deferred:** nothing. The clipped sort control ("west f") is a Phase 4 item in the
   brief.
+
+## Checkpoint 3 (2026-09-27)
+
+- **Changed:** `public/tokens.css` holds every token; `scripts/check-css-tokens.js`
+  runs in `npm test` (no raw colours or px font sizes; keyframes on transform/opacity
+  only, nested ones included; no literal durations; no implicit `all`). Motion system:
+  `--motion` multiplier (0 = Off), `--dur-*`/`--ease-*`/`--move-*`, reduced motion a
+  120 ms fade with no movement (OS setting or `data-motion="reduced"`). Removed
+  hudScan, shimmerSweep, epsBlip, count-up numbers, card/score-dot ripples, duplicate
+  shimmers, the left/width tab underline. Built: View Transitions for tabs (typed by
+  direction) and the `cover-<id>` shared cover (first and cached opens), FLIP for
+  reorders and status moves (target count pops), the +1 micro-interaction, the
+  completion moment (under 2.4 s, Undo plus rating row), skeletons for boot, detail,
+  Discover and Schedule, dialog and toast exits, scroll-driven header, shelves and
+  Stats bars. Design system §10/§11/§12/§15 updated.
+- **Tests before → after:** unit 442 + 92 → 436 + 99 (the 6 `tokens.js` tests went
+  with the retired module); e2e 208 + 1 skipped → 239 + 1 skipped. New specs:
+  motion-system, view-transitions, progress-moments, skeletons, exit-animations,
+  scroll-driven, checkCssTokens.
+- **Perf (`npm run perf`, p95):** library render of all 2,000 cards **186 ms**
+  (budget 200); first cards painted 67 ms; warm Discover **146 ms** (budget 400);
+  snapshot + verify 94 ms.
+- **Browser check:** `node scripts/capture-evidence.js 3` at 1440/390 px, reduced
+  motion off and on: no errors, every card visible. Recordings (`node
+  scripts/record-motion.js 3`): plus-one, completion, tab-change, card-to-detail,
+  status-move, reduced-motion (`docs/v3-evidence/3/*.webm`).
+- **Exe:** rebuilt and smoke-tested on a throwaway data folder: 10/10.
+- **Real-library dry run** (fresh copy): schema 14, 222 entries (210 watched, 12
+  watching), 161 rated, 16 events, 5 snapshots of which 3 verify (the same 2
+  pre-manifest ones as Checkpoint 2). No schema change in this phase.
+- **Independent review:** no HIGH; 4 MEDIUM, all fixed in `1bfd94d` with tests:
+  ctrl+z during the completion moment hit the previous toast; the focus handoff was
+  off by one per franchise group; the shared cover skipped first opens; Motion:
+  Reduced had no mechanism (the recorded reason was wrong). LOW, all fixed: the
+  moment ran past 2.4 s at slow settings; checker gaps (nested keyframes, implicit
+  `all`); FLIP read every card's rect; a child's transitionend ended a toast's exit.
+  Colour transitions are kept and recorded as a decision.
+- **Flaky once:** `background-refresh-typing` failed in one full run and passed 80/80
+  under parallel stress and in every later full run; not reproduced.
+- **Deferred:** nothing. The Motion control and the clipped sort control are Phase 4
+  items (D2 settings rebuild, "7 visible problems").
 
 ## Evidence index
 

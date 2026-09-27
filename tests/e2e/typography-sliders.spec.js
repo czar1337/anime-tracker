@@ -326,15 +326,22 @@ test('the contrast warning is absent for the default theme, and appears once tex
   }
 });
 
-test('prefers-reduced-motion clamps the animation slider\'s effective duration to 0ms without touching the stored step', async ({ page }) => {
+// v3 Phase 3: the slider sets one multiplier (--motion) that every duration
+// token reads; the OS reduced-motion setting caps every duration at a 120ms
+// fade (and removes movement) without touching the stored step. v2 set six
+// duration tokens inline and forced them to 0ms under reduced motion.
+test('the animation slider scales real durations, and reduced motion caps them at 120ms without touching the stored step', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
+  const bodyDuration = () => page.evaluate(() => getComputedStyle(document.body).transitionDuration.split(',')[0].trim());
   try {
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
+    expect(await bodyDuration()).toBe('0.22s'); // --dur-base at the default step
     await openSettings(page);
 
     await setSlider(page, 'animation', 10);
-    expect(await cssVar(page, '--d-5')).toBe('1828.57ms');
+    expect(await cssVar(page, '--motion')).toBe('2.29');
+    expect(await bodyDuration()).toBe('0.5038s');
 
     // Poll the server directly for the debounced write, rather than a fixed
     // wait — see the reload-persistence test above for why.
@@ -346,17 +353,18 @@ test('prefers-reduced-motion clamps the animation slider\'s effective duration t
       .toBe(10);
 
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.waitForTimeout(150);
-    expect(await cssVar(page, '--d-5')).toBe('0ms');
-    expect(await cssVar(page, '--d-press')).toBe('0ms');
+    await expect.poll(bodyDuration).toBe('0.12s');
 
-    // The stored step itself is untouched — only the DOM-applied tokens clamp.
+    // The stored step itself is untouched.
     const lib = await (await fetch(`${server.url}/api/library`)).json();
     expect(lib.preferences.animationStep).toBe(10);
 
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.waitForTimeout(150);
-    expect(await cssVar(page, '--d-5')).toBe('1828.57ms');
+    await expect.poll(bodyDuration).toBe('0.5038s');
+
+    // Step 1 is Off: every duration becomes 0.
+    await setSlider(page, 'animation', 1);
+    expect(await bodyDuration()).toBe('0s');
   } finally {
     await server.stop();
   }

@@ -706,6 +706,43 @@ export const COPY_REGISTRY = {
     standard: 'Nothing in your Watchlist matches those filters.',
     madara: 'Nothing in your Watchlist matches those filters.',
   },
+
+  // ---------------------------------------------------------------------------
+  // v3 Phase 3: the progress and completion toasts (brief, "+1
+  // micro-interaction" and "Completion moment"). The title leads, so a toast
+  // still says which series it was after the card has moved away.
+  // ---------------------------------------------------------------------------
+
+  'toast.undo': {
+    familyFriendly: 'Undo',
+    standard: 'Undo',
+    madara: 'Undo',
+  },
+  'toast.episodeWatched': {
+    familyFriendly: (p) => `${p.title} · episode ${p.episode} marked watched`,
+    standard: (p) => `${p.title} · episode ${p.episode} marked watched`,
+    madara: (p) => `${p.title} · episode ${p.episode} marked watched`,
+  },
+  'toast.episodeBack': {
+    familyFriendly: (p) => `${p.title} · back to episode ${p.episode}`,
+    standard: (p) => `${p.title} · back to episode ${p.episode}`,
+    madara: (p) => `${p.title} · back to episode ${p.episode}`,
+  },
+  'toast.seriesFinished': {
+    familyFriendly: (p) => `${p.title} · finished, moved to Watched`,
+    standard: (p) => `${p.title} · finished, moved to Watched`,
+    madara: (p) => `${p.title} · finished, moved to Watched`,
+  },
+  'toast.movedTo': {
+    familyFriendly: (p) => `${p.title} · moved to ${p.list}`,
+    standard: (p) => `${p.title} · moved to ${p.list}`,
+    madara: (p) => `${p.title} · moved to ${p.list}`,
+  },
+  'toast.rateIt': {
+    familyFriendly: 'Rate it',
+    standard: 'Rate it',
+    madara: 'Rate it',
+  },
 };
 
 // Every tier, in the order the spec lists them. Duplicated from

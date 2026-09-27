@@ -149,7 +149,12 @@ async function main() {
   process.exitCode = problems.length ? 1 : 0;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// The synthetic library and corpus are shared with record-motion.js.
+module.exports = { library, corpus };
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

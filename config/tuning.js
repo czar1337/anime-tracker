@@ -291,4 +291,8 @@ export const UI_TIMING = {
   titleFilterDebounceMs: 120,
   gridFirstChunk: 60,
   gridChunkSize: 400,
+  // The completion moment (v3 Phase 3): the longest wait before a finished
+  // series moves to Watched, however slow the animation setting, so the whole
+  // moment stays under 2.4s.
+  completionMoveMaxMs: 900,
 };

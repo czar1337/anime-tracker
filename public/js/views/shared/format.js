@@ -3,10 +3,13 @@
 
 import { html } from '../../core/html.js';
 
-// Entrance-animation stagger for a list item, capped so a long list does not
-// end up with a multi-second cascade.
-export function staggerDelayMs(index) {
-  return Math.min(index, 12) * 45;
+// Entrance-animation delay for a list item, as a CSS value: 30ms per item
+// (--stagger), capped at 8 items, and scaled by the animation setting so Off
+// never leaves an item waiting out a delay (v3 Phase 3).
+export const STAGGER_MS = 30;
+export const STAGGER_CAP = 8;
+export function staggerDelay(index) {
+  return `calc(${Math.min(index, STAGGER_CAP) * STAGGER_MS}ms * var(--motion))`;
 }
 
 export function relativeAgeText(generatedAt) {

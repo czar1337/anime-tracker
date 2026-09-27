@@ -19,6 +19,7 @@ import { scoreStripHtml, statusRowHtml } from '../library/view.js';
 import { formatEnumLabel } from '../shared/format.js';
 import { morphInto } from '../../core/reconcile.js';
 import { detailState } from './model.js';
+import { detailSkeletonHtml } from '../shared/skeleton.js';
 
 // design/HANDOVER.md §14 "More than 50 episodes": squares up to 50; past that,
 // a compact bar plus a "jump to episode" field, with only the last 18 squares
@@ -51,7 +52,7 @@ function episodesBlockHtml(entry) {
     return html`
       <p class="detail-lbl">Episodes</p>
       <div class="row detail-ep-summary"><span>Progress</span><span class="num">${watched} watched${total ? ` of ${total}` : ' · no total known'}</span></div>
-      <div class="barfallback"><i style="width:${pct}%"></i></div>
+      <div class="barfallback"><i style="--p:${pct / 100}"></i></div>
       <div class="row detail-jump-row">
         <span class="field detail-jump-field">Jump to episode<input type="number" min="0" ${total ? html`max="${total}"` : ''} data-action="detail-jump-episode" aria-label="Jump to episode"><kbd>↵</kbd></span>
         <button class="btn btn-ghost sm rip-host" data-action="detail-mark-next">Mark episode ${nextEp}</button>
@@ -155,8 +156,10 @@ function metaCell(label, value) {
 export function renderDetailOverlay(container, state) {
   const shownId = container.dataset.anilistId;
   delete container.dataset.anilistId;
+  container.removeAttribute('aria-busy');
   if (state.status === 'loading') {
-    container.innerHTML = String(html`<div class="empty-state"><h2>Loading…</h2><p>Fetching details from AniList.</p></div>`);
+    container.setAttribute('aria-busy', 'true');
+    container.innerHTML = String(detailSkeletonHtml({ coverNow: Boolean(state.coverNow) }));
     return;
   }
   if (state.status === 'error') {

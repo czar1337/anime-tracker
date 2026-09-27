@@ -9,7 +9,6 @@ import { episodesWatchedInYear } from '../../statsLogic.js';
 import { html, cls, cssUrl } from '../../core/html.js';
 import { morphInto } from '../../core/reconcile.js';
 import { coverSrc, cardHtml } from '../library/view.js';
-import { animateProgressBars } from '../shared/animate.js';
 
 // Which Watching entry the hero features, and in which mode: a series with an
 // unseen aired episode wins ("new"), otherwise the highest completion ratio
@@ -51,7 +50,7 @@ export function heroHtml(pick, { tall = false } = {}) {
         <div class="kick"><i></i>${mode === 'new' ? 'New episode' : 'Pick up where you left off'}</div>
         <h2 data-action="show-detail" data-detail-id="${entry.anilistId}">${entry.titleEnglish || entry.titleRomaji}</h2>
         ${metaBits.length ? html`<div class="sub">${metaBits.join(' · ')}</div>` : ''}
-        ${total ? html`<div class="track"><i style="width:${Math.min(100, (entry.episodesWatched / total) * 100)}%"></i></div>` : ''}
+        ${total ? html`<div class="track"><i style="--p:${Math.min(1, entry.episodesWatched / total)}"></i></div>` : ''}
         <div class="n">${heroProgressLine(entry)}</div>
         <div class="row">
           ${canMarkNext && html`<button class="btn btn-primary rip-host" data-action="increment" data-hero-id="${entry.anilistId}">Mark episode ${nextEp} watched</button>`}
@@ -125,5 +124,4 @@ export function renderHome(container) {
         </div>
       </div>
     </div>`);
-  animateProgressBars(container);
 }
