@@ -11,6 +11,7 @@
     "test:e2e:install": "playwright install chromium",
     "test:e2e": "playwright test",
     "perf": "node scripts/perf.js",
+    "eval:discover": "node scripts/eval-discover.js",
     "check:copy": "node scripts/check-copy-registry.js",
     "generate:font-manifest": "node scripts/generate-font-manifest.js",
     "test:unit": "node --test \"tests/unit/**/*.test.js\""

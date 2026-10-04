@@ -13,7 +13,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
-| 6 Discover rebuild | `v3/6-discover` | in progress | Next: read the Phase 6 brief and the Discover spec, plan the engine (6a), corpus (6b), UI (6c) |
+| 6 Discover rebuild | `v3/6-discover` | in progress | Baseline eval committed. Next: regression tests (spec 1), corpus v2, engine |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
@@ -245,6 +245,28 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
   checkpoint also found and fixed a `data-list` collision (Season chart add buttons vs
   the list segments) and a flaky toast assertion.
 - **Deferred:** nothing.
+
+## Phase 6 work log: Discover eval
+
+`npm run eval:discover` (`scripts/eval-discover.js`) on a read-only copy of the real
+data (222 entries, 161 rated, 49 rated 8+ in 38 franchises; corpus 3,052; 16 events),
+`--now 2026-10-04T12:00`. One leave-one-out fold per liked franchise: every library
+entry in it is hidden, and a hit is any member in the top 20. v2 had no "Top picks", so
+its personal "Because you liked..." shelf at 20 cards stands in. Its unseeded
+serendipity is seeded per day so the run repeats.
+
+**Baseline, v2.3.0 engine, corpus v1** (`evidence/6/eval-v2-baseline.json`):
+
+| run | HitRate@20 | MRR | diversity | franchises | genres | coverage | median bayes | sanity | max anchor share | engine ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| v2 | 0.105 | 0.021 | 0.841 | 20 | 11 | 0.026 | 7.29 | 61 | 1.00 | 55.0 |
+
+Sanity breakdown: top 20 has 1 unreleased (Kagurabachi), 2 from owned franchises, 5
+under the quality floor (Super Dragon Ball Heroes at 5.49 adjusted); the rails show 6
+unreleased and 16 owned-franchise cards; 16 franchises appear twice on the page; with
+"Year: 2015+" 15 cards are older (Kingdom 2012 among them). "Because you liked" cites
+Attack on Titan or JUJUTSU KAISEN on 67% of its cards, "From the studio" one anchor on
+100%.
 
 ## Evidence index
 
