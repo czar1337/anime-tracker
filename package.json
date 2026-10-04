@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node scripts/check-css-tokens.js && node tests/run-all.js && node --test \"tests/unit/**/*.test.js\"",
+    "test": "node scripts/check-css-tokens.js && node --test \"tests/unit/**/*.test.{js,mjs}\"",
     "check:css": "node scripts/check-css-tokens.js",
     "test:e2e:install": "playwright install chromium",
     "test:e2e": "playwright test",
@@ -14,7 +14,7 @@
     "eval:discover": "node scripts/eval-discover.js",
     "check:copy": "node scripts/check-copy-registry.js",
     "generate:font-manifest": "node scripts/generate-font-manifest.js",
-    "test:unit": "node --test \"tests/unit/**/*.test.js\""
+    "test:unit": "node --test \"tests/unit/**/*.test.{js,mjs}\""
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
