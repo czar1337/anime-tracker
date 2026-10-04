@@ -1348,6 +1348,17 @@ function bindCoverImageLoad() {
     },
     true
   );
+  // v3 finish: a cover that cannot load leaves the title's first letter, not
+  // an endless shimmer.
+  document.addEventListener(
+    'error',
+    (e) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement) || !img.closest('.card-cover-wrap')) return;
+      img.closest('.cover-media')?.classList.add('cover-failed');
+    },
+    true
+  );
 }
 
 export function initEvents({ initialList, persistFn }) {

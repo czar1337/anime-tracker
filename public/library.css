@@ -87,6 +87,14 @@
 .card .dot { display: none; }
 .card-toolbar { gap: var(--sp-1); }
 
+/* A cover that failed (or never existed): the title's first letter. */
+.cover-media.cover-failed .skeleton, .cover-media.cover-failed img { display: none; }
+.cover-media.cover-failed::before {
+  content: attr(data-initial); position: absolute; inset: 0; display: grid; place-items: center;
+  font: var(--t-display-s); color: var(--faint);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--text) 7%, var(--bg-elevated)), var(--card));
+}
+
 /* --- Compact grid ------------------------------------------------------------ */
 .card-grid.compact-layout { grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale) * .72), 1fr)); gap: var(--sp-3); }
 .card-grid.compact-layout .card .card-body { padding: var(--sp-2); gap: 2px; }
@@ -120,7 +128,9 @@
 .card-grid.list-layout > .card .new-inline { display: inline; color: var(--accent-lit); font: var(--t-meta); font-weight: var(--w-strong); }
 @media (max-width: 760px) {
   .card-grid.list-layout > .card .card-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "meta" "bar"; padding-right: 150px; row-gap: 2px; }
-  .card-grid.list-layout > .card .card-airing, .card-grid.list-layout > .card .card-list-score, .card-airing .new-inline { display: none; }
+  .card-grid.list-layout > .card .card-airing, .card-grid.list-layout > .card .card-list-score { display: none; }
+  .card-grid.list-layout > .card .card-airing:has(.new-inline) { display: flex; }
+  .card-grid.list-layout > .card .card-body { grid-template-areas: "title" "meta" "bar" "airing"; }
   .card-grid.list-layout > .card .card-toolbar .tb-btn[data-action="card-status-menu"] { display: none; }
   .card-grid.list-layout > .card .card-title { -webkit-line-clamp: 2; line-clamp: 2; }
 }

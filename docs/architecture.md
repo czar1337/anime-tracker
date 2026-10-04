@@ -15,7 +15,8 @@ The lasting rules of Anime Tracker, as v3.0 left them. The program history lives
 - **The browser talks to AniList; the server stores.** The server's own outbound calls
   are few: it downloads cover images from AniList's image host when the page asks
   (`coverDownload.js`, AniList images only, 5 MB cap), fills the local poster cache the
-  same way (`src/routes/posters.js`, `/api/poster`), checks `version.json` on GitHub
+  same way in the background after a first view (`src/routes/posters.js`, `/api/poster`;
+  a miss redirects the page to AniList), checks `version.json` on GitHub
   once a day, and, when the user turns them on, checks for new episodes in the
   background (`src/services/notifier.js`).
 - **The exe** is a Node single executable (`scripts/build-exe.js`): the runtime, an
@@ -32,7 +33,7 @@ Everything lives in the data folder (`%APPDATA%\anime-tracker` on Windows, or
 | Class | What | Rules |
 | --- | --- | --- |
 | A, the user's own | `library.json` (entries, preferences, dismissed items, tags, lists, watch history, imports), `events.jsonl` (append-only activity log), `counters.json` | Never evicted, never pruned. Exported, snapshotted, checksummed and restored as registered stores (`public/js/exportRegistry.js` `CLASS_A_STORES`). |
-| B, regenerable | the Discover corpus, airing, upcoming and recommendation caches, the taste cache, cover colours, the poster cache (`poster-cache/`, capped by `POSTER_CACHE`, oldest first) | May be evicted under disk pressure, in `classBEviction.js` `CLASS_B_STORES` order; the corpus never loses titles that are in the library. |
+| B, regenerable | the Discover corpus, airing, upcoming and recommendation caches, the taste cache, cover colours; the poster cache (`poster-cache/`) | May be evicted under disk pressure, in `classBEviction.js` `CLASS_B_STORES` order; the corpus never loses titles that are in the library. The poster cache is outside that registry: it keeps itself inside its own caps (`POSTER_CACHE`, oldest files first). |
 | C, safety copies | backups of `library.json`, verified snapshots | Kept by tiers; the pinned snapshot never rotates; an invalid file is quarantined, never deleted. |
 
 Invariants no change may break:

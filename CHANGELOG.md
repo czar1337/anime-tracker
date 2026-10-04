@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased (v3 finish, first run)
+
+### Swipe through (Triage)
+
+- **Fix: after the first answer the card area went empty**, while the keys kept answering cards you could not see. Every card now shows, every time.
+- A big poster card with the title, year, format, genres, a short synopsis and why it was picked ("Similar to X, which you rated 9").
+- Drag the card with the mouse or a finger: right for Want to watch, left for Not for me, up for Seen it, down to skip. The keys still work (W, S, X, →, Z), and ← ↑ ↓ follow the drag. The card flies off the way you sent it; Undo brings it back from that side.
+- "4 / 20" shows how far into the session you are, and after 20 a summary says what you did, with Keep going. Closing early shows the same summary as a short message.
+- A loading card while titles are found, "Fetch more" when a batch runs out, and Try again when Discover could not load. The answer buttons are only there when there is a card to answer.
+
+### A fresher look everywhere
+
+- One visible focus ring on every button, tab and field, and proper disabled states.
+- Icon buttons in Discover show a small tooltip on hover and on keyboard focus.
+- Posters from Discover and Swipe through are kept on your computer after the first view, so they appear at once next time, even offline.
+- **Home: Continue watching shows each series' poster sharply** instead of a blurred smear, with the full title on two lines and a progress bar.
+
+### Library
+
+- **Tabs for every list, with counts**: Watching, New episodes, Watchlist, Completed, On hold, Dropped and All. The Library remembers the one you were on. New episodes counts the same series as the number on the Library tab.
+- **Watched is now called Completed and Paused is called On hold**, the names AniList and MyAnimeList use. Nothing moves; only the names change.
+- **One Filters button** replaces the rows of genre chips and dropdowns. It shows how many filters are on, opens a panel with all of them, and each active filter shows as a chip you can remove on its own. Search and sort stay in the bar.
+- **Clearer cards**: titles get two lines (the full title is in the tooltip), progress reads "Ep 6 / 24" over its bar ("Ep 8 / ?" when the total is not known yet), new episodes are a separate "18 new" badge on the cover, and the next episode reads "Ep 7 in 3d 1h" on its own line instead of being cut off.
+- Hovering a card shows +1, Open and its menus; +1 still comes with Undo.
+- A compact grid next to the comfortable one, and a real list view: poster, title, progress, next episode, your score and +1 on every row.
+- The big "Pick up where you left off" banner moved to Home only, so the Library starts with your series.
+- The arrow keys move between cards; + marks the next episode and Enter opens the series, which comes back to the same place in the list when you close it.
+
 ## 3.0.0
 
 A large release: Discover is rebuilt from the ground up, the app is faster and calmer to use, it keeps much more of your history, and your data is better protected. Your library carries over by itself: the first start takes a verified snapshot of it, keeps that snapshot permanently, then upgrades it. Nothing in it is removed.

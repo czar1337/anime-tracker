@@ -342,7 +342,7 @@ function renderBulkActionBar(list) {
 function bulkMoreMenuHtml(list) {
   const tags = Store.getTags();
   const lists = Store.getCustomLists();
-  const showProgress = list === 'watching';
+  const showProgress = list === 'watching' || list === 'new';
 
   const scoreDots = Array.from({ length: 10 }, (_, i) => i + 1)
     .map((i) => `<button class="score-dot" data-action="bulk-set-score" data-score="${i}" title="${i}" aria-label="Score ${i}">${i}</button>`)
@@ -424,7 +424,7 @@ function renderBulkMoreMenu(container, list) {
 function renderAiringStatus(list) {
   const el = document.getElementById('airing-status');
   if (!el) return;
-  if (list !== 'watching') {
+  if (list !== 'watching' && list !== 'new') {
     el.hidden = true;
     return;
   }

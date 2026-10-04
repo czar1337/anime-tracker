@@ -762,6 +762,12 @@ export const COPY_REGISTRY = {
   'library.resultFiltered': same((p) => `${p.n} of ${p.total} series`),
   'library.reverseOrder': same((p) => `${p.label} (click to reverse)`),
   'card.progress': same((p) => (p.total ? `Ep ${p.n} / ${p.total}` : `Ep ${p.n} / ?`)),
+  // The visible label, in two parts around the number (so a +1 can swap it).
+  'card.progressEp': same('Ep'),
+  'card.progressOf': same((p) => `/ ${p.total || '?'}`),
+  'bulk.moveTitle': same((p) => `Move ${p.n} series to ${p.list}?`),
+  'bulk.moveBody': same('Watched episodes and scores are kept.'),
+  'bulk.moveConfirm': same((p) => `Move to ${p.list}`),
   'card.progressUnknown': same('The total is not announced yet'),
   'card.nextAiring': same((p) => `Ep ${p.episode} in ${p.days ? `${p.days}d ` : ''}${p.hours}h`),
   'card.openDetail': same((p) => `Open ${p.title}`),

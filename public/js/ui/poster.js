@@ -1,4 +1,5 @@
-// Poster (v3 finish, Section 1): every cover image in the app is one of these.
+// Poster (v3 finish, Section 1): the shared cover image (Triage, Home; the
+// Library cards keep their own cover markup with the same first-letter fallback).
 //
 //  - It sits on a placeholder from the first frame: a soft panel with the
 //    title's initial, so a slow or missing image is never an empty box or a
@@ -6,7 +7,8 @@
 //  - The image lazy-loads (eager for the one above the fold), fades in when it
 //    has decoded, and if it fails the placeholder simply stays.
 //  - AniList posters go through the local poster cache (/api/poster, see
-//    src/routes/posters.js): the first view loads from AniList as before, every
+//    src/routes/posters.js): the first view is redirected to AniList as before
+//    while the server caches the image in the background; every
 //    later one comes from disk, at once and offline.
 //
 // The wrapper carries data-morph-key, so a re-render of the card around it

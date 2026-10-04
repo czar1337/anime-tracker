@@ -33,8 +33,9 @@ export function coverSrc(entry) {
 // The cover image and its skeleton sit under data-morph-key=src: once the image
 // has faded in (events.js removes the skeleton), a re-render of the card leaves
 // that subtree alone instead of putting the skeleton back.
-function coverMediaHtml(src) {
-  return html`<div class="cover-media" data-morph-key="${src || 'none'}"><div class="skeleton"></div>${src && html`<img src="${src}" alt="" loading="lazy">`}</div>`;
+function coverMediaHtml(src, title = '') {
+  const initial = (String(title).trim()[0] || '?').toUpperCase();
+  return html`<div class="${src ? 'cover-media' : 'cover-media cover-failed'}" data-initial="${initial}" data-morph-key="${src || 'none'}"><div class="skeleton"></div>${src && html`<img src="${src}" alt="" loading="lazy">`}</div>`;
 }
 
 // What an unseen-episodes badge last showed per title, so the badge pops only
@@ -85,7 +86,7 @@ function progressLabelHtml(entry, { editable }) {
   const total = entry.totalEpisodes;
   const n = entry.episodesWatched;
   // "Ep 6 / 24": the number in its own slot, so a +1 can swap just the digit.
-  const inner = html`Ep <span class="ep-slot"><span class="ep-now">${n}</span></span> / ${total || '?'}`;
+  const inner = html`${copy('card.progressEp')} <span class="ep-slot"><span class="ep-now">${n}</span></span> ${copy('card.progressOf', undefined, { total })}`;
   const label = copy('card.progress', undefined, { n, total });
   if (editable) {
     const tip = total ? copy('card.editEpisode') : `${copy('card.progressUnknown')}. ${copy('card.editEpisode')}`;
@@ -165,7 +166,7 @@ export function cardHtml(entry, list, seasonLabel = null) {
   return html`<article class="${cls('card', seasonLabel && 'season-row', isSelected && 'selected', isFinished && 'finished', completingIds.has(entry.anilistId) && 'completing', list === 'dropped' && 'dropped', unseen > 0 && 'has-new')}" data-id="${entry.anilistId}" data-card-list="${list}" tabindex="0" aria-label="${title}">
       <svg class="hold-ring" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle></svg>
       <div class="card-cover-wrap">
-        ${coverMediaHtml(src)}
+        ${coverMediaHtml(src, title)}
         ${seasonLabel
           ? html`<span class="card-format-badge season-badge">${seasonLabel}</span>`
           : entry.format ? html`<span class="card-format-badge">${entry.format}</span>` : ''}

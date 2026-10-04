@@ -984,10 +984,11 @@ export function bindBulkActionBar() {
     if (moveBtn) {
       const status = moveBtn.dataset.status;
       const count = Render.getSelectedIds().length;
+      const listName = copy(`list.${status}`);
       confirmDialog({
-        title: `Move ${count} series to ${status}?`,
-        body: 'Watched episodes and scores are kept.',
-        confirmLabel: `Move to ${status}`,
+        title: copy('bulk.moveTitle', undefined, { n: count, list: listName }),
+        body: copy('bulk.moveBody'),
+        confirmLabel: copy('bulk.moveConfirm', undefined, { list: listName }),
         onConfirm: () => handleBulkMove(status),
       });
       return;

@@ -182,9 +182,13 @@ function rebuild({ freshTaste = false } = {}) {
 function recompute() {
   if (!discoverState.corpusEntries) return rebuild();
   performance.mark('discover:answer-start');
-  compute();
   // While Triage is open only its queue is redrawn; the page catches up
-  // when it closes.
+  // when it closes. With Top picks grown for the session, the queue comes
+  // from its own build, so the page's build waits too.
+  if (triage.open && triage.extra > 0 && discoverState.result) {
+    triage.pool = null;
+    triage.pageStale = true;
+  } else compute();
   if (triage.open) renderTriageNow();
   else renderNow();
   performance.measure('discover:answer', 'discover:answer-start');
@@ -372,6 +376,7 @@ const triage = {
   session: null,
   extra: 0, // how far Top picks are grown for the queue
   pool: null, // the grown build, dropped on every compute()
+  pageStale: false, // answers since the page's own build (it rebuilds on close)
   exhausted: false, // growing found nothing new
   front: null, // an undone card goes back to the front
   enterFrom: null, // ...and flies back in from where it left
@@ -395,9 +400,12 @@ function triagePoolResult() {
 
 // The queue is the page itself, in rail order: Top picks first. Owned
 // franchises (Continue) and unreleased titles cannot be answered.
+let lastQueue = { key: null, out: [] };
 function triageQueue() {
   const r = triagePoolResult();
   if (!r) return [];
+  const key = [Store.revision, triage.seen.size, triage.skipped.size, triage.front];
+  if (lastQueue.r === r && lastQueue.key.every((k, i) => k === key[i])) return lastQueue.out;
   const out = [];
   const ids = new Set();
   const push = (c) => {
@@ -410,6 +418,7 @@ function triageQueue() {
   for (const rail of r.rails) if (rail.id !== 'continue-franchise' && rail.id !== 'coming-soon') rail.cards.forEach(push);
   const i = triage.front == null ? -1 : out.findIndex((c) => c.id === triage.front);
   if (i > 0) out.unshift(...out.splice(i, 1));
+  lastQueue = { r, key, out };
   return out;
 }
 
@@ -488,6 +497,20 @@ function renderTriageNow() {
     playTriageEnter(fresh, triage.enterFrom);
   }
   triage.enterFrom = null;
+  keepTriageFocus(container, phase);
+}
+
+// A control that had focus can be replaced (a rating given, the summary
+// shown): focus goes to what is there now, never to the page behind.
+function keepTriageFocus(container, phase) {
+  const active = document.activeElement;
+  // A card on its way out still holds focus until it is removed.
+  if (!triage.open || (active && active !== document.body && active.isConnected && !active.closest('.leaving'))) return;
+  const target = (triage.rating && container.querySelector('[data-action="triage-rate"]'))
+    || (phase === 'card' && liveStageNode(container))
+    || container.querySelector('.triage-controls .btn-primary')
+    || container.querySelector('.triage-controls button:not([disabled])');
+  target?.focus({ preventScroll: true });
 }
 
 export function openTriage() {
@@ -496,6 +519,8 @@ export function openTriage() {
   triage.lastDismissed = null;
   triage.exhausted = false;
   triage.front = null;
+  triage.extra = 0;
+  triage.pool = null;
   triage.session = newTriageSession();
   // Undo reaches back only within this Triage session.
   triage.history = [];
@@ -679,6 +704,12 @@ function bindTriageSwipe(stage) {
     if (!drag || e.pointerId !== drag.id) return;
     const { el, dx, dy, moved, t0 } = drag;
     drag = null;
+    // A background rebuild can swap the card while it is held: a drag only
+    // ever answers the card it started on.
+    if (!el.isConnected || el !== liveStageNode(document.getElementById('triage-body'))) {
+      el.classList.remove('dragging');
+      return;
+    }
     const dist = Math.max(Math.abs(dx), Math.abs(dy));
     const speed = dist / Math.max(1, performance.now() - t0);
     const answer = moved && e.type === 'pointerup' && (dist >= TRIAGE.swipeDistancePx || (dist >= TRIAGE.swipeFlickPx && speed >= TRIAGE.swipeFlickSpeed)) ? swipeDirection(dx, dy) : null;
@@ -703,7 +734,7 @@ function bindTriage() {
     const a = el.dataset.action;
     // A double click is one answer, not two (the second click would land on
     // the next card's button, which is the same node).
-    if (e.detail > 1 && /^triage-(want|seen|not-for-me|skip|rate|undo)$/.test(a)) return;
+    if (e.detail > 1 && /^triage-(want|seen|not-for-me|skip)$/.test(a)) return;
     if (a === 'triage-want') triageAnswer('want');
     else if (a === 'triage-seen') startTriageRating();
     else if (a === 'triage-rate') triageAnswer('seen-it', { score: el.dataset.score ? Number(el.dataset.score) : null });
@@ -732,6 +763,10 @@ function bindTriage() {
     const s = triage.session;
     // A session closed before its summary still says what it did.
     if (s.answered > 0 && s.answered < s.goal) Render.showToast(copy('triage.summaryToast', undefined, { n: s.answered, added: s.added }));
+    if (triage.pageStale) {
+      triage.pageStale = false;
+      if (discoverState.corpusEntries) compute();
+    }
     renderNow();
   });
   // W want, S seen it (then 1-9, 0 for 10, Enter for no rating), X not for

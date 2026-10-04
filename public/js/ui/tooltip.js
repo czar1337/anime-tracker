@@ -17,6 +17,7 @@ const GAP = 8;
 let tip = null;
 let current = null;
 let timer = 0;
+let watch = 0;
 
 function bubble() {
   if (!tip) {
@@ -45,6 +46,11 @@ function place(el) {
 function show(el) {
   const text = el.dataset.tip || el.getAttribute('aria-label');
   if (!text || !el.isConnected) return;
+  clearInterval(watch);
+  // A re-render can remove the element without a pointerout.
+  watch = setInterval(() => {
+    if (!current?.isConnected) hideTooltip();
+  }, 500);
   const t = bubble();
   const host = el.closest('dialog[open]') || document.body;
   if (t.parentNode !== host) host.appendChild(t);
@@ -59,6 +65,7 @@ function show(el) {
 
 export function hideTooltip() {
   clearTimeout(timer);
+  clearInterval(watch);
   if (current?.getAttribute('aria-describedby') === 'ui-tooltip') current.removeAttribute('aria-describedby');
   current = null;
   if (tip) tip.hidden = true;
@@ -75,6 +82,9 @@ export function installTooltips() {
     hideTooltip();
     timer = setTimeout(() => show(el), UI_TIMING.tooltipDelayMs);
   });
+  document.addEventListener('pointermove', () => {
+    if (current && !current.isConnected) hideTooltip();
+  }, { passive: true });
   document.addEventListener('pointerout', (e) => {
     const el = e.target.closest?.('[data-tip]');
     if (el && !el.contains(e.relatedTarget)) hideTooltip();

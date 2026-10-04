@@ -79,6 +79,8 @@ test('20 answers in a row by keyboard, every card shown, then the summary, Undo 
         await expect(page.locator('.triage-rate')).toBeVisible();
         await page.keyboard.press(String((i % 9) + 1));
       }
+      // Focus stays in Triage when the control that had it is replaced.
+      await expect.poll(() => page.evaluate(() => document.activeElement !== document.body && document.querySelector('#triage-overlay').contains(document.activeElement))).toBe(true);
       // Exactly one live card (or the summary) on the stage, never none.
       await expect(page.locator(LIVE).or(page.locator('#triage-body .triage-message'))).toHaveCount(1);
     }
@@ -86,6 +88,7 @@ test('20 answers in a row by keyboard, every card shown, then the summary, Undo 
     await expect(page.locator('#triage-body .triage-message')).toContainText('Session done');
     await expect(page.locator('#triage-body .triage-message')).toContainText('20 answered');
     await expect(page.locator('[data-action="triage-want"]')).toHaveCount(0);
+    await expect(page.locator('[data-action="triage-keep-going"]')).toBeFocused();
     // Undo brings the last card back, shown.
     await page.keyboard.press('z');
     await expect(page.locator('.triage-counter')).toHaveText('19 / 20');

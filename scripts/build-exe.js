@@ -2,7 +2,9 @@
 // Builds a single portable AnimeTracker.exe: the Node runtime + server.js +
 // every file under public/ (including the vendored OCR engine) embedded via
 // Node's Single Executable Applications (SEA) support. Run with:
-//   node scripts/build-exe.js
+//   node scripts/build-exe.js [--out <folder>]
+// (--out: build somewhere other than dist/, e.g. while dist/AnimeTracker.exe
+// is running and cannot be overwritten)
 // Requires Node >= 20 with SEA support and the pinned devDependencies esbuild,
 // postject and rcedit (v3 Phase 7: nothing is fetched with `npx -y` or
 // `@latest` at build time any more).
@@ -22,7 +24,8 @@ const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
-const OUT_DIR = path.join(ROOT, 'dist');
+const outArg = process.argv.indexOf('--out');
+const OUT_DIR = outArg > 0 && process.argv[outArg + 1] ? path.resolve(process.argv[outArg + 1]) : path.join(ROOT, 'dist');
 const CONFIG_PATH = path.join(OUT_DIR, 'sea-config.json');
 const BLOB_PATH = path.join(OUT_DIR, 'sea-prep.blob');
 const BUNDLED_MAIN_PATH = path.join(OUT_DIR, 'server.bundled.js');
