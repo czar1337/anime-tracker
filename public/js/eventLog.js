@@ -20,7 +20,7 @@
 // deterministic and need no browser.
 
 import { TIME_SEMANTICS } from '../../config/tuning.js';
-import { EVENT_SCHEMA_VERSION, isKnownEventType, anilistIdToAnimeId, hasRequiredEventFields } from './eventTypes.js';
+import { EVENT_SCHEMA_VERSION, EVENT_SOURCES, isKnownEventType, anilistIdToAnimeId, hasRequiredEventFields } from './eventTypes.js';
 
 // ---------------------------------------------------------------------------
 // ULID — sortable, and the dedup key
@@ -145,7 +145,10 @@ export { hasRequiredEventFields };
 // Builds one event. `fields` carries the type-specific parts (animeId,
 // episode, from, to, key, meta); everything identity- and time-related is
 // stamped here, once, and never recomputed.
-export function buildEvent(type, fields, { ulid, sessionId, now = () => new Date() }) {
+// v3 Phase 5: every new event carries meta.source (eventTypes.js
+// EVENT_SOURCES), 'live' unless the caller says otherwise.
+export function buildEvent(type, fields, { ulid, sessionId, now = () => new Date(), source = 'live' }) {
+  if (!EVENT_SOURCES.includes(source)) throw new Error(`Unknown event source: ${source}`);
   if (!isKnownEventType(type)) throw new Error(`Unknown event type: ${type}`);
   const at = now();
   const event = {
@@ -162,6 +165,7 @@ export function buildEvent(type, fields, { ulid, sessionId, now = () => new Date
       if (v !== undefined) event[k] = v;
     }
   }
+  event.meta = { ...(event.meta && typeof event.meta === 'object' ? event.meta : {}), source };
   return event;
 }
 
@@ -294,10 +298,10 @@ export function initEventLog({ post, storage = globalThis.localStorage, randomIn
 // recorded must never break the user's actual action, which is the thing that
 // matters. Returns the event (or null) for tests and for callers that want to
 // batch.
-export function record(type, fields = {}) {
+export function record(type, fields = {}, { source = 'live' } = {}) {
   if (!initialized) return null;
   try {
-    const event = buildEvent(type, fields, { ulid, sessionId, now: () => new Date() });
+    const event = buildEvent(type, fields, { ulid, sessionId, now: () => new Date(), source });
     outbox.add(event);
     sessionEvents.push(event);
     return event;
@@ -309,8 +313,8 @@ export function record(type, fields = {}) {
 
 // Convenience for the common "this event is about a library entry" case, so no
 // call site improvises the numeric-id -> string-animeId conversion.
-export function recordForEntry(type, anilistId, fields = {}) {
-  return record(type, { animeId: anilistIdToAnimeId(anilistId), ...fields });
+export function recordForEntry(type, anilistId, fields = {}, options = {}) {
+  return record(type, { animeId: anilistIdToAnimeId(anilistId), ...fields }, options);
 }
 
 export function flush() {

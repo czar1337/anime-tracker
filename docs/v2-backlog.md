@@ -169,3 +169,9 @@ real, recorded, and not any single substep's job to resolve on its own.
   exactly this. Same category of omission as shelf 10 above: not a defect,
   only actionable if a streaming-availability data source is ever added
   (e.g. a third-party API), which is out of scope for this substep.
+  > **Correction (v3 Phase 5, 2026-09-27):** the claim above is wrong. AniList's
+  > `Media` type does carry streaming data: `externalLinks { site url type
+  > language isDisabled icon color }` (type `STREAMING` for services) and
+  > `streamingEpisodes { title thumbnail url site }`. v3 shows them in the detail
+  > drawer as "Where to watch". They are not region-aware, which is why a
+  > Discover filter on them is still not offered.

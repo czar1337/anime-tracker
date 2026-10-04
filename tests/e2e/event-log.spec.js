@@ -228,7 +228,7 @@ test('rule 3a: a NON-EMPTY event log and the counters both survive export, snaps
     // Export carries both new stores, with real content — an empty log would
     // pass this trivially and prove nothing, which is why it is seeded above.
     const exported = await (await fetch(`${server.url}/api/export`)).json();
-    expect(Object.keys(exported.stores).sort()).toEqual(['counters', 'customLists', 'dismissedItems', 'entries', 'eventLog', 'preferences', 'tags']);
+    expect(Object.keys(exported.stores).sort()).toEqual(['counters', 'customLists', 'dismissedItems', 'entries', 'eventLog', 'imports', 'preferences', 'tags', 'watchHistory']);
     expect(exported.stores.eventLog.map((e) => e.id)).toEqual(['01KKA', '01KKB']);
     expect(exported.stores.counters.fromLog.totalEpisodes).toBe(4);
 
@@ -463,7 +463,7 @@ test('a snapshot written BEFORE P1.5 (no eventLog/counters stores) is still list
     const body = await res.json();
     expect(body.verified).toBe(true);
     // This snapshot predates every store P1.5 AND P1.7 added.
-    expect(body.skippedStores.sort()).toEqual(['counters', 'customLists', 'eventLog', 'tags']);
+    expect(body.skippedStores.sort()).toEqual(['counters', 'customLists', 'eventLog', 'imports', 'tags', 'watchHistory']);
 
     // 3) The library came back from the snapshot...
     const lib = await (await fetch(`${server.url}/api/library`)).json();

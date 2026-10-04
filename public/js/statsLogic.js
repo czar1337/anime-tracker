@@ -4,6 +4,7 @@
 // both from the browser and from tests (Node, via dynamic import()).
 
 import { durationFallbackKeyForFormat } from './eventCounters.js';
+import { eventSource } from './eventTypes.js';
 import { TIME_SEMANTICS } from '../../config/tuning.js';
 
 // v3 Phase 1 item 17: one duration rule everywhere. The API's per-episode
@@ -47,6 +48,9 @@ export function episodesWatchedInYear(events, entries, year, { logStartTs } = {}
     }
     if (computeStart && Number.isFinite(e.ts) && e.ts < firstEventTs) firstEventTs = e.ts;
     if (e.type !== 'episode_watched') continue;
+    // v3 Phase 5: an import records history from before it, not this year's
+    // watching (a 300-title import is not 3,000 episodes this year).
+    if (eventSource(e) === 'import') continue;
     if (!String(e.localDay || '').startsWith(`${year}-`)) continue;
     const delta = (Number(e.to) || 0) - (Number(e.from) || 0);
     const key = e.animeId ?? '?';
@@ -117,4 +121,66 @@ export function computeLibraryStats(entries, counts, now = new Date(), { events 
     genreCounts,
     topRatedTitle: topRated ? topRated.titleEnglish || topRated.titleRomaji : null,
   };
+}
+
+// v3 Phase 5: streaks and sessions read live events only: the days and the
+// sittings in which the user actually marked episodes, one at a time. Imports,
+// bulk actions and backfills (eventTypes.js eventSource) never make a streak.
+function liveEpisodeEvents(events, { forwardOnly = true } = {}) {
+  const seen = new Set();
+  const out = [];
+  for (const e of Array.isArray(events) ? events : []) {
+    if (!e || e.type !== 'episode_watched' || eventSource(e) !== 'live') continue;
+    if (forwardOnly && (Number(e.to) || 0) <= (Number(e.from) || 0)) continue; // an undo or a step back is not watching
+    if (e.id != null) {
+      if (seen.has(e.id)) continue;
+      seen.add(e.id);
+    }
+    out.push(e);
+  }
+  return out.sort((a, b) => a.ts - b.ts);
+}
+
+const DAY_MS = 86400000;
+const dayNumber = (localDay) => Math.round(Date.parse(`${localDay}T00:00:00Z`) / DAY_MS);
+
+// Consecutive local days with at least one live episode. `today` is a
+// localDay string (eventLog.js computeLocalDay, with the 04:00 rollover); the
+// current streak still counts if the last active day was yesterday.
+export function watchStreaks(events, today) {
+  // A day counts when its live progress nets above zero, so a +1 that was
+  // undone the same day does not make it an active day.
+  const netByDay = new Map();
+  for (const e of liveEpisodeEvents(events, { forwardOnly: false })) {
+    if (!e.localDay) continue;
+    netByDay.set(e.localDay, (netByDay.get(e.localDay) || 0) + (Number(e.to) || 0) - (Number(e.from) || 0));
+  }
+  const days = [...netByDay].filter(([, net]) => net > 0).map(([day]) => dayNumber(day)).filter(Number.isFinite).sort((a, b) => a - b);
+  let longest = 0;
+  let run = 0;
+  for (let i = 0; i < days.length; i++) {
+    run = i > 0 && days[i] === days[i - 1] + 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+  }
+  const last = days.at(-1);
+  const todayN = dayNumber(today);
+  const current = last !== undefined && todayN - last <= 1 ? run : 0;
+  return { current, longest };
+}
+
+// Sittings: live episodes no more than `gapMinutes` apart
+// (TIME_SEMANTICS.sessionGapMinutes). Each is { start, end, episodes }.
+export function watchSessions(events, gapMinutes = TIME_SEMANTICS.sessionGapMinutes) {
+  const sessions = [];
+  for (const e of liveEpisodeEvents(events)) {
+    const episodes = (Number(e.to) || 0) - (Number(e.from) || 0);
+    const last = sessions.at(-1);
+    if (last && e.ts - last.end <= gapMinutes * 60000) {
+      last.end = e.ts;
+      last.episodes += episodes;
+    } else {
+      sessions.push({ start: e.ts, end: e.ts, episodes });
+    }
+  }
+  return sessions;
 }

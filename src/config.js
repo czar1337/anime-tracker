@@ -44,6 +44,11 @@ const TASTE_PROFILE_CACHE_FILE = path.join(DATA_DIR, 'taste-profile-cache.json')
 // v3 Phase 4: each cover's dominant colour, for the dynamic accent (Class B).
 const COVER_HUES_FILE = path.join(DATA_DIR, 'cover-hues.json');
 const UPDATE_CHECK_FILE = path.join(DATA_DIR, 'update-check.json');
+// v3 Phase 5: background episode notifications (services/notifier.js): which
+// episode was last notified per series. Regenerable (Class B in spirit; tiny).
+const NOTIFIER_STATE_FILE = path.join(DATA_DIR, 'notifier-state.json');
+// The server's only AniList call (the notifier). Tests point it at a stub.
+const ANILIST_GRAPHQL_URL = process.env.ANIME_TRACKER_ANILIST_URL || 'https://graphql.anilist.co';
 // P1.5's two Class A stores outside library.json:
 //  - events.jsonl is append-only and grows indefinitely (the spec forbids
 //    pruning it), so it must never enter the backup rotation. Its redundancy
@@ -86,6 +91,8 @@ module.exports = {
   PUBLIC_DIR,
   CONFIG_DIR,
   DATA_DIR,
+  NOTIFIER_STATE_FILE,
+  ANILIST_GRAPHQL_URL,
   LEGACY_DATA_DIR,
   COVERS_DIR,
   BACKUPS_DIR,

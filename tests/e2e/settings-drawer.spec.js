@@ -155,7 +155,7 @@ test('the schema 15 migration: a retired theme carries over as its nearest one, 
     expect(before.appearanceV3.dark).toEqual({ type: 'preset', id: 'frost' });
     expect(before.appearance.dark).toEqual({ type: 'preset', id: 'holo-deck' }); // the old field, untouched
     const { snapshots } = await (await fetch(`${server.url}/api/snapshots`)).json();
-    expect(snapshots.some((s) => s.pinned && s.label === 'pre-migration-14-to-15')).toBe(true);
+    expect(snapshots.some((s) => s.pinned && s.label === 'pre-migration-14-to-16')).toBe(true);
 
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
@@ -194,6 +194,26 @@ test('the migration toast shows once; the list stays in Settings until "Got it"'
     await expect(page.locator('#toast-container .toast', { hasText: 'Your look was carried over' })).toHaveCount(0);
     await openSettings(page);
     await expect(page.locator('.settings-notice')).toContainText('Holo Deck');
+  } finally {
+    await server.stop();
+  }
+});
+
+test('background notifications: turn them on, pick the lists and quiet hours, all saved', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card');
+    await openSettings(page);
+    await page.click('#settings-tab-notifications');
+    await page.click('.seg[data-seg="notify-enabled"] button[data-value="on"]');
+    await page.locator('[data-action="notify-list"][data-list="paused"]').check();
+    await page.locator('[data-action="notify-quiet"]').uncheck();
+    await expect.poll(async () => (await prefs(server)).notifications).toEqual({ enabled: true, lists: ['watching', 'paused'], quietHours: null });
+    await page.locator('[data-action="notify-quiet"]').check();
+    await page.locator('[data-action="notify-quiet-from"]').fill('22:30');
+    await page.locator('[data-action="notify-quiet-from"]').dispatchEvent('change');
+    await expect.poll(async () => (await prefs(server)).notifications.quietHours).toEqual({ from: '22:30', to: '08:00' });
   } finally {
     await server.stop();
   }

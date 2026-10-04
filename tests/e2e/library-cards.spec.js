@@ -134,7 +134,7 @@ test('the context menu: right-click or Shift+F10, arrow keys, Escape returns foc
     await expect(card.locator('[data-action="card-menu"]')).toBeFocused();
 
     await card.locator('[data-action="card-status-menu"]').click();
-    await expect(page.getByRole('menuitem')).toHaveText(['Move to Watchlist', 'Move to Watched', 'Move to Dropped']);
+    await expect(page.getByRole('menuitem')).toHaveText(['Move to Watchlist', 'Move to Watched', 'Move to Dropped', 'Move to Paused']);
     await page.getByRole('menuitem', { name: 'Move to Watchlist' }).click();
     await expect(page.locator('#grid > .card[data-id="401"]')).toHaveCount(0);
     await expect

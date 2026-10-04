@@ -20,7 +20,10 @@ const {
   writeLibraryAtomic,
   readLibrary,
 } = require('../storage/library.js');
-const { buildClassASources } = require('../storage/snapshots.fs.js');
+const { buildClassASources, createSnapshotNow } = require('../storage/snapshots.fs.js');
+
+// "pre-import-<source>-<YYYY-MM-DD-HHMMSS>" (library import snapshots, v3 Phase 5).
+const IMPORT_LABEL = /^pre-import-(mal|anilist|file|screenshot)-\d{4}-\d{2}-\d{2}-\d{6}$/;
 const { computeAndSaveTasteProfile } = require('../services/tasteProfile.js');
 const { loadExportRegistryModule } = require('../services/browserModules.js');
 
@@ -129,6 +132,22 @@ module.exports = function register({ route, prefix }) {
         }
         throw err;
       }
+      // v3 Phase 5: an import (MAL, AniList, a file) names a pre-import
+      // snapshot. It is taken here, inside the same critical section as the
+      // If-Match check and the write, and pinned so it never rotates away;
+      // if it cannot be taken and verified, nothing is written.
+      let importSnapshot = null;
+      const importLabel = req.headers['x-save-kind'] === 'import' ? req.headers['x-import-label'] : null;
+      if (importLabel !== undefined && importLabel !== null) {
+        if (!IMPORT_LABEL.test(importLabel)) return { status: 400, body: { error: 'Invalid import snapshot label.' } };
+        try {
+          // Test-only: proves a failed pre-import snapshot writes nothing.
+          if (process.env.ANIME_TRACKER_TEST_FAIL_IMPORT_SNAPSHOT === '1') throw new Error('test: snapshot refused');
+          importSnapshot = await createSnapshotNow({ pinned: true, label: importLabel });
+        } catch (err) {
+          return { status: 500, body: { error: `Could not take the pre-import snapshot, so nothing was imported: ${err.message}` } };
+        }
+      }
       // An ordinary save coalesces its backup with others in the same minute;
       // a file import (the client marks it) always gets its own.
       writeLibraryAtomic(toWrite, { coalesceBackup: req.headers['x-save-kind'] !== 'import' && toWrite === body });
@@ -142,7 +161,7 @@ module.exports = function register({ route, prefix }) {
       // something" rule as the /api/events trigger below.
       const picksChanged =
         JSON.stringify(current.preferences?.coldStartPicks || []) !== JSON.stringify(toWrite.preferences?.coldStartPicks || []);
-      return { status: 200, body: { ok: true }, etag: computeLibraryEtag(toWrite), picksChanged };
+      return { status: 200, body: importSnapshot ? { ok: true, snapshot: importSnapshot.file, label: importSnapshot.label } : { ok: true }, etag: computeLibraryEtag(toWrite), picksChanged };
     });
     if (result.picksChanged) {
       try {

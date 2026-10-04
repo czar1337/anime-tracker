@@ -18,6 +18,8 @@ import { EventLog } from '../../eventLog.js';
 import { copy, setCopyTier } from '../../copy.js';
 import { LISTS_AND_TAGS, UI_TIMING } from '../../../../config/tuning.js';
 import { registerCommand, registerCommandProvider } from '../../core/commands.js';
+import { revertImport } from '../../importCore.js';
+import { NOTIFICATION_LISTS } from '../../settingsSchema.js';
 import { bindRovingTablist } from '../../core/focus.js';
 import {
   renderSettingsPanel,
@@ -103,6 +105,15 @@ export function bindSettingsActions(context) {
     repaintSettings();
   }
   const appearance = () => Store.state.preferences.appearanceV3;
+
+  // v3 Phase 5: background notifications (opt-in, lists, quiet hours).
+  function commitNotifications(next) {
+    const before = Store.state.preferences.notifications;
+    Store.setPreference(['notifications'], next);
+    recordSettingChange('notifications', before, next);
+    persist();
+    repaintSettings();
+  }
 
   function commitSetting(key, value) {
     const before = Store.state.preferences[key];
@@ -277,6 +288,27 @@ export function bindSettingsActions(context) {
       return;
     }
 
+    const revertBtn = e.target.closest('[data-action="revert-import"]');
+    if (revertBtn) {
+      const id = revertBtn.dataset.importId;
+      confirmDialog({
+        title: copy('settings.imports.confirmTitle'),
+        body: copy('settings.imports.confirmBody'),
+        confirmLabel: copy('settings.imports.revert'),
+        onConfirm: () => {
+          const result = revertImport(id);
+          if (!result) return;
+          persist();
+          refreshView();
+          repaintSettings();
+          // The Revert button became "Reverted": focus the next import's, or the list.
+          (body.querySelector('[data-action="revert-import"]') || body.querySelector('#settings-tab-data'))?.focus();
+          Render.showToast(copy('import.reverted', undefined, { removed: result.removed.length, restored: result.restored.length, kept: result.kept.length }));
+        },
+      });
+      return;
+    }
+
     if (e.target.closest('#reset-everything-btn')) {
       confirmDialog({
         title: copy('reset.dialog.title'),
@@ -421,6 +453,10 @@ export function bindSettingsActions(context) {
       commitAppearance({ ...appearance(), mode: value });
       return;
     }
+    if (seg === 'notify-enabled') {
+      commitNotifications({ ...Store.state.preferences.notifications, enabled: value === 'on' });
+      return;
+    }
     if (seg === 'textSize') {
       commitSetting('textSize', Number(value));
       return;
@@ -506,6 +542,23 @@ export function bindSettingsActions(context) {
   });
 
   body.addEventListener('change', (e) => {
+    const action = e.target.dataset?.action;
+    const n = Store.state.preferences.notifications;
+    if (action === 'notify-list') {
+      const lists = new Set(n.lists);
+      if (e.target.checked) lists.add(e.target.dataset.list);
+      else lists.delete(e.target.dataset.list);
+      commitNotifications({ ...n, lists: NOTIFICATION_LISTS.filter((l) => lists.has(l)) });
+      return;
+    }
+    if (action === 'notify-quiet') {
+      commitNotifications({ ...n, quietHours: e.target.checked ? { from: '23:00', to: '08:00' } : null });
+      return;
+    }
+    if ((action === 'notify-quiet-from' || action === 'notify-quiet-to') && n.quietHours && /^\d{2}:\d{2}$/.test(e.target.value)) {
+      commitNotifications({ ...n, quietHours: { ...n.quietHours, [action === 'notify-quiet-from' ? 'from' : 'to']: e.target.value } });
+      return;
+    }
     if (e.target.closest('[data-action="set-custom-accent"], [data-action="set-custom-base"]')) {
       endSettingGesture('appearanceV3', appearance());
       repaintSettings();

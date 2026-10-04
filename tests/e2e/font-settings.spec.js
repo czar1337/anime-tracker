@@ -138,7 +138,7 @@ test('selecting a font emits font_previewed with the site slot, but re-selecting
     const { events } = await (await fetch(`${server.url}/api/events`)).json();
     const previewed = events.filter((e) => e.type === 'font_previewed');
     expect(previewed).toHaveLength(1);
-    expect(previewed[0].meta).toEqual({ slot: 'site', fontId: 'dm-sans' });
+    expect(previewed[0].meta).toEqual({ slot: 'site', fontId: 'dm-sans', source: 'live' });
 
     // Clicking the now-already-active selection again is a no-op re-render,
     // not a second preview event.

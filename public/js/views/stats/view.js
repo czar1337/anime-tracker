@@ -4,7 +4,9 @@
 
 import { Store } from '../../state.js';
 import { EventHistory } from '../../eventHistory.js';
-import { computeLibraryStats } from '../../statsLogic.js';
+import { computeLibraryStats, watchStreaks, watchSessions } from '../../statsLogic.js';
+import { computeLocalDay } from '../../eventLog.js';
+import { HISTORY } from '../../../../config/tuning.js';
 import { html } from '../../core/html.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
 import { copy } from '../../copy.js';
@@ -15,6 +17,7 @@ const LIST_META = {
   watchlist: { label: 'Watchlist', icon: '☰' },
   watched: { label: 'Watched', icon: '✓' },
   dropped: { label: 'Dropped', icon: '✕' },
+  paused: { label: 'Paused', icon: '❚❚' },
 };
 
 export function barChartHtml(data, { formatValue = (v) => v } = {}) {
@@ -71,6 +74,12 @@ export function renderStatsPage(container) {
   const thisYear = new Date().getFullYear();
   const completedThisYear = entries.filter((e) => e.completedAt && new Date(e.completedAt).getFullYear() === thisYear);
   const episodesThisYear = libraryStats.episodesThisYear;
+  // v3 Phase 5: from live events only (imports and bulk actions never count).
+  const liveEvents = EventHistory.allEvents();
+  const streaks = watchStreaks(liveEvents, computeLocalDay(new Date()));
+  const monthAgo = Date.now() - HISTORY.sittingsWindowDays * 86400000;
+  const recentSessions = watchSessions(liveEvents).filter((x) => x.end >= monthAgo);
+  const perSession = recentSessions.length ? (recentSessions.reduce((n, x) => n + x.episodes, 0) / recentSessions.length).toFixed(1) : '—';
 
   const dropEligible = counts.watched + counts.dropped;
   const dropRate = dropEligible ? ((counts.dropped / dropEligible) * 100).toFixed(1) : '0';
@@ -114,6 +123,10 @@ export function renderStatsPage(container) {
       ${statHtml(episodesThisYear, `Episodes in ${thisYear}`)}
       ${statHtml(`${dropRate}%`, 'Drop rate')}
       ${statHtml(Store.allGenres().length, 'Genres explored')}
+      ${statHtml(streaks.current, copy('stats.streakCurrent'))}
+      ${statHtml(streaks.longest, copy('stats.streakLongest'))}
+      ${statHtml(recentSessions.length, copy('stats.sessions30'))}
+      ${statHtml(perSession, copy('stats.perSession'))}
     </div>
 
     <div class="home-tiles">
@@ -122,7 +135,7 @@ export function renderStatsPage(container) {
         <button class="home-tile" data-nav="${list}">
           <span class="home-tile-icon">${LIST_META[list].icon}</span>
           <span class="home-tile-count">${counts[list]}</span>
-          <span class="home-tile-label">${LIST_META[list].label}</span>
+          <span class="home-tile-label">${copy(`list.${list}`)}</span>
         </button>`
       )}
     </div>
@@ -156,5 +169,44 @@ export function renderStatsPage(container) {
         <div class="stat-mini-list">${miniListHtml(mostEpisodes)}</div>
       </div>
     </div>
+
+    <div class="stats-section stats-diary">
+      <h3>${copy('stats.diary.heading')}</h3>
+      ${diaryHtml()}
+    </div>
   `);
+}
+
+// v3 Phase 5: the diary, every finished watch and rewatch by date, newest
+// first, a page at a time.
+const DIARY_PAGE = HISTORY.diaryPage;
+let diaryShown = DIARY_PAGE;
+export function showMoreDiary() {
+  diaryShown += DIARY_PAGE;
+}
+
+function diaryHtml() {
+  const records = Store.getWatchHistory()
+    .filter((r) => r.finishedAt && Number.isFinite(Date.parse(r.finishedAt)))
+    .sort((a, b) => Date.parse(b.finishedAt) - Date.parse(a.finishedAt));
+  if (!records.length) return html`<p class="card-meta">${copy('stats.diary.empty')}</p>`;
+  const monthOf = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  let lastMonth = null;
+  const rows = [];
+  for (const r of records.slice(0, diaryShown)) {
+    const month = monthOf(r.finishedAt);
+    if (month !== lastMonth) {
+      rows.push(html`<li class="diary-month">${month}</li>`);
+      lastMonth = month;
+    }
+    const entry = Store.getEntry(r.anilistId);
+    const title = entry ? entry.titleEnglish || entry.titleRomaji : r.title || copy('stats.diary.removedSeries');
+    rows.push(html`<li class="diary-row">
+      <span class="diary-date">${new Date(r.finishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
+      ${entry ? html`<button type="button" class="diary-title" data-action="show-detail" data-detail-id="${r.anilistId}">${title}</button>` : html`<span class="diary-title">${title}</span>`}
+      ${r.kind === 'rewatch' ? html`<span class="diary-badge">${copy('stats.diary.rewatch')}</span>` : html`<span></span>`}
+      ${r.note && html`<span class="diary-note">${r.note}</span>`}
+    </li>`);
+  }
+  return html`<ol class="diary">${rows}</ol>${records.length > diaryShown ? html`<button type="button" class="btn btn-ghost sm" data-action="diary-more">${copy('stats.diary.more')}</button>` : ''}`;
 }

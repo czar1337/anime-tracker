@@ -18,7 +18,7 @@ import { PALETTE } from '../../../../config/tuning.js';
 const RECENT_KEY = 'anime-tracker-palette-recent';
 // Matches scoring under this share of the best one are dropped (fuzzy.js).
 const MIN_RATIO = PALETTE.minMatchRatio;
-const LIST_LABEL_KEYS = { watching: 'list.watching', watchlist: 'list.watchlist', watched: 'list.watched', dropped: 'list.dropped' };
+const LIST_LABEL_KEYS = { watching: 'list.watching', watchlist: 'list.watchlist', watched: 'list.watched', dropped: 'list.dropped', paused: 'list.paused' };
 const listLabel = (list) => (LIST_LABEL_KEYS[list] ? copy(LIST_LABEL_KEYS[list]) : list);
 
 let items = []; // what is on screen, in order

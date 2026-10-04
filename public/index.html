@@ -88,6 +88,7 @@
         <button class="list-seg" id="list-tab-watchlist" data-list="watchlist" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Watchlist <b class="tab-count" data-count="watchlist">0</b></button>
         <button class="list-seg" id="list-tab-watched" data-list="watched" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Watched <b class="tab-count" data-count="watched">0</b></button>
         <button class="list-seg" id="list-tab-dropped" data-list="dropped" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Dropped <b class="tab-count" data-count="dropped">0</b></button>
+        <button class="list-seg" id="list-tab-paused" data-list="paused" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Paused <b class="tab-count" data-count="paused">0</b></button>
       </div>
       <div id="saved-views" class="saved-views"></div>
     </div>
@@ -365,7 +366,7 @@
       <h2>Backup &amp; restore</h2>
       <div class="backup-actions">
         <button id="export-backup-btn" class="text-btn primary">Export backup (download JSON)</button>
-        <label class="text-btn" for="import-backup-file">Import backup (upload JSON)</label>
+        <label class="text-btn" for="import-backup-file">Import series from a backup file</label>
         <input type="file" id="import-backup-file" accept="application/json" hidden>
       </div>
       <h3>Recent automatic backups</h3>
@@ -404,31 +405,55 @@
   </dialog>
 
   <!-- MAL import overlay -->
+  <!-- Import (v3 Phase 5): MyAnimeList, AniList by username, or a backup
+       file. Step 2 lists what is new and merges what is already in the
+       library field by field; nothing changes until Import is pressed, and a
+       pinned pre-import snapshot is taken with the write. Wired by
+       malImport.js (the import flow) and importCore.js. -->
   <dialog id="import-overlay" class="overlay">
     <div class="overlay-panel import-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
-      <h2>Import from MyAnimeList</h2>
+      <h2>Import</h2>
       <div id="import-steps-indicator"></div>
       <div id="import-step-upload" class="import-step">
-        <p>Upload your MAL export file (<code>animelist_*.xml</code> or <code>.xml.gz</code>). Export it from your MAL profile → Export list.</p>
-        <input type="file" id="mal-file-input" accept=".xml,.gz">
-        <div id="import-upload-status" class="search-status"></div>
+        <div class="import-sources">
+          <section class="import-source">
+            <h3>MyAnimeList</h3>
+            <p>Your MAL export (<code>animelist_*.xml</code> or <code>.xml.gz</code>), from your MAL profile, Export list.</p>
+            <input type="file" id="mal-file-input" accept=".xml,.gz" aria-label="MyAnimeList export file">
+          </section>
+          <section class="import-source">
+            <h3>AniList</h3>
+            <p>Your AniList username. The list must be public.</p>
+            <form id="anilist-import-form" class="row">
+              <input type="text" id="anilist-username" autocomplete="username" spellcheck="false" placeholder="Username" aria-label="AniList username" required>
+              <button type="submit" class="btn btn-ghost sm">Fetch list</button>
+            </form>
+          </section>
+          <section class="import-source">
+            <h3>A backup file</h3>
+            <p>An Anime Tracker backup or export (<code>.json</code>). Series are merged into your library; nothing else is replaced.</p>
+            <input type="file" id="import-json-input" accept="application/json,.json" aria-label="Backup file">
+          </section>
+        </div>
+        <div id="import-upload-status" class="search-status" role="status"></div>
       </div>
       <div id="import-step-review" class="import-step" hidden>
         <div class="import-summary" id="import-summary"></div>
         <div id="import-review-list" class="import-review-list review"></div>
+        <div id="import-merge" class="import-merge"></div>
         <div class="import-actions">
-          <button id="import-commit-btn" class="text-btn primary">Import selected</button>
+          <button id="import-commit-btn" class="btn btn-primary sm">Import</button>
           <button id="import-cancel-btn" class="text-btn">Cancel</button>
-          <span class="card-meta" style="margin-left:auto">Nothing is changed until you press import. A backup is taken first.</span>
+          <span class="card-meta import-safety">Nothing changes until you press Import. A snapshot is taken first, and you can revert the import from Settings.</span>
         </div>
       </div>
       <div id="import-step-done" class="import-step" hidden>
         <div class="import-summary2" id="import-done-summary"></div>
         <div class="import-actions">
-          <button id="import-done-close-btn" class="text-btn primary">Go to library</button>
-          <button id="import-done-another-btn" class="text-btn">Import another file</button>
-          <button id="import-done-undo-btn" class="text-btn">Undo this import</button>
+          <button id="import-done-close-btn" class="btn btn-primary sm">Go to library</button>
+          <button id="import-done-another-btn" class="text-btn">Import something else</button>
+          <button id="import-done-revert-btn" class="text-btn">Revert this import</button>
         </div>
       </div>
     </div>

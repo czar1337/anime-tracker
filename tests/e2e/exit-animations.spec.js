@@ -91,7 +91,7 @@ test('a toast leaves with an exit transition and is inert while it does', async 
       return t.isConnected;
     });
     expect(afterChild).toBe(true);
-    await expect(page.locator('.toast')).toHaveCount(0);
+    await expect(page.locator('.toast', { hasText: 'marked watched' })).toHaveCount(0); // other prompts (the taste picker) may arrive on their own
   } finally {
     await server.stop();
   }

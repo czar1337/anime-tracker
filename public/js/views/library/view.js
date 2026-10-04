@@ -22,6 +22,7 @@ export const QUICK_MOVE_LISTS = [
   { key: 'watchlist', label: 'Watchlist', short: 'List' },
   { key: 'watched', label: 'Watched', short: 'Done' },
   { key: 'dropped', label: 'Dropped', short: 'Drop' },
+  { key: 'paused', label: 'Paused', short: 'Pause' },
 ];
 
 export function coverSrc(entry) {
@@ -239,6 +240,7 @@ function emptyStateFor(list) {
     const watching = Store.getEntriesByList('watching').length > 0;
     return { mark: 'feather', title: copy('empty.watched.title'), body: copy('empty.watched.body'), primary: watching ? { label: copy('empty.goWatching'), command: 'go.watching' } : add, secondary: { label: copy('empty.import'), command: 'import.open' } };
   }
+  if (list === 'paused') return { mark: 'moon', title: copy('empty.paused.title'), body: copy('empty.paused.body'), primary: { label: copy('empty.goWatching'), command: 'go.watching' } };
   return { mark: 'feather', title: copy('empty.dropped.title'), body: copy('empty.dropped.body'), primary: { label: copy('empty.goWatching'), command: 'go.watching' } };
 }
 

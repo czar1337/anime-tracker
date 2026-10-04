@@ -45,7 +45,7 @@ async function waitFor(url, ms) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-smoke-'));
   const port = await freePort();
   const child = spawn(exe, [], {
-    env: { ...process.env, ANIME_TRACKER_DATA_DIR: dataDir, ANIME_TRACKER_PORT: String(port), ANIME_TRACKER_TEST_NO_BROWSER: '1' },
+    env: { ...process.env, ANIME_TRACKER_DATA_DIR: dataDir, ANIME_TRACKER_PORT: String(port), ANIME_TRACKER_TEST_NO_BROWSER: '1', ANIME_TRACKER_TEST_NO_TRAY: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });

@@ -133,6 +133,12 @@ async function main() {
         await page.route('https://graphql.anilist.co/**', (route) => {
           const body = route.request().postDataJSON?.() || {};
           const entry = byId.get(body.variables?.id);
+          // v3 Phase 5: the Season chart gets a few synthetic series.
+          if ((body.query || '').includes('MediaSeason')) {
+            const names = ['Lantern Festival', 'Quiet Harbour', 'Ninth Moon', 'Paper Cranes', 'Salt and Iron', 'Tidewater'];
+            const media = names.map((n, i) => ({ id: 950000 + i, title: { romaji: n, english: n }, coverImage: { large: null }, format: 'TV', status: 'RELEASING', genres: ['Drama'], season: body.variables.season, seasonYear: body.variables.seasonYear, startDate: { year: body.variables.seasonYear, month: 10, day: 2 + i }, averageScore: 70 + i, popularity: 9000 - i * 1000, episodes: 12, duration: 24, studios: { nodes: [{ name: 'Studio Nine' }] }, relations: { edges: [] } }));
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { Page: { pageInfo: { hasNextPage: false }, media } } }) });
+          }
           if (!entry || !(body.query || '').includes('Media(id')) return route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{"Page":{"media":[]}}}' });
           const media = { id: entry.anilistId, title: { romaji: entry.titleRomaji, english: entry.titleEnglish, native: null }, description: 'A quiet, patient series about the people left behind after a long journey ends.', coverImage: { large: null, color: '#6b8fd6' }, bannerImage: null, genres: entry.genres, averageScore: entry.averageScore, popularity: entry.popularity, favourites: 100, format: entry.format, status: 'FINISHED', episodes: entry.totalEpisodes, duration: entry.duration, source: 'MANGA', startDate: { year: entry.year }, endDate: { year: entry.year }, studios: { nodes: [] }, relations: { edges: [] } };
           return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { Media: media } }) });

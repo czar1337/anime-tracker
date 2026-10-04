@@ -12,8 +12,8 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 2 Render engine and structure | `v3/2-render-engine` | done | — |
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
-| 5 Features | `v3/5-features` | in progress | Next: read the Phase 5 brief section, plan, schema 16 |
-| 6 Discover rebuild | `v3/6-discover` | not started | |
+| 5 Features | `v3/5-features` | done | — |
+| 6 Discover rebuild | `v3/6-discover` | in progress | Next: read the Phase 6 brief and the Discover spec, plan the engine (6a), corpus (6b), UI (6c) |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
@@ -205,6 +205,46 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
   already synchronous; documented).
 - **Deferred:** nothing. Paused list, notifications settings and import revert are
   Phase 5.
+
+## Checkpoint 5 (2026-10-04)
+
+- **Changed:** event provenance (`meta.source`; streaks and sittings from live events
+  only; imports out of "Episodes this year"); Paused, Watch again (`rewatch_started`
+  reachable), editable dates, the watch history in the drawer and the Stats diary;
+  imports (lossless MAL, AniList by username, backup files) with a field-by-field merge,
+  a pinned pre-import snapshot taken in the locked write, and "Revert this import" in
+  Settings; where to watch; Schedule v2 (Watchlist/Paused airing, countdowns, Season
+  chart, taste-ranked Coming soon); background notifications (server poll, WinRT toast
+  through PowerShell) with settings, and the tray icon.
+- **Schema 16:** additive, idempotent. Dry run on a fresh real-library copy: 222
+  entries, 16 events, counters 6388 intact, pinned `pre-migration-14-to-16`, 76 titled
+  history records (every Watched series with a finish date), notifications off
+  (`evidence/5/schema16-dryrun.json`).
+- **Acceptance:** every new Class A field and store round-trips through export,
+  snapshot and restore (history-imports-round-trip, settings-round-trip); a MAL export
+  with On-Hold, rewatches, start dates and comments imports losslessly and an import
+  reverts from Settings after a reload (imports spec); a notification fires with no tab
+  open (background-notifications spec); sessions and streaks read live events only
+  (statsLogic unit tests, event-provenance spec).
+- **Tests before → after:** unit 435 + 114 → 437 + 136; e2e 283 + 1 skipped → 300 + 1
+  skipped. New specs: event-provenance, history-imports-round-trip, watch-history,
+  imports, where-to-watch, schedule-v2, background-notifications.
+- **Perf (`npm run perf`, p95):** library render 122 ms (budget 200); warm Discover
+  122 ms (budget 400); snapshot + verify 111 ms.
+- **Browser check:** `node scripts/capture-evidence.js 5` and `--theme parchment`, every
+  screen plus detail, Settings and palette at 1440/390, motion and reduced: no errors.
+- **Exe:** rebuilt and smoke-tested: 10/10. The real toast and tray were each checked
+  once on this machine (a development toast handed to Windows; the tray process stays
+  up).
+- **Independent review:** 2 HIGH, both fixed in `d1a9201` with tests: a failed import
+  still wrote its events (counters inflated); revert deleted series the user had
+  edited since. 6 MEDIUM fixed: the import could ride an ordinary save ahead of its
+  snapshot; premieres were never notified; tab and background notified twice; no tests
+  for the import safety paths; backup files carried foreign tag/list/cover ids; focus
+  lost on several re-renders. LOWs fixed or recorded as decisions in the plan. The
+  checkpoint also found and fixed a `data-list` collision (Season chart add buttons vs
+  the list segments) and a flaky toast assertion.
+- **Deferred:** nothing.
 
 ## Evidence index
 

@@ -84,7 +84,7 @@ test('boot against a v4 fixture migrates to CURRENT_SCHEMA_VERSION, defaults eve
     expect(data.customLists).toEqual([]);
 
     const fixture = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
-    expect(data.entries).toEqual(fixture.entries.map((e) => ({ ...e, tagIds: [], customListIds: [] })));
+    expect(data.entries).toEqual(fixture.entries.map((e) => ({ ...e, tagIds: [], customListIds: [], rewatchCount: 0, startedAt: null })));
     expect(data.dismissedItems).toEqual(fixture.dismissedItems);
 
     // The existing rotateBackup() safety net (relied on instead of a new
@@ -214,7 +214,7 @@ test('snapshot restore migrates an old-schemaVersion snapshot after restoring an
     // skipped-store restore), so migrate_5_to_6 is what defaults them and
     // backfills the per-entry membership arrays — same as booting a bare
     // pre-P1.7 library would.
-    expect(after.entries).toEqual(oldLibrary.entries.map((e) => ({ ...e, tagIds: [], customListIds: [] })));
+    expect(after.entries).toEqual(oldLibrary.entries.map((e) => ({ ...e, tagIds: [], customListIds: [], rewatchCount: 0, startedAt: null })));
     expect(after.tags).toEqual([]);
     expect(after.customLists).toEqual([]);
     expect(after.preferences.appearance.dark).toEqual({ type: 'preset', id: 'moonlit-shrine' });

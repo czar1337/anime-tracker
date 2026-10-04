@@ -48,19 +48,41 @@ export const EVENT_TYPES = [
 // tolerate them. Recorded here (rather than only in the progress file) so the
 // next person doesn't have to grep the whole app to find out why the log
 // never contains them:
-//   rewatch_started  - no rewatch feature exists at all (no rewatch count, no
-//                      "start over" control). Re-setting status watched ->
-//                      watching is indistinguishable from a normal status
-//                      change and deliberately does NOT synthesize one.
 //   review_written   - no review field exists; the free-text `notes` field is
 //                      a partial equivalent but no word count is stored
 //                      anywhere. Review text lands in P6.2.
 // font_previewed is no longer unreachable: P3.1's font picker (events.js's
 // .font-grid button click handler) emits it on every distinct selection.
-export const UNREACHABLE_EVENT_TYPES = ['rewatch_started', 'review_written'];
+// rewatch_started is reachable since v3 Phase 5 ("Watch again" in the detail
+// drawer, library/actions.js startRewatch); a plain move from Watched back to
+// Watching still does not synthesize one.
+export const UNREACHABLE_EVENT_TYPES = ['review_written'];
 
 export function isKnownEventType(type) {
   return EVENT_TYPES.includes(type);
+}
+
+// v3 Phase 5: where an event came from, in `meta.source`.
+//   live     - the user did this one thing, now (the default)
+//   import   - a MyAnimeList, AniList, screenshot or file import
+//   bulk     - one action applied to several selected series
+//   backfill - progress recorded after the fact ("I already watched this",
+//              a move straight to Watched that fills in the episodes)
+//   discover - added from a Discover recommendation
+// Sessions and streaks read `live` only, so a 300-title import is not a
+// 3,000-episode day. The log is append-only, so old events are never
+// rewritten; eventSource() reads them instead.
+export const EVENT_SOURCES = ['live', 'import', 'bulk', 'backfill', 'discover'];
+
+// An event written before v3 has no source. The one old shape worth telling
+// apart is a single episode_watched that jumps several episodes at once
+// (imports, bulk "mark completed", a move to Watched): that is a backfill,
+// not a sitting. Everything else was a single live action.
+export function eventSource(event) {
+  const source = event?.meta?.source;
+  if (EVENT_SOURCES.includes(source)) return source;
+  if (event?.type === 'episode_watched' && Number(event.to) - Number(event.from) > 1) return 'backfill';
+  return 'live';
 }
 
 // `settings_changed` records real Settings choices only.

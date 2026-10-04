@@ -28,6 +28,7 @@ import {
   handleSetScore,
   handleSetStatus,
   confirmDrop,
+  startRewatch,
   openCardMenu,
   bindGridEvents,
   bindBulkActionBar,
@@ -293,6 +294,9 @@ function markSelected(view) {
   selectTab(document.querySelectorAll('#section-tabs .tab'), (t) => t.dataset.tab === section);
   if (Store.LISTS.includes(view)) {
     selectTab(document.querySelectorAll('.list-seg'), (s) => s.dataset.list === view);
+    // On a phone the five lists can overflow their row, which scrolls: keep
+    // the selected one in sight.
+    document.getElementById(`list-tab-${view}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     document.getElementById('grid').setAttribute('aria-labelledby', `list-tab-${view}`);
   }
   updateTabPill();
@@ -319,7 +323,7 @@ function updateTabPill() {
 // of travel through the tab order plus a crossfade (styles.css,
 // :active-view-transition-type(tab)). Without View Transitions, or when the
 // view does not change, the view's own fade plays instead.
-const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'schedule', 'discover', 'stats'];
+const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'paused', 'schedule', 'discover', 'stats'];
 let navigationToken = 0;
 function switchView(next, update, viewEl) {
   const from = VIEW_ORDER.indexOf(currentView);
@@ -516,7 +520,7 @@ async function addFromSearchResult(anilistId, listStatus) {
   // episodes the same way a "mark watched" does — otherwise importing a
   // finished series would count zero lifetime episodes.
   if (listStatus === 'watched' && media.episodes) {
-    recordProgressEvent({ anilistId: media.id, duration: media.duration, format: media.format }, 0, media.episodes);
+    recordProgressEvent({ anilistId: media.id, duration: media.duration, format: media.format }, 0, media.episodes, 'backfill');
   }
   Render.renderTabCounts();
   // Always refresh whatever's currently shown, not just when it matches
@@ -609,32 +613,16 @@ function bindBackupOverlay() {
   document.getElementById('export-backup-btn').addEventListener('click', exportLibrary);
   registerCommand({ id: 'library.export', title: copy('command.exportLibrary'), section: 'data', keywords: 'download save json backup', run: exportLibrary });
 
-  document.getElementById('import-backup-file').addEventListener('change', async (e) => {
+  // v3 Phase 5: a backup file is merged through the import flow (the same
+  // review and merge as MAL and AniList, with a pre-import snapshot and a
+  // revert), instead of replacing the whole library. Restoring a whole library
+  // is what the backups and snapshots lists below are for.
+  document.getElementById('import-backup-file').addEventListener('change', (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      if (!Array.isArray(data.entries)) throw new Error('File does not look like a library backup.');
-      // The server requires an explicit schemaVersion (v3). A backup file with
-      // none is by definition schema 1: the field arrived in schema 2.
-      if (data.schemaVersion === undefined) data.schemaVersion = 1;
-      await Api.saveLibrary(data, Store.getEtag(), { kind: 'import' });
-      // Re-fetch rather than trust the pre-upload local copy: the server may
-      // have just migrated it (an old exported file can carry an old
-      // schemaVersion — server.js's migrateIncomingLibrary, P1.3), so what
-      // actually landed on disk can differ from what this file contained.
-      const { data: saved, etag } = await Api.getLibrary();
-      Store.setLibrary(saved, etag);
-      Preferences.syncFromLibrary(saved.preferences);
-      setCopyTier(saved.preferences.contentTier);
-      Render.renderAll(activeList);
-      Render.showToast('Backup imported successfully.');
-      closeAllOverlays();
-    } catch (err) {
-      Render.showToast(`Import failed: ${err.message}`);
-    }
     e.target.value = '';
+    if (!file) return;
+    closeAllOverlays();
+    document.dispatchEvent(new CustomEvent('import-backup-file', { detail: { file } }));
   });
 
   document.getElementById('backup-list').addEventListener('click', async (e) => {
@@ -1360,7 +1348,7 @@ export function initEvents({ initialList, persistFn }) {
   bindSeriesCommands();
   bindHome();
   bindHero();
-  Detail.bindDetailActions({ handleSetScore, handleSetStatus, confirmDrop, handleIncrement, recordProgressEvent, refreshGridOnly, persist: () => persist() });
+  Detail.bindDetailActions({ handleSetScore, handleSetStatus, confirmDrop, handleIncrement, recordProgressEvent, startRewatch, refreshGridOnly, persist: () => persist() });
   bindGridEvents();
   bindHoldToSelect();
   bindFilterBar();

@@ -15,6 +15,48 @@ function isSameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+// v3 Phase 5: "in 3 h" / "in 2 d 4 h" until an episode airs; nothing once it
+// has.
+function countdownText(airingAt, now = Date.now()) {
+  const ms = airingAt * 1000 - now;
+  if (ms <= 0) return '';
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return copy('schedule.inMinutes', undefined, { m: Math.max(1, Math.round(ms / 60000)) });
+  return hours < 24 ? copy('schedule.inHours', undefined, { h: hours }) : copy('schedule.inDays', undefined, { d: Math.floor(hours / 24), h: hours % 24 });
+}
+
+// v3 Phase 5: the Season chart (previous, this and next season), with a
+// quick add into the list of your choice.
+function seasonChartHtml(season) {
+  if (!season) return '';
+  const tabs = [-1, 0, 1].map((offset) => html`<button type="button" role="tab" class="${cls('season-tab', offset === season.offset && 'on')}" aria-selected="${offset === season.offset}" tabindex="${offset === season.offset ? 0 : -1}" data-action="season-tab" data-offset="${offset}">${season.labels[offset + 1]}</button>`);
+  let body;
+  if (season.status === 'loading' && !season.items.length) body = shelfSkeletonHtml({ shelves: 1, cards: 6 });
+  else if (season.status === 'error' && !season.items.length) body = html`<p class="card-meta">${copy('schedule.season.error')} <button type="button" class="text-btn" data-action="season-retry">${copy('empty.tryAgain')}</button></p>`;
+  else if (!season.items.length) body = html`<p class="card-meta">${copy('schedule.season.empty')}</p>`;
+  else {
+    body = html`<ul class="season-grid" role="list">${season.items.map((it) => {
+      const m = it.media;
+      const title = m.title?.english || m.title?.romaji;
+      return html`<li class="season-card" data-anilist-id="${m.id}">
+        <button type="button" class="season-cover" data-action="show-detail" data-detail-id="${m.id}" aria-label="${copy('schedule.season.open', undefined, { title })}">${coverOrInitialHtml(m.coverImage?.large, title)}</button>
+        <div class="season-body">
+          <button type="button" class="season-title" data-action="show-detail" data-detail-id="${m.id}">${title}</button>
+          <span class="card-meta">${[formatEnumLabel(m.format), m.episodes ? copy('schedule.season.episodes', undefined, { n: m.episodes }) : null, m.studios?.nodes?.[0]?.name, formatReleaseDate(m.startDate)].filter(Boolean).join(' · ')}</span>
+          ${it.owned
+            ? html`<span class="season-owned">${copy('detail.inList', undefined, { list: copy(`list.${it.owned}`) })}</span>`
+            : html`<div class="row season-add">${SEASON_ADD_LISTS.map((list) => html`<button type="button" class="btn btn-ghost sm" data-action="season-add" data-add-list="${list}" aria-label="${copy('schedule.season.addTo', undefined, { title, list: copy(`list.${list}`) })}">${copy(`list.${list}`)}</button>`)}</div>`}
+        </div>
+      </li>`;
+    })}</ul>`;
+  }
+  return html`<div class="schedule-section season-chart">
+    <div class="season-head"><h3>${copy('schedule.season.heading')}</h3><div class="season-tabs" role="tablist" aria-label="${copy('schedule.season.heading')}">${tabs}</div></div>
+    ${body}
+  </div>`;
+}
+const SEASON_ADD_LISTS = ['watchlist', 'watching'];
+
 // Compact 7-day strip of what airs next for the Watching list — presentation
 // over the same data airing.js keeps for the unseen-episode badges, so the two
 // can never disagree.
@@ -33,9 +75,11 @@ function weekStripHtml(week) {
             ${items.length
               ? items.map(
                   (it) => html`
-              <button class="${cls('schedule-item', it.alreadyAired && 'already-aired')}" data-action="show-detail" data-detail-id="${it.anilistId}" title="${it.title} — episode ${it.episode}${it.alreadyAired ? ', already aired' : ''}">
+              <button class="${cls('schedule-item', it.alreadyAired && 'already-aired', it.list !== 'watching' && 'waiting')}" data-action="show-detail" data-detail-id="${it.anilistId}" title="${it.title} — episode ${it.episode}${it.alreadyAired ? ', already aired' : ''}">
                 <span class="schedule-item-title">${it.title}</span>
                 <span class="schedule-item-ep">${it.alreadyAired ? 'Already aired' : `Ep ${it.episode}`}</span>
+                ${!it.alreadyAired && html`<span class="schedule-item-when"><time datetime="${new Date(it.airingAt * 1000).toISOString()}">${new Date(it.airingAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>${countdownText(it.airingAt) && html` · ${countdownText(it.airingAt)}`}</span>`}
+                ${it.list && it.list !== 'watching' && html`<span class="schedule-item-tag">${it.episode === 1 ? copy('schedule.premiere') : copy(`list.${it.list}`)}</span>`}
               </button>`
                 )
               : html`<p class="schedule-day-empty">Nothing airing</p>`}
@@ -127,6 +171,7 @@ export function renderSchedulePage(container, viewState) {
       <h3>This week</h3>
       ${weekStripHtml(week)}
     </div>
+    ${seasonChartHtml(viewState.season)}
     <div class="schedule-section">
       <h3>Coming soon</h3>
       ${comingSoonBody}

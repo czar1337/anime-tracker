@@ -3,11 +3,16 @@ import { Api } from '../../api.js';
 import { Render } from '../../render.js';
 import { Airing } from '../../airing.js';
 import { pickSeeds, buildGenreProfile, filterOwned, applyMediaFilters, poolStudios, poolFormats } from '../../recommendLogic.js';
-import { rankUpcoming } from '../../scheduleLogic.js';
+import { rankUpcoming, seasonFor } from '../../scheduleLogic.js';
+import { TasteProfile } from '../../tasteProfile.js';
+import { score as tasteScore } from '../../scorer.js';
+import { pruneMediaFields } from '../../corpusLogic.js';
+import { RECOMMENDATIONS } from '../../../../config/tuning.js';
 import { EventLog } from '../../eventLog.js';
 import { copy } from '../../copy.js';
 import { FeedbackLoop } from '../../feedbackLoop.js';
 import { renderSchedulePage } from './view.js';
+import { bindRovingTablist } from '../../core/focus.js';
 
 const PAGE_SIZE = 20;
 const STALE_MS = 24 * 60 * 60 * 1000; // recompute at most once a day, or on manual refresh
@@ -19,6 +24,14 @@ const scheduleState = {
   generatedAt: null,
   offline: false,
   progressText: null,
+};
+
+// v3 Phase 5: the Season chart. One season at a time (previous, this, next),
+// fetched when first shown and kept for the session.
+const seasonState = { offset: 0, status: 'idle', bySeason: {} };
+const seasonKey = (offset) => {
+  const { season, year } = seasonFor(new Date(), offset);
+  return { season, year, key: `${season}-${year}`, label: copy(`schedule.season.${season}`, undefined, { year }) };
 };
 
 let refreshInFlight = null;
@@ -52,12 +65,35 @@ function renderNow() {
   if (container) renderSchedulePage(container, getScheduleState());
 }
 
+// v3 Phase 5: "Coming soon" is ranked by the taste profile, the same scorer
+// as Discover, so the two agree about taste. The legacy genre-sum model is
+// kept only for a library that has no taste profile yet.
+function upcomingScorer() {
+  const profile = TasteProfile.getProfile();
+  if (profile && (profile.ratedCount || 0) > 0) {
+    const entries = Store.getEntries();
+    const context = {
+      nowMs: Date.now(),
+      adventurousness: Store.state.preferences.adventurousness ?? (RECOMMENDATIONS.adventurousness.min + RECOMMENDATIONS.adventurousness.max) / 2,
+      tuning: RECOMMENDATIONS,
+      droppedTitles: entries.filter((e) => e.listStatus === 'dropped').map((e) => ({ genres: e.genres, episode: e.episodesWatched, totalEpisodes: e.totalEpisodes })),
+      libraryRelatedIds: new Set(entries.flatMap((e) => e.relatedIds || [])),
+    };
+    return (m) => {
+      try {
+        return tasteScore(pruneMediaFields(m), profile, context).total;
+      } catch {
+        return 0;
+      }
+    };
+  }
+  return buildGenreProfile(pickSeeds(Store.getEntries(), Store.getEntriesByList('watched')));
+}
+
 async function computeUpcoming() {
   const media = await withRateLimitRetry(() => Api.fetchUpcomingMedia(1));
-  const seeds = pickSeeds(Store.getEntries(), Store.getEntriesByList('watched'));
-  const genreProfile = buildGenreProfile(seeds);
   const ownedIds = Store.getEntries().map((e) => e.anilistId);
-  const items = rankUpcoming(media, genreProfile, ownedIds, Store.getDismissedIds());
+  const items = rankUpcoming(media, upcomingScorer(), ownedIds, Store.getDismissedIds());
   return { status: 'ready', items, generatedAt: new Date().toISOString() };
 }
 
@@ -98,10 +134,8 @@ async function loadCacheFromServer() {
   try {
     const cache = await Api.getUpcomingCache();
     const media = cache.items || [];
-    const seeds = pickSeeds(Store.getEntries(), Store.getEntriesByList('watched'));
-    const genreProfile = buildGenreProfile(seeds);
     const ownedIds = Store.getEntries().map((e) => e.anilistId);
-    scheduleState.pool = rankUpcoming(media, genreProfile, ownedIds, Store.getDismissedIds());
+    scheduleState.pool = rankUpcoming(media, upcomingScorer(), ownedIds, Store.getDismissedIds());
     scheduleState.visibleCount = Math.min(PAGE_SIZE, scheduleState.pool.length);
     scheduleState.generatedAt = cache.generatedAt || null;
     scheduleState.status = scheduleState.generatedAt ? 'ready' : 'idle';
@@ -114,6 +148,31 @@ function mediaFilters() {
   return Store.state.preferences.scheduleFilters;
 }
 
+async function loadSeason(offset) {
+  const { season, year, key } = seasonKey(offset);
+  if (seasonState.bySeason[key]?.status === 'ready' || seasonState.bySeason[key]?.status === 'loading') return;
+  seasonState.bySeason[key] = { status: 'loading', media: [] };
+  renderNow();
+  try {
+    const { media } = await withRateLimitRetry(() => Api.fetchSeasonMedia(season, year, 1));
+    seasonState.bySeason[key] = { status: 'ready', media };
+  } catch (err) {
+    seasonState.bySeason[key] = { status: 'error', media: [], message: err.message };
+  }
+  renderNow();
+}
+
+function seasonView() {
+  const { key } = seasonKey(seasonState.offset);
+  const current = seasonState.bySeason[key] || { status: 'idle', media: [] };
+  return {
+    offset: seasonState.offset,
+    labels: [-1, 0, 1].map((o) => seasonKey(o).label),
+    status: current.status,
+    items: current.media.map((media) => ({ media, owned: Store.getEntry(media.id)?.listStatus || null })),
+  };
+}
+
 export function getScheduleState() {
   scheduleState.pool = filterLiveItems(scheduleState.pool);
   const items = applyMediaFilters(scheduleState.pool, mediaFilters());
@@ -122,6 +181,7 @@ export function getScheduleState() {
     ...scheduleState,
     items,
     week: Airing.getWeekSchedule(),
+    season: seasonView(),
     availableStudios: poolStudios(scheduleState.pool),
     availableFormats: poolFormats(scheduleState.pool),
     filters: mediaFilters(),
@@ -131,6 +191,7 @@ export function getScheduleState() {
 // Called every time the Schedule tab is opened: always shows whatever it
 // already has immediately, only refreshes in the background if stale.
 export function ensureFreshOnOpen() {
+  loadSeason(seasonState.offset).catch(() => {});
   const isStale = !scheduleState.generatedAt || Date.now() - new Date(scheduleState.generatedAt).getTime() > STALE_MS;
   if (isStale && navigator.onLine !== false) {
     runRefresh().catch(() => {});
@@ -167,6 +228,8 @@ export function initSchedule({ persistFn } = {}) {
   const persist = persistFn || (() => {});
   const container = document.getElementById('schedule-view');
   bindMediaFilterControls(container, persist);
+  // The Season chart's three tabs: arrows move between them (and pick one).
+  bindRovingTablist(container, '.season-tabs [role="tab"]');
 
   container.addEventListener('click', (e) => {
     if (e.target.closest('#schedule-refresh-btn, [data-action="schedule-refresh"]')) {
@@ -178,6 +241,56 @@ export function initSchedule({ persistFn } = {}) {
       // Airing cache had no other visible way to get unstuck from here.
       // airing.js dispatches 'airing-updated' on success, which re-renders
       // the whole page (see app.js) — nothing else to do here.
+      Airing.refreshNow().catch(() => {});
+      return;
+    }
+
+    const seasonTab = e.target.closest('[data-action="season-tab"]');
+    if (seasonTab) {
+      seasonState.offset = Number(seasonTab.dataset.offset);
+      renderNow();
+      loadSeason(seasonState.offset).catch(() => {});
+      container.querySelector(`[data-action="season-tab"][data-offset="${seasonState.offset}"]`)?.focus();
+      return;
+    }
+    if (e.target.closest('[data-action="season-retry"]')) {
+      delete seasonState.bySeason[seasonKey(seasonState.offset).key];
+      loadSeason(seasonState.offset).catch(() => {});
+      return;
+    }
+    const seasonAdd = e.target.closest('[data-action="season-add"]');
+    if (seasonAdd) {
+      const anilistId = Number(seasonAdd.closest('.season-card').dataset.anilistId);
+      const media = (seasonState.bySeason[seasonKey(seasonState.offset).key]?.media || []).find((m) => m.id === anilistId);
+      if (!media || Store.getEntry(anilistId)) return;
+      const list = seasonAdd.dataset.addList === 'watching' ? 'watching' : 'watchlist';
+      Store.addEntry({
+        anilistId: media.id,
+        titleRomaji: media.title.romaji,
+        titleEnglish: media.title.english,
+        format: media.format,
+        year: media.seasonYear || media.startDate?.year || null,
+        totalEpisodes: media.episodes,
+        duration: media.duration,
+        genres: media.genres,
+        averageScore: media.averageScore,
+        popularity: media.popularity ?? null,
+        season: media.season || null,
+        studio: Api.extractStudio(media),
+        airingStatus: media.status || null,
+        listStatus: list,
+        relatedIds: Api.extractRelatedIds(media),
+      });
+      EventLog.recordForEntry('anime_added', media.id, { to: list });
+      renderNow();
+      Render.renderTabCounts();
+      persist();
+      Render.showToast(copy('schedule.season.added', undefined, { title: media.title.english || media.title.romaji, list: copy(`list.${list}`) }));
+      container.querySelector(`.season-card[data-anilist-id="${anilistId}"] .season-title`)?.focus();
+      Api.downloadCover(media.id, Api.bestCoverUrl(media))
+        .then((file) => Store.updateEntry(media.id, { coverFile: file }))
+        .then(() => persist())
+        .catch(() => {});
       Airing.refreshNow().catch(() => {});
       return;
     }

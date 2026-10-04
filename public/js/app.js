@@ -22,6 +22,7 @@ import { syncShimmers } from './core/motion.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 import { UI_TIMING } from '../../config/tuning.js';
+import { setImportSaver } from './importCore.js';
 
 let saveDebounceTimer = null;
 let retryTimer = null;
@@ -166,6 +167,41 @@ function persist() {
   clearTimeout(retryTimer);
   saveDebounceTimer = setTimeout(requestSave, 300);
 }
+
+// v3 Phase 5: an import's save. It takes the one-at-a-time save queue first
+// (waits for a save in flight, takes over a pending debounced one), and only
+// then applies the import in memory, so no ordinary save can carry the import
+// ahead of its pre-import snapshot. The server takes that named snapshot in the
+// same locked step as the write. On any failure the import is rolled back in
+// memory and edits made before it are saved again normally. Events are not
+// flushed here: the importer records its events only after this succeeds.
+async function saveImportNow(importLabel, { apply, rollback }) {
+  while (saveInFlight) await new Promise((r) => setTimeout(r, 50));
+  clearTimeout(saveDebounceTimer);
+  clearTimeout(retryTimer);
+  saveInFlight = true;
+  saveQueued = false;
+  const pendingBefore = hasUnsavedChanges;
+  dirtySinceSend = false;
+  apply();
+  setSaveIndicator('saving', 'Saving');
+  try {
+    const result = await Api.saveLibrary(Store.toJSON(), Store.getEtag(), { kind: 'import', importLabel });
+    Store.setEtag(result.etag);
+    hasUnsavedChanges = dirtySinceSend;
+    setSaveIndicator('saved', 'Saved');
+    return result;
+  } catch (err) {
+    rollback();
+    setSaveIndicator('failed', err.conflict ? copy('save.indicator.conflict') : copy('import.indicator.failed'));
+    if (pendingBefore) dirtySinceSend = true;
+    throw err;
+  } finally {
+    saveInFlight = false;
+    if (!runQueuedSave() && dirtySinceSend) persist();
+  }
+}
+setImportSaver(saveImportNow);
 
 // Best-effort guard against closing the tab while a save is still pending —
 // covers the case of rapid edits followed by an immediate close.
@@ -497,7 +533,7 @@ async function boot() {
   document.addEventListener('library-imported', (e) => {
     refreshCurrentView(); // whatever's on screen — Home/Statistics included, not just the list view
     persist();
-    Render.showToast(`Imported ${e.detail.added} entries from MyAnimeList.`);
+    Render.showToast(copy('import.toast', undefined, { n: e.detail.added }));
   });
 
   // Background data: never re-render under someone typing (v3 Phase 1 item 10).

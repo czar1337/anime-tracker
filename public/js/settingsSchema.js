@@ -60,7 +60,7 @@ export function isValidHexColor(value) {
 }
 
 export const LIBRARY_LAYOUTS = ['grid', 'list'];
-export const SAVED_VIEW_LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
+export const SAVED_VIEW_LISTS = ['watching', 'watchlist', 'watched', 'dropped', 'paused'];
 export const SAVED_VIEWS_MAX = 20;
 export const SAVED_VIEW_NAME_MAX = 40;
 
@@ -174,7 +174,20 @@ function isValidStep(v) {
   return Number.isInteger(v) && v >= MIN_STEP && v <= MAX_STEP;
 }
 
-const LISTS = ['watching', 'watchlist', 'watched', 'dropped'];
+const LISTS = ['watching', 'watchlist', 'watched', 'dropped', 'paused'];
+
+// v3 Phase 5: background notifications (the server polls airing while the
+// app runs). quietHours is null or { from, to } as 'HH:MM', and may wrap
+// midnight.
+export const NOTIFICATION_LISTS = ['watching', 'watchlist', 'paused'];
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+export function sanitizeNotifications(value, fallback) {
+  const v = value && typeof value === 'object' ? value : fallback;
+  const lists = Array.isArray(v.lists) ? v.lists.filter((l) => NOTIFICATION_LISTS.includes(l)) : fallback.lists;
+  const q = v.quietHours;
+  const quietHours = q === null ? null : q && HHMM.test(q.from) && HHMM.test(q.to) ? { from: q.from, to: q.to } : fallback.quietHours;
+  return { enabled: Boolean(v.enabled), lists: [...new Set(lists)], quietHours };
+}
 
 // Full preferences defaults: today's existing fields (values unchanged from
 // state.js's prior DEFAULT_PREFERENCES) plus this substep's additions.
@@ -198,8 +211,8 @@ export function defaultSettings() {
     // (see sortLogic.js's isNoopSort), so sortDir.discover's value is a
     // placeholder; kept 'desc' for consistency with the four lists' own
     // unchanged defaults below.
-    sort: { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', discover: 'recommended' },
-    sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc', discover: 'desc' },
+    sort: { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'dateAdded', discover: 'recommended' },
+    sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc', paused: 'desc', discover: 'desc' },
     filters: {
       // P4.1: airingStatus is new (AniList's own status enum, or '' for
       // "any") — a filter dimension distinct from the four tabs (which
@@ -209,6 +222,7 @@ export function defaultSettings() {
       watchlist: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
       watched: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
       dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
+      paused: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
     },
     activeTab: 'watching',
     // v3 Phase 4: the library's layout (covers, or the compact list for large
@@ -244,6 +258,7 @@ export function defaultSettings() {
     },
     scheduleFilters: { format: '', studio: '' },
     notifyNewEpisodes: false,
+    notifications: { enabled: false, lists: ['watching'], quietHours: { from: '23:00', to: '08:00' } },
     // New, inert settings (P1.3) — no consumer yet; later substeps (P1.6,
     // P5B.5, P6.4) wire these up. 'english' matches render.js's current
     // de-facto title-primary fallback (titleEnglish || titleRomaji), so a
@@ -342,6 +357,7 @@ export function ensureSettingsShape(preferences) {
   prefs.discoverFilters = { ...defaults.discoverFilters, ...prefs.discoverFilters };
   prefs.scheduleFilters = { ...defaults.scheduleFilters, ...prefs.scheduleFilters };
   prefs.notifyNewEpisodes = Boolean(prefs.notifyNewEpisodes);
+  prefs.notifications = sanitizeNotifications(prefs.notifications, defaults.notifications);
 
   // Enum fields: repair a corrupt/unrecognized value back to default rather
   // than crashing (rule: "corrupt values repaired rather than crashing"),

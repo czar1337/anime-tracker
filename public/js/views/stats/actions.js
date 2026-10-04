@@ -6,6 +6,7 @@ import { EventHistory } from '../../eventHistory.js';
 import { computeLibraryStats } from '../../statsLogic.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from '../../statsExport.js';
 import { openDialog } from '../../core/dialog.js';
+import { renderStatsPage, showMoreDiary } from './view.js';
 
 function currentStats() {
   return computeLibraryStats(Store.getEntries(), Store.getCounts(), new Date(), { events: EventHistory.allEvents(), logStartTs: EventHistory.logStartTs() });
@@ -28,6 +29,15 @@ async function openStatsShareOverlay() {
 export function bindStatsActions() {
   document.getElementById('stats-view').addEventListener('click', (e) => {
     if (e.target.closest('#stats-share-trigger')) openStatsShareOverlay();
+    if (e.target.closest('[data-action="diary-more"]')) {
+      const view = document.getElementById('stats-view');
+      const shown = view.querySelectorAll('.diary-row').length;
+      showMoreDiary();
+      renderStatsPage(view);
+      // Focus the first newly shown entry (or Show more, if it is still there).
+      const rows = view.querySelectorAll('.diary-row');
+      (rows[shown]?.querySelector('.diary-title') || view.querySelector('[data-action="diary-more"]'))?.focus();
+    }
   });
 
   document.getElementById('stats-share-download-btn').addEventListener('click', async () => {

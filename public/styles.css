@@ -321,7 +321,8 @@ kbd {
 #notifications-trigger { position: relative; }
 .icn-dot { position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
 
-/* Library: the four lists as one segmented control, with counts. */
+/* Library: the five lists as one segmented control, with counts. On a phone
+   the row scrolls sideways, with tighter padding so most of it fits. */
 .library-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .lists-seg {
   display: inline-flex;
@@ -351,6 +352,7 @@ kbd {
 }
 .list-seg:hover { color: var(--text); }
 .list-seg[aria-selected="true"] { background: var(--accent-soft); color: var(--text); }
+@media (max-width: 720px) { .list-seg { padding: var(--sp-2); gap: var(--sp-1); } }
 .saved-views { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .saved-view { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: var(--radius-pill); overflow: hidden; }
 .saved-view.on { border-color: var(--accent); background: var(--accent-soft); }
@@ -3366,3 +3368,84 @@ a.btn { text-decoration: none; }
   white-space: nowrap;
   border: 0;
 }
+
+/* v3 Phase 5: dates, rewatches and the watch history in the drawer, and the
+   diary on the Stats page. */
+.history-dates { gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.history-date { display: inline-flex; align-items: center; gap: var(--sp-2); font: var(--t-meta); color: var(--dim); }
+.history-date input { font: var(--t-body); color: var(--text); background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--sp-1) var(--sp-2); color-scheme: inherit; }
+.history-list { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: var(--sp-2); }
+.history-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-1) var(--sp-3); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.history-kind { font: var(--t-meta); font-weight: var(--w-strong); color: var(--text); }
+.history-range { font: var(--t-meta); color: var(--dim); }
+.history-note { grid-column: 1 / 3; font: var(--t-meta); color: var(--text); background: transparent; border: 0; border-bottom: 1px dashed var(--line); padding: var(--sp-1) 0; }
+.history-note:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
+.history-remove { grid-row: 1 / 3; grid-column: 3; }
+.diary { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); }
+.diary-month { margin: var(--sp-4) 0 var(--sp-1); font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.diary-row { display: grid; grid-template-columns: 96px 1fr auto; gap: var(--sp-3); align-items: baseline; padding: var(--sp-1) 0; border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
+.diary-date { font: var(--t-meta); color: var(--dim); font-variant-numeric: tabular-nums; }
+.diary-title { font: var(--t-body); color: var(--text); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+.diary-title:hover { color: var(--accent-lit); }
+.diary-note { grid-column: 2 / 4; font: var(--t-meta); color: var(--dim); }
+.diary-badge { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--accent-lit); }
+
+/* v3 Phase 5: the import sources and the merge review. */
+.import-sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); margin: var(--sp-3) 0; }
+.import-source { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-4); display: grid; gap: var(--sp-2); align-content: start; }
+.import-source h3 { margin: 0; }
+.import-source p { margin: 0; font: var(--t-meta); color: var(--dim); }
+.import-source form input { flex: 1; min-width: 0; }
+.import-safety { margin-left: auto; }
+.import-merge { margin-top: var(--sp-4); }
+.merge-head h3 { margin-top: 0; }
+.merge-all { margin: var(--sp-2) 0 var(--sp-3); }
+.merge-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); max-height: 46vh; overflow-y: auto; }
+.merge-row { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--sp-3); }
+.merge-row.off { opacity: .55; }
+.merge-title { display: flex; align-items: center; gap: var(--sp-2); font: var(--t-body); font-weight: var(--w-strong); color: var(--text); }
+.merge-fields { width: 100%; border-collapse: collapse; margin-top: var(--sp-2); font: var(--t-meta); }
+.merge-fields th, .merge-fields td { text-align: left; padding: var(--sp-1) var(--sp-2); border-top: 1px solid color-mix(in srgb, var(--text) 5%, transparent); vertical-align: middle; }
+.merge-fields thead th { color: var(--faint); font-weight: var(--w-med); border-top: 0; }
+.merge-fields td { color: var(--dim); overflow-wrap: anywhere; }
+.merge-seg button { padding: var(--sp-1) var(--sp-2); }
+@media (max-width: 720px) {
+  .merge-fields thead { display: none; }
+  .merge-fields tr { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-1); padding: var(--sp-2) 0; border-top: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
+  .merge-fields th, .merge-fields td { border-top: 0; padding: 0; }
+  .merge-fields th[scope="row"], .merge-fields td:last-child { grid-column: 1 / 3; }
+}
+
+/* v3 Phase 5: where to watch. */
+.detail-watch-links { gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.watch-link { display: inline-flex; align-items: center; gap: var(--sp-2); text-decoration: none; }
+.watch-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.detail-watch-episodes { margin: var(--sp-2) 0; font: var(--t-meta); }
+.detail-watch-episodes summary { cursor: pointer; color: var(--dim); }
+.detail-watch-episodes ol { margin: var(--sp-2) 0 0; padding-left: var(--sp-6); display: grid; gap: var(--sp-1); }
+.detail-watch-episodes a { color: var(--accent-lit); }
+
+/* v3 Phase 5: Schedule v2 — countdowns and list tags in the week, and the
+   Season chart. */
+.schedule-item-when { display: block; font: var(--t-nano); color: var(--dim); font-variant-numeric: tabular-nums; }
+.schedule-item-tag { display: inline-block; margin-top: 2px; font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--accent-lit); }
+.schedule-item.waiting { border-style: dashed; }
+.season-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
+.season-head h3 { margin: 0; }
+.season-tabs { display: inline-flex; gap: var(--sp-1); padding: var(--sp-1); border: 1px solid var(--line); border-radius: var(--radius-pill); }
+.season-tab { background: none; border: 0; border-radius: var(--radius-pill); padding: var(--sp-1) var(--sp-3); color: var(--dim); font: var(--t-meta); cursor: pointer; transition: color var(--dur-fast), background-color var(--dur-fast); }
+.season-tab.on { background: var(--accent-soft); color: var(--text); }
+.season-grid { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
+.season-card { display: grid; grid-template-columns: 72px 1fr; gap: var(--sp-3); padding: var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); }
+.season-cover { padding: 0; border: 0; background: var(--bg-elevated); border-radius: var(--radius-xs); overflow: hidden; aspect-ratio: 2 / 3; cursor: pointer; display: grid; place-items: center; }
+.season-cover img { width: 100%; height: 100%; object-fit: cover; filter: var(--cover-filter); }
+.season-body { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.season-title { background: none; border: 0; padding: 0; text-align: left; font: var(--t-body); font-weight: var(--w-strong); color: var(--text); cursor: pointer; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.season-title:hover { color: var(--accent-lit); }
+.season-add { margin-top: auto; gap: var(--sp-1); }
+.season-owned { margin-top: auto; font: var(--t-meta); color: var(--positive); }
+
+/* v3 Phase 5: notification settings. */
+.check-row { display: inline-flex; align-items: center; gap: var(--sp-2); font: var(--t-body); color: var(--text); cursor: pointer; }
+.quiet-hours { gap: var(--sp-3); }
+.quiet-hours input:disabled { opacity: .5; }

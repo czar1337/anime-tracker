@@ -45,7 +45,7 @@ test('a right-side drawer about 520px wide, full height, with the sections in or
     expect(box.width).toBeGreaterThan(480);
     expect(Math.round(box.height)).toBe(900);
     const labels = await page.locator('#detail-content .detail-lbl').allInnerTexts();
-    expect(labels.map((l) => l.trim().toUpperCase())).toEqual(['PROGRESS', 'YOUR RATING', 'LIST', 'NOTE', 'TAGS', 'LISTS', 'ABOUT', 'SEASONS AND RELATED']);
+    expect(labels.map((l) => l.trim().toUpperCase())).toEqual(['PROGRESS', 'YOUR RATING', 'LIST', 'NOTE', 'TAGS', 'LISTS', 'WATCH HISTORY', 'ABOUT', 'SEASONS AND RELATED']);
     await expect(page.locator('.detail-top [data-action="detail-mark-next"]')).toHaveText('Mark episode 6 watched');
   } finally {
     await server.stop();

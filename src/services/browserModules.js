@@ -72,4 +72,23 @@ function loadTasteProfileModule() {
   return tasteProfileModulePromise;
 }
 
-module.exports = { loadExportRegistryModule, loadEventModules, loadTasteProfileModule };
+// v3 Phase 5: the copy registry, for the few words the server itself shows
+// the user (background notifications). Import-free, like the files above.
+let copyModulePromise = null;
+function loadCopyRegistry() {
+  if (!copyModulePromise) {
+    copyModulePromise = (async () => {
+      const src = readAppSource('public/js/copyRegistry.js');
+      const mod = await import(`data:text/javascript;base64,${Buffer.from(src, 'utf8').toString('base64')}`);
+      // The default tier's variant; a function variant takes params.
+      return (key, params = {}) => {
+        const entry = mod.COPY_REGISTRY[key];
+        const variant = entry && (entry[mod.DEFAULT_COPY_TIER] ?? entry.standard);
+        return typeof variant === 'function' ? variant(params) : variant || key;
+      };
+    })();
+  }
+  return copyModulePromise;
+}
+
+module.exports = { loadExportRegistryModule, loadEventModules, loadTasteProfileModule, loadCopyRegistry };

@@ -19,6 +19,7 @@ import { buildPalette, hslToRgb, themeInputFromAccent } from '../../themeBuilder
 import { TasteProfile } from '../../tasteProfile.js';
 import { escapeHtml } from '../../core/html.js';
 import { morphInto } from '../../core/reconcile.js';
+import { NOTIFICATION_LISTS } from '../../settingsSchema.js';
 
 export const SETTINGS_SECTIONS = ['appearance', 'library', 'recommendations', 'notifications', 'data', 'help'];
 let activeSection = 'appearance';
@@ -337,13 +338,47 @@ function recommendationsHtml() {
 
 // ------------------------------------------------ Notifications, Data, Help
 
-function notificationsHtml() {
-  return rowHtml(copy('settings.notifications.heading'), copy('settings.notifications.description'), commandButton('notifications.open', 'command.notifications'));
+// v3 Phase 5: background notifications (the server checks while the app runs,
+// with no tab open): opt-in, which lists, quiet hours. The in-browser ones
+// (while a tab is open) keep their own window.
+function notificationsHtml(prefs) {
+  const n = prefs.notifications;
+  const listBox = (list) => `<label class="check-row"><input type="checkbox" data-action="notify-list" data-list="${list}" ${n.lists.includes(list) ? 'checked' : ''}> ${escapeHtml(copy(`list.${list}`))}</label>`;
+  const quiet = n.quietHours;
+  return `
+    ${rowHtml(copy('settings.notify.heading'), copy('settings.notify.description'), segHtml('notify-enabled', copy('settings.notify.heading'), [['on', copy('settings.notify.on')], ['off', copy('settings.notify.off')]], n.enabled ? 'on' : 'off'))}
+    ${rowHtml(copy('settings.notify.lists'), copy('settings.notify.listsDescription'), `<div class="row">${NOTIFICATION_LISTS.map(listBox).join('')}</div>`)}
+    ${rowHtml(copy('settings.notify.quiet'), copy('settings.notify.quietDescription'), `
+      <div class="row quiet-hours">
+        <label class="check-row"><input type="checkbox" data-action="notify-quiet" ${quiet ? 'checked' : ''}> ${escapeHtml(copy('settings.notify.quietOn'))}</label>
+        <label class="history-date">${escapeHtml(copy('settings.notify.from'))}<input type="time" data-action="notify-quiet-from" value="${escapeHtml(quiet?.from || '23:00')}" ${quiet ? '' : 'disabled'}></label>
+        <label class="history-date">${escapeHtml(copy('settings.notify.to'))}<input type="time" data-action="notify-quiet-to" value="${escapeHtml(quiet?.to || '08:00')}" ${quiet ? '' : 'disabled'}></label>
+      </div>`)}
+    ${rowHtml(copy('settings.notifications.heading'), copy('settings.notifications.description'), commandButton('notifications.open', 'command.notifications'))}`;
+}
+
+// v3 Phase 5: every import, newest first, each revertable for as long as it is
+// kept (the imports store is Class A, so this survives a reload).
+function importsHtml() {
+  const imports = Store.getImports().slice().reverse();
+  if (!imports.length) return `<p class="manager-empty">${escapeHtml(copy('settings.imports.empty'))}</p>`;
+  const date = (iso) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return `<ul class="manager-list imports-list">${imports
+    .map((r) => `
+      <li class="manager-row wrap" data-key="import-${escapeHtml(r.id)}">
+        <span class="nm">${escapeHtml(copy(`settings.imports.source.${r.source}`))} · ${escapeHtml(date(r.at))}</span>
+        <span class="count">${escapeHtml(copy('settings.imports.counts', undefined, { added: r.counts?.added || 0, updated: r.counts?.updated || 0 }))}</span>
+        <span class="actions">${r.revertedAt
+          ? `<span class="card-meta">${escapeHtml(copy('settings.imports.reverted', undefined, { date: date(r.revertedAt) }))}</span>`
+          : `<button type="button" class="btn btn-ghost sm" data-action="revert-import" data-import-id="${escapeHtml(r.id)}">${escapeHtml(copy('settings.imports.revert'))}</button>`}</span>
+      </li>`)
+    .join('')}</ul>`;
 }
 
 function dataHtml() {
   return `
     ${rowHtml(copy('settings.backup.heading'), copy('settings.backup.description'), `<div class="row">${commandButton('backup.open', 'command.backup')}${commandButton('import.open', 'command.import')}</div>`)}
+    ${rowHtml(copy('settings.imports.heading'), copy('settings.imports.description'), importsHtml())}
     ${rowHtml(copy('dataSafety.heading'), copy('dataSafety.description'), `
       <ul id="snapshot-list" class="backup-list" data-morph-key="snapshots"><li class="backup-empty">${escapeHtml(copy('dataSafety.snapshotList.loading'))}</li></ul>
       <div class="row">

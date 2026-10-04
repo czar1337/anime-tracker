@@ -327,6 +327,10 @@ test('opening Discover with a warm corpus makes zero requests to AniList — she
     // the same way pre-seeding the corpus ids above removed the other one.
     fs.writeFileSync(path.join(server.dataDir, 'covers', '301.jpg'), '');
     fs.writeFileSync(path.join(server.dataDir, 'covers', '9500.jpg'), '');
+    // A fourth, unrelated source (v3 Phase 5): the airing refresh now covers
+    // Watchlist titles too, and refreshes at boot when its cache is missing. A
+    // fresh airing cache keeps it quiet.
+    await fetch(`${server.url}/api/airing`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ generatedAt: new Date().toISOString(), entries: {} }) });
     // A third, unrelated source: tasteProfile.js's own cold-start overlay
     // (P5A.2) fetches real cover art for its own candidate tiles the
     // moment it auto-shows, before this test ever gets a chance to click

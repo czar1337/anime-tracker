@@ -320,7 +320,87 @@ Phase 3 (design system and motion):
 - **Settings evidence and the notice.** The one-time migration notice is a toast at
   boot plus a list in Settings > Appearance, cleared by "Got it" (`seenAt`), not a
   modal, so it never blocks the app on first start.
-- **Empty Discover shelves are grouped after the rails.** Each still states why it is
+- **Empty Discover shelves are grouped after the rails.**
+- **Event sources (Phase 5).** `live` for single actions, `bulk` for every select-mode
+  action (and the episodes a bulk move fills in), `import` for MAL and screenshot
+  imports, `backfill` for episodes filled in by a single move to Watched or an add
+  straight into Watched (search, detail, Discover), `discover` for Discover adds. The
+  Schedule's "Coming soon" add stays `live`. Old events are read, never rewritten: an
+  old `episode_watched` that jumps more than one episode is a backfill, anything else
+  live. Streaks and sittings read `live` only; "Episodes this year" drops `import`
+  (an import is past watching) but keeps bulk and backfill, which the user did now.
+  An old MAL import cannot be told apart from a move to Watched, so it still counts
+  there.
+- **Paused is the fifth list, last,** in the brief's order (Watching / Watchlist /
+  Watched / Dropped / Paused). On a phone the list row scrolls.
+- **Watch history.** Schema 16 seeds one record per Watched series with a finish date
+  (76 on the real copy). After that, a record is written when a series is finished
+  (a move to Watched, the completion moment, bulk) and closed when a rewatch ends; an
+  add straight into Watched writes none (its date is unknown). The entry's startedAt
+  and completedAt are the first watch, and editing them also dates that watch's
+  record. Records carry the title and outlive their series, so the diary never loses
+  an entry. "Watch again" resets progress to 0 without an episode event (lifetime
+  counts only add what is watched; the rewatched episodes add again) and emits
+  `rewatch_started`, the first time that type is reachable.
+- **Imports share one flow and one record.** MAL, AniList (by username, POINT_10
+  scores) and backup files become the same items; step 2 lists what is new and merges
+  what is already in the library field by field. The merge defaults to "theirs" only
+  where the library has nothing (no score, no dates, no note, no rewatches) and to
+  "mine" everywhere else, so nothing is overwritten without a choice; "newest" uses the
+  source's change time and keeps mine when the source has none (a MAL export).
+  Comments and notes are appended under a dated "Imported from …" line, never replace
+  a note. MAL partial dates round to the first of the month or year.
+- **The pre-import snapshot is pinned and taken in the write.** The import PUT carries
+  a `pre-import-<source>-<time>` label; the server takes the snapshot inside the same
+  lock as the If-Match check and the write, and writes nothing if it cannot. Pinned,
+  because an unpinned one rotates away after three more snapshots, which would break
+  the promise that an import stays revertable.
+- **Revert works from the import record, not the snapshot.** It removes what the import
+  added (and the history it wrote) and puts back each field it changed, only where
+  the field still has the imported value; the record stays, marked reverted, so this
+  survives reloads. Restoring the snapshot remains the whole-library fallback. The log
+  is append-only and the counter fold only adds, so lifetime counters keep counting a
+  reverted import's episodes.
+- **A backup file now merges instead of replacing.** Backup's "Import series from a
+  backup file" opens the import flow (series only). Replacing the whole library is what
+  the backups and snapshots lists are for.
+- **Background notifications are the server's only AniList call.** Opt-in
+  (`preferences.notifications`, computed in schema 16 from the old in-browser opt-in),
+  polled every `NOTIFICATIONS.pollMinutes` (30) from a minute after start, for the
+  chosen lists; the first sight of a series only records it (no burst), quiet hours
+  hold announcements until after them, more than three become one summary. Toasts go
+  through a hidden PowerShell process with the WinRT ToastNotificationManager under
+  Windows PowerShell's registered AppUserModelID (an unregistered id is dropped
+  silently); the text travels in environment variables, never the command line. The
+  in-browser notifications (tab open) stay as they were.
+- **The tray icon lands now, the console window in Phase 7.** A hidden PowerShell
+  WinForms NotifyIcon (Open, Open data folder, Quit; a left click opens) talks to the
+  server over stdout and closes itself when the server's pid is gone. Packaged
+  Windows app only; off in development, tests and the exe smoke test.
+- **Server-side copy.** The few words the server shows (toasts, tray menu) come from
+  the copy registry, loaded through the same data: URL loader as the other shared
+  modules.
+- **Phase 5 review, LOWs left as they are.** The screenshot import keeps its own Undo
+  on its done screen and does not appear under Settings > Imports (the brief names
+  MAL, AniList and files). Pinned pre-import snapshots are kept, not pruned: each is
+  the user's way back from one import and they are small; Phase 7's cleanup can add a
+  retention rule. Dropping or pausing during a rewatch leaves its record open, so
+  finishing it later closes that rewatch (a paused rewatch is still that rewatch).
+  Schedule countdowns update on each render (refresh, tab open), not every minute.
+  The toast's 20 s kill timeout and the tray's pid check are process constants in
+  their modules, not tunables.
+- **An import's events are recorded only after its save.** A failed import (409, a
+  refused snapshot) must leave no trace in the append-only log, or the lifetime
+  counters would count episodes that were never imported; the importer queues its
+  events and records them once the save succeeded.
+- **Revert keeps what the user changed since.** An added series is removed only while
+  its list, progress, score, note, dates, rewatches, tags and lists are still what the
+  import set; otherwise it stays and the toast says how many were kept.
+- **With background notifications on, the open tab does not also notify.**
+- **Streaks and sittings are new on the Stats page.** The brief asks that they read live
+  events only, and there was no streak or session logic to restrict, so Phase 5 adds
+  them: a day counts when its live progress nets above zero; a sitting is live episodes
+  at most `sessionGapMinutes` (30) apart. Each still states why it is
   empty, but the rails above the fold are ones with cards.
 
 ## Later (out of scope for v3.0)

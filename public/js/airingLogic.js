@@ -74,7 +74,7 @@ export function buildWeekSchedule(cacheEntries, watchingEntries, now = new Date(
       if (airDate >= todayStart && airDate < windowEnd) {
         const dayIndex = calendarDaysBetween(todayStart, airDate);
         if (dayIndex >= 0 && dayIndex <= 6) {
-          days[dayIndex].items.push({ anilistId: entry.anilistId, title, episode: nextEp.episode, airingAt: nextEp.airingAt, alreadyAired: false });
+          days[dayIndex].items.push({ anilistId: entry.anilistId, title, episode: nextEp.episode, airingAt: nextEp.airingAt, alreadyAired: false, list: entry.listStatus });
         }
       }
     }
@@ -82,7 +82,7 @@ export function buildWeekSchedule(cacheEntries, watchingEntries, now = new Date(
     if (lastAired && Number.isInteger(lastAired.airingAt)) {
       const airedDate = new Date(lastAired.airingAt * 1000);
       if (airedDate >= todayStart && airedDate < tomorrowStart) {
-        days[0].items.push({ anilistId: entry.anilistId, title, episode: lastAired.episode, airingAt: lastAired.airingAt, alreadyAired: true });
+        days[0].items.push({ anilistId: entry.anilistId, title, episode: lastAired.episode, airingAt: lastAired.airingAt, alreadyAired: true, list: entry.listStatus });
       }
     }
   }

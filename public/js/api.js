@@ -63,10 +63,16 @@ async function postEvents(events, { keepalive = false } = {}) {
 
 // `kind: 'import'` marks a whole-library replacement from a file, which the
 // server always backs up on its own rather than sharing a same-minute backup.
-async function saveLibrary(data, etag, { kind } = {}) {
+// v3 Phase 5: `importLabel` (with kind 'import') also has the server take a
+// pinned, named pre-import snapshot in the same locked step as the write; the
+// response then carries { snapshot, label }.
+async function saveLibrary(data, etag, { kind, importLabel } = {}) {
+  const headers = { 'If-Match': etag };
+  if (kind) headers['x-save-kind'] = kind;
+  if (kind === 'import' && importLabel) headers['x-import-label'] = importLabel;
   const res = await writeFetch('/api/library', {
     method: 'PUT',
-    headers: writeHeaders(kind ? { 'If-Match': etag, 'x-save-kind': kind } : { 'If-Match': etag }),
+    headers: writeHeaders(headers),
     body: JSON.stringify(data),
   });
   const body = await res.json();
@@ -319,6 +325,58 @@ query ($idMalIn: [Int]) {
   }
 }`;
 
+// v3 Phase 5: a user's public AniList anime list, by username (no OAuth).
+// Scores come back on a 1-10 scale whatever the user's own setting is.
+const LIST_COLLECTION_QUERY = `
+query ($userName: String) {
+  MediaListCollection(userName: $userName, type: ANIME) {
+    lists {
+      entries {
+        status
+        progress
+        repeat
+        notes
+        updatedAt
+        score(format: POINT_10)
+        startedAt { year month day }
+        completedAt { year month day }
+        media {
+          id
+          idMal
+          title { romaji english }
+          coverImage { large extraLarge }
+          episodes
+          duration
+          format
+          seasonYear
+          averageScore
+          popularity
+          genres
+          status
+          season
+          studios(isMain: true) { nodes { name } }
+          ${RELATIONS_FIELD}
+        }
+      }
+    }
+  }
+}`;
+
+// Every entry of every list (a custom list can repeat a title; the first wins).
+async function fetchAniListCollection(userName) {
+  const data = await anilistRequest(LIST_COLLECTION_QUERY, { userName });
+  const seen = new Set();
+  const out = [];
+  for (const list of data?.MediaListCollection?.lists || []) {
+    for (const entry of list.entries || []) {
+      if (!entry?.media?.id || seen.has(entry.media.id)) continue;
+      seen.add(entry.media.id);
+      out.push(entry);
+    }
+  }
+  return out;
+}
+
 // Relation types that represent "the same title" for grouping seasons/OVAs
 // together (excludes SOURCE material, ADAPTATION, SPIN_OFF, CHARACTER, etc.
 // which are meaningfully different works).
@@ -422,6 +480,36 @@ async function fetchAiringBatch(idIn) {
 // Sorted by popularity (not by date) so the pool is anticipated, known
 // titles rather than obscure not-yet-announced-in-detail entries — the
 // Schedule tab re-sorts this pool by taste + release date itself.
+// v3 Phase 5: the Season chart, one season at a time, most popular first.
+const SEASON_QUERY = `
+query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
+  Page(page: $page, perPage: 50) {
+    pageInfo { hasNextPage }
+    media(season: $season, seasonYear: $seasonYear, type: ANIME, isAdult: false, sort: POPULARITY_DESC) {
+      id
+      title { romaji english }
+      coverImage { large extraLarge }
+      format
+      status
+      genres
+      season
+      seasonYear
+      startDate { year month day }
+      averageScore
+      popularity
+      episodes
+      duration
+      studios(isMain: true) { nodes { name } }
+      ${RELATIONS_FIELD}
+    }
+  }
+}`;
+
+async function fetchSeasonMedia(season, seasonYear, page = 1) {
+  const data = await anilistRequest(SEASON_QUERY, { season, seasonYear, page });
+  return { media: data.Page.media, hasNextPage: Boolean(data.Page.pageInfo?.hasNextPage) };
+}
+
 const UPCOMING_QUERY = `
 query ($page: Int) {
   Page(page: $page, perPage: 50) {
@@ -431,6 +519,8 @@ query ($page: Int) {
       coverImage { large extraLarge }
       format
       genres
+      source
+      tags { name category rank }
       seasonYear
       startDate { year month day }
       averageScore
@@ -628,6 +718,8 @@ query ($id: Int) {
     endDate { year month day }
     studios(isMain: true) { nodes { name } }
     relations { edges { relationType node { id type format seasonYear episodes title { romaji english } } } }
+    externalLinks { site url type language isDisabled icon color }
+    streamingEpisodes { title thumbnail url site }
   }
 }`;
 
@@ -638,6 +730,8 @@ async function fetchAnimeDetail(anilistId) {
 }
 
 export const Api = {
+  fetchSeasonMedia,
+  fetchAniListCollection,
   getCoverHues,
   saveCoverHues,
   getLibrary,
