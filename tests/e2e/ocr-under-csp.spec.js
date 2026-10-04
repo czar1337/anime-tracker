@@ -39,7 +39,7 @@ test('screenshot OCR still works under the CSP', async ({ page }) => {
       ctx.fillText('MUSHISHI', 40, 80);
       const worker = await window.Tesseract.createWorker('eng', 1, {
         workerPath: '/vendor/tesseract/worker.min.js',
-        corePath: '/vendor/tesseract/core/',
+        corePath: '/vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
         langPath: '/vendor/tesseract/lang/',
       });
       const result = await worker.recognize(canvas);

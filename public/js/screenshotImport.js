@@ -27,7 +27,10 @@ async function getWorker(onProgress) {
   await loadTesseractScript();
   worker = await window.Tesseract.createWorker('eng', 1, {
     workerPath: '/vendor/tesseract/worker.min.js',
-    corePath: '/vendor/tesseract/core/',
+    // v3 Phase 7: one core only, the SIMD build every current browser runs
+    // (the plain and relaxed-SIMD variants are archived), which keeps about
+    // 7.8 MB out of the exe.
+    corePath: '/vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
     langPath: '/vendor/tesseract/lang/',
     gzip: true,
     logger: (m) => onProgress?.(m),

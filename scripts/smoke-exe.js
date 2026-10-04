@@ -15,7 +15,7 @@ const { spawn } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8')).version;
-const exe = process.argv[2] || path.join(ROOT, 'dist', `AnimeTracker-${version}.exe`);
+const exe = process.argv[2] || path.join(ROOT, 'dist', 'AnimeTracker.exe');
 
 function freePort() {
   return new Promise((resolve) => {
