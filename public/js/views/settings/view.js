@@ -12,7 +12,7 @@ import { COLOR_THEMES, themeName } from '../../themes.js';
 import { Preferences } from '../../preferences.js';
 import { copy } from '../../copy.js';
 import { TAG_COLORS, tagColorHex, DEFAULT_TAG_COLOR_ID } from '../../listsAndTags.js';
-import { LISTS_AND_TAGS, RECOMMENDATIONS } from '../../../../config/tuning.js';
+import { LISTS_AND_TAGS, DISCOVER } from '../../../../config/tuning.js';
 import { Fonts } from '../../fonts.js';
 import { checkContrastAA } from '../../contrastCheck.js';
 import { buildPalette, hslToRgb, themeInputFromAccent } from '../../themeBuilder.js';
@@ -320,9 +320,9 @@ function libraryHtml(prefs) {
 
 // ----------------------------------------------------------- Recommendations
 
-function tasteProfileText(profile) {
-  const threshold = RECOMMENDATIONS.coldStartThresholdRatedEntries;
-  const count = profile.ratedCount || 0;
+function tasteProfileText() {
+  const threshold = DISCOVER.confidenceFullAt;
+  const count = TasteProfile.ratedCount();
   return count < threshold
     ? copy('settings.taste.fewRatings', undefined, { count, threshold })
     : copy('settings.taste.enoughRatings', undefined, { count });
@@ -331,7 +331,7 @@ function tasteProfileText(profile) {
 function recommendationsHtml() {
   return rowHtml(
     copy('settings.taste.heading'),
-    tasteProfileText(TasteProfile.getProfile()),
+    tasteProfileText(),
     `<button type="button" class="btn btn-ghost sm" data-action="redo-cold-start">${escapeHtml(copy('settings.taste.redo'))}</button>`
   );
 }

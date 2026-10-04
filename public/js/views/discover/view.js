@@ -1,31 +1,24 @@
-// Discover page (v3 Phase 2: moved from render.js unchanged). Phase 6 rebuilds
-// Discover per docs/v3/25-09-2026-v3-discover-spec.md, so these templates stay
-// as they were (manual escapeHtml) instead of being rewritten twice; see
-// docs/v3-plan.md, "Decisions made autonomously".
+'use strict';
+// The Discover page (v3 Phase 6, docs/v3/25-09-2026-v3-discover-spec.md
+// section 7): a header row (title, Tune, search, Triage, Dismissed), the
+// active filters as chips, the Top picks hero, then horizontal rails. Every
+// card answers in one tap: Want to watch, Seen it, Not for me, and a "⋯" menu.
+// What is on the page comes from the engine (public/js/discover/engine/); this
+// file only draws it.
 
 import { Store } from '../../state.js';
 import { copy } from '../../copy.js';
-import { RECOMMENDATIONS } from '../../../../config/tuning.js';
+import { DISCOVER } from '../../../../config/tuning.js';
 import { MOOD_REGISTRY } from '../../moodRegistry.js';
+import { ADVENTUROUSNESS_LEVELS, adventurousnessLevelFrom } from '../../discover/railIds.js';
 import { escapeHtml } from '../../core/html.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
 import { morphInto } from '../../core/reconcile.js';
-import { staggerDelay, relativeAgeText, formatEnumLabel, infoHintHtml } from '../shared/format.js';
+import { staggerDelay, formatEnumLabel, infoHintHtml } from '../shared/format.js';
 import { shelfSkeletonHtml } from '../shared/skeleton.js';
+import { formatEpisodeCountdown } from '../../airingLogic.js';
 
-// P5A.4: one card per shelf row. `cardData` is whatever
-// shelvesLogic.js's buildShelves() produced: {anilistId, candidate, because,
-// hiddenCount}, `candidate` being a corpus entry — never AniList's raw
-// Media shape the old discoverCardHtml (P1-era) used. Deliberately no
-// cover image: corpus entries never carry one (corpusLogic.js's own
-// pruning, P0.3's halved-payload finding), and fetching one live per shelf
-// card would violate the spec's own "no per-card API request, ever" rule
-// for a warm corpus — the same placeholder-cover fallback a freshly-added
-// library entry already shows before its own cover finishes downloading
-// (coverSrc's own empty-string case). A real cover appears once the title
-// is actually added (discover.js's own add handler fetches it then, a
-// genuine per-item user action, not "rendering a shelf").
-// P5B.4's dismiss reasons (v3 Phase 4: offered in the "Not for me" menu).
+// "Not for me" reasons (shown in its menu, in Triage and in the Dismissed drawer).
 const DISMISS_REASON_COPY_KEYS = {
   wrongGenre: 'discoverFeedback.reasonWrongGenre',
   tooLong: 'discoverFeedback.reasonTooLong',
@@ -34,165 +27,167 @@ const DISMISS_REASON_COPY_KEYS = {
   notInMood: 'discoverFeedback.reasonNotInMood',
 };
 
-// P5B.5: titleLanguage-aware primary title, the other available language
-// surfaced as a hover reveal (pointer devices) or an always-visible small
-// line under `@media (hover:none)` (styles.css — same touch-fallback
-// pattern the `.plus` button already established). The `title` attribute
-// doubles as the non-hover-dependent path acceptance criteria 5 asks for:
-// it's read by assistive tech and shown by the browser on keyboard focus
-// too, not just mouse hover.
-function discoverCardTitleHtml(c) {
-  const fields = { romaji: c.titleRomaji, english: c.titleEnglish, native: c.titleNative };
-  const lang = Store.state.preferences.titleLanguage;
-  const order = [lang, ...Object.keys(fields).filter((l) => l !== lang)];
-  const primaryLang = order.find((l) => fields[l]) || 'romaji';
-  const primary = fields[primaryLang] || c.titleRomaji || c.titleEnglish || c.titleNative;
-  const altLang = order.find((l) => l !== primaryLang && fields[l] && fields[l] !== primary);
-  const alt = altLang ? fields[altLang] : null;
-  const html = `<span class="discover-card-title-primary">${escapeHtml(primary)}</span>${
-    alt ? `<span class="discover-card-title-alt">${escapeHtml(alt)}</span>` : ''
-  }`;
-  return { primary, alt, html };
-}
-
-// v3 Phase 4: the reason is the card's headline, with the anchor (a title
-// from the library the reason cites) in the accent colour. The reason is
-// prose from shelvesLogic.js; the anchor is found by the library titles in
-// it, longest first, once per reason string.
-const anchoredReasons = new Map();
-let anchorTitles = null;
-let anchorTitlesFor = null;
-function reasonHtml(because) {
-  if (!because) return '';
-  if (anchorTitlesFor !== Store.state.entries) {
-    anchorTitlesFor = Store.state.entries;
-    anchorTitles = [...new Set(Store.state.entries.flatMap((e) => [e.titleEnglish, e.titleRomaji]).filter((t) => t && t.length > 2))].sort((a, b) => b.length - a.length);
-    anchoredReasons.clear();
-  }
-  if (!anchoredReasons.has(because)) {
-    const anchor = anchorTitles.find((t) => because.includes(t));
-    const markup = anchor
-      ? because.split(anchor).map(escapeHtml).join(`<em class="why-anchor">${escapeHtml(anchor)}</em>`)
-      : escapeHtml(because);
-    anchoredReasons.set(because, markup);
-  }
-  return anchoredReasons.get(because);
-}
-
-const ICON_CARET = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>';
-const ICON_MORE_LIKE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/></svg>';
-const ICON_NOT_FOR_ME = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m6.5 6.5 11 11"/></svg>';
-
-// v3 Phase 4: a portrait card. One split "Add ▾" (Watchlist, or the menu for
-// Watching / Watched / Details) and two stroke icons: "More like this" (the
-// positive signal) and "Not for me" (a reason menu, then the card collapses).
-function shelfCardHtml(shelf, cardData, index = 0) {
-  const c = cardData.candidate;
-  const title = discoverCardTitleHtml(c);
-  const metaBits = [c.seasonYear, formatEnumLabel(c.format), c.totalEpisodes ? `${c.totalEpisodes} ep` : null].filter(Boolean);
-  const franchiseBadge = cardData.hiddenCount
-    ? ` <span class="franchise-count" title="${cardData.hiddenCount} more season${cardData.hiddenCount === 1 ? '' : 's'} in this franchise">+${cardData.hiddenCount}</span>`
-    : '';
-  const liked = (Store.state.preferences.likedRecommendationIds || []).includes(c.anilistId);
-  const moreLabel = escapeHtml(copy('discover.moreLikeThis'));
-  const notLabel = escapeHtml(copy('discover.notForMeLabel', undefined, { title: title.primary }));
-  // Corpus entries only carry a small `coverMedium` URL once a P5B.5-or-later
-  // corpus sync has run (corpusLogic.js's pruneMediaFields); older cached
-  // entries show the title's initial until the next sync.
-  const coverHtml = c.coverMedium
-    ? `<img class="discover-card-cover" src="${escapeHtml(c.coverMedium)}" alt="" loading="lazy" decoding="async">`
-    : `<span class="discover-card-initial" aria-hidden="true">${escapeHtml((title.primary || '?').trim().charAt(0))}</span>`;
-  return `
-    <article class="discover-card dc-portrait" role="listitem" data-key="card-${escapeHtml(shelf.id)}-${c.anilistId}" data-shelf-id="${escapeHtml(shelf.id)}" data-anilist-id="${c.anilistId}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
-      <div class="cov">${coverHtml}</div>
-      <div class="dc-body">
-        <p class="why">${reasonHtml(cardData.because)}</p>
-        <h4 data-action="show-detail" data-detail-id="${c.anilistId}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}${franchiseBadge}</h4>
-        <div class="m">${metaBits.map(escapeHtml).join(' · ')}${c.normalizedScore != null ? ` · ★ ${c.normalizedScore}` : ''}</div>
-        <div class="acts">
-          <span class="split-btn">
-            <button class="btn btn-primary sm rip-host" data-action="discover-add" data-add-status="watchlist">${escapeHtml(copy('discover.add'))}</button><button class="btn btn-primary sm split-caret" data-action="discover-add-menu" aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(copy('discover.addMenu', undefined, { title: title.primary }))}">${ICON_CARET}</button>
-          </span>
-          <button class="icn dc-icon${liked ? ' on' : ''}" data-action="discover-thumb-up" title="${moreLabel}" aria-label="${moreLabel}" aria-pressed="${liked}">${ICON_MORE_LIKE}</button>
-          <button class="icn dc-icon" data-action="discover-not-for-me" aria-haspopup="menu" aria-expanded="false" title="${notLabel}" aria-label="${notLabel}">${ICON_NOT_FOR_ME}</button>
-        </div>
-      </div>
-    </article>`;
-}
-
-// The reasons "Not for me" offers (then Skip, a dismissal with no reason).
 export function dismissReasons() {
   return Object.entries(DISMISS_REASON_COPY_KEYS).map(([id, key]) => ({ id, label: copy(key) }));
 }
 export const dismissSkipLabel = () => copy('discoverFeedback.reasonSkip');
+export function dismissReasonLabel(reason) {
+  if (reason === 'hideFranchise') return copy('discover.hideFranchise');
+  return DISMISS_REASON_COPY_KEYS[reason] ? copy(DISMISS_REASON_COPY_KEYS[reason]) : null;
+}
 
-// Post-2.2.2 feedback: "long list I can click View more on". Deliberately
-// excludes 'blind-spot' (hardcoded to a single card by design, see
-// shelvesLogic.js) and the mood shelf (its own id is whatever mood was
-// picked, e.g. 'peak-fiction' — it already gets a larger fixed page size
-// once active, per tuning's moodPageSize, and was never wired to
-// pageSizeOverrides since a full-page single-shelf view has nothing else
-// competing for space the way the 10-shelf view does).
-const EXPANDABLE_SHELF_IDS = new Set([
-  'because-you-liked',
-  'finish-what-you-started',
-  'hidden-gems',
-  'short-and-finishable',
-  'from-studio',
-  'from-director',
-  'community-classics',
-  'this-season',
-  'ironically-essential',
-]);
+// The title in the reader's title language, the other one on hover (the
+// `title` attribute also reaches keyboard focus and assistive tech).
+export function discoverCardTitle(c) {
+  const fields = { romaji: c.titleRomaji, english: c.titleEnglish, native: c.titleNative };
+  const lang = Store.state.preferences.titleLanguage;
+  const order = [lang, ...Object.keys(fields).filter((l) => l !== lang)];
+  const primaryLang = order.find((l) => fields[l]) || 'romaji';
+  const primary = fields[primaryLang] || c.titleRomaji || c.titleEnglish || c.titleNative || '';
+  const altLang = order.find((l) => l !== primaryLang && fields[l] && fields[l] !== primary);
+  const alt = altLang ? fields[altLang] : null;
+  const html = `<span class="discover-card-title-primary">${escapeHtml(primary)}</span>${alt ? `<span class="discover-card-title-alt">${escapeHtml(alt)}</span>` : ''}`;
+  return { primary, alt, html };
+}
 
-// "A shelf with nothing says why" (spec) — emptyReason is already the
-// shelf-specific copy shelvesLogic.js chose (distinguishing "nothing
-// qualified" from "everything qualified was already yours/dismissed").
-function shelfHtml(shelf) {
-  // .disc-head (h3 + a trailing rule line) is the original design system's
-  // own "per-seed grouping" header — never actually used by the P1-era
-  // flat-pool Discover (see render.js's own header comment above the old
-  // discover-card styles), sitting ready for exactly this since before
-  // this substep existed.
-  // v3 Phase 4: each shelf is a horizontal scroll-snap rail (←/→ inside it,
-  // ↑/↓ between rails: actions.js), with "View more" in its head.
-  const headId = `rail-${escapeHtml(shelf.id)}`;
-  const canExpand = !shelf.empty && EXPANDABLE_SHELF_IDS.has(shelf.id) && shelf.cards.length < shelf.totalCandidates;
-  const head = `<div class="disc-head rail-head"><h3 id="${headId}">${escapeHtml(shelf.title)}</h3><span class="rule"></span>${canExpand ? `<button class="text-btn shelf-view-more" data-action="discover-view-more" data-shelf-id="${escapeHtml(shelf.id)}">${escapeHtml(copy('discoverFeedback.viewMore'))}</button>` : ''}</div>`;
-  if (shelf.empty) {
-    return `
-      <section class="shelf" data-key="shelf-${escapeHtml(shelf.id)}">
-        ${head}
-        <p class="shelf-empty card-meta">${escapeHtml(shelf.emptyReason || copy('discover.shelfEmpty'))}</p>
-      </section>`;
-  }
+// The reason line, with its anchor (the rated title it names) in the accent
+// colour. The engine says which title that is; nothing is guessed from text.
+function reasonHtml(reason) {
+  if (!reason?.text) return '';
+  const anchor = reason.anchorTitle;
+  if (!anchor || !reason.text.includes(anchor)) return escapeHtml(reason.text);
+  const at = reason.text.indexOf(anchor);
+  return `${escapeHtml(reason.text.slice(0, at))}<em class="why-anchor">${escapeHtml(anchor)}</em>${escapeHtml(reason.text.slice(at + anchor.length))}`;
+}
+
+function countdownLabel(nextAiring, now = new Date()) {
+  const left = formatEpisodeCountdown(nextAiring, now);
+  if (!left) return null;
+  return copy('discover.nextEpisode', undefined, { episode: nextAiring.episode, days: left.days, hours: left.hours });
+}
+
+function startDateLabel(entry) {
+  const d = entry.startDate;
+  if (!d?.year) return null;
+  if (d.month && d.day) return new Date(d.year, d.month - 1, d.day).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  if (d.month) return new Date(d.year, d.month - 1, 1).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+  return String(d.year);
+}
+
+// year · format · episodes · adjusted score · airing status or countdown
+export function cardMetaBits(card) {
+  const c = card.entry;
+  const year = c.startDate?.year ?? c.seasonYear;
+  const bits = [year, formatEnumLabel(c.format), c.totalEpisodes ? copy('discover.episodes', undefined, { n: c.totalEpisodes }) : null];
+  if (typeof card.bayes === 'number') bits.push(`★ ${card.bayes.toFixed(1)}`);
+  if (c.status === 'RELEASING') bits.push(countdownLabel(c.nextAiring) || copy('discover.airing'));
+  if (c.status === 'NOT_YET_RELEASED') bits.push(startDateLabel(c) ? copy('discover.comingOn', undefined, { date: startDateLabel(c) }) : copy('discover.comingSoon'));
+  return bits.filter(Boolean);
+}
+
+const ICON = {
+  seen: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/></svg>',
+  notForMe: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m6.5 6.5 11 11"/></svg>',
+  more: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/></svg>',
+  search: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>',
+  triage: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6"/></svg>',
+};
+
+function iconButton(action, icon, label, extra = '') {
+  return `<button class="icn dc-icon" data-action="${action}" aria-label="${escapeHtml(label)}" data-tip="${escapeHtml(label)}" ${extra}>${icon}</button>`;
+}
+
+// The card's three answers and its menu, shared by rail cards and the hero.
+function cardActionsHtml(title) {
   return `
-    <section class="shelf" data-key="shelf-${escapeHtml(shelf.id)}">
-      ${head}
-      <div class="rail" role="list" aria-labelledby="${headId}">${shelf.cards.map((c, i) => shelfCardHtml(shelf, c, i)).join('')}</div>
+    <div class="acts">
+      <button class="btn btn-primary sm rip-host dc-want" data-action="discover-want">${escapeHtml(copy('discover.want'))}</button>
+      <span class="dc-icons">
+        ${iconButton('discover-seen', ICON.seen, copy('discover.seenItLabel', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"')}
+        ${iconButton('discover-not-for-me', ICON.notForMe, copy('discover.notForMeLabel', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"')}
+        ${iconButton('discover-more', ICON.more, copy('discover.moreActions', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"')}
+      </span>
+    </div>`;
+}
+
+function coverHtml(entry, title) {
+  const url = entry.coverLarge || entry.coverMedium;
+  return url
+    ? `<img class="discover-card-cover" src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" width="230" height="345">`
+    : `<span class="discover-card-initial" aria-hidden="true">${escapeHtml((title || '?').trim().charAt(0))}</span>`;
+}
+
+// A portrait 2:3 card: cover, reason as the headline, title, meta, up to
+// three feature chips, then the answers.
+function cardHtml(railId, card, index = 0) {
+  const c = card.entry;
+  const title = discoverCardTitle(c);
+  const chips = (card.chips || []).slice(0, 3);
+  return `
+    <article class="discover-card dc-portrait" role="listitem" data-key="card-${escapeHtml(railId)}-${card.id}" data-rail-id="${escapeHtml(railId)}" data-anilist-id="${card.id}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
+      <div class="cov">${coverHtml(c, title.primary)}</div>
+      <div class="dc-body">
+        <p class="why">${reasonHtml(card.reason)}</p>
+        <h4 data-action="show-detail" data-detail-id="${card.id}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h4>
+        <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
+        ${chips.length ? `<div class="dc-chips">${chips.map((ch) => `<span class="dc-chip">${escapeHtml(ch)}</span>`).join('')}</div>` : ''}
+        ${cardActionsHtml(title.primary)}
+      </div>
+    </article>`;
+}
+
+// The Top picks hero: wide slides with the banner, the same answers.
+function heroSlideHtml(card, index) {
+  const c = card.entry;
+  const title = discoverCardTitle(c);
+  const banner = c.bannerImage || c.coverLarge || c.coverMedium;
+  return `
+    <article class="discover-card dc-hero" role="listitem" data-key="hero-${card.id}" data-rail-id="top-picks" data-anilist-id="${card.id}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
+      ${banner ? `<img class="dc-hero-banner" src="${escapeHtml(banner)}" alt="" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async">` : ''}
+      <div class="dc-hero-body">
+        <p class="why">${reasonHtml(card.reason)}</p>
+        <h3 data-action="show-detail" data-detail-id="${card.id}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h3>
+        <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
+        ${cardActionsHtml(title.primary)}
+      </div>
+    </article>`;
+}
+
+function railTitle(rail, { afterHero = false } = {}) {
+  if (rail.id === 'top-picks' && afterHero) return copy('discoverRail.top-picks-more');
+  if (rail.kind === 'because') return copy('discoverRail.because', undefined, { title: rail.anchorTitle || '' });
+  if (rail.id === 'more-like-this') return copy('discoverRail.more-like-this', undefined, { title: rail.anchorTitle || '' });
+  return copy(`discoverRail.${rail.kind}`);
+}
+
+const NOT_EXPANDABLE = new Set(['wildcard', 'more-picks']);
+
+function railHtml(rail, cards, { headLevel = 'h3', afterHero = false } = {}) {
+  const headId = `rail-${escapeHtml(rail.id)}`;
+  const title = railTitle(rail, { afterHero });
+  const canExpand = !NOT_EXPANDABLE.has(rail.id) && rail.total > rail.cards.length;
+  return `
+    <section class="shelf" data-key="rail-${escapeHtml(rail.id)}" data-rail="${escapeHtml(rail.id)}">
+      <div class="disc-head rail-head"><${headLevel} id="${headId}">${escapeHtml(title)}</${headLevel}><span class="rule"></span>${canExpand ? `<button class="text-btn shelf-view-more" data-action="discover-view-more" data-rail-id="${escapeHtml(rail.id)}">${escapeHtml(copy('discoverFeedback.viewMore'))}</button>` : ''}</div>
+      <div class="rail" role="list" aria-labelledby="${headId}">${cards.map((c, i) => cardHtml(rail.id, c, i)).join('')}</div>
     </section>`;
 }
 
-// v3 Phase 4: the "Tune" popover holds moods, adventurousness, "hide owned",
-// the full filter panel and "Pick for me". It lives outside #discover-view
-// (index.html #discover-tune), so rebuilding the shelves never closes it.
+// Tune (outside #discover-view, so a rebuild never closes it): moods as a
+// lens, adventurousness in four steps, "hide owned", the full filters and
+// "Pick for me".
 export function renderDiscoverTune(viewState) {
   const el = document.getElementById('discover-tune');
   if (!el) return;
-  const { hideOwned = true, activeMoodId = null, adventurousness = null, adventurousnessEnabled = true } = viewState;
-  const adventurousnessDisplay = adventurousness ?? (RECOMMENDATIONS.adventurousness.min + RECOMMENDATIONS.adventurousness.max) / 2;
+  const { hideOwned = true, activeMoodId = null } = viewState;
+  const level = adventurousnessLevelFrom(Store.state.preferences);
+  const levels = ADVENTUROUSNESS_LEVELS.map((l) => `<button class="seg-btn${l === level ? ' on' : ''}" data-action="discover-level" data-level="${l}" aria-pressed="${l === level}">${escapeHtml(copy(`discover.level.${l}`))}</button>`).join('');
   el.innerHTML = `
     <h2 class="tune-title">${escapeHtml(copy('discover.tuneLabel'))}</h2>
     <p class="detail-lbl">${escapeHtml(copy('discover.moods'))}</p>
     ${moodButtonRowHtml(activeMoodId)}
-    <div class="discover-adventurousness-row">
-      <label class="discover-adventurousness-toggle">
-        <input type="checkbox" id="discover-adventurousness-enabled" ${adventurousnessEnabled ? 'checked' : ''}>
-        <span>${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}</span>
-      </label>
-      ${infoHintHtml(copy('discoverFeedback.adventurousnessHint'))}
-      <input type="range" id="discover-adventurousness-slider" min="${RECOMMENDATIONS.adventurousness.min}" max="${RECOMMENDATIONS.adventurousness.max}" step="1" value="${adventurousnessDisplay}" ${adventurousnessEnabled ? '' : 'disabled'} aria-label="${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}">
-    </div>
+    <p class="detail-lbl">${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))} ${infoHintHtml(copy('discoverFeedback.adventurousnessHint'))}</p>
+    <div class="seg discover-levels" role="group" aria-label="${escapeHtml(copy('discoverFeedback.adventurousnessLabel'))}">${levels}</div>
     <label class="discover-hide-owned-row"><input type="checkbox" id="discover-hide-owned-toggle" ${hideOwned ? 'checked' : ''}>${escapeHtml(copy('discover.hideOwned'))}</label>
     <div class="row tune-actions">
       <button class="btn btn-ghost sm" data-action="discover-filters-open">${escapeHtml(copy('discover.filters'))}</button>
@@ -200,11 +195,14 @@ export function renderDiscoverTune(viewState) {
     </div>`;
 }
 
-// P5A.1's minimal progress signal for the background corpus seed. Also
-// doubles as P5A.4's own "usable degraded Discover, first ever run" content
-// while the corpus is below shelvesLogic.js's own diversity floor (see
-// discover.js's MIN_CORPUS_FOR_SHELVES) — renders nothing once the corpus
-// is 'ready', so an existing user with a mature corpus never sees it.
+function corpusStatusHtml(corpusStatus) {
+  if (!corpusStatus || corpusStatus.status === 'ready') return '';
+  const { entryCount = 0, targetSize = DISCOVER.corpusTargetSize, seeding, paused } = corpusStatus;
+  const label = paused ? copy('discover.seedingPaused', undefined, { n: entryCount.toLocaleString(), target: targetSize.toLocaleString() }) : copy('discover.seeding', undefined, { n: entryCount.toLocaleString(), target: targetSize.toLocaleString() });
+  const action = paused ? `<button class="text-btn" data-action="corpus-resume">${escapeHtml(copy('discover.seedResume'))}</button>` : seeding ? `<button class="text-btn" data-action="corpus-pause">${escapeHtml(copy('discover.seedPause'))}</button>` : '';
+  return `<div class="corpus-status" role="status"><span class="corpus-status-text">${escapeHtml(label)}</span>${action}</div>`;
+}
+
 // P5B.4's "Pick for me" — a randomiser over the Watchlist. Same static-
 // shell/dynamic-body split discoverFiltersPanelBodyHtml established
 // (index.html's #pick-for-me-body, rendered on demand), since the genre
@@ -253,25 +251,6 @@ export function renderPickForMePanel(container, { entries, filters = {}, picked 
     </div>`;
 }
 
-function corpusStatusHtml(corpusStatus) {
-  if (!corpusStatus || corpusStatus.status === 'ready') return '';
-  const { entryCount, targetSize, seeding, paused } = corpusStatus;
-  const pct = targetSize ? Math.min(100, Math.round((entryCount / targetSize) * 100)) : 0;
-  const label = paused
-    ? `Building your recommendation corpus — paused (${entryCount.toLocaleString()}/${targetSize.toLocaleString()} titles)`
-    : `Building your recommendation corpus… ${entryCount.toLocaleString()}/${targetSize.toLocaleString()} titles (${pct}%)`;
-  const actionBtn = paused
-    ? `<button class="text-btn" data-action="corpus-resume">Resume</button>`
-    : seeding
-      ? `<button class="text-btn" data-action="corpus-pause">Pause</button>`
-      : '';
-  return `
-    <div class="corpus-status" role="status">
-      <span class="corpus-status-text">${escapeHtml(label)}</span>
-      ${actionBtn}
-    </div>`;
-}
-
 // P5B.2: "one-tap intents that reshape the page" — one button per
 // MOOD_REGISTRY entry (adding a mood is purely a data change there, so
 // this row never needs its own edit for a 9th mood), each labelled via
@@ -309,7 +288,6 @@ export function discoverActiveFilterChips(filters) {
   for (const t of f.includeTags || []) chips.push({ key: `includeTag:${t}`, label: `Tag: ${t}` });
   for (const t of f.excludeTags || []) chips.push({ key: `excludeTag:${t}`, label: `Not: ${t}` });
   if (f.maxLengthMinutes != null) chips.push({ key: 'maxLength', label: `Max length: ${(f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '')}h` });
-  if (f.enforcePrerequisiteChain === false) chips.push({ key: 'enforcePrerequisiteChain', label: 'Sequels shown even if unstarted' });
   if (f.hideDismissed === false) chips.push({ key: 'hideDismissed', label: 'Dismissed titles shown' });
   return chips;
 }
@@ -425,7 +403,6 @@ function discoverFiltersPanelBodyHtml(corpusEntries, filters) {
     <div class="df-row"><label>Max length (hours)</label>${numField('df-max-length-hours', f.maxLengthMinutes != null ? (f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '') : null)}</div>
     <div class="df-row df-tags"><label>Include tags</label>${tagChipPickerHtml(corpusEntries, f.includeTags || [], { idPrefix: 'df-include', expanded: includeTagsExpanded, overflowBtnId: 'df-include-tags-overflow' })}</div>
     <div class="df-row df-tags"><label>Exclude tags</label>${tagChipPickerHtml(corpusEntries, f.excludeTags || [], { idPrefix: 'df-exclude', expanded: excludeTagsExpanded, overflowBtnId: 'df-exclude-tags-overflow' })}</div>
-    <label class="discover-hide-owned-row"><input type="checkbox" id="df-enforce-prerequisite-chain" ${f.enforcePrerequisiteChain !== false ? 'checked' : ''}>Hide sequels of shows I have not started</label>
     <label class="discover-hide-owned-row"><input type="checkbox" id="df-hide-dismissed" ${f.hideDismissed !== false ? 'checked' : ''}>Hide dismissed titles</label>
     <div class="row" style="margin-top:var(--sp-4);justify-content:space-between">
       <button class="btn btn-ghost sm" id="discover-filters-copy-link">Copy link</button>
@@ -441,69 +418,170 @@ export function renderDiscoverFiltersPanel(corpusEntries, filters) {
   if (body) body.innerHTML = discoverFiltersPanelBodyHtml(corpusEntries, filters);
 }
 
-export function renderDiscoverPage(container, viewState) {
-  const { status, shelves = [], generatedAt, corpusStatus = null, activeMoodId = null, moodShelf = null, discoverFilters = {} } = viewState;
-  const age = relativeAgeText(generatedAt);
+function matchesSearch(card, q) {
+  if (!q) return true;
+  const c = card.entry;
+  return [c.titleEnglish, c.titleRomaji, c.titleNative].some((t) => t && t.toLowerCase().includes(q));
+}
 
-  // P5B.4: "Surprise me" IS the adventurousness slider; its position falls
-  // back to the tuning range's midpoint, as buildShelves() does (see Tune).
-  renderDiscoverTune(viewState);
-  const dismissedCount = Store.getDismissedItems().length;
-  const activeMood = activeMoodId ? MOOD_REGISTRY.find((m) => m.id === activeMoodId) : null;
-  // v3 Phase 4: one header row (title, Tune, Dismissed, refresh), then the
-  // active filters as removable chips; everything else is inside Tune.
-  const banner = `
+function headHtml({ activeMood, discoverFilters, search, dismissedCount }) {
+  return `
     <div class="discover-head">
-      <h2 class="discover-title">Discover</h2>
+      <h2 class="discover-title">${escapeHtml(copy('nav.discover'))}</h2>
       <button class="btn btn-ghost sm tune-btn" popovertarget="discover-tune" aria-haspopup="dialog">${escapeHtml(copy('discover.tune'))}${activeMood ? ` · ${escapeHtml(copy(activeMood.copyKey))}` : ''}</button>
+      <label class="discover-search">${ICON.search}<input type="search" id="discover-search" value="${escapeHtml(search)}" placeholder="${escapeHtml(copy('discover.searchPlaceholder'))}" aria-label="${escapeHtml(copy('discover.searchLabel'))}" autocomplete="off"></label>
       <span class="discover-head-spacer"></span>
-      ${age ? `<span class="discover-age">${escapeHtml(age)}</span>` : ''}
+      <button class="btn btn-ghost sm" data-action="discover-triage" aria-keyshortcuts="T" title="${escapeHtml(copy('discover.triageHint'))}">${ICON.triage}<span>${escapeHtml(copy('discover.triage'))}</span></button>
       ${dismissedCount ? `<button class="text-btn" id="dismissed-trigger">${escapeHtml(copy('discover.dismissed', undefined, { n: dismissedCount }))}</button>` : ''}
-      <button class="text-btn primary" id="discover-refresh-btn" ${status === 'loading' ? 'disabled' : ''}>${escapeHtml(status === 'loading' ? copy('discover.refreshing') : copy('discover.refresh'))}</button>
     </div>
-    ${discoverFilterChipsRowHtml(discoverFilters)}
-  `;
+    ${discoverFilterChipsRowHtml(discoverFilters)}`;
+}
+
+function coldHeroHtml(ratedCount) {
+  return `
+    <section class="discover-cold" data-key="discover-cold">
+      <p class="discover-cold-title">${escapeHtml(copy('discover.coldTitle'))}</p>
+      <p class="card-meta">${escapeHtml(copy('discover.coldBody', undefined, { n: ratedCount, need: DISCOVER.coldStartRatedMin }))}</p>
+      <button class="btn btn-primary sm rip-host" data-action="discover-triage">${escapeHtml(copy('coldStart.promptAction'))}</button>
+    </section>`;
+}
+
+export function renderDiscoverPage(container, viewState) {
+  const { status, result = null, corpusStatus = null, activeMoodId = null, discoverFilters = {}, search = '', moreLikeThis = null, ratedCount = 0 } = viewState;
+  renderDiscoverTune(viewState);
+  const activeMood = activeMoodId ? MOOD_REGISTRY.find((m) => m.id === activeMoodId) : null;
+  const head = headHtml({ activeMood, discoverFilters, search, dismissedCount: Store.getDismissedItems().length });
+  const q = search.trim().toLowerCase();
 
   if (status === 'degraded') {
-    morphInto(container, `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverBuilding.title'), body: copy('empty.discoverBuilding.body'), primary: { label: copy('empty.addSeries'), command: 'search.add' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`);
+    morphInto(container, `${head}${corpusStatusHtml(corpusStatus)}${shelfSkeletonHtml({ shelves: 3 })}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverBuilding.title'), body: copy('empty.discoverBuilding.body'), primary: { label: copy('empty.addSeries'), command: 'search.add' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`);
     return;
   }
-  if (status === 'loading' && shelves.length === 0) {
-    morphInto(container, `${banner}${shelfSkeletonHtml({ shelves: 3 })}`);
+  if (!result && status !== 'error') {
+    morphInto(container, `${head}${corpusStatusHtml(corpusStatus)}${shelfSkeletonHtml({ shelves: 3 })}`);
     return;
   }
-  if (status === 'error' && shelves.length === 0) {
-    morphInto(container, `${banner}<div class="empty-state">${emptyStateHtml({ mark: 'feather', title: copy('empty.discoverError.title'), body: copy('empty.discoverError.body'), primary: { label: copy('empty.tryAgain'), action: 'discover-refresh' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`);
-    return;
-  }
-
-  // A mood "reshapes the page": while one is active, its own single shelf
-  // REPLACES the normal 10-shelf view entirely, never sits alongside it —
-  // matching the spec's own wording literally, not just filtering within
-  // the existing shelf rows. Reuses shelfHtml() unchanged via a plain
-  // shim object — moodShelf carries `copyKey` instead of a static
-  // `title` (its own name needs copy() tiers, unlike every other shelf's
-  // plain-literal title), everything else about its shape is identical.
-  if (activeMoodId && moodShelf) {
-    const clearBtn = `<button class="text-btn" data-action="discover-mood-clear">${escapeHtml(copy('discoverMood.clear'))}</button>`;
-    const shelfMarkup = shelfHtml({ ...moodShelf, title: copy(moodShelf.copyKey) });
-    morphInto(container, `${banner}<div class="discover-mood-clear-row">${clearBtn}</div>${shelfMarkup}`);
+  if (!result) {
+    morphInto(container, `${head}<div class="empty-state">${emptyStateHtml({ mark: 'feather', title: copy('empty.discoverError.title'), body: copy('empty.discoverError.body'), primary: { label: copy('empty.tryAgain'), action: 'discover-refresh' }, secondary: { label: copy('empty.goWatching'), command: 'go.watching' } })}</div>`);
     return;
   }
 
-  if (shelves.length === 0 || shelves.every((s) => s.empty)) {
-    morphInto(container, `${banner}${corpusStatusHtml(corpusStatus)}<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverNothing.title'), body: copy('empty.discoverNothing.body'), primary: { label: copy('empty.openTune'), action: 'discover-open-tune' }, secondary: { label: copy('empty.goWatched'), command: 'go.watched' } })}</div>`);
+  if (moreLikeThis) {
+    const cards = moreLikeThis.cards.filter((c) => matchesSearch(c, q));
+    const back = `<div class="discover-mlt-head"><button class="text-btn" data-action="discover-mlt-close">← ${escapeHtml(copy('discover.backToDiscover'))}</button></div>`;
+    const body = cards.length
+      ? `<section class="shelf" data-key="rail-more-like-this"><div class="disc-head rail-head"><h3 id="rail-more-like-this">${escapeHtml(railTitle(moreLikeThis))}</h3><span class="rule"></span></div><div class="rail rail-wrap" role="list" aria-labelledby="rail-more-like-this">${cards.map((c, i) => cardHtml('more-like-this', c, i)).join('')}</div></section>`
+      : `<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverNothing.title'), body: copy('discover.moreLikeEmpty'), primary: { label: copy('discover.backToDiscover'), action: 'discover-mlt-close' } })}</div>`;
+    morphInto(container, `${head}${back}${body}`);
     return;
   }
-  // v3 Phase 4: shelves with cards come first, so the rails above the fold
-  // are ones with something in them; the empty ones follow as one compact
-  // group, each still saying why it is empty.
-  const filled = shelves.filter((s) => !s.empty);
-  const quiet = shelves.filter((s) => s.empty);
-  const quietHtml = quiet.length
-    ? `<section class="shelves-quiet" aria-labelledby="shelves-quiet-h"><h3 id="shelves-quiet-h">${escapeHtml(copy('discover.quietShelves'))}</h3><ul>${quiet
-      .map((s) => `<li><span class="quiet-title">${escapeHtml(s.title)}</span> <span class="shelf-empty card-meta">${escapeHtml(s.emptyReason || copy('discover.shelfEmpty'))}</span></li>`)
-      .join('')}</ul></section>`
+
+  const parts = [corpusStatusHtml(corpusStatus)];
+  if (ratedCount < DISCOVER.coldStartRatedMin && !q) parts.push(coldHeroHtml(ratedCount));
+  const heroIds = new Set();
+  if (!q && result.hero.length) {
+    for (const c of result.hero) heroIds.add(c.id);
+    parts.push(`
+      <section class="discover-hero-rail" data-key="discover-hero" aria-labelledby="rail-top-picks-hero">
+        <div class="disc-head rail-head"><h3 id="rail-top-picks-hero">${escapeHtml(copy('discoverRail.top-picks'))}</h3><span class="rule"></span></div>
+        <div class="rail hero-rail" role="list" aria-labelledby="rail-top-picks-hero">${result.hero.map(heroSlideHtml).join('')}</div>
+      </section>`);
+  }
+  let shown = 0;
+  for (const rail of result.rails) {
+    const cards = rail.cards.filter((c) => !heroIds.has(c.id) && matchesSearch(c, q));
+    if (!cards.length) continue;
+    shown += cards.length;
+    parts.push(railHtml(rail, cards, { afterHero: heroIds.size > 0 }));
+  }
+  if (!shown && !heroIds.size) {
+    parts.push(`<div class="empty-state">${emptyStateHtml({ mark: 'moon', title: copy('empty.discoverNothing.title'), body: q ? copy('discover.searchEmpty', undefined, { q: search.trim() }) : copy('empty.discoverNothing.body'), primary: { label: copy('empty.openTune'), action: 'discover-open-tune' }, secondary: { label: copy('empty.goWatched'), command: 'go.watched' } })}</div>`);
+  }
+  morphInto(container, `${head}${parts.join('')}`);
+}
+
+// AniList descriptions mark spoilers as ~!…!~; Triage never shows them.
+export function synopsisText(description, max = 600) {
+  if (!description) return { text: '', spoilersHidden: false };
+  const spoilersHidden = /~![\s\S]*?!~/.test(description);
+  let text = description.replace(/~![\s\S]*?!~/g, ' ').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/__|\*\*/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  if (text.length > max) text = `${text.slice(0, max).replace(/\s+\S*$/, '')}…`;
+  return { text, spoilersHidden };
+}
+
+const KEY_HINTS = { want: 'W', seen: 'S', notForMe: 'X', skip: '→', undo: 'Z' };
+
+// Triage (spec 7): one large card at a time. `t` is actions.js's triage
+// state: { card, answered, rating, detail, lastDismissed, canUndo }.
+export function renderTriage(container, t) {
+  if (!container) return;
+  const counter = t.answered ? copy('triage.counter', undefined, { n: t.answered }) : copy('triage.intro');
+  const head = `<div class="triage-head"><h2 id="triage-title">${escapeHtml(copy('discover.triage'))}</h2><p class="triage-counter" aria-live="polite">${escapeHtml(counter)}</p></div>`;
+  if (!t.card) {
+    morphInto(container, `${head}<p class="card-meta">${escapeHtml(copy('triage.empty'))}</p><div class="row triage-done-row"><button class="btn btn-primary sm" data-action="triage-done">${escapeHtml(copy('triage.done'))}</button></div>`);
+    return;
+  }
+  const card = t.card;
+  const c = card.entry;
+  const title = discoverCardTitle(c);
+  const banner = t.detail?.bannerImage || c.bannerImage || c.coverLarge || c.coverMedium;
+  const syn = synopsisText(t.detail?.description);
+  const trailer = t.detail?.trailer?.site === 'youtube' && t.detail.trailer.id ? { href: `https://www.youtube.com/watch?v=${encodeURIComponent(t.detail.trailer.id)}`, thumb: t.detail.trailer.thumbnail } : null;
+  const chips = (card.chips || []).slice(0, 3);
+  const answers = t.rating
+    ? `<div class="triage-rate" role="group" aria-label="${escapeHtml(copy('triage.rateLabel', undefined, { title: title.primary }))}">
+        <p class="card-meta">${escapeHtml(copy('triage.rateHint'))}</p>
+        <div class="triage-rate-row">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<button class="btn btn-ghost sm" data-action="triage-rate" data-score="${n}">${n}</button>`).join('')}</div>
+        <div class="row"><button class="btn btn-quiet sm" data-action="triage-rate" data-score="">${escapeHtml(copy('discover.noRating'))}</button><button class="btn btn-quiet sm" data-action="triage-rate-cancel">${escapeHtml(copy('triage.cancel'))}</button></div>
+      </div>`
+    : `<div class="triage-answers">
+        <button class="btn btn-primary rip-host" data-action="triage-want"><kbd>${KEY_HINTS.want}</kbd> ${escapeHtml(copy('discover.want'))}</button>
+        <button class="btn btn-ghost" data-action="triage-seen"><kbd>${KEY_HINTS.seen}</kbd> ${escapeHtml(copy('discover.seenIt'))}</button>
+        <button class="btn btn-ghost" data-action="triage-not-for-me"><kbd>${KEY_HINTS.notForMe}</kbd> ${escapeHtml(copy('discover.notForMe'))}</button>
+        <button class="btn btn-quiet" data-action="triage-skip"><kbd>${KEY_HINTS.skip}</kbd> ${escapeHtml(copy('triage.skip'))}</button>
+        <button class="btn btn-quiet" data-action="triage-undo" ${t.canUndo ? '' : 'disabled'}><kbd>${KEY_HINTS.undo}</kbd> ${escapeHtml(copy('triage.undo'))}</button>
+      </div>`;
+  const whyNot = t.lastDismissed
+    ? `<div class="triage-why-not"><span class="card-meta">${escapeHtml(copy('triage.whyNot', undefined, { title: t.lastDismissed.title }))}</span>${dismissReasons().map((r) => `<button class="chip${t.lastDismissed.reason === r.id ? ' on' : ''}" data-action="triage-reason" data-reason="${r.id}">${escapeHtml(r.label)}</button>`).join('')}</div>`
     : '';
-  morphInto(container, `${banner}${corpusStatusHtml(corpusStatus)}${filled.map(shelfHtml).join('')}${quietHtml}`);
+  morphInto(container, `${head}
+    <article class="triage-card" data-key="triage-${card.id}" data-anilist-id="${card.id}">
+      <div class="triage-banner">${banner ? `<img src="${escapeHtml(banner)}" alt="" decoding="async">` : ''}</div>
+      <div class="triage-info">
+        <p class="why">${reasonHtml(card.reason)}</p>
+        <h3 ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h3>
+        <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
+        ${chips.length ? `<div class="dc-chips">${chips.map((ch) => `<span class="dc-chip">${escapeHtml(ch)}</span>`).join('')}</div>` : ''}
+        <p class="triage-synopsis">${t.detail === undefined ? escapeHtml(copy('triage.loadingSynopsis')) : escapeHtml(syn.text || copy('triage.noSynopsis'))}</p>
+        ${syn.spoilersHidden ? `<p class="card-meta">${escapeHtml(copy('triage.spoilersHidden'))}</p>` : ''}
+        ${trailer ? `<a class="triage-trailer" href="${escapeHtml(trailer.href)}" target="_blank" rel="noopener noreferrer">${trailer.thumb ? `<img src="${escapeHtml(trailer.thumb)}" alt="" loading="lazy">` : ''}<span>${escapeHtml(copy('triage.trailer'))}</span></a>` : ''}
+      </div>
+    </article>
+    ${answers}
+    ${whyNot}`);
+}
+
+// The Dismissed drawer: each title with its reason, "Bring back" and "Clear all".
+export function renderDismissedDrawer(container, { items, reasonOf, titleOf }) {
+  if (!container) return;
+  if (!items.length) {
+    container.innerHTML = `<h2>${escapeHtml(copy('dismissed.title'))}</h2><p class="card-meta">${escapeHtml(copy('dismissed.empty'))}</p>`;
+    return;
+  }
+  const rows = items
+    .map((it) => {
+      const reason = dismissReasonLabel(reasonOf(it.anilistId));
+      return `
+      <div class="import-row dismissed-row" data-anilist-id="${it.anilistId}">
+        ${it.coverImage ? `<img class="screenshot-row-cover" src="${escapeHtml(it.coverImage)}" alt="">` : ''}
+        <span class="import-title">${escapeHtml(it.title || titleOf(it.anilistId) || copy('dismissed.untitled', undefined, { id: it.anilistId }))}${reason ? `<span class="dismissed-reason">${escapeHtml(reason)}</span>` : ''}</span>
+        <button class="btn btn-quiet sm" data-action="undo-dismiss">${escapeHtml(copy('dismissed.bringBack'))}</button>
+      </div>`;
+    })
+    .join('');
+  container.innerHTML = `
+    <h2>${escapeHtml(copy('dismissed.title'))}</h2>
+    <p class="card-meta">${escapeHtml(copy('dismissed.count', undefined, { n: items.length }))}</p>
+    <div class="import-review-list">${rows}</div>
+    <div class="row" style="margin-top:14px"><button class="btn btn-quiet sm" id="dismissed-restore-all-btn">${escapeHtml(copy('dismissed.clearAll'))}</button></div>`;
 }

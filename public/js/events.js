@@ -62,8 +62,6 @@ let activeList = 'watching';
 let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
 let persist = () => {};
 let searchDebounceTimer = null;
-let coldStartCandidates = []; // whatever TasteProfile.buildColdStartCandidates() last resolved to
-let coldStartPickedIds = new Set(); // this session's in-progress picks — nothing persisted until Done
 let replaceTargetId = null; // set while the search overlay is being used to fix a wrong match
 let searchGeneration = 0; // bumped on every new search/close so a slow, superseded response is ignored
 const mediaCache = new Map();
@@ -745,55 +743,24 @@ function openHelp() {
   Render.renderHelpPanel(document.getElementById('help-body'));
 }
 
-// P5A.2's cold-start onboarding overlay. Called both by app.js's boot (the
-// automatic trigger, once TasteProfile.maybeAutoTriggerColdStart() says the
-// corpus has something to show) and by the Settings panel's own "Redo the
-// quick picker" button — the exact same function either way, since opening
-// it never itself changes any preference; only Done/Skip below do that.
-// `mayInterrupt` (the boot auto-trigger passes one): building the candidates can
-// take seconds (their covers come from AniList), so whether it is still fine to
-// open a modal is decided after that, not before. If the user has started doing
-// something in the meantime, they get a toast they can act on instead of a
-// dialog opening over whatever they were in the middle of.
-async function openColdStartOnboarding({ mayInterrupt } = {}) {
-  coldStartCandidates = await TasteProfile.buildColdStartCandidates();
-  if (!coldStartCandidates.length) return; // corpus not ready yet — nothing to show
-  if (mayInterrupt && !mayInterrupt()) {
-    Render.showToast(copy('coldStart.prompt'), {
-      actionLabel: copy('coldStart.promptAction'),
-      onAction: () => openColdStartOnboarding(),
-      duration: 15000,
-      trackUndo: false,
-    });
+// v3 Phase 6: Discover's Triage is the cold start (it replaced the v2 quick
+// picker). Called by app.js's boot offer and by Settings ("Run Triage"):
+// opens Discover with Triage on top. `offer`: the boot path shows a toast
+// the user can act on instead, never a dialog over what they were doing.
+function openColdStartOnboarding({ offer = false } = {}) {
+  const start = () => {
+    runCommand('go.discover');
+    Discover.openTriage();
+  };
+  if (!offer) {
+    start();
     return;
   }
-  coldStartPickedIds = new Set();
-  openOverlay('cold-start-overlay');
-  Render.renderColdStartOverlay(document.getElementById('cold-start-grid'), coldStartCandidates, coldStartPickedIds);
-}
-
-function bindColdStartOverlay() {
-  const grid = document.getElementById('cold-start-grid');
-  grid.addEventListener('click', (e) => {
-    const tile = e.target.closest('.coldstart-tile');
-    if (!tile) return;
-    const anilistId = Number(tile.dataset.anilistId);
-    if (coldStartPickedIds.has(anilistId)) coldStartPickedIds.delete(anilistId);
-    else coldStartPickedIds.add(anilistId);
-    Render.renderColdStartOverlay(grid, coldStartCandidates, coldStartPickedIds);
-  });
-  document.getElementById('cold-start-skip-btn').addEventListener('click', () => {
-    TasteProfile.skipColdStart();
-    closeAllOverlays();
-  });
-  // No minimum-picks gate on Done — the spec's "ten taps" is an
-  // encouragement, not a hard requirement, and a user who looked and picked
-  // nothing has still made a deliberate choice worth recording as
-  // "completed" (never auto-prompted again) rather than merely "skipped".
-  document.getElementById('cold-start-submit-btn').addEventListener('click', () => {
-    TasteProfile.completeColdStart([...coldStartPickedIds]);
-    closeAllOverlays();
-    Render.showToast(coldStartPickedIds.size ? `Saved ${coldStartPickedIds.size} picks.` : 'Taste onboarding completed.');
+  Render.showToast(copy('coldStart.prompt'), {
+    actionLabel: copy('coldStart.promptAction'),
+    onAction: start,
+    duration: 15000,
+    trackUndo: false,
   });
 }
 
@@ -832,7 +799,9 @@ function readDiscoverFiltersFromPanelDom() {
     includeTags: selectedTags('df-include'),
     excludeTags: selectedTags('df-exclude'),
     maxLengthMinutes: maxLengthHours == null ? null : Math.round(maxLengthHours * 60),
-    enforcePrerequisiteChain: document.getElementById('df-enforce-prerequisite-chain').checked,
+    // v3 Phase 6: the engine always starts a franchise at its first unseen
+    // season, so the old "hide unstarted sequels" switch is gone from the panel.
+    enforcePrerequisiteChain: true,
     hideDismissed: document.getElementById('df-hide-dismissed').checked,
   };
 }
@@ -1363,7 +1332,6 @@ export function initEvents({ initialList, persistFn }) {
   bindOverlayCloseButtons();
   bindOverlayBackdropClose();
   bindSettingsActions({ beginSettingGesture, confirmDialog, endSettingGesture, openColdStartOnboarding, openOverlay, persist: () => persist(), recordSettingChange, refreshGridOnly, refreshView, restoreCopyFor });
-  bindColdStartOverlay();
   bindDiscoverFiltersOverlay();
   bindPickForMeOverlay();
   bindHelpPanel();

@@ -3721,7 +3721,7 @@ async function run() {
   // cold-start pick folding, and the cold-start candidate picker itself.
   // -------------------------------------------------------------------------
   console.log('tasteProfileLogic.js');
-  const tasteProfileLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'tasteProfileLogic.js').replace(/\\/g, '/');
+  const tasteProfileLogicUrl = 'file:///' + path.join(__dirname, '..', 'archive', 'js', 'v2-discover', 'tasteProfileLogic.js').replace(/\\/g, '/');
   const {
     computeMeanAndStdDev,
     zScore,
@@ -4113,7 +4113,7 @@ async function run() {
   // explicit "harsh-rater and generous-rater" fixture-profile requirement.
   // -------------------------------------------------------------------------
   console.log('scorer.js');
-  const scorerUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'scorer.js').replace(/\\/g, '/');
+  const scorerUrl = 'file:///' + path.join(__dirname, '..', 'archive', 'js', 'v2-discover', 'scorer.js').replace(/\\/g, '/');
   const {
     genreAffinity,
     tagAffinity,
@@ -4250,7 +4250,7 @@ async function run() {
   // required prerequisite-chain test.
   // -------------------------------------------------------------------------
   console.log('shelvesLogic.js');
-  const shelvesLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'shelvesLogic.js').replace(/\\/g, '/');
+  const shelvesLogicUrl = 'file:///' + path.join(__dirname, '..', 'archive', 'js', 'v2-discover', 'shelvesLogic.js').replace(/\\/g, '/');
   const {
     resolveFranchiseEntryPoint,
     findNextUnseenContinuation,

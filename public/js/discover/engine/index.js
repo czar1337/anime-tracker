@@ -596,3 +596,25 @@ export function buildDiscover(input) {
   const topPicks = top ? top.cards : [];
   return { topPicks, hero: topPicks.slice(0, tuning.heroSize), rails, moreLikeThis: null, profile: profileOf(), cache: prep };
 }
+
+// Schedule's "Coming soon" (v3 Phase 5) ranks upcoming titles by the same
+// taste as Discover: the content and collab parts, since an unreleased title
+// has no score. `media` is corpus-shaped (corpusLogic.js pruneMediaFields).
+export function tasteScorer({ corpusById, entries = [], dismissedIds = [], preferences = {}, folded = null, events = [], nowMs = Date.now(), tuning, cache = null }) {
+  const prep = prepareCorpus(corpusById, tuning, cache);
+  const { features, recs } = prep;
+  const fold = folded || foldTasteEvents(events);
+  const vectorForEntry = (e) => features.vectorOf(e.anilistId) || (e.genres ? features.vectorFor(e) : null);
+  const taste = buildTaste({ entries, dismissedIds, preferences, folded: fold, nowMs, tuning, vectorForEntry });
+  const positive = taste.anchors.filter((a) => a.w > 0);
+  const wRef = positive.length ? positive.reduce((s, a) => s + a.w, 0) / positive.length : 1;
+  const score = (media) => {
+    const v = features.vectorOf(media.anilistId) || features.vectorFor(media);
+    const n = norm(v);
+    const content = cosine(v, taste.positive, n, taste.positiveNorm) - tuning.lambdaNeg * cosine(v, taste.negative, n, taste.negativeNorm);
+    let raw = 0;
+    for (const a of taste.anchors) raw += a.w * (recs.get(a.id)?.get(media.anilistId) || 0);
+    return tuning.alpha * content + tuning.beta * Math.tanh(raw / wRef);
+  };
+  return { score, ratedCount: taste.ratedCount, cache: prep };
+}

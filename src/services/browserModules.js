@@ -56,22 +56,6 @@ function loadEventModules() {
   return eventModulesPromise;
 }
 
-// Mirrors loadEventModules()'s exact SEA-safe data: URL technique just
-// below — public/js/tasteProfileLogic.js is a pure, import-free ESM module
-// (a data: URL cannot resolve a relative specifier, same constraint
-// loadEventModules()'s own two files are already held to) loadable either
-// from a real file (dev) or an embedded SEA asset (the packaged .exe).
-let tasteProfileModulePromise = null;
-function loadTasteProfileModule() {
-  if (!tasteProfileModulePromise) {
-    tasteProfileModulePromise = (async () => {
-      const src = readAppSource('public/js/tasteProfileLogic.js');
-      return import(`data:text/javascript;base64,${Buffer.from(src, 'utf8').toString('base64')}`);
-    })();
-  }
-  return tasteProfileModulePromise;
-}
-
 // v3 Phase 5: the copy registry, for the few words the server itself shows
 // the user (background notifications). Import-free, like the files above.
 let copyModulePromise = null;
@@ -91,7 +75,8 @@ function loadCopyRegistry() {
   return copyModulePromise;
 }
 
-// v3 Phase 6: the Discover taste fold (public/js/discover/engine/fold.js).
+// v3 Phase 6: the Discover taste fold (public/js/discover/engine/fold.js),
+// import-free so it loads as one data: URL (dev, or an embedded SEA asset).
 let tasteFoldModulePromise = null;
 function loadTasteFoldModule() {
   if (!tasteFoldModulePromise) {
@@ -103,4 +88,4 @@ function loadTasteFoldModule() {
   return tasteFoldModulePromise;
 }
 
-module.exports = { loadExportRegistryModule, loadEventModules, loadTasteProfileModule, loadTasteFoldModule, loadCopyRegistry };
+module.exports = { loadExportRegistryModule, loadEventModules, loadTasteFoldModule, loadCopyRegistry };

@@ -369,6 +369,7 @@ export const DISCOVER = {
   ratingPivotMax: 7, // a rating above this is never a negative signal, however high your mean
   recencyHalfLifeDays: 365,
   confidenceFullAt: 25,
+  coldStartRatedMin: 5, // under this many ratings: the cold hero, and Triage is offered once
   dropWeight: 1.0, // a drop at episode 1; scaled by the share left unwatched
   notForMeWeights: { wrongGenre: 1.0, tooLong: 0.3, artStyle: 0.5, seenEnough: 0.4, notInMood: 0.1, none: 0.6 },
   thumbsUpWeight: 0.5,

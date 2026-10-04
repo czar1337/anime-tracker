@@ -10,7 +10,8 @@ import { copy } from '../../copy.js';
 import { EventLog } from '../../eventLog.js';
 import { HISTORY } from '../../../../config/tuning.js';
 import { openOverlay } from '../../events.js';
-import { isDialogOpen, onDialogClose } from '../../core/dialog.js';
+import { isDialogOpen, onDialogClose, closeAllDialogs } from '../../core/dialog.js';
+import { runCommand } from '../../core/commands.js';
 import { runViewTransition, movementAllowed } from '../../core/motion.js';
 import { bindRovingTablist } from '../../core/focus.js';
 import { renderDetailOverlay, dateInputToIso } from './view.js';
@@ -181,6 +182,11 @@ export function bindDetailActions(lib) {
     else if (action === 'detail-drop') lib.confirmDrop(id);
     // v3 Phase 5: rewatch and the history list.
     else if (action === 'detail-rewatch') lib.startRewatch(id);
+    // v3 Phase 6: Discover seeded by this one title.
+    else if (action === 'detail-more-like-this') {
+      closeAllDialogs();
+      runCommand('discover.moreLikeThis', id);
+    }
     else if (action === 'history-remove') {
       const removed = Store.removeWatchRecord(actionEl.dataset.recordId);
       if (!removed) return;

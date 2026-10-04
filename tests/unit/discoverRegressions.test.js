@@ -276,7 +276,7 @@ test('8c. a drop counts once, however many drop events the log holds', async () 
   const { buildTaste, foldTasteEvents } = await mod('public/js/discover/engine/taste.js');
   const { buildFeatures } = await mod('public/js/discover/engine/features.js');
   const { DISCOVER, RECOMMENDATIONS } = await mod('config/tuning.js');
-  const { buildAffinities } = await mod('public/js/tasteProfileLogic.js');
+  const { buildAffinities } = await mod('archive/js/v2-discover/tasteProfileLogic.js');
   const { anchors } = baseWorld();
   const features = buildFeatures(anchors, DISCOVER);
   const entries = [watched(anchors[0], 9), { ...watched(anchors[1], null), myScore: null, listStatus: 'dropped', episodesWatched: 2 }];
@@ -292,7 +292,7 @@ test('8d. "Bring back" removes the dismiss penalty', async () => {
   const { buildTaste, foldTasteEvents } = await mod('public/js/discover/engine/taste.js');
   const { buildFeatures } = await mod('public/js/discover/engine/features.js');
   const { DISCOVER, RECOMMENDATIONS } = await mod('config/tuning.js');
-  const { buildAffinities } = await mod('public/js/tasteProfileLogic.js');
+  const { buildAffinities } = await mod('archive/js/v2-discover/tasteProfileLogic.js');
   const { anchors, fillers } = baseWorld();
   const all = [...anchors, ...fillers];
   const features = buildFeatures(all, DISCOVER);
@@ -315,7 +315,7 @@ test('8e. an undated rating gets neutral recency, not the maximum', async () => 
   assert.ok(recencyFactor(NOW, NOW, DISCOVER.recencyHalfLifeDays) > 1, 'a rating given today counts more');
   assert.ok(recencyFactor(NOW - 5 * 365 * 86400000, NOW, DISCOVER.recencyHalfLifeDays) < 1, 'an old one less');
   // v2.3.0 gave an undated rating (no score event, no updatedAt) the weight of one given today.
-  const { buildAffinities } = await mod('public/js/tasteProfileLogic.js');
+  const { buildAffinities } = await mod('archive/js/v2-discover/tasteProfileLogic.js');
   const e = (id, myScore, extra) => ({ anilistId: id, myScore, genres: [`G${id}`], listStatus: 'watched', ...extra });
   const entries = [e(1, 9, {}), e(2, 9, { updatedAt: new Date(NOW).toISOString() }), e(3, 5, { updatedAt: '2020-01-01T00:00:00Z' })];
   const aff = buildAffinities({ entries, nowMs: NOW, tuning: RECOMMENDATIONS }).affinities.genre;

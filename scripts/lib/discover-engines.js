@@ -29,8 +29,8 @@ function seededRandom(seed) {
 // "Because you liked..." shelf at 20 cards, stands in for it.
 async function v2Engine({ realRandom = false } = {}) {
   const [{ buildShelves }, { buildAffinities }, { RECOMMENDATIONS, TIME_SEMANTICS }, { animeIdToAnilistId }] = await Promise.all([
-    mod('public/js/shelvesLogic.js'),
-    mod('public/js/tasteProfileLogic.js'),
+    mod('archive/js/v2-discover/shelvesLogic.js'),
+    mod('archive/js/v2-discover/tasteProfileLogic.js'),
     mod('config/tuning.js'),
     mod('public/js/eventTypes.js'),
   ]);

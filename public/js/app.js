@@ -16,7 +16,7 @@ import { Atmosphere } from './atmosphere.js';
 import { Preferences } from './preferences.js';
 import { EventLog } from './eventLog.js';
 import { EventHistory } from './eventHistory.js';
-import { openDialog, closeDialog, isAnyDialogOpen } from './core/dialog.js';
+import { openDialog, closeDialog } from './core/dialog.js';
 import { whenSettled } from './core/reconcile.js';
 import { syncShimmers } from './core/motion.js';
 import { copy, setCopyTier } from './copy.js';
@@ -414,13 +414,6 @@ function initEventFlushLifecycle() {
   });
 }
 
-// Set by the first click or key press after the page loads. Only used to decide
-// whether a late, unrequested dialog (cold start) may still open on its own.
-let userHasInteracted = false;
-for (const type of ['pointerdown', 'keydown']) {
-  document.addEventListener(type, () => (userHasInteracted = true), { capture: true, once: true });
-}
-
 async function boot() {
   syncShimmers(); // before the library arrives: the boot skeleton is already sweeping
   let loaded;
@@ -514,19 +507,13 @@ async function boot() {
   Airing.ensureFreshOnOpen(); // background only — never blocks startup, never fetches more than once/day
   retryMissingCovers().catch(() => {}); // background only — see the function's own comment
   Corpus.initCorpus().catch(() => {}); // background only — P5A.1's paced, resumable corpus seed
-  // P5A.2: fetches the server-computed profile, then independently (never
-  // chained after the corpus's own initCorpus() above, which can run for
-  // minutes on a fresh install) waits a short bounded window for the corpus
-  // to have SOME entries before deciding whether to show cold start.
+  // The taste cache, then (never chained after initCorpus() above, which can
+  // run for minutes on a fresh install) a short bounded wait for the corpus
+  // before offering Triage to a library with few ratings. v3 Phase 6: always
+  // a toast, never a modal.
   TasteProfile.initTasteProfile({ persistFn: persist })
     .then(async () => {
-      if (await TasteProfile.maybeAutoTriggerColdStart(Store.state.preferences)) {
-        // This resolves seconds after boot. It must never throw a modal over
-        // someone who has already started using the app (v3 Phase 1).
-        await openColdStartOnboarding({
-          mayInterrupt: () => !userHasInteracted && !isAnyDialogOpen(),
-        });
-      }
+      if (await TasteProfile.maybeOfferTriage(Store.state.preferences)) openColdStartOnboarding({ offer: true });
     })
     .catch(() => {});
 
