@@ -166,7 +166,10 @@ test('rendering a warm 50-card Watching list issues zero AniList/GraphQL request
     // the airing-specific assertion below.
     let anilistRequestCount = 0;
     await page.route('**/graphql.anilist.co/**', (route) => {
-      if ((route.request().postData() || '').includes('nextAiringEpisode')) anilistRequestCount += 1;
+      // The corpus seed (v3 Phase 6) also asks for nextAiringEpisode, along
+      // with recommendations; only the airing batch counts here.
+      const body = route.request().postData() || '';
+      if (body.includes('nextAiringEpisode') && !body.includes('recommendations(')) anilistRequestCount += 1;
       route.abort();
     });
 

@@ -17,6 +17,9 @@ const GEM_ID = 9001;
 // Discover leaves its 'degraded' (still-building-the-corpus) state at all.
 const FILLER_COUNT = 30;
 
+// v3 Phase 6: with the v3 engine the fillers (6.0 from 900,000 members) sit
+// under the quality floor and only the gem passes, so the page still shows
+// exactly one card.
 // Filler genre ('Comedy') deliberately shares nothing with the fixture
 // library's own rated entry (Action/Drama, schema-v4-library.json's
 // 101922), so none of them qualify for the "Because you liked" shelf; a
@@ -43,6 +46,7 @@ function fillerEntries() {
       tags: [],
       staff: [],
       relations: [],
+      status: 'FINISHED',
     };
   }
   return entries;
@@ -66,12 +70,13 @@ async function seedWarmCorpus(server) {
       tags: [],
       staff: [],
       relations: [],
+      status: 'FINISHED',
     },
   };
   await fetch(`${server.url}/api/corpus`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: entries, targetSize: FILLER_COUNT + 1 }),
+    body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: entries, targetSize: FILLER_COUNT + 1 }),
   });
 }
 
@@ -120,7 +125,7 @@ test('pressing "d" on Discover opens a real score breakdown for the one shelf ca
     // the pre-seeded entry and scored it, not a placeholder.
     const totalText = await page.locator('.scorer-debug-total').textContent();
     expect(Number.isNaN(Number(totalText))).toBe(false);
-    await expect(page.locator('.scorer-debug-term')).toHaveCount(10); // the 9 named terms plus serendipity's own row
+    await expect(page.locator('.scorer-debug-term')).toHaveCount(4); // v3 Phase 6: content, collab, quality, serendipity
   } finally {
     await server.stop();
   }

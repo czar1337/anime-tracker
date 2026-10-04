@@ -119,7 +119,7 @@ test('corpus eviction trims every evictable entry under enough pressure, but a l
   // only store with real content on disk.
   const corpusEntries = bigCorpusEntries(7_000_000, [101922]); // 101922: the one entry in schema-v1-library.json
   const corpusSeed = await putJson(`${server1.url}/api/corpus`, {
-    cursor: { page: 1, complete: true },
+    cursor: { version: 2, phase: 'done', page: 0, complete: true },
     newEntries: corpusEntries,
     targetSize: Object.keys(corpusEntries).length,
   });

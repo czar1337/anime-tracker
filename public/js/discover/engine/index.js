@@ -109,17 +109,18 @@ export function prepareCorpus(corpusById, tuning, cache = null) {
 // grown by "View more" keeps every card it already showed, in order. With
 // `reasonOf` and `cap`, no anchor is cited by more than `cap` cards: the
 // next best card with another reason takes the place (the reason itself is
-// never changed to make room).
+// never changed to make room). Only when nothing else is left do the cards
+// over the cap come back, and then only up to an even share between the
+// anchors there are: a library with one loved title still gets a full rail.
 function mmrPick(pool, size, { lambda, sim, exclude, prefix = [], reasonOf = null, cap = Infinity }) {
   const avail = pool.filter((c) => !exclude.has(c.key)).slice(0, MMR_POOL);
   if (!avail.length) return prefix.slice();
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (const c of avail) {
-    lo = Math.min(lo, c.railScore);
-    hi = Math.max(hi, c.railScore);
-  }
-  const span = hi - lo || 1;
+  // Scores are scaled against the best one, not stretched to 0–1: a small
+  // gap stays small, so similarity can outweigh it (min-max scaling made
+  // the second-best card look worthless and MMR do almost nothing).
+  let hi = 0;
+  for (const c of avail) hi = Math.max(hi, c.railScore);
+  const scale = hi > 0 ? 1 / hi : 0;
   const picked = prefix.slice();
   const pickedKeys = new Set(picked.map((c) => c.key));
   const cited = new Map();
@@ -138,12 +139,13 @@ function mmrPick(pool, size, { lambda, sim, exclude, prefix = [], reasonOf = nul
     for (const p of picked) m = Math.max(m, sim(c, p));
     maxSim.set(c.key, m);
   }
+  const overCap = [];
   while (picked.length < size) {
     let best = null;
     let bestValue = -Infinity;
     for (const c of avail) {
       if (pickedKeys.has(c.key)) continue;
-      const value = lambda * ((c.railScore - lo) / span) - (1 - lambda) * maxSim.get(c.key);
+      const value = lambda * Math.max(0, c.railScore * scale) - (1 - lambda) * maxSim.get(c.key);
       if (value > bestValue + 1e-12 || (Math.abs(value - bestValue) <= 1e-12 && best && c.id < best.id)) {
         best = c;
         bestValue = value;
@@ -152,10 +154,24 @@ function mmrPick(pool, size, { lambda, sim, exclude, prefix = [], reasonOf = nul
     if (!best) break;
     pickedKeys.add(best.key);
     const anchor = citeOf(best);
-    if (anchor != null && (cited.get(anchor) || 0) >= cap) continue;
+    if (anchor != null && (cited.get(anchor) || 0) >= cap) {
+      overCap.push(best);
+      continue;
+    }
     if (anchor != null) cited.set(anchor, (cited.get(anchor) || 0) + 1);
     picked.push(best);
     for (const c of avail) if (!pickedKeys.has(c.key)) maxSim.set(c.key, Math.max(maxSim.get(c.key), sim(c, best)));
+  }
+  if (overCap.length && picked.length < size) {
+    const anchors = new Set([...picked, ...overCap].map(citeOf).filter((a) => a != null)).size || 1;
+    const softCap = Math.max(cap, Math.ceil(size / anchors));
+    for (const c of overCap) {
+      if (picked.length >= size) break;
+      const a = citeOf(c);
+      if ((cited.get(a) || 0) >= softCap) continue;
+      cited.set(a, (cited.get(a) || 0) + 1);
+      picked.push(c);
+    }
   }
   return picked;
 }
@@ -545,30 +561,13 @@ export function buildDiscover(input) {
   }
 
   const anchorCap = (size) => Math.max(1, Math.floor(size * tuning.maxAnchorShare));
-  // A rail that came out short can still cite one anchor too often: drop its
-  // last cards for that anchor until the share holds at the final size.
-  function trimToCap(picks) {
-    let out = picks;
-    for (;;) {
-      const cap = anchorCap(out.length);
-      const counts = new Map();
-      let drop = -1;
-      out.forEach((c, i) => {
-        const a = c.reasonCache?.anchorTitle ? c.reasonCache.anchorId : null;
-        if (a == null) return;
-        counts.set(a, (counts.get(a) || 0) + 1);
-        if (counts.get(a) > cap) drop = i;
-      });
-      if (drop < 0 || out.length <= 1) return out;
-      out = out.filter((_, i) => i !== drop);
-    }
-  }
+
   const used = new Set();
   const picksBySpec = new Map();
   for (const spec of specs) {
     const picks = spec.mmr === false ? spec.pool.filter((c) => !used.has(c.key)).slice(0, spec.size) : mmrPick(spec.pool, spec.size, { lambda: tuning.mmrLambda, sim, exclude: used, reasonOf: spec.reason, cap: anchorCap(spec.size) });
     for (const c of picks) used.add(c.key);
-    picksBySpec.set(spec.id, spec.mmr === false ? picks : trimToCap(picks));
+    picksBySpec.set(spec.id, picks);
   }
   for (const spec of specs) {
     const want = expanded[spec.id];
@@ -594,7 +593,7 @@ export function buildDiscover(input) {
 
   const top = rails.find((r) => r.id === 'top-picks');
   const topPicks = top ? top.cards : [];
-  return { topPicks, hero: topPicks.slice(0, tuning.heroSize), rails, moreLikeThis: null, profile: profileOf(), cache: prep };
+  return { topPicks, hero: topPicks.slice(0, tuning.heroSize), rails, moreLikeThis: null, profile: { ...profileOf(), becauseAnchors: anchorsPicked.map((a) => a.id) }, cache: prep };
 }
 
 // Schedule's "Coming soon" (v3 Phase 5) ranks upcoming titles by the same

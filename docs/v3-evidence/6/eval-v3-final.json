@@ -204,8 +204,8 @@
         "distinctFranchises": 20,
         "distinctPrimaryGenres": 9
       },
-      "coverage": 0.02599337748344371,
-      "shownTitles": 157,
+      "coverage": 0.02632450331125828,
+      "shownTitles": 159,
       "medianBayes": 7.77491461232054,
       "sanity": {
         "top": {
@@ -370,16 +370,16 @@
           "bayes": 7.395068194564036
         },
         {
-          "id": 21341,
-          "title": "AJIN: Demi-Human",
-          "reason": "Fans of Tokyo Ghoul rate this highly (you gave it 9)",
-          "bayes": 7.0992408366152135
-        },
-        {
           "id": 1254,
           "title": "Saint Seiya: Knights of the Zodiac",
           "reason": "Fans of Dragon Ball Z rate this highly (you gave it 9)",
           "bayes": 7.283427226480888
+        },
+        {
+          "id": 21341,
+          "title": "AJIN: Demi-Human",
+          "reason": "Fans of Tokyo Ghoul rate this highly (you gave it 9)",
+          "bayes": 7.0992408366152135
         },
         {
           "id": 164,
@@ -395,8 +395,8 @@
         }
       ],
       "engineMs": {
-        "median": 36.19014999999996,
-        "max": 177.4218
+        "median": 36.95945000000006,
+        "max": 176.0922
       }
     }
   }

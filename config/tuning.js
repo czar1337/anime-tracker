@@ -386,7 +386,7 @@ export const DISCOVER = {
   wildcardFloor: 6.4,
   serendipityByLevel: { off: 0, low: 0.02, medium: 0.05, high: 0.1 },
   // Diversity (4.4).
-  mmrLambda: 0.7,
+  mmrLambda: 0.8, // re-swept after MMR scores were scaled by the best one (docs/v3-progress.md)
   // Rails (section 5).
   railSize: 12,
   heroSize: 5,

@@ -38,6 +38,7 @@ function fillerEntries() {
       tags: [],
       staff: [],
       relations: [],
+      status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
     };
   }
   return entries;
@@ -48,7 +49,7 @@ async function seedCorpus(server, extraEntries) {
   const res = await fetch(`${server.url}/api/corpus`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: entries, targetSize: Object.keys(entries).length }),
+    body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: entries, targetSize: Object.keys(entries).length }),
   });
   if (!res.ok) throw new Error(`seedCorpus PUT failed: ${res.status}`);
 }
@@ -134,12 +135,13 @@ test('a shelf card with a real coverMedium renders an actual cover image, not th
         seasonYear: 2018,
         totalEpisodes: 24,
         genres: ['Isekai'], // shares the fixture library's own rated anchor's genre
-        normalizedScore: 6,
+        normalizedScore: 8.5, // v3 Phase 6: over the quality floor
         popularity: 12000,
         coverMedium: 'https://example.test/cover-medium.jpg',
         tags: [],
         staff: [],
         relations: [],
+        status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
       },
       // A second, equally-qualifying candidate with no coverMedium at all —
       // stands in for a corpus entry that predates this field (every filler
@@ -154,11 +156,12 @@ test('a shelf card with a real coverMedium renders an actual cover image, not th
         seasonYear: 2014,
         totalEpisodes: 24,
         genres: ['Isekai'],
-        normalizedScore: 6,
+        normalizedScore: 8.5, // v3 Phase 6: over the quality floor
         popularity: 20000,
         tags: [],
         staff: [],
         relations: [],
+        status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
       },
     });
     await skipColdStart(server);
@@ -167,14 +170,15 @@ test('a shelf card with a real coverMedium renders an actual cover image, not th
 
     const card = page.locator('.discover-card[data-anilist-id="9101"]');
     await expect(card).toBeVisible();
-    const img = card.locator('.cov img.discover-card-cover');
+    // A rail card shows it as its cover, a Top picks hero slide as its banner.
+    const img = card.locator('img.discover-card-cover, img.dc-hero-banner');
     await expect(img).toHaveAttribute('src', 'https://example.test/cover-medium.jpg');
 
     // A card whose corpus entry predates this field still renders the old
     // empty placeholder, not a broken <img>.
     const noCoverCard = page.locator('.discover-card[data-anilist-id="9109"]');
     await expect(noCoverCard).toBeVisible();
-    await expect(noCoverCard.locator('.cov img')).toHaveCount(0);
+    await expect(noCoverCard.locator('img')).toHaveCount(0);
   } finally {
     await server.stop();
   }
@@ -192,11 +196,12 @@ test('one-tap add with a status choice lands the entry directly in Watching, sur
         seasonYear: 2020,
         totalEpisodes: 24,
         genres: ['Isekai'],
-        normalizedScore: 6,
+        normalizedScore: 8.5, // v3 Phase 6: over the quality floor
         popularity: 12000,
         tags: [],
         staff: [],
         relations: [],
+        status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
       },
     });
     await skipColdStart(server);
@@ -236,11 +241,12 @@ test('j/k keyboard shortcut moves focus onto a Discover card', async ({ page }) 
         seasonYear: 2016,
         totalEpisodes: 24,
         genres: ['Isekai'],
-        normalizedScore: 6,
+        normalizedScore: 8.5, // v3 Phase 6: over the quality floor
         popularity: 12000,
         tags: [],
         staff: [],
         relations: [],
+        status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
       },
     });
     await skipColdStart(server);
@@ -269,11 +275,12 @@ test('detail overlay shows a trailer thumbnail linking out when AniList has one,
         seasonYear: 2017,
         totalEpisodes: 24,
         genres: ['Isekai'],
-        normalizedScore: 6,
+        normalizedScore: 8.5, // v3 Phase 6: over the quality floor
         popularity: 12000,
         tags: [],
         staff: [],
         relations: [],
+        status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
       },
     });
     await skipColdStart(server);
@@ -304,11 +311,12 @@ test('detail overlay omits the trailer block when AniList has none', async ({ pa
         seasonYear: 2017,
         totalEpisodes: 24,
         genres: ['Isekai'],
-        normalizedScore: 6,
+        normalizedScore: 8.5, // v3 Phase 6: over the quality floor
         popularity: 12000,
         tags: [],
         staff: [],
         relations: [],
+        status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
       },
     });
     await skipColdStart(server);
@@ -335,11 +343,12 @@ test('a spoiler-flagged tag stays hidden until the reveal button is clicked; a p
         seasonYear: 2017,
         totalEpisodes: 24,
         genres: ['Isekai'],
-        normalizedScore: 6,
+        normalizedScore: 8.5, // v3 Phase 6: over the quality floor
         popularity: 12000,
         tags: [],
         staff: [],
         relations: [],
+        status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
       },
     });
     await skipColdStart(server);
@@ -381,11 +390,12 @@ test('a long synopsis collapses behind "Show more" and expands on click', async 
         seasonYear: 2017,
         totalEpisodes: 24,
         genres: ['Isekai'],
-        normalizedScore: 6,
+        normalizedScore: 8.5, // v3 Phase 6: over the quality floor
         popularity: 12000,
         tags: [],
         staff: [],
         relations: [],
+        status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
       },
     });
     await skipColdStart(server);

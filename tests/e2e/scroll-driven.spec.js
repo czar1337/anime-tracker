@@ -75,13 +75,13 @@ test('Discover shelves run on a view() timeline', async ({ page }) => {
     const entries = {};
     for (let i = 0; i < 30; i++) {
       const id = 8100 + i;
-      entries[id] = { anilistId: id, titleRomaji: `Filler ${id}`, titleEnglish: `Filler ${id} EN`, genres: ['Comedy'], popularity: 900000, totalEpisodes: 24, seasonYear: 2015, normalizedScore: 6, tags: [], staff: [], relations: [] };
+      entries[id] = { anilistId: id, titleRomaji: `Filler ${id}`, titleEnglish: `Filler ${id} EN`, genres: ['Comedy'], popularity: 900000, totalEpisodes: 24, seasonYear: 2015, normalizedScore: 7.6, status: 'FINISHED', tags: [], staff: [], relations: [] };
     }
-    entries[9980] = { anilistId: 9980, titleRomaji: 'Feedback Candidate', titleEnglish: 'Feedback Candidate EN', format: 'TV', seasonYear: 2019, totalEpisodes: 24, genres: ['Mystery'], normalizedScore: 8, popularity: 3000, studio: 'Feedback Studio', tags: [], staff: [], relations: [] };
+    entries[9980] = { anilistId: 9980, titleRomaji: 'Feedback Candidate', titleEnglish: 'Feedback Candidate EN', format: 'TV', seasonYear: 2019, totalEpisodes: 24, genres: ['Mystery'], normalizedScore: 8, popularity: 3000, studio: 'Feedback Studio', status: 'FINISHED', tags: [], staff: [], relations: [] };
     await fetch(`${server.url}/api/corpus`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: entries, targetSize: Object.keys(entries).length }),
+      body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: entries, targetSize: Object.keys(entries).length }),
     });
     const getRes = await fetch(`${server.url}/api/library`);
     const lib = await getRes.json();

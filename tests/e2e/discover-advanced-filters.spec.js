@@ -34,6 +34,7 @@ function fillerEntries() {
       tags: [],
       staff: [],
       relations: [],
+      status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
     };
   }
   return entries;
@@ -44,7 +45,7 @@ async function seedCorpus(server, extraEntries) {
   const res = await fetch(`${server.url}/api/corpus`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: entries, targetSize: Object.keys(entries).length }),
+    body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: entries, targetSize: Object.keys(entries).length }),
   });
   if (!res.ok) throw new Error(`seedCorpus PUT failed: ${res.status}`);
 }
@@ -85,6 +86,7 @@ const STUDIO_MATCH = {
   tags: [],
   staff: [],
   relations: [],
+  status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
 };
 const OTHER_STUDIO = {
   anilistId: 9971,
@@ -100,6 +102,7 @@ const OTHER_STUDIO = {
   tags: [],
   staff: [],
   relations: [],
+  status: 'FINISHED', // v3 Phase 6: the engine shows only released titles
 };
 
 async function openFiltersPanel(page) {

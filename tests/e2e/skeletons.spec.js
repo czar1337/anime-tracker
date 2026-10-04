@@ -125,7 +125,7 @@ test('Discover shows skeleton shelves while its shelves build', async ({ page })
     await fetch(`${server.url}/api/corpus`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: entries, targetSize: 30 }),
+      body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: entries, targetSize: 30 }),
     });
     // The first-run taste dialog would otherwise open over the page.
     const getRes = await fetch(`${server.url}/api/library`);
