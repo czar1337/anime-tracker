@@ -129,7 +129,9 @@ async function runPendingMigration() {
   }
 }
 
-const server = http.createServer(createRequestHandler({ port: PORT, token: WRITE_TOKEN, getDataDirConflict: () => dataDirConflict }));
+// The port actually bound: PORT, or the free one the OS gave for PORT 0.
+let boundPort = PORT;
+const server = http.createServer(createRequestHandler({ port: () => boundPort, token: WRITE_TOKEN, getDataDirConflict: () => dataDirConflict }));
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -157,10 +159,10 @@ server.on('error', (err) => {
 function listenOnIpv6Loopback() {
   const v6 = http.createServer((req, res) => server.emit('request', req, res));
   v6.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') console.error(`[server] [::1]:${PORT} is taken by another program; "localhost" may reach it instead of this app. Use http://127.0.0.1:${PORT}.`);
+    if (err.code === 'EADDRINUSE') console.error(`[server] [::1]:${boundPort} is taken by another program; "localhost" may reach it instead of this app. Use http://127.0.0.1:${boundPort}.`);
     else if (err.code !== 'EADDRNOTAVAIL' && err.code !== 'EAFNOSUPPORT') console.error('[server] IPv6 loopback listener failed:', err.message);
   });
-  v6.listen(PORT, '::1');
+  v6.listen(boundPort, '::1');
 }
 
 // Bound to loopback only — binding to all interfaces (Node's default) would let
@@ -198,13 +200,14 @@ function listenOnIpv6Loopback() {
   }
   // 7. Listen.
   server.listen(PORT, '127.0.0.1', () => {
+    boundPort = server.address().port;
     listenOnIpv6Loopback();
-    console.log(`Anime Tracker running at http://localhost:${PORT}`);
+    console.log(`Anime Tracker running at http://localhost:${boundPort}`);
     if (Library.getLibraryState().corrupt) {
       console.log('WARNING: library.json is corrupt. Open the app to restore from a backup.');
     }
     if (IS_SEA) {
-      openBrowser(`http://localhost:${PORT}`);
+      openBrowser(`http://localhost:${boundPort}`);
     }
     // v3 Phase 5: episode notifications while no tab is open (opt-in, see
     // services/notifier.js), and in the packaged Windows app the tray icon.
@@ -215,7 +218,7 @@ function listenOnIpv6Loopback() {
           startTray({
             labels: { title: copy('tray.title'), open: copy('tray.open'), folder: copy('tray.folder'), quit: copy('tray.quit') },
             on: {
-              open: () => openBrowser(`http://localhost:${PORT}`),
+              open: () => openBrowser(`http://localhost:${boundPort}`),
               folder: () => {
                 try {
                   require('node:child_process').spawn('explorer.exe', [DATA_DIR], { detached: true, stdio: 'ignore', windowsHide: false }).unref();

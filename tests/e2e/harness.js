@@ -94,11 +94,11 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
     fs.copyFileSync(fixtureLibraryPath, path.join(dataDir, 'library.json'));
   }
 
-  // Ephemeral-range random port. Tests run with Playwright's workers:1
-  // (see playwright.config.js) so collisions are not expected in practice,
-  // but a real EADDRINUSE would surface as waitForServer() timing out.
-  // A test that restarts a server on the same port passes it in opts.env.
-  const testPort = Number(opts.env?.ANIME_TRACKER_PORT) || 41000 + Math.floor(Math.random() * 4000);
+  // v3 Phase 7: port 0 lets the OS pick a free port, which the server prints
+  // ("running at http://localhost:<port>") and this reads back, so parallel
+  // workers never collide. A test that restarts a server on the same port
+  // passes a fixed one in opts.env.
+  const fixedPort = Number(opts.env?.ANIME_TRACKER_PORT) || 0;
   const child = spawn(process.execPath, [SERVER_PATH], {
     env: {
       ...process.env,
@@ -108,7 +108,7 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
       ANIME_TRACKER_ANILIST_URL: 'http://127.0.0.1:9',
       ANIME_TRACKER_NOTIFY_LOG: path.join(dataDir, 'notifications.log'),
       ...(opts.env || {}),
-      ANIME_TRACKER_PORT: String(testPort),
+      ANIME_TRACKER_PORT: String(fixedPort),
     },
     stdio: 'pipe',
   });
@@ -129,9 +129,16 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
 
   const startupErrors = [];
   child.stderr.on('data', (chunk) => startupErrors.push(chunk.toString()));
-  // stdout is piped but nothing reads it; drain it so a chatty server can never
-  // block on a full pipe buffer.
-  child.stdout.resume();
+  // stdout is read (never left to fill its pipe and block the server) only
+  // for the line that names the bound port; everything else is dropped.
+  let stdoutTail = '';
+  const portFromStdout = new Promise((resolve) => {
+    child.stdout.on('data', (chunk) => {
+      stdoutTail = (stdoutTail + chunk.toString()).slice(-4000);
+      const m = stdoutTail.match(/running at http:\/\/localhost:(\d+)/);
+      if (m) resolve(Number(m[1]));
+    });
+  });
 
   // Idempotent and bounded: safe to call more than once (a second call
   // just re-resolves the same in-flight/completed cleanup), and never
@@ -175,9 +182,19 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
     return stopPromise;
   }
 
-  const url = `http://localhost:${testPort}`;
+  let url;
   let token;
   try {
+    const port = fixedPort || (await Promise.race([
+      portFromStdout,
+      exitPromise.then(() => {
+        throw new Error('Server exited before listening.');
+      }),
+      delay(15000).then(() => {
+        throw new Error('Server did not report its port within 15s.');
+      }),
+    ]));
+    url = `http://localhost:${port}`;
     await waitForServer(url);
     token = await learnWriteToken(url);
   } catch (err) {

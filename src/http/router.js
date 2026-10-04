@@ -37,11 +37,13 @@ function buildRouteTable() {
   return { exact, prefixes };
 }
 
-// `port` is what the Host/Origin checks compare against; `getDataDirConflict`
-// returns the legacy-folder conflict found at startup, if any.
-function createRequestHandler({ port, token, getDataDirConflict }) {
+// `port` is what the Host/Origin checks compare against (a number, or a
+// function returning the port actually bound, for ANIME_TRACKER_PORT=0);
+// `getDataDirConflict` returns the legacy-folder conflict found at startup.
+function createRequestHandler({ port: portOption, token, getDataDirConflict }) {
   const { exact, prefixes } = buildRouteTable();
   return async function handleRequest(req, res) {
+    const port = typeof portOption === 'function' ? portOption() : portOption;
     let url;
     try {
       url = new URL(req.url, `http://localhost:${port}`);

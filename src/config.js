@@ -14,7 +14,9 @@ const ROOT = path.join(__dirname, '..');
 
 // Test/harness override only (P0.4): lets a test server run on a free port
 // alongside a real running instance without EADDRINUSE. Unset in normal use.
-const PORT = Number(process.env.ANIME_TRACKER_PORT) || 4321;
+// ANIME_TRACKER_PORT=0 binds a free port (the test harness reads it back from
+// the "running at" line); unset or invalid means the usual 4321.
+const PORT = process.env.ANIME_TRACKER_PORT === '0' ? 0 : Number(process.env.ANIME_TRACKER_PORT) || 4321;
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
 // read via node:sea instead of the filesystem.
