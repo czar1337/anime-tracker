@@ -338,3 +338,29 @@ test('"Pick for me" picks from the Watchlist and "Start watching" moves it to Wa
     await server.stop();
   }
 });
+
+test('Triage Undo reaches back only within its own session, and a held key answers once', async ({ page }) => {
+  const server = await start();
+  try {
+    await openDiscover(page, server);
+    await page.keyboard.press('t');
+    const cardId = async () => Number(await page.getAttribute('#triage-body .triage-card', 'data-anilist-id'));
+    const first = await cardId();
+    await page.keyboard.down('w'); // held: auto-repeat must not answer the next cards too
+    await page.waitForTimeout(400);
+    await page.keyboard.up('w');
+    await expect(page.locator('.triage-counter')).toHaveText('1 answered, your picks just got sharper');
+    await page.keyboard.press('z');
+    await expect.poll(cardId).toBe(first);
+    await expect.poll(async () => Boolean(await entryOf(server, first)), { timeout: 10000 }).toBe(false);
+    await page.keyboard.press('w');
+    await expect.poll(cardId).not.toBe(first);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#triage-overlay')).toBeHidden();
+    await page.keyboard.press('t');
+    await expect(page.locator('[data-action="triage-undo"]')).toBeDisabled();
+    await expect.poll(async () => (await entryOf(server, first))?.listStatus, { timeout: 10000 }).toBe('watchlist');
+  } finally {
+    await server.stop();
+  }
+});

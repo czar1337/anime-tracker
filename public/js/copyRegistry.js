@@ -885,6 +885,9 @@ export const COPY_REGISTRY = {
   'dismissed.untitled': same((p) => `Anime #${p.id}`),
   // Discover v3 reasons (Phase 6, public/js/discover/engine/explain.js). Each
   // names the real contributor to the score, never a decorative anchor.
+  'discoverReason.anyGenre': same('anime'),
+  'triage.undoKept': same((p) => `${p.title} was changed since, so it stays in your library`),
+  'discover.onList': same((p) => `On your ${p.list}`),
   'discoverReason.list': same((p) => (p.items.length < 2 ? p.items.join('') : `${p.items.slice(0, -1).join(', ')} and ${p.items[p.items.length - 1]}`)),
   'discoverReason.you': same((p) => ` (you gave it ${p.score})`),
   'discoverReason.youShort': same((p) => ` (you: ${p.score})`),

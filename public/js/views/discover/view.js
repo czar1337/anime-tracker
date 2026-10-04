@@ -97,11 +97,19 @@ function iconButton(action, icon, label, extra = '') {
   return `<button class="icn dc-icon" data-action="${action}" aria-label="${escapeHtml(label)}" data-tip="${escapeHtml(label)}" ${extra}>${icon}</button>`;
 }
 
+const LIST_KEYS = { watchlist: 'list.watchlist', paused: 'list.paused', watching: 'list.watching', watched: 'list.watched', dropped: 'list.dropped' };
+
 // The card's three answers and its menu, shared by rail cards and the hero.
-function cardActionsHtml(title) {
+// A title already in the library (shown with "hide owned" off) says where it
+// is instead of offering Want to watch.
+function cardActionsHtml(title, id) {
+  const owned = Store.getEntry(id);
+  const want = owned
+    ? `<button class="btn btn-ghost sm dc-want" disabled>${escapeHtml(copy('discover.onList', undefined, { list: copy(LIST_KEYS[owned.listStatus] || 'list.watchlist') }))}</button>`
+    : `<button class="btn btn-primary sm rip-host dc-want" data-action="discover-want">${escapeHtml(copy('discover.want'))}</button>`;
   return `
     <div class="acts">
-      <button class="btn btn-primary sm rip-host dc-want" data-action="discover-want">${escapeHtml(copy('discover.want'))}</button>
+      ${want}
       <span class="dc-icons">
         ${iconButton('discover-seen', ICON.seen, copy('discover.seenItLabel', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"')}
         ${iconButton('discover-not-for-me', ICON.notForMe, copy('discover.notForMeLabel', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"')}
@@ -131,7 +139,7 @@ function cardHtml(railId, card, index = 0) {
         <h4 data-action="show-detail" data-detail-id="${card.id}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h4>
         <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
         ${chips.length ? `<div class="dc-chips">${chips.map((ch) => `<span class="dc-chip">${escapeHtml(ch)}</span>`).join('')}</div>` : ''}
-        ${cardActionsHtml(title.primary)}
+        ${cardActionsHtml(title.primary, card.id)}
       </div>
     </article>`;
 }
@@ -148,7 +156,7 @@ function heroSlideHtml(card, index) {
         <p class="why">${reasonHtml(card.reason)}</p>
         <h3 data-action="show-detail" data-detail-id="${card.id}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h3>
         <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
-        ${cardActionsHtml(title.primary)}
+        ${cardActionsHtml(title.primary, card.id)}
       </div>
     </article>`;
 }

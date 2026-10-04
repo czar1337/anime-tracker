@@ -756,6 +756,9 @@ function openColdStartOnboarding({ offer = false } = {}) {
     start();
     return;
   }
+  // Offered once: starting it completes the cold start (its first answer),
+  // letting the toast go counts as a skip. Settings can always run it.
+  TasteProfile.skipColdStart();
   Render.showToast(copy('coldStart.prompt'), {
     actionLabel: copy('coldStart.promptAction'),
     onAction: start,

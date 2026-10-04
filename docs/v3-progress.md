@@ -13,7 +13,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
-| 6 Discover rebuild | `v3/6-discover` | in progress | Engine tuned (HitRate@20 0.105 to 0.579, sanity 0), schema 17, new event types and the folded taste cache. Next: Discover UI on the engine (rails, hero, card, Tune levels, Triage, More like this, Dismissed), retire v2 shelves, e2e |
+| 6 Discover rebuild | `v3/6-discover` | in progress | Engine, corpus v2, UI, Triage, events, e2e committed (`e1ff63c`). Next: full e2e, perf, evidence (screenshots, GIF), review, checkpoint 6 |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
@@ -295,8 +295,7 @@ features, not the anchor, which the rail title already names.
 **Tuning grid** (81 runs, alpha × beta × gamma × mmrLambda at lambdaNeg 0.5,
 `evidence/6/eval-grid.md`): every run has sanity 0, HitRate@20 is 0.50–0.58 everywhere, so
 the result does not hinge on the weights. Chosen: **alpha 0.6, beta 0.3, gamma 0.35,
-lambdaNeg 0.5, mmrLambda 0.7, m 3000**: the best HitRate@20 (0.579, tied with five runs),
-with the best MRR among them.
+lambdaNeg 0.5, m 3000**, mmrLambda first 0.7: the best HitRate@20 (0.579, tied with five runs), with the best MRR among them. After MMR switched to scaling by the best score (plan, "Decisions made autonomously"), mmrLambda was re-swept (0.5–1.0): **0.8** keeps HitRate@20 0.579 and MRR 0.370, and turning MMR off (1.0) drops diversity to 0.864.
 
 **Top picks for the real library, after** (all twenty cite a different rated title; no
 spoiler tag, no unreleased title, nothing under the 6.9 floor):

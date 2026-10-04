@@ -77,3 +77,64 @@ test('no rail cites one anchor on more than 40% of its cards while three or more
   const solo = run([a, ...nearA], [watched(a, 10)]);
   assert.equal(solo.topPicks.length, Math.min(DISCOVER.topPicksSize, nearA.length));
 });
+
+// Phase 6 review findings.
+
+test('"View more", asked several times across rails, never moves a card already shown', async () => {
+  const { run } = await engine();
+  const anchors = [title(1, { genres: ['Action'], tags: tags('Swordplay', 'Demons') }), title(2, { genres: ['Drama'], tags: tags('Tragedy') }), title(3, { genres: ['Sports'], tags: tags('Boxing') })];
+  const pool = Array.from({ length: 160 }, (_, i) => title(100 + i, { genres: [['Action', 'Drama', 'Sports'][i % 3]], tags: tags(['Swordplay', 'Tragedy', 'Boxing'][i % 3], `T${i % 9}`), normalizedScore: 7.5 + (i % 10) / 10, popularity: 10000 + i * 900 }));
+  const entries = anchors.map((a) => watched(a, 9));
+  const ids = (out) => Object.fromEntries(out.rails.map((r) => [r.id, r.cards.map((c) => c.id)]));
+  const shown = (before, after) => {
+    for (const [rail, list] of Object.entries(before)) assert.deepEqual((after[rail] || []).slice(0, list.length), list, `${rail} kept its cards`);
+  };
+  const corpus = [...anchors, ...pool];
+  const steps = [];
+  let prev = ids(run(corpus, entries, { _: 0 }));
+  const rail1 = Object.keys(prev).find((r) => r.startsWith('because')) || 'hidden-gems';
+  for (const [railId, grow] of [[rail1, 24], ['top-picks', 32], [rail1, 36], ['top-picks', 44]]) {
+    steps.push([railId, grow]);
+    const { buildDiscover } = await mod('public/js/discover/engine/index.js');
+    const { DISCOVER, RECOMMENDATIONS } = await mod('config/tuning.js');
+    const next = ids(buildDiscover({ corpusById: byId(corpus), entries, preferences: { adventurousnessLevel: 'off' }, nowMs: NOW, localDay: '2026-10-04', tuning: DISCOVER, primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority, expanded: steps.slice() }));
+    shown(prev, next);
+    prev = next;
+  }
+});
+
+test('a reason never names a title you have not rated (Watchlist, thumbs-up)', async () => {
+  const { run } = await engine();
+  const rated = title(1, { genres: ['Action'], tags: tags('Swordplay') });
+  const planned = title(2, { genres: ['Mystery'], tags: tags('Detective', 'Conspiracy', 'Mind Games') });
+  const near = Array.from({ length: 20 }, (_, i) => title(100 + i, { genres: ['Mystery'], tags: tags('Detective', 'Conspiracy', 'Mind Games') }));
+  const out = run([rated, planned, ...near], [watched(rated, 9), { anilistId: 2, titleEnglish: 'T2', listStatus: 'watchlist', myScore: null, genres: ['Mystery'], relatedIds: [] }]);
+  for (const c of out.rails.flatMap((r) => r.cards)) assert.notEqual(c.reason.anchorId, 2, c.reason.text);
+});
+
+test('showing dismissed titles brings them back but keeps their "Not for me" in the taste', async () => {
+  const [{ buildDiscover }, { DISCOVER, RECOMMENDATIONS }] = await Promise.all([mod('public/js/discover/engine/index.js'), mod('config/tuning.js')]);
+  const rated = title(1, { genres: ['Action'], tags: tags('Swordplay') });
+  const gone = title(2, { genres: ['Horror'], tags: tags('Gore') });
+  const similar = title(3, { genres: ['Horror'], tags: tags('Gore') });
+  const others = Array.from({ length: 10 }, (_, i) => title(100 + i, { genres: ['Action'], tags: tags('Swordplay') }));
+  const input = (hideDismissed) => ({ corpusById: byId([rated, gone, similar, ...others]), entries: [watched(rated, 9)], dismissedIds: [2], hideDismissed, preferences: {}, nowMs: NOW, localDay: '2026-10-04', tuning: DISCOVER, primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority });
+  const hidden = buildDiscover(input(true));
+  const shownOut = buildDiscover(input(false));
+  const all = (o) => o.rails.flatMap((r) => r.cards);
+  assert.ok(!all(hidden).some((c) => c.id === 2));
+  assert.ok(all(shownOut).some((c) => c.id === 2), 'brought back on the page');
+  const score = (o) => all(o).find((c) => c.id === 3)?.score;
+  assert.equal(typeof score(hidden), 'number', 'the similar title is on the page');
+  assert.equal(score(shownOut), score(hidden), 'the similar title is penalised the same either way');
+});
+
+test('old shelf ids resolve to rails in one place', async () => {
+  const { railIdFor, RAIL_IDS } = await mod('public/js/discover/railIds.js');
+  assert.equal(railIdFor('because-you-liked'), 'because-1');
+  assert.equal(railIdFor('finish-what-you-started'), 'continue-franchise');
+  assert.equal(railIdFor('from-director'), 'from-creators');
+  assert.equal(railIdFor('hidden-gems'), 'hidden-gems');
+  assert.equal(railIdFor('nope'), null);
+  for (const id of RAIL_IDS) assert.equal(railIdFor(id), id);
+});

@@ -55,8 +55,8 @@ async function maybeOfferTriage(preferences) {
   return waitForCorpusEntries(MIN_CORPUS_FOR_TRIAGE);
 }
 
-// Answering Triage at least once completes the cold start; closing the
-// offer toast without starting skips it.
+// Answering Triage at least once completes the cold start; the offer toast
+// is shown once (events.js marks it skipped when it shows).
 function completeColdStart() {
   if (Store.state.preferences.coldStartCompletedAt) return;
   Store.setPreference(['coldStartCompletedAt'], new Date().toISOString());

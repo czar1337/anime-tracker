@@ -195,6 +195,9 @@ export function buildDiscover(input) {
     expanded = {},
     seedId = null,
     hideOwned = true,
+    // The filter panel's "show dismissed titles": they come back on the
+    // page, but their "Not for me" still counts in the taste signal.
+    hideDismissed = true,
     titleOf = defaultTitle,
   } = input;
   const prep = prepareCorpus(corpusById, tuning, cache);
@@ -229,12 +232,15 @@ export function buildDiscover(input) {
   }
   const gateKeys = hideOwned ? ownedKeys : seenKeys;
   const excludeIds = hideOwned ? ownedIds : new Set(entries.filter((e) => SEEN_STATUSES.has(e.listStatus)).map((e) => e.anilistId));
-  const dismissed = new Set(dismissedIds);
+  const dismissed = hideDismissed ? new Set(dismissedIds) : new Set();
   const dismissedKeys = new Set([...dismissed].map((id) => groupOf(id)));
   const accept = (c) => !c.isAdult && !dismissed.has(c.anilistId) && matchesFilters(c, filters, timeSemantics) && (!mood || matchesMood(c, mood, timeSemantics));
 
   // Collab: per franchise, each rated anchor's strongest edge into it.
   const positiveAnchors = taste.anchors.filter((a) => a.w > 0);
+  // A reason names only a title you rated (spec 4.5); Watchlist titles and
+  // thumbs-ups still shape the score.
+  const ratedAnchors = positiveAnchors.filter((a) => a.kind === 'rated');
   const wRef = positiveAnchors.length ? positiveAnchors.reduce((s, a) => s + a.w, 0) / positiveAnchors.length : 1;
   const collabEdges = new Map(); // franchise key -> Map(anchorId -> best normalised rating)
   for (const a of taste.anchors) {
@@ -259,7 +265,7 @@ export function buildDiscover(input) {
     for (const [id, r] of m) {
       const a = anchorById.get(id);
       rawSum += a.w * r;
-      if (a.w > 0 && a.w * r > bestValue) {
+      if (a.w > 0 && a.kind === 'rated' && a.w * r > bestValue) {
         best = a;
         bestValue = a.w * r;
       }
@@ -313,7 +319,7 @@ export function buildDiscover(input) {
   const byScore = (a, b) => b.railScore - a.railScore || a.id - b.id;
 
   // The best rated anchor for a content reason: the largest w × similarity.
-  function contentAnchor(c, pool = positiveAnchors) {
+  function contentAnchor(c, pool = ratedAnchors) {
     const v = vec(c.id);
     const n = nrm(c.id);
     let best = null;
@@ -441,7 +447,7 @@ export function buildDiscover(input) {
     const withCloseness = gated.map((c) => ({ c, closeness: cosine(vec(c.id), a.vector, nrm(c.id), a.norm) }));
     const neighbours = new Set(withCloseness.sort((x, y) => y.closeness - x.closeness || x.c.id - y.c.id).slice(0, tuning.becauseNeighbours).map((x) => x.c.key));
     const pool = withCloseness
-      .filter(({ c }) => recByKey.has(c.key) || neighbours.has(c.key))
+      .filter(({ c, closeness }) => recByKey.has(c.key) || (neighbours.has(c.key) && closeness > 0.05))
       .map(({ c, closeness }) => ({ ...c, rec: recByKey.get(c.key) || 0, closeness, railScore: (recByKey.get(c.key) || 0) + closeness + 0.25 * c.qn }))
       .sort(byScore);
     add({
@@ -451,9 +457,13 @@ export function buildDiscover(input) {
       anchorTitle: anchorTitle(a),
       size: tuning.railSize,
       pool,
+      // "Fans" only with a real recommendation behind it; otherwise what the
+      // two share; with neither, the card's own taste reason.
       reason: (c) => {
         const feats = Explain.reasonFeatures(vec(c.id), a.vector, c.entry);
-        return c.rec >= c.closeness || !feats.length ? Explain.collabReason(a, anchorTitle, { inRail: true }) : Explain.contentReason(a, feats, anchorTitle, { inRail: true });
+        if (c.rec > 0 && (c.rec >= c.closeness || !feats.length)) return Explain.collabReason(a, anchorTitle, { inRail: true });
+        if (feats.length) return Explain.contentReason(a, feats, anchorTitle, { inRail: true });
+        return tasteReason(c);
       },
     });
   });
@@ -569,24 +579,37 @@ export function buildDiscover(input) {
     for (const c of picks) used.add(c.key);
     picksBySpec.set(spec.id, picks);
   }
-  for (const spec of specs) {
-    const want = expanded[spec.id];
-    if (!(want > spec.size)) continue;
-    const prefix = picksBySpec.get(spec.id);
-    const others = new Set([...used].filter((k) => !prefix.some((c) => c.key === k)));
-    const grown = spec.mmr === false ? [...prefix, ...spec.pool.filter((c) => !used.has(c.key)).slice(0, want - prefix.length)] : mmrPick(spec.pool, want, { lambda: tuning.mmrLambda, sim, exclude: others, prefix, reasonOf: spec.reason, cap: anchorCap(want) });
+  // "View more", replayed in the order the user asked for it: each step grows
+  // one rail from what it already shows, taking only cards nobody else on the
+  // page shows. Earlier steps are never redone, so no card already on screen
+  // moves. `expanded` is a list of [railId, size] steps (an object of
+  // railId -> size is read as one step per rail).
+  const steps = Array.isArray(expanded) ? expanded : Object.entries(expanded || {});
+  const specById = new Map(specs.map((s) => [s.id, s]));
+  for (const [railId, want] of steps) {
+    const spec = specById.get(railId);
+    const prefix = spec && picksBySpec.get(railId);
+    if (!spec || !(want > prefix.length)) continue;
+    const grown = spec.mmr === false ? [...prefix, ...spec.pool.filter((c) => !used.has(c.key)).slice(0, want - prefix.length)] : mmrPick(spec.pool, want, { lambda: tuning.mmrLambda, sim, exclude: new Set([...used].filter((k) => !prefix.some((c) => c.key === k))), prefix, reasonOf: spec.reason, cap: anchorCap(want) });
     for (const c of grown) used.add(c.key);
-    picksBySpec.set(spec.id, grown);
+    picksBySpec.set(railId, grown);
   }
 
   const rails = [];
   const leftovers = [];
   for (const spec of specs) {
-    const cards = picksBySpec.get(spec.id).map((c) => card(c, c.reasonCache || spec.reason(c)));
-    const rail = { id: spec.id, kind: spec.kind, anchorId: spec.anchorId ?? null, anchorTitle: spec.anchorTitle ?? null, cards, total: spec.pool.length };
+    const picks = picksBySpec.get(spec.id);
+    const cards = picks.map((c) => card(c, c.reasonCache || spec.reason(c)));
+    // How many this rail could still show: its pool minus what other rails
+    // show, so "View more" is offered only when it can add something.
+    const mine = new Set(picks.map((c) => c.key));
+    const total = spec.pool.filter((c) => mine.has(c.key) || !used.has(c.key)).length;
+    const rail = { id: spec.id, kind: spec.kind, anchorId: spec.anchorId ?? null, anchorTitle: spec.anchorTitle ?? null, cards, total };
     // A small taste rail folds into "More picks"; Continue and Coming soon
     // never do, since their cards are owned franchises and unreleased titles.
-    if (!NEVER_FOLDED.has(spec.id) && cards.length < tuning.railMinCards) leftovers.push(...cards);
+    // A "Because you loved" card leaves its rail's title behind, so it takes
+    // a reason that stands on its own.
+    if (!NEVER_FOLDED.has(spec.id) && cards.length < tuning.railMinCards) leftovers.push(...(spec.kind === 'because' ? picks.map((c) => card(c, tasteReason(c))) : cards));
     else if (cards.length) rails.push(rail);
   }
   if (leftovers.length) rails.push({ id: 'more-picks', kind: 'more-picks', anchorId: null, anchorTitle: null, cards: leftovers, total: leftovers.length });

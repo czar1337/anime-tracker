@@ -82,9 +82,9 @@ export function creatorReason(creatorText, anchor, titleOf) {
 }
 
 export function wildcardReason(genre) {
-  return { kind: 'wildcard', text: copy('discoverReason.wildcard', undefined, { genre: genre || 'anime' }), anchorId: null, anchorTitle: null };
+  return { kind: 'wildcard', text: copy('discoverReason.wildcard', undefined, { genre: genre || copy('discoverReason.anyGenre') }), anchorId: null, anchorTitle: null };
 }
 
 export function upcomingReason(genre, studio) {
-  return { kind: 'upcoming', text: copy('discoverReason.upcoming', undefined, { genre: genre || 'anime', studio }), anchorId: null, anchorTitle: null };
+  return { kind: 'upcoming', text: copy('discoverReason.upcoming', undefined, { genre: genre || copy('discoverReason.anyGenre'), studio }), anchorId: null, anchorTitle: null };
 }

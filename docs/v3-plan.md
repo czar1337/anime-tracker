@@ -444,6 +444,31 @@ Phase 3 (design system and motion):
   (ratings, Watchlist, cold-start picks, thumbs-up), so a library save never rebuilds the
   cache and a rating counts at once; the server fold adds score dates and dismissal
   reasons. Rebuilt 400 ms after the last relevant event, outside the write lock.
+- **MMR scales scores by the best one, not min-max.** Min-max stretched any gap to the
+  full 0–1 range, so the second-best card looked worthless next to the best and MMR
+  hardly ever diversified (found by the MMR unit test). With scores divided by the
+  top score, `mmrLambda` was re-swept: 0.8 gives the same HitRate@20 (0.579) and MRR
+  (0.370) as before, and turning MMR off lowers diversity (0.864 against 0.874).
+- **The 40% citation cap is a preference with a fallback.** A card that would push one
+  anchor over 40% of a rail gives way to the next card with another reason; only when
+  nothing else is left do such cards come back, up to an even share between the
+  anchors there are. Dropping them instead left a library with one loved title with a
+  one-card rail. On the real library every rail stays at or under 33%.
+- **Triage answers count once and Undo keeps the log.** Z takes back the last answer
+  (the library entry or the dismissal goes), but the events it wrote stay, because the
+  log is append-only.
+- **Triage fetches one detail per card shown** (synopsis, banner, trailer), like opening
+  the detail drawer; the rails themselves never make a request.
+- **Discover has no Refresh button any more.** Opening the tab refreshes in the
+  background (the corpus answers 304 when unchanged) and every answer re-ranks at once.
+- **The "hide sequels I have not started" filter is gone.** The engine always starts a
+  franchise at its first unseen season after the filters, so the switch had nothing
+  left to do; the stored field is kept.
+- **The 'd' debug panel shows the v3 parts** (content, collab, quality, serendipity) and
+  each card's reason.
+- **Old e2e specs for removed v2 behaviour are archived** (`archive/tests/e2e/`:
+  shelves, moods page, layout, feedback loop, the quick-picker taste profile); what
+  still applies is ported to `discover-v3.spec.js`.
 
 ## Later (out of scope for v3.0)
 
