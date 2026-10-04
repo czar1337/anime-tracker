@@ -13,8 +13,8 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
-| 6 Discover rebuild | `v3/6-discover` | in progress | Next: read the Phase 6 brief and the Discover spec, plan the engine (6a), corpus (6b), UI (6c) |
-| 7 Tooling, cleanup, release | `v3/7-release` | not started | |
+| 6 Discover rebuild | `v3/6-discover` | done | — |
+| 7 Tooling, cleanup, release | `v3/7-release` | in progress | Next: read the Phase 7 brief, plan tooling and cleanup |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
 
@@ -244,6 +244,139 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
   lost on several re-renders. LOWs fixed or recorded as decisions in the plan. The
   checkpoint also found and fixed a `data-list` collision (Season chart add buttons vs
   the list segments) and a flaky toast assertion.
+- **Deferred:** nothing.
+
+## Phase 6 work log: Discover eval
+
+`npm run eval:discover` (`scripts/eval-discover.js`) on a read-only copy of the real
+data (222 entries, 161 rated, 49 rated 8+ in 38 franchises; corpus 3,052; 16 events),
+`--now 2026-10-04T12:00`. One leave-one-out fold per liked franchise: every library
+entry in it is hidden, and a hit is any member in the top 20. v2 had no "Top picks", so
+its personal "Because you liked..." shelf at 20 cards stands in. Its unseeded
+serendipity is seeded per day so the run repeats.
+
+**Baseline, v2.3.0 engine, corpus v1** (`evidence/6/eval-v2-baseline.json`):
+
+| run | HitRate@20 | MRR | diversity | franchises | genres | coverage | median bayes | sanity | max anchor share | engine ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| v2 | 0.105 | 0.021 | 0.841 | 20 | 11 | 0.026 | 7.29 | 61 | 1.00 | 55.0 |
+
+Sanity breakdown: top 20 has 1 unreleased (Kagurabachi), 2 from owned franchises, 5
+under the quality floor (Super Dragon Ball Heroes at 5.49 adjusted); the rails show 6
+unreleased and 16 owned-franchise cards; 16 franchises appear twice on the page; with
+"Year: 2015+" 15 cards are older (Kingdom 2012 among them). "Because you liked" cites
+Attack on Titan or JUJUTSU KAISEN on 67% of its cards, "From the studio" one anchor on
+100%.
+
+**Corpus v2, measured** (`scripts/build-eval-corpus.js`, the app's own queries and passes,
+2026-10-04): the nested `recommendations(perPage: 10)` field works inside `Page.media` at
+perPage 50 with no complexity error, adding ~26 KB to a ~252 KB page (+10%) at the same
+single request, so no second pass is needed. Popularity pass to 4,500, score pass
+(`popularity_greater: 1000`) to 6,035, then by id: 3 library titles and a neighbour fill of
+2. **6,040 titles, 12.7 MB** (ceiling 150 MB), 185 requests, 14 min at 70% of 30/min with
+one 60 s rate-limit wait. Every title rated 8+ already had its recommendation targets in the
+corpus but two.
+
+**Engine and corpus, before → after** (same real library, `--now 2026-10-04T12:00`):
+
+| run | HitRate@20 | MRR | diversity | franchises | genres | coverage | median bayes | sanity | max anchor share | engine ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| v2.3.0, corpus v1 (baseline) | 0.105 | 0.021 | 0.841 | 20 | 11 | 0.026 | 7.29 | 61 | 1.00 | 55.0 |
+| v2.3.0, corpus v2 | 0.079 | 0.009 | 0.841 | 20 | 8 | 0.016 | 7.10 | 69 | 1.00 | 108.5 |
+| v3, corpus v1 | 0.421 | 0.258 | 0.825 | 20 | 8 | 0.047 | 8.43 | 0 | 0.33 | 27.8 |
+| **v3, corpus v2 (chosen)** | **0.579** | **0.370** | **0.874** | 20 | 9 | 0.026 | 7.77 | **0** | **0.25** | **36.2** |
+
+The engine change alone takes HitRate@20 from 0.105 to 0.421; the recommendations graph in
+corpus v2 adds the rest. Floors held: diversity ≥ the baseline's 0.841, coverage ≥ 0.016
+(v2 on the same corpus). Engine ms is the median build with features cached, 6,040 titles
+and 222 entries (budget 60). Anchor share excludes nothing: "Because you loved" cards name
+features, not the anchor, which the rail title already names.
+
+**Tuning grid** (81 runs, alpha × beta × gamma × mmrLambda at lambdaNeg 0.5,
+`evidence/6/eval-grid.md`): every run has sanity 0, HitRate@20 is 0.50–0.58 everywhere, so
+the result does not hinge on the weights. Chosen: **alpha 0.6, beta 0.3, gamma 0.35,
+lambdaNeg 0.5, m 3000**, mmrLambda first 0.7: the best HitRate@20 (0.579, tied with five runs), with the best MRR among them. After MMR switched to scaling by the best score (plan, "Decisions made autonomously"), mmrLambda was re-swept (0.5–1.0): **0.8** keeps HitRate@20 0.579 and MRR 0.370, and turning MMR off (1.0) drops diversity to 0.864.
+
+**Top picks for the real library, after** (all twenty cite a different rated title; no
+spoiler tag, no unreleased title, nothing under the 6.9 floor):
+1 A Silent Voice (Fans of The Fragrant Flower Blooms With Dignity, 9) · 2 The Promised
+Neverland (Attack on Titan, 10) · 3 You and I Are Polar Opposites (The Fragrant Flower…, 9)
+· 4 To Be Hero X (My Hero Academia, 10) · 5 Secrets of the Silent Witch (Wistoria S2, 9) ·
+6 Inazuma Eleven (BLUE LOCK, 9) · 7 Tomorrow's Joe (BAKI, 9) · 8 Kemono Jihen (JUJUTSU
+KAISEN, 10) · 9 Cyberpunk: Edgerunners (Akame ga Kill!, 9) · 10 Sword of the Stranger
+(Dororo, 9) · 11 World Trigger (Demon Slayer, 10) · 12 REBORN! (My Hero Academia, 10) ·
+13 Blue Box (The Fragrant Flower…, 9) · 14 Reincarnated as a Sword (Slime S2, 9) · 15 SANDA
+(Chainsaw Man, 9) · 16 Gate (Sword Art Online, 9) · 17 AJIN (Tokyo Ghoul, 9) · 18 Saint
+Seiya: Knights of the Zodiac (Dragon Ball Z, 9) · 19 Princess Mononoke (Demon Slayer, 10) ·
+20 Viral Hit (The God of High School, 10). Every reason reads "Fans of X rate this highly
+(you gave it N)": with the graph present, collab is the largest part for all twenty.
+
+**Regression tests** (`tests/unit/discoverRegressions.test.js`): every failure in spec
+section 1 runs on both engines; each passes on v3 and is asserted to fail on v2.3.0 (16
+tests: genre-only reasons, no collab, the 5.3 floor, unreleased on taste rails, Kingdom
+2012 under "2015+", Kingdom / Season 3 with the middle season missing, the corpus query and
+pruning, spoiler tags in reasons, reshuffling, "View more" prefix, drops counted three
+times, Bring back keeping the penalty, undated ratings at full recency, owned-franchise
+side stories, and the eval itself).
+
+## Checkpoint 6 (2026-10-04)
+
+- **Changed:** Discover rebuilt on a new pure engine (`public/js/discover/engine/`):
+  per-title taste signal, hybrid content + AniList "fans also liked" + Bayesian quality
+  score, hard gates after franchise entry-point resolution, MMR rails deduplicated down
+  the page, contribution-based reasons. Corpus v2 (recommendations, spoiler flags, key
+  staff, no adult titles; popularity then score pass, library and neighbour fill). New
+  rails, Top picks hero, the three-answer card with a menu, Tune with mood lens and four
+  adventurousness levels, search, Triage (T; W S X → Z), More like this (cards, detail
+  drawer, library menu), the Dismissed drawer with reasons and Bring back. Triage
+  replaced the v2 quick picker. Schedule's Coming soon ranks with the same engine. The
+  v2 engine is archived in `archive/js/v2-discover/` as the eval baseline.
+- **Schema 17:** `preferences.adventurousnessLevel` from the v2 slider and switch,
+  additive and idempotent. Dry run on a fresh real-library copy: 222 entries, 16 events,
+  counters 6388, pinned `pre-migration-14-to-17`, level `off`
+  (`evidence/6/schema17-dryrun.json`). No new Class A store; `preferences` already
+  round-trips (settings-round-trip spec).
+- **Events:** `recommendation_undismissed`, `recommendation_seen_it`,
+  `discover_triage_answered`, validated server-side. "Seen it" and every Discover add
+  carry `meta.source = 'discover'`. The taste cache is the log folded into per-title
+  latest state, rebuilt 400 ms after the last relevant event, outside the write lock.
+- **Acceptance (spec 11):**
+  1. Eval before → after (table above): HitRate@20 0.105 → 0.579, MRR 0.021 → 0.370,
+     sanity 61 → 0, diversity 0.841 → 0.874, coverage 0.026 (baseline on the same corpus
+     0.016). Floors hold.
+  2. Real library page (`evidence/6/real-library-page-check.json`): 138 cards, at most
+     one per franchise, no unreleased title on a taste rail, every anchored reason names
+     its rated title, highest anchor share 0.25 (none over 40%).
+  3. Every failure in spec section 1 has a test that passes on v3 and is asserted to fail
+     on v2.3.0 (`tests/unit/discoverRegressions.test.js`, 17 tests).
+  4. Budgets (`npm run perf`, p95): warm open to first rail 171 ms (budget 400, zero
+     AniList requests); Triage answer to rebuilt rails 46 ms (150); engine build with
+     features cached 32 ms on 6,000 titles and 300 entries (60; first build 127 ms).
+  5. Screenshots: `evidence/6/real-discover-{1440,390}{,-reduced}.png`,
+     `real-tune-*.png`, `real-triage-*.png` (a scratch copy of the real library, corpus
+     v2), plus every screen at 1440/390, motion and reduced, both themes
+     (`capture-evidence.js 6`: no errors). GIF of Triage and Want to watch:
+     `evidence/6/discover-triage-and-want.gif` (synthetic fixture, dev-only encoder,
+     no dependency).
+- **Tests before → after:** unit 438 + 136 → 438 + 165; e2e 300 + 1 skipped → 287 + 1
+  skipped (the v2 shelves, moods page, layout, feedback-loop and quick-picker specs are
+  archived in `archive/tests/e2e/`, and what still applies is ported into
+  `discover-v3.spec.js`, 17 tests). New: discover-v3, taste-cache, discoverEngine,
+  discoverEvents, discoverRegressions; `npm run eval:discover -- --assert` on the
+  committed synthetic fixture.
+- **Exe:** rebuilt and smoke-tested, 11/11 (new check: the taste fold module loads in the
+  exe).
+- **Independent review:** 1 HIGH, fixed: Triage Undo reached across sessions and could
+  delete an entry edited since; it is now session-scoped, removes only an untouched entry
+  and writes its progress and score back out of the log. 6 MEDIUM fixed: held keys
+  answered repeatedly; "View more" could move shown cards (now replayed as ordered
+  steps); reasons could name unrated titles; Watchlist titles with hide-owned off could
+  not be answered; showing dismissed titles dropped their penalty; the Triage offer
+  repeated every launch. 8 LOW fixed or recorded in the plan (folded Because reasons,
+  fans reasons without a recommendation, dead View more, taste cache staleness after a
+  restore, stale rebuild overwrite, copy fallback, paced Triage detail fetches; the
+  legacy shelf id map now has a test and the v2 numeric `adventurousness` provenance
+  field is kept as is).
 - **Deferred:** nothing.
 
 ## Evidence index

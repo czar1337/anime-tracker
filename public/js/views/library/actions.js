@@ -881,6 +881,7 @@ function cardMenuItems(id, { statusOnly = false } = {}) {
       refreshGridOnly();
     },
   });
+  items.push({ label: copy('discover.moreLikeThis'), run: () => runCommand('discover.moreLikeThis', id) });
   items.push({ label: copy('menu.fixMatch'), run: () => handleFixMatch(id) });
   items.push({ label: copy('menu.remove'), danger: true, run: () => confirmDelete(id) });
   return items;

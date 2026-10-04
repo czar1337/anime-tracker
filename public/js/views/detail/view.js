@@ -307,6 +307,7 @@ export function renderDetailOverlay(container, state) {
           ${showNative && html`<p class="detail-native">${m.title.native}</p>`}
           <div class="detail-meta-row">${metaBits.join(' · ')}</div>
           <div class="detail-owned-badge">${local ? copy('detail.inList', undefined, { list: listLabel }) : copy('detail.notInLibrary')}</div>
+          <button type="button" class="btn btn-ghost sm detail-more-like" data-action="detail-more-like-this">${copy('discover.moreLikeThis')}</button>
         </div>
       </div>
     </header>

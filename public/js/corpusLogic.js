@@ -11,52 +11,64 @@
 // the browser), so this file only ever contains the CLIENT side's own pure
 // pieces.
 
-// Prunes a raw AniList `Media` object down to exactly the fields P5A.1's
-// spec bullet names ("genres, tags, studios, staff, members, normalised
-// average score, format, episode count, duration and relations") plus id
-// and title (needed to identify/display an entry at all) and season/
-// seasonYear (P5B.1's future "This season" shelf). Deliberately drops
-// `idMal` (this app's sole persisted external key is `anilistId`, never
-// `malId`, confirmed by P0.2). `averageScore` normalises AniList's 0-100
-// scale to this app's canonical 1-10 scale on ingest, per the Tuning
-// table's "Score scale" rule.
-//
-// P5B.5 kept `coverMedium`/`titleNative` where P0.3 had originally excluded
-// the whole `coverImage` object — see the CORPUS_QUERY comment in api.js
-// for the payload-budget math that makes one small URL string, plus one
-// short title string, immaterial against that finding.
+import { creatorRole } from './discover/engine/features.js';
+
+// v3 Phase 6: the corpus shape Discover v3 reads. A stored corpus whose
+// cursor carries an older version is re-seeded in the background while it
+// keeps serving (corpus.js); entries without `recs` are still v1-shaped and
+// are refetched by id at the end of the seed.
+export const CORPUS_VERSION = 2;
+
+export function isCurrentCorpusEntry(entry) {
+  return Array.isArray(entry?.recs);
+}
+
+// Prunes a raw AniList `Media` object to what Discover reads. `averageScore`
+// moves to this app's 1–10 scale on ingest. Staff keeps only the key creative
+// roles (features.js's creatorRole); tags keep their spoiler flag (only when
+// set, to keep the file small) so a reason can never name one; recommendations
+// become `recs: [[id, rating], ...]` with a positive rating; streaming links
+// become their site names only.
 function pruneMediaFields(raw) {
+  const tags = (raw.tags || []).map((t) => {
+    const tag = { id: t.id ?? null, name: t.name, category: t.category, rank: t.rank };
+    if (t.isMediaSpoiler) tag.spoiler = true;
+    return tag;
+  });
+  const staff = (raw.staff?.edges || [])
+    .filter((e) => creatorRole(e.role) && e.node?.name?.full)
+    .map((e) => ({ role: e.role, name: e.node.name.full, id: e.node.id ?? null }));
+  const recs = (raw.recommendations?.nodes || [])
+    .filter((n) => n?.mediaRecommendation?.id && n.rating > 0)
+    .map((n) => [n.mediaRecommendation.id, n.rating]);
+  const streaming = [...new Set((raw.externalLinks || []).filter((l) => l.type === 'STREAMING' && l.site).map((l) => l.site))];
+  const studios = (raw.studios?.nodes || []).filter((s) => s?.name).map((s) => ({ id: s.id ?? null, name: s.name }));
   return {
     anilistId: raw.id,
     titleRomaji: raw.title?.romaji ?? null,
     titleEnglish: raw.title?.english ?? null,
     titleNative: raw.title?.native ?? null,
-    coverMedium: raw.coverImage?.medium ?? null,
+    coverLarge: raw.coverImage?.large ?? null,
+    bannerImage: raw.bannerImage ?? null,
     format: raw.format ?? null,
     status: raw.status ?? null,
     season: raw.season ?? null,
     seasonYear: raw.seasonYear ?? null,
+    startDate: raw.startDate ? { year: raw.startDate.year ?? null, month: raw.startDate.month ?? null, day: raw.startDate.day ?? null } : null,
     totalEpisodes: raw.episodes ?? null,
     duration: raw.duration ?? null,
     genres: raw.genres || [],
     normalizedScore: typeof raw.averageScore === 'number' ? Math.round(raw.averageScore) / 10 : null,
     popularity: typeof raw.popularity === 'number' ? raw.popularity : 0,
-    // AniList's "source material" enum (ORIGINAL/MANGA/LIGHT_NOVEL/...) —
-    // added by P5A.2 for its "source material" affinity dimension. An
-    // already-seeded entry from before this field existed simply has
-    // `source: null` until the weekly refresh naturally re-fetches it
-    // (P5A.1's own PUT-merge semantics update a known id in place) —
-    // graceful degradation, not a migration, since this is Class B.
     source: raw.source ?? null,
-    studio: raw.studios?.nodes?.[0]?.name ?? null,
-    tags: (raw.tags || []).map((t) => ({ name: t.name, category: t.category, rank: t.rank })),
-    staff: (raw.staff?.edges || []).map((e) => ({ role: e.role, name: e.node?.name?.full ?? null })),
-    // Every relation type is kept, not just the library-display
-    // GROUPING_RELATIONS allowlist api.js's extractRelatedIds() uses for a
-    // library entry's own relatedIds — P5A.4's prerequisite-chain rule
-    // ("never recommend a sequel whose prerequisite hasn't been seen")
-    // needs PREQUEL/SEQUEL specifically, and which types matter for that is
-    // that future substep's call to make, not this one's to pre-filter.
+    isAdult: raw.isAdult === true,
+    studio: studios[0]?.name ?? null,
+    studios,
+    tags,
+    staff,
+    recs,
+    streaming,
+    nextAiring: raw.nextAiringEpisode ? { airingAt: raw.nextAiringEpisode.airingAt, episode: raw.nextAiringEpisode.episode } : null,
     relations: (raw.relations?.edges || []).map((e) => ({ relationType: e.relationType, relatedId: e.node?.id, relatedType: e.node?.type })),
   };
 }
@@ -85,4 +97,43 @@ function paceDelayMs(safetyMargin, observedRateLimitPerMinute) {
   return Math.ceil(60000 / pacedRequestsPerMinute);
 }
 
-export { pruneMediaFields, deriveStatus, paceDelayMs };
+// The corpus v2 seed (spec 3, "Coverage"): a popularity pass, then a score
+// pass among titles with some audience, so well-rated, less-known titles
+// exist at all. `tuning` is config/tuning.js DISCOVER.
+function seedPasses(tuning) {
+  return [
+    { phase: 'popularity', sort: 'POPULARITY_DESC', popularityGreater: 0 }, // AniList refuses a null filter value
+    { phase: 'score', sort: 'SCORE_DESC', popularityGreater: tuning.corpusScoreSeedMinPopularity },
+  ];
+}
+
+// Whether a pass is finished after saving `page`: AniList ran out of pages,
+// the popularity pass reached its share, or the corpus reached its target.
+function seedPassDone({ phase, page, hasNextPage, entryCount, targetSize, tuning }) {
+  if (!hasNextPage) return true;
+  if (phase === 'popularity') return page * 50 >= tuning.corpusPopularityPassSize;
+  return entryCount >= targetSize;
+}
+
+// The ids fetched by id once the passes are done: the library, airing titles,
+// every recommendation target of a title you rated `neighbourFillMinScore`+
+// (strongest first, capped), and entries still in the v1 shape.
+function supplementalIds({ corpusEntries, libraryEntries, airingIds = [], tuning }) {
+  const known = (id) => Object.prototype.hasOwnProperty.call(corpusEntries, String(id));
+  const required = new Set();
+  for (const e of libraryEntries) if (!known(e.anilistId)) required.add(e.anilistId);
+  for (const id of airingIds) if (!known(id)) required.add(id);
+  const targets = new Map();
+  for (const e of libraryEntries) {
+    if (!(typeof e.myScore === 'number' && e.myScore >= tuning.neighbourFillMinScore)) continue;
+    for (const [to, rating] of corpusEntries[String(e.anilistId)]?.recs || []) {
+      if (known(to) || required.has(to)) continue;
+      targets.set(to, Math.max(targets.get(to) || 0, rating));
+    }
+  }
+  const fill = [...targets.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, tuning.neighbourFillMax).map(([id]) => id);
+  const stale = Object.values(corpusEntries).filter((e) => !isCurrentCorpusEntry(e)).map((e) => e.anilistId);
+  return { required: [...required], fill, stale };
+}
+
+export { pruneMediaFields, deriveStatus, paceDelayMs, seedPasses, seedPassDone, supplementalIds };

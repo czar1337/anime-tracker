@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, migrate_15_to_16, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, migrate_15_to_16, migrate_16_to_17, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 } = require('../migrations.js');
   // The v2 light themes (migrate_9_to_10's frozen list): a retired light theme must map to a light one.
   const LIGHT_THEME_IDS = new Set(['clean-interface', 'radiant', 'daybreak', 'parchment', 'amberlight', 'rosequartz', 'cinderglass']);
 
@@ -667,6 +667,31 @@ async function run() {
     const edited = { ...once, watchHistory: [...once.watchHistory, { id: 'wh-x', anilistId: 1, kind: 'rewatch', startedAt: null, finishedAt: null, note: 'again', createdAt: 'x' }], preferences: { ...once.preferences, notifications: { enabled: false, lists: ['watchlist'], quietHours: null } } };
     assert.deepEqual(migrate_15_to_16(edited), edited);
     assert.deepEqual([once.entries[0].rewatchCount, once.entries[0].startedAt], [2, '2024-12-01T00:00:00.000Z']);
+  });
+
+  // v3 Phase 6 (schema 17): adventurousness levels from the v2 slider.
+  await test('migration v16->v17 reads the adventurousness level from the slider and its switch, keeping both', () => {
+    const level = (adventurousness, adventurousnessEnabled) => migrate_16_to_17({ schemaVersion: 16, entries: [{ anilistId: 1 }], preferences: { adventurousness, adventurousnessEnabled } }).preferences;
+    assert.equal(level(null, false).adventurousnessLevel, 'off');
+    assert.equal(level(9, false).adventurousnessLevel, 'off', 'switched off wins over the slider');
+    assert.equal(level(null, true).adventurousnessLevel, 'medium');
+    assert.equal(level(2, true).adventurousnessLevel, 'low');
+    assert.equal(level(5, true).adventurousnessLevel, 'medium');
+    assert.equal(level(10, true).adventurousnessLevel, 'high');
+    assert.deepEqual([level(10, true).adventurousness, level(10, true).adventurousnessEnabled], [10, true], 'the old fields stay');
+    const once = migrate_16_to_17({ schemaVersion: 16, entries: [], preferences: { adventurousness: 2, adventurousnessLevel: 'high' } });
+    assert.equal(once.preferences.adventurousnessLevel, 'high', 'a level already set is kept');
+    assert.deepEqual(migrate_16_to_17(once), { ...once, schemaVersion: 17 });
+    assert.equal(CURRENT_SCHEMA_VERSION, 17);
+  });
+
+  await test('the frozen v17 adventurousness mapping matches railIds.js', async () => {
+    const railUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'discover', 'railIds.js').replace(/\\/g, '/');
+    const { ADVENTUROUSNESS_LEVELS, legacyAdventurousnessLevel } = await import(railUrl);
+    assert.deepEqual(ADVENTUROUSNESS_LEVELS, ['off', 'low', 'medium', 'high']);
+    for (const [s, en] of [[null, true], [null, false], [1, true], [3, true], [4, true], [7, true], [8, true], [10, false]]) {
+      assert.equal(migrate_16_to_17({ schemaVersion: 16, entries: [], preferences: { adventurousness: s, adventurousnessEnabled: en } }).preferences.adventurousnessLevel, legacyAdventurousnessLevel(s, en));
+    }
   });
 
   await test("migrate_14_to_15's frozen theme lists match themes.js's live curated set and retired map", async () => {
@@ -1472,10 +1497,10 @@ async function run() {
     hasRequiredEventFields,
   } = await import(publicJsUrl('eventTypes.js'));
 
-  await test('EVENT_TYPES is the spec\'s closed 13-type union, no duplicates', () => {
-    assert.equal(EVENT_TYPES.length, 13);
-    assert.equal(new Set(EVENT_TYPES).size, 13);
-    for (const t of ['episode_watched', 'status_changed', 'score_set', 'anime_added', 'anime_dropped', 'rewatch_started', 'review_written', 'settings_changed', 'font_previewed', 'app_opened', 'route_dwell', 'recommendation_added', 'recommendation_dismissed']) {
+  await test('EVENT_TYPES is the closed 16-type union (v3 Phase 6 adds three Discover types), no duplicates', () => {
+    assert.equal(EVENT_TYPES.length, 16);
+    assert.equal(new Set(EVENT_TYPES).size, 16);
+    for (const t of ['episode_watched', 'status_changed', 'score_set', 'anime_added', 'anime_dropped', 'rewatch_started', 'review_written', 'settings_changed', 'font_previewed', 'app_opened', 'route_dwell', 'recommendation_added', 'recommendation_dismissed', 'recommendation_undismissed', 'recommendation_seen_it', 'discover_triage_answered']) {
       assert.ok(EVENT_TYPES.includes(t), `${t} must be in the union`);
     }
     assert.equal(isKnownEventType('not_a_real_type'), false);
@@ -3576,7 +3601,8 @@ async function run() {
     relations: { edges: [{ relationType: 'SEQUEL', node: { id: 20958, type: 'ANIME' } }] },
   };
 
-  await test('pruneMediaFields keeps exactly the spec\'s named fields plus id/title/season, and drops coverImage/idMal', () => {
+  // v3 Phase 6: corpus v2 (docs/v3/25-09-2026-v3-discover-spec.md, section 3).
+  await test('pruneMediaFields (corpus v2) keeps the fields Discover v3 reads and drops idMal', () => {
     const pruned = pruneMediaFields(RAW_MEDIA_FIXTURE);
     assert.equal(pruned.anilistId, 16498);
     assert.equal(pruned.titleRomaji, 'Shingeki no Kyojin');
@@ -3588,25 +3614,27 @@ async function run() {
     assert.equal(pruned.duration, 24);
     assert.deepEqual(pruned.genres, ['Action', 'Drama']);
     assert.equal(pruned.popularity, 1036850);
-    assert.equal(pruned.source, 'MANGA'); // P5A.2's "source material" affinity dimension
+    assert.equal(pruned.source, 'MANGA');
     assert.equal(pruned.studio, 'WIT STUDIO');
-    assert.deepEqual(pruned.tags, [{ name: 'Kaiju', category: 'Theme-Fantasy', rank: 93 }]);
-    assert.deepEqual(pruned.staff, [{ role: 'Director', name: 'Some Person' }]);
+    assert.deepEqual(pruned.studios, [{ id: null, name: 'WIT STUDIO' }]);
+    assert.deepEqual(pruned.tags, [{ id: null, name: 'Kaiju', category: 'Theme-Fantasy', rank: 93 }], 'a tag that is not a spoiler carries no spoiler flag');
+    assert.deepEqual(pruned.staff, [{ role: 'Director', name: 'Some Person', id: null }]);
     assert.deepEqual(pruned.relations, [{ relationType: 'SEQUEL', relatedId: 20958, relatedType: 'ANIME' }]);
-    assert.equal('coverImage' in pruned, false, 'coverImage must be dropped — covers are cached separately (P0.3)');
-    assert.equal('idMal' in pruned, false, 'idMal must be dropped — this app\'s sole persisted external key is anilistId');
+    assert.deepEqual(pruned.recs, []);
+    assert.equal(pruned.coverLarge, 'https://example.test/should-be-dropped.jpg', 'the portrait card shows the large cover');
+    assert.equal(pruned.isAdult, false);
+    assert.equal('idMal' in pruned, false, 'idMal must be dropped: the only persisted external key is anilistId');
   });
 
-  await test('pruneMediaFields (P5B.5) keeps coverMedium/titleNative when AniList provides them', () => {
-    const pruned = pruneMediaFields({ ...RAW_MEDIA_FIXTURE, title: { ...RAW_MEDIA_FIXTURE.title, native: '進撃の巨人' }, coverImage: { medium: 'https://example.test/medium.jpg' } });
-    assert.equal(pruned.coverMedium, 'https://example.test/medium.jpg');
+  await test('pruneMediaFields (corpus v2) keeps the native title, banner and next episode, and nulls them when absent', () => {
+    const pruned = pruneMediaFields({ ...RAW_MEDIA_FIXTURE, title: { ...RAW_MEDIA_FIXTURE.title, native: '進撃の巨人' }, nextAiringEpisode: { airingAt: 1790000000, episode: 4 }, bannerImage: 'https://example.test/banner.jpg' });
     assert.equal(pruned.titleNative, '進撃の巨人');
-  });
-
-  await test('pruneMediaFields (P5B.5) degrades coverMedium/titleNative to null when absent — existing corpus entries pre-dating these fields', () => {
-    const pruned = pruneMediaFields(RAW_MEDIA_FIXTURE); // no title.native, coverImage has no .medium
-    assert.equal(pruned.coverMedium, null);
-    assert.equal(pruned.titleNative, null);
+    assert.deepEqual(pruned.nextAiring, { airingAt: 1790000000, episode: 4 });
+    assert.equal(pruned.bannerImage, 'https://example.test/banner.jpg');
+    const bare = pruneMediaFields(RAW_MEDIA_FIXTURE);
+    assert.equal(bare.titleNative, null);
+    assert.equal(bare.nextAiring, null);
+    assert.equal(bare.bannerImage, null);
   });
 
   await test('pruneMediaFields normalises averageScore from AniList\'s 0-100 scale to this app\'s canonical 1-10', () => {
@@ -3693,7 +3721,7 @@ async function run() {
   // cold-start pick folding, and the cold-start candidate picker itself.
   // -------------------------------------------------------------------------
   console.log('tasteProfileLogic.js');
-  const tasteProfileLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'tasteProfileLogic.js').replace(/\\/g, '/');
+  const tasteProfileLogicUrl = 'file:///' + path.join(__dirname, '..', 'archive', 'js', 'v2-discover', 'tasteProfileLogic.js').replace(/\\/g, '/');
   const {
     computeMeanAndStdDev,
     zScore,
@@ -4085,7 +4113,7 @@ async function run() {
   // explicit "harsh-rater and generous-rater" fixture-profile requirement.
   // -------------------------------------------------------------------------
   console.log('scorer.js');
-  const scorerUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'scorer.js').replace(/\\/g, '/');
+  const scorerUrl = 'file:///' + path.join(__dirname, '..', 'archive', 'js', 'v2-discover', 'scorer.js').replace(/\\/g, '/');
   const {
     genreAffinity,
     tagAffinity,
@@ -4222,7 +4250,7 @@ async function run() {
   // required prerequisite-chain test.
   // -------------------------------------------------------------------------
   console.log('shelvesLogic.js');
-  const shelvesLogicUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'shelvesLogic.js').replace(/\\/g, '/');
+  const shelvesLogicUrl = 'file:///' + path.join(__dirname, '..', 'archive', 'js', 'v2-discover', 'shelvesLogic.js').replace(/\\/g, '/');
   const {
     resolveFranchiseEntryPoint,
     findNextUnseenContinuation,

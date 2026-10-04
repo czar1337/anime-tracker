@@ -1183,6 +1183,110 @@ kbd {
   .tune-popover { top: auto; bottom: calc(var(--sp-16) + var(--sp-2)); right: var(--sp-2); left: var(--sp-2); width: auto; }
 }
 .franchise-count { font: var(--t-nano); color: var(--faint); font-weight: 400; vertical-align: middle; }
+/* v3 Phase 6: the Discover card's answers. Want to watch is the primary;
+   Seen it, Not for me and the menu are stroke icons whose label shows on
+   hover and keyboard focus. */
+.dc-portrait .acts { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+.dc-want { width: 100%; justify-content: center; }
+.dc-icons { display: flex; gap: var(--sp-1); justify-content: space-between; }
+.dc-icons .dc-icon { flex: 1 1 0; width: auto; }
+.dc-icon[data-tip] { position: relative; }
+.dc-icon[data-tip]:hover::after,
+.dc-icon[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 3;
+  max-width: 220px;
+  width: max-content;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-lit);
+  color: var(--text);
+  font: var(--t-nano);
+  white-space: normal;
+  pointer-events: none;
+  box-shadow: var(--sh-2);
+}
+.dc-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.dc-chip { font: var(--t-nano); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 1px var(--sp-2); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* The header's search field. */
+.discover-search { display: inline-flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--line); border-radius: 999px; padding: 0 var(--sp-3); color: var(--faint); min-width: 0; flex: 0 1 240px; }
+.discover-search:focus-within { border-color: var(--accent); color: var(--text); }
+.discover-search input { border: 0; background: none; color: var(--text); font: var(--t-meta); padding: var(--sp-2) 0; width: 100%; min-width: 0; outline: none; }
+.discover-head .btn svg { margin-right: var(--sp-1); vertical-align: -2px; }
+
+/* The cold state, above quality-ranked rails. */
+.discover-cold { display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start; margin-bottom: var(--sp-6); padding: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--accent-soft); }
+.discover-cold-title { margin: 0; font: var(--t-title); color: var(--text); }
+
+/* The Top picks hero: wide banner slides, scroll-snapped. */
+.discover-hero-rail { margin-bottom: var(--sp-8); }
+.rail.hero-rail { grid-auto-columns: min(640px, 82%); }
+.discover-card.dc-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 300px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  scroll-snap-align: start;
+  background: var(--bg-elevated);
+}
+.dc-hero-banner { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.dc-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, var(--bg) 18%, color-mix(in srgb, var(--bg) 55%, transparent) 55%, transparent); pointer-events: none; }
+.dc-hero-body { position: relative; z-index: 1; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4); width: 100%; }
+.dc-hero h3 { margin: 0; font: var(--t-display-xs, var(--t-title)); cursor: pointer; }
+.dc-hero .why { margin: 0; padding: 0; border: 0; font: var(--t-body); font-weight: var(--w-med); color: var(--text); }
+.dc-hero .m { margin: 0; font: var(--t-meta); color: var(--dim); }
+.dc-hero .acts { display: flex; flex-direction: row; align-items: center; gap: var(--sp-2); }
+.dc-hero .dc-want { width: auto; }
+.dc-hero .dc-icons { flex: 0 0 auto; }
+.dc-hero .dc-icons .dc-icon { flex: 0 0 auto; width: 34px; height: 34px; }
+.dc-hero:focus-visible { outline: 2px solid var(--accent-lit); outline-offset: 2px; }
+
+/* "More like this": the rail wraps into a grid. */
+.discover-mlt-head { margin-bottom: var(--sp-3); }
+.rail.rail-wrap { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale)), 1fr)); overflow: visible; scroll-snap-type: none; }
+
+.discover-levels { margin-bottom: var(--sp-4); }
+.dismissed-reason { display: block; font: var(--t-nano); color: var(--faint); margin-top: 2px; }
+
+/* Triage: one large card at a time. */
+.triage-panel { max-width: 760px; width: min(760px, calc(100vw - var(--sp-8))); }
+.triage-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); padding-right: var(--sp-8); }
+.triage-head h2 { margin: 0; }
+.triage-counter { margin: 0; font: var(--t-meta); color: var(--dim); }
+.triage-card { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; background: var(--card); }
+.triage-banner { background: var(--bg-elevated); min-height: 260px; }
+.triage-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.triage-info { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4) var(--sp-4) var(--sp-4) 0; min-width: 0; }
+.triage-info .why { margin: 0; font: var(--t-body); font-weight: var(--w-med); color: var(--text); }
+.triage-info h3 { margin: 0; font: var(--t-title); font-size: var(--fs-display-xs, 1.3rem); text-transform: none; letter-spacing: normal; color: var(--text); }
+.triage-info .m { margin: 0; font: var(--t-meta); color: var(--dim); }
+.triage-synopsis { margin: 0; font: var(--t-meta); color: var(--dim); line-height: 1.55; white-space: pre-line; max-height: 11em; overflow-y: auto; }
+.triage-trailer { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--accent-lit); font: var(--t-meta); text-decoration: none; }
+.triage-trailer img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; }
+.triage-answers, .triage-rate-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-4); }
+.triage-answers kbd { font: var(--t-nano); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-right: var(--sp-1); opacity: .8; }
+.triage-rate { margin-top: var(--sp-4); }
+.triage-rate-row { margin-top: var(--sp-2); }
+.triage-why-not { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: var(--sp-3); }
+.triage-done-row { justify-content: flex-end; margin-top: var(--sp-4); }
+@media (max-width: 640px) {
+  .triage-card { grid-template-columns: 1fr; }
+  .triage-banner { min-height: 160px; max-height: 200px; }
+  .triage-info { padding: 0 var(--sp-3) var(--sp-3); }
+  .rail.hero-rail { grid-auto-columns: 92%; }
+  .discover-card.dc-hero { min-height: 260px; }
+  .discover-search { flex: 1 1 100%; order: 5; }
+}
+
 .discover-hide-owned-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-card); color: var(--dim); white-space: nowrap; cursor: pointer; }
 .discover-hide-owned-row input { width: 16px; height: 16px; }
 
@@ -2596,14 +2700,6 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
 
 /* P5A.2: the cold-start onboarding grid — same scrollable-grid/.on-state
    shape as .themegrid above, cover art instead of colour swatches. */
-.coldstart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: var(--sp-2); max-height: 420px; overflow-y: auto; padding-right: 2px; margin-top: var(--sp-3); }
-.coldstart-tile { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: var(--card); cursor: pointer; transition: border-color var(--dur-base), transform var(--dur-base); }
-.coldstart-tile:hover { border-color: var(--line-lit); transform: translateY(-2px); }
-.coldstart-tile.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
-.coldstart-tile img, .coldstart-tile-noimg { display: block; width: 100%; aspect-ratio: 2/3; object-fit: cover; background: color-mix(in srgb, var(--text) 6%, transparent); }
-.coldstart-tile .nm { display: block; font: var(--t-nano); letter-spacing: .02em; color: var(--dim); padding: 5px 6px 6px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.coldstart-tile .check { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-fill); color: var(--accent-contrast); display: none; align-items: center; justify-content: center; font: var(--t-meta); }
-.coldstart-tile.on .check { display: flex; }
 
 /* P5A.3's scorer debug panel — a plain stacked list, not a grid; each card
    is one Discover candidate's full score breakdown. */

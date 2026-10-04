@@ -347,3 +347,65 @@ export const UI_TIMING = {
   accentSaveDebounceMs: 1500, // learned cover colours are saved in batches
   menuCloseScrollPx: 48, // a popup menu closes once the page scrolls this far
 };
+
+// v3 Phase 6: the Discover engine (docs/v3/25-09-2026-v3-discover-spec.md,
+// public/js/discover/engine/). Every weight here is picked by
+// `npm run eval:discover` on a copy of the real library; the chosen values and
+// their numbers are recorded in docs/v3-progress.md. Change one only with a
+// new eval run.
+export const DISCOVER = {
+  // Corpus v2 (spec section 3).
+  corpusTargetSize: 6000,
+  corpusPopularityPassSize: 4500, // titles from the POPULARITY_DESC pass; the SCORE_DESC pass fills to the target
+  corpusScoreSeedMinPopularity: 1000, // the SCORE_DESC pass only takes titles with more members than this
+  neighbourFillMinScore: 8, // every rec target of a title you rated this or higher is fetched
+  neighbourFillMax: 500,
+  corpusRecsPerTitle: 10,
+  // Title features (4.1). Block weights; each block is L2-normalised first.
+  blockWeights: { tag: 1.0, genre: 0.55, studio: 0.35, creator: 0.45, source: 0.15, era: 0.1 },
+  tagMinRank: 40,
+  creatorRoleWeights: { director: 1.0, original: 1.0, composition: 0.8, character: 0.5, music: 0.35 },
+  // Your taste signal (4.2).
+  ratingPivotMax: 7, // a rating above this is never a negative signal, however high your mean
+  recencyHalfLifeDays: 365,
+  confidenceFullAt: 25,
+  coldStartRatedMin: 5, // under this many ratings: the cold hero, and Triage is offered once
+  dropWeight: 1.0, // a drop at episode 1; scaled by the share left unwatched
+  notForMeWeights: { wrongGenre: 1.0, tooLong: 0.3, artStyle: 0.5, seenEnough: 0.4, notInMood: 0.1, none: 0.6 },
+  thumbsUpWeight: 0.5,
+  wantWeight: 0.3,
+  // Candidate score (4.3).
+  // Picked by the 81-run grid on 2026-10-04 (docs/v3-progress.md, Phase 6):
+  // the best HitRate@20 (0.579) with the best MRR among the tied runs.
+  alpha: 0.6, // content
+  beta: 0.3, // collab
+  gamma: 0.35, // quality
+  lambdaNeg: 0.5,
+  bayesM: 3000, // members of prior weight in the Bayesian-adjusted score
+  qualityFloor: 6.9,
+  wildcardFloor: 6.4,
+  serendipityByLevel: { off: 0, low: 0.02, medium: 0.05, high: 0.1 },
+  // Diversity (4.4).
+  mmrLambda: 0.8, // re-swept after MMR scores were scaled by the best one (docs/v3-progress.md)
+  // Rails (section 5).
+  railSize: 12,
+  heroSize: 5,
+  topPicksSize: 20,
+  becauseAnchors: 3,
+  becauseAnchorPool: 8,
+  becauseNeighbours: 40, // content neighbours added to an anchor's rec list
+  hiddenGemPopularity: 30000,
+  shortMaxMinutes: 330,
+  creatorMinRated: 2,
+  classicsTopShare: 0.05,
+  classicsMinAgeYears: 10,
+  wildcardMax: 6,
+  wildcardMaxSimilarity: 0.12,
+  railMinCards: 4,
+  maxAnchorShare: 0.4,
+  // Evaluation (section 6).
+  evalLikedMin: 8,
+  evalTopN: 20,
+  evalCoverageDays: 7,
+  evalHitRateFloor: 0.1, // the CI floor on the committed synthetic fixture
+};

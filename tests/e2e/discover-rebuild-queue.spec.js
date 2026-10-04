@@ -3,11 +3,14 @@
 // running used to be lost: the new request returned the in-flight promise, and
 // that build then discarded its own result because the generation had moved on.
 // Nothing re-ran, and the page could sit on "Refreshing…" indefinitely.
+// v3 Phase 6: reopening the tab refreshes the data in the background (build
+// A); a Tune change meanwhile ranks at once (build B), and A, landing later,
+// ranks with the settings as they are then, never the ones it started with.
 
 const { test, expect } = require('@playwright/test');
 const path = require('node:path');
 const { startFixtureServer } = require('./harness.js');
-const { tune, notForMe, addAs } = require('./discoverHelpers.js');
+const { tune } = require('./discoverHelpers.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'discover-shelves-library.json');
 
@@ -32,7 +35,7 @@ async function seedCorpus(server) {
   const res = await fetch(`${server.url}/api/corpus`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: entries, targetSize: 40 }),
+    body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: entries, targetSize: 40 }),
   });
   expect(res.ok).toBe(true);
 }
@@ -48,19 +51,20 @@ test('a rebuild requested during a running rebuild still runs, and the page sett
     });
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
-    const overlay = page.locator('#cold-start-overlay');
-    if (await overlay.isVisible().catch(() => false)) await page.click('#cold-start-skip-btn');
     await page.click('[data-tab="discover"]');
     await page.waitForSelector('.discover-card');
 
     slow = true;
-    await page.click('#discover-refresh-btn'); // build A, held for 1.5s
+    await page.click('[data-tab="library"]');
+    await page.click('[data-tab="discover"]'); // build A, its corpus fetch held for 1.5s
     await page.waitForTimeout(200);
     await tune(page);
-    await page.locator('#discover-hide-owned-toggle').click(); // build B, requested while A runs
-    await expect(page.locator('#discover-refresh-btn')).toHaveText('Refresh', { timeout: 10000 });
+    await page.locator('#discover-hide-owned-toggle').click(); // build B, while A runs
+    await page.waitForTimeout(2500); // A has landed
     await expect(page.locator('#discover-hide-owned-toggle')).not.toBeChecked();
     await expect(page.locator('.discover-card').first()).toBeVisible();
+    await expect(page.locator('#discover-view .skeleton, #discover-view .shelf-skeleton')).toHaveCount(0);
+    expect(await page.evaluate(() => document.querySelectorAll('#discover-view .discover-card').length)).toBeGreaterThan(0);
   } finally {
     await server.stop();
   }

@@ -402,6 +402,83 @@ Phase 3 (design system and motion):
   them: a day counts when its live progress nets above zero; a sitting is live episodes
   at most `sessionGapMinutes` (30) apart. Each still states why it is
   empty, but the rails above the fold are ones with cards.
+- **Phase 6 eval: what counts as a hit.** One leave-one-out fold per liked franchise
+  (rated 8+), hiding every library entry in it; any member of the franchise in the top 20
+  is a hit, since Discover shows one card per franchise. v2.3.0 had no "Top picks"; its
+  personal "Because you liked..." shelf at 20 cards stands in for it, with its
+  serendipity seeded per day so the baseline repeats.
+- **Phase 6 eval floors.** Diversity and coverage must not fall below the v2.3.0 engine's
+  own numbers (0.841 and 0.016 on the same corpus); the spec names floors but no values.
+- **A rating above 7 is never negative.** The personal z-score centres on
+  min(your mean, `ratingPivotMax` 7): for someone who rates nearly everything 9 or 10, a 9
+  is still a title they loved. Found by the regression test for reasons (10, 10, 9 made
+  the 9 a negative).
+- **When a rating was given.** The latest score event, else the finish date; `updatedAt`
+  is not a rating date (any edit moves it). Neither present: undated, neutral recency.
+- **Weak positives.** A Watchlist or Paused title without a score counts as "Want to
+  watch" (weak); a thumbs-up or a cold-start pick counts like the spec's thumbs-up. A
+  thumbs-down no longer exists in the UI (Phase 4 replaced it with "Not for me").
+- **Dismissing any season hides the franchise.** Otherwise "Not for me" on Season 1 would
+  just surface Season 2.
+- **"Hide owned" off** lets back only titles you plan to watch; a franchise you have
+  watched, are watching, paused or dropped stays out of the taste rails either way.
+- **Moods are a lens that filters.** The registry's matches are yes/no, so "re-rank every
+  rail by mood match" is implemented as keeping only matching cards in every rail and
+  hiding rails left empty.
+- **Continue and Coming soon never fold into "More picks".** Their cards are owned
+  franchises and unreleased titles, which must not sit on a taste rail; a small one stays
+  its own rail.
+- **Coming soon is new franchises only.** An upcoming season of a franchise you have not
+  started is not shown (you would start with Season 1, which is on the taste rails), and
+  one of a franchise you own is Schedule's job.
+- **"Because you loved X" card reasons name the features, not X.** The rail title already
+  names X; repeating it on every card would read as decoration and would cite one anchor
+  on 100% of the rail. The 40% anchor rule is measured on reasons that name an anchor.
+- **The 40% anchor rule is enforced in the pick.** When a rail would cite one anchor a
+  fifth time in twelve, the next best card with another reason takes the place; reasons
+  themselves are never changed to make room.
+- **Corpus v2 passes.** AniList refuses `popularity_greater: null`, so the popularity pass
+  sends 0. It runs to 4,500 titles (`corpusPopularityPassSize`), the score pass fills to
+  6,000. Covers keep only `large` (the portrait card); `coverMedium` is gone with v1.
+- **The taste cache is only the folded event log.** The engine reads the library itself
+  (ratings, Watchlist, cold-start picks, thumbs-up), so a library save never rebuilds the
+  cache and a rating counts at once; the server fold adds score dates and dismissal
+  reasons. Rebuilt 400 ms after the last relevant event, outside the write lock.
+- **MMR scales scores by the best one, not min-max.** Min-max stretched any gap to the
+  full 0–1 range, so the second-best card looked worthless next to the best and MMR
+  hardly ever diversified (found by the MMR unit test). With scores divided by the
+  top score, `mmrLambda` was re-swept: 0.8 gives the same HitRate@20 (0.579) and MRR
+  (0.370) as before, and turning MMR off lowers diversity (0.864 against 0.874).
+- **The 40% citation cap is a preference with a fallback.** A card that would push one
+  anchor over 40% of a rail gives way to the next card with another reason; only when
+  nothing else is left do such cards come back, up to an even share between the
+  anchors there are. Dropping them instead left a library with one loved title with a
+  one-card rail. On the real library every rail stays at or under 33%.
+- **Triage answers count once and Undo keeps the log.** Z takes back the last answer
+  (the library entry or the dismissal goes), but the events it wrote stay, because the
+  log is append-only.
+- **Triage fetches one detail per card shown** (synopsis, banner, trailer), like opening
+  the detail drawer; the rails themselves never make a request.
+- **Discover has no Refresh button any more.** Opening the tab refreshes in the
+  background (the corpus answers 304 when unchanged) and every answer re-ranks at once.
+- **The "hide sequels I have not started" filter is gone.** The engine always starts a
+  franchise at its first unseen season after the filters, so the switch had nothing
+  left to do; the stored field is kept.
+- **The 'd' debug panel shows the v3 parts** (content, collab, quality, serendipity) and
+  each card's reason.
+- **Old e2e specs for removed v2 behaviour are archived** (`archive/tests/e2e/`:
+  shelves, moods page, layout, feedback loop, the quick-picker taste profile); what
+  still applies is ported to `discover-v3.spec.js`.
+- **Phase 6 review, LOWs kept as they are.** `LEGACY_SHELF_TO_RAIL` / `railIdFor` is the
+  one place old shelf ids map to rails (tested); nothing in v3.0 reads old shelf ids
+  back yet, so it has no caller. A Discover add keeps writing the v2 numeric
+  `adventurousness` provenance field rather than changing a Class A field's type; the
+  v3 level is in the `recommendation_added` event's meta. Triage Undo of "Seen it"
+  writes the progress and score back as events; the `anime_added` event stays, like any
+  later removal.
+- **The GIF evidence uses a small dev-only encoder** (`scripts/record-discover-gif.js`:
+  a fixed colour cube with ordered dithering and LZW). No ffmpeg or image library is
+  installed, and a dependency is a hard stop.
 
 ## Later (out of scope for v3.0)
 

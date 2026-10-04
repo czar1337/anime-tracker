@@ -16,9 +16,10 @@ async function notForMe(page, card, reasonLabel) {
   await page.getByRole('menuitem', { name: reasonLabel, exact: true }).click();
 }
 
-// The split Add button's menu: "Add as Watching" / "Add as Watched".
+// v3 Phase 6: "Add as Watching" lives in the card's "⋯" menu (Want to watch
+// is the card's own button, Seen it has its own rating menu).
 async function addAs(page, card, listLabel) {
-  await card.locator('[data-action="discover-add-menu"]').click();
+  await card.locator('[data-action="discover-more"]').click();
   await page.getByRole('menuitem', { name: `Add as ${listLabel}` }).click();
 }
 

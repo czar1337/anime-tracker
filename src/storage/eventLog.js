@@ -155,6 +155,11 @@ async function appendEvents(incoming) {
       rejected.push({ id: raw.id, reason: 'Unknown event type: ' + raw.type, raw });
       continue;
     }
+    const payloadProblem = EventLogShared.eventPayloadProblem(raw);
+    if (payloadProblem) {
+      rejected.push({ id: raw.id, reason: payloadProblem, raw });
+      continue;
+    }
 
     const event = { ...raw };
     // meta.clockSkew is the ONE field the server may add, because only it knows

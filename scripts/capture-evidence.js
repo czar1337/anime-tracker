@@ -119,7 +119,7 @@ async function main() {
     const put = await fetch(`${server.url}/api/corpus`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: corpus(), targetSize: 60 }),
+      body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: corpus(), targetSize: 60 }),
     });
     if (!put.ok) throw new Error(`corpus seed failed: ${put.status}`);
     for (const width of [1440, 390]) {

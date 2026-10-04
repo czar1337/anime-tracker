@@ -277,3 +277,18 @@ Quick follow-up to 2.1.0's filter overhaul, based on hands-on feedback after try
 ## 1.0.0
 
 - Initial release: watching/watchlist/watched/dropped lists, AniList search, MyAnimeList import, screenshot OCR import, season/franchise grouping, home dashboard, Statistik page, atomic writes with rotating backups, standalone `.exe` packaging.
+
+### Discover, rebuilt
+
+- **Discover now recommends what you will actually like, and says why honestly.** It combines what your favourite titles have in common (tags, studio, director, writer, source) with AniList's "fans of this also liked" and a quality score that discounts titles few people have rated. Every card names the title that really drove it: "Fans of Mob Psycho 100 rate this highly (you gave it 10)" or "Shares psychological, Madhouse and director Tetsurou Araki with Death Note (you: 9)". On your own library, the chance that a title you loved would be found again in the top 20 went from 1 in 10 to nearly 6 in 10.
+- **One card per franchise, always the first season you have not seen,** chosen after your filters (so "2015 and later" never shows a 2012 first season). A franchise you already watch moves to "Continue a franchise".
+- **Nothing unreleased, nothing poorly rated, nothing adult on the taste rails.** Upcoming titles have their own "Coming soon" rail with the date AniList gives.
+- **New rails:** Top picks (with a large banner carousel), three "Because you loved…" rails from different corners of your taste, Hidden gems, Short and finishable, From creators you love, Airing now, Continue a franchise, Classics you missed, Coming soon and Wildcard. Small rails fold into "More picks", and "View more" grows a rail without reshuffling it.
+- **Every card answers in one tap:** Want to watch (the cover flies to your Library), Seen it (with a score), Not for me (with a reason), and a menu with Watching, Details, More like this and Hide franchise. Each answer changes the next suggestions at once.
+- **Swipe through (Triage, press T):** one large card at a time with its synopsis (spoilers hidden) and trailer; W want, S seen it then a score, X not for me, → skip, Z undo. It also replaces the old "What do you like?" picker for new libraries.
+- **More like this** from any card, the series details or a library card's menu.
+- **Tune** keeps moods (now a lens over every rail), adventurousness as Off / Low / Medium / High, "hide owned", all filters and Pick for me. The header adds a search over the page, and the Dismissed list shows each reason with Bring back (which really removes the penalty now) and Clear all.
+- **Same page every time you look:** nothing reshuffles by chance; the small daily variety depends only on the day.
+- The recommendation catalogue grows to about 6,000 titles (about 13 MB), adding well-rated, less-known ones and the "fans also liked" links. It downloads once in the background at the usual gentle pace while the old one keeps working.
+- Schedule's "Coming soon" ranks with the same taste as Discover.
+- Internal: `npm run eval:discover` measures every change (hit rate, diversity, coverage and sanity checks); the v2 shelves engine is kept in `archive/js/v2-discover/` as the baseline. Library format 17 stores the adventurousness level. Three new activity types: a title brought back, "Seen it" and a Triage answer.

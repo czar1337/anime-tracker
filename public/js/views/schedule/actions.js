@@ -5,9 +5,9 @@ import { Airing } from '../../airing.js';
 import { pickSeeds, buildGenreProfile, filterOwned, applyMediaFilters, poolStudios, poolFormats } from '../../recommendLogic.js';
 import { rankUpcoming, seasonFor } from '../../scheduleLogic.js';
 import { TasteProfile } from '../../tasteProfile.js';
-import { score as tasteScore } from '../../scorer.js';
+import { tasteScorer } from '../../discover/engine/index.js';
 import { pruneMediaFields } from '../../corpusLogic.js';
-import { RECOMMENDATIONS } from '../../../../config/tuning.js';
+import { DISCOVER } from '../../../../config/tuning.js';
 import { EventLog } from '../../eventLog.js';
 import { copy } from '../../copy.js';
 import { FeedbackLoop } from '../../feedbackLoop.js';
@@ -65,35 +65,42 @@ function renderNow() {
   if (container) renderSchedulePage(container, getScheduleState());
 }
 
-// v3 Phase 5: "Coming soon" is ranked by the taste profile, the same scorer
-// as Discover, so the two agree about taste. The legacy genre-sum model is
-// kept only for a library that has no taste profile yet.
-function upcomingScorer() {
-  const profile = TasteProfile.getProfile();
-  if (profile && (profile.ratedCount || 0) > 0) {
-    const entries = Store.getEntries();
-    const context = {
-      nowMs: Date.now(),
-      adventurousness: Store.state.preferences.adventurousness ?? (RECOMMENDATIONS.adventurousness.min + RECOMMENDATIONS.adventurousness.max) / 2,
-      tuning: RECOMMENDATIONS,
-      droppedTitles: entries.filter((e) => e.listStatus === 'dropped').map((e) => ({ genres: e.genres, episode: e.episodesWatched, totalEpisodes: e.totalEpisodes })),
-      libraryRelatedIds: new Set(entries.flatMap((e) => e.relatedIds || [])),
-    };
-    return (m) => {
-      try {
-        return tasteScore(pruneMediaFields(m), profile, context).total;
-      } catch {
-        return 0;
+// "Coming soon" is ranked by the same taste as Discover (v3 Phase 6: the
+// engine's content and collab parts), so the two agree. The legacy genre-sum
+// model is kept only for a library with no ratings yet or no corpus.
+async function upcomingScorer() {
+  const entries = Store.getEntries();
+  if (entries.some((e) => typeof e.myScore === 'number')) {
+    try {
+      const corpus = await Api.getCorpusCache();
+      if (corpus?.entries && Object.keys(corpus.entries).length) {
+        const { score } = tasteScorer({
+          corpusById: corpus.entries,
+          entries,
+          dismissedIds: Store.getDismissedIds(),
+          preferences: Store.state.preferences,
+          folded: TasteProfile.getProfile()?.folded || null,
+          tuning: DISCOVER,
+        });
+        return (m) => {
+          try {
+            return score(pruneMediaFields(m));
+          } catch {
+            return 0;
+          }
+        };
       }
-    };
+    } catch {
+      // fall through to the genre model
+    }
   }
-  return buildGenreProfile(pickSeeds(Store.getEntries(), Store.getEntriesByList('watched')));
+  return buildGenreProfile(pickSeeds(entries, Store.getEntriesByList('watched')));
 }
 
 async function computeUpcoming() {
   const media = await withRateLimitRetry(() => Api.fetchUpcomingMedia(1));
   const ownedIds = Store.getEntries().map((e) => e.anilistId);
-  const items = rankUpcoming(media, upcomingScorer(), ownedIds, Store.getDismissedIds());
+  const items = rankUpcoming(media, await upcomingScorer(), ownedIds, Store.getDismissedIds());
   return { status: 'ready', items, generatedAt: new Date().toISOString() };
 }
 

@@ -1,0 +1,905 @@
+{
+ "schemaVersion": 16,
+ "entries": [
+  {
+   "anilistId": 1008,
+   "titleEnglish": "C0 T8",
+   "titleRomaji": "Cluster 0 Title 8",
+   "format": "TV",
+   "year": 2019,
+   "totalEpisodes": 24,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 24,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2020-01-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1009,
+   "titleEnglish": "C0 T9",
+   "titleRomaji": "Cluster 0 Title 9",
+   "format": "TV",
+   "year": 2009,
+   "totalEpisodes": 24,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 24,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2021-02-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1010,
+   "titleEnglish": "C0 T10",
+   "titleRomaji": "Cluster 0 Title 10",
+   "format": "TV",
+   "year": 2013,
+   "totalEpisodes": 12,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 12,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2022-03-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1011,
+   "titleEnglish": "C0 T11",
+   "titleRomaji": "Cluster 0 Title 11",
+   "format": "TV",
+   "year": 2017,
+   "totalEpisodes": 25,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 25,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2023-04-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1012,
+   "titleEnglish": "C0 T12",
+   "titleRomaji": "Cluster 0 Title 12",
+   "format": "TV",
+   "year": 2008,
+   "totalEpisodes": 13,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 13,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2024-05-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1013,
+   "titleEnglish": "C0 T13",
+   "titleRomaji": "Cluster 0 Title 13",
+   "format": "MOVIE",
+   "year": 2018,
+   "totalEpisodes": 1,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 1,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2025-06-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1014,
+   "titleEnglish": "C0 T14",
+   "titleRomaji": "Cluster 0 Title 14",
+   "format": "TV",
+   "year": 2012,
+   "totalEpisodes": 12,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 12,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2020-07-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1015,
+   "titleEnglish": "C0 T15",
+   "titleRomaji": "Cluster 0 Title 15",
+   "format": "TV",
+   "year": 2014,
+   "totalEpisodes": 12,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 12,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2021-08-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1016,
+   "titleEnglish": "C0 T16",
+   "titleRomaji": "Cluster 0 Title 16",
+   "format": "TV",
+   "year": 1998,
+   "totalEpisodes": 12,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 12,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2022-09-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1017,
+   "titleEnglish": "C0 T17",
+   "titleRomaji": "Cluster 0 Title 17",
+   "format": "TV",
+   "year": 2013,
+   "totalEpisodes": 50,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2023-01-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1044,
+   "titleEnglish": "C1 T8",
+   "titleRomaji": "Cluster 1 Title 8",
+   "format": "TV",
+   "year": 2019,
+   "totalEpisodes": 25,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 25,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2020-01-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1045,
+   "titleEnglish": "C1 T9",
+   "titleRomaji": "Cluster 1 Title 9",
+   "format": "TV",
+   "year": 2022,
+   "totalEpisodes": 50,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2021-02-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1046,
+   "titleEnglish": "C1 T10",
+   "titleRomaji": "Cluster 1 Title 10",
+   "format": "TV",
+   "year": 2007,
+   "totalEpisodes": 13,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 13,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2022-03-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1047,
+   "titleEnglish": "C1 T11",
+   "titleRomaji": "Cluster 1 Title 11",
+   "format": "TV",
+   "year": 2014,
+   "totalEpisodes": 24,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 24,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2023-04-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1048,
+   "titleEnglish": "C1 T12",
+   "titleRomaji": "Cluster 1 Title 12",
+   "format": "TV",
+   "year": 2012,
+   "totalEpisodes": 50,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2024-05-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1049,
+   "titleEnglish": "C1 T13",
+   "titleRomaji": "Cluster 1 Title 13",
+   "format": "MOVIE",
+   "year": 2009,
+   "totalEpisodes": 1,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 1,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2025-06-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1050,
+   "titleEnglish": "C1 T14",
+   "titleRomaji": "Cluster 1 Title 14",
+   "format": "TV",
+   "year": 2005,
+   "totalEpisodes": 24,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 24,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2020-07-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1051,
+   "titleEnglish": "C1 T15",
+   "titleRomaji": "Cluster 1 Title 15",
+   "format": "TV",
+   "year": 2020,
+   "totalEpisodes": 25,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 25,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2021-08-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1052,
+   "titleEnglish": "C1 T16",
+   "titleRomaji": "Cluster 1 Title 16",
+   "format": "TV",
+   "year": 2018,
+   "totalEpisodes": 50,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2022-09-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1053,
+   "titleEnglish": "C1 T17",
+   "titleRomaji": "Cluster 1 Title 17",
+   "format": "TV",
+   "year": 2020,
+   "totalEpisodes": 13,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 13,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2023-01-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1080,
+   "titleEnglish": "C2 T8",
+   "titleRomaji": "Cluster 2 Title 8",
+   "format": "TV",
+   "year": 2011,
+   "totalEpisodes": 50,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2020-01-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1081,
+   "titleEnglish": "C2 T9",
+   "titleRomaji": "Cluster 2 Title 9",
+   "format": "TV",
+   "year": 1999,
+   "totalEpisodes": 13,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 13,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2021-02-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1082,
+   "titleEnglish": "C2 T10",
+   "titleRomaji": "Cluster 2 Title 10",
+   "format": "TV",
+   "year": 2017,
+   "totalEpisodes": 50,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2022-03-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1083,
+   "titleEnglish": "C2 T11",
+   "titleRomaji": "Cluster 2 Title 11",
+   "format": "TV",
+   "year": 2004,
+   "totalEpisodes": 25,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 25,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2023-04-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1084,
+   "titleEnglish": "C2 T12",
+   "titleRomaji": "Cluster 2 Title 12",
+   "format": "TV",
+   "year": 2015,
+   "totalEpisodes": 25,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 25,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2024-05-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1085,
+   "titleEnglish": "C2 T13",
+   "titleRomaji": "Cluster 2 Title 13",
+   "format": "MOVIE",
+   "year": 2022,
+   "totalEpisodes": 1,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 1,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2025-06-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1086,
+   "titleEnglish": "C2 T14",
+   "titleRomaji": "Cluster 2 Title 14",
+   "format": "TV",
+   "year": 2021,
+   "totalEpisodes": 13,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 13,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2020-07-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1087,
+   "titleEnglish": "C2 T15",
+   "titleRomaji": "Cluster 2 Title 15",
+   "format": "TV",
+   "year": 2022,
+   "totalEpisodes": 24,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 24,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2021-08-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1088,
+   "titleEnglish": "C2 T16",
+   "titleRomaji": "Cluster 2 Title 16",
+   "format": "TV",
+   "year": 2023,
+   "totalEpisodes": 13,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 13,
+   "myScore": 10,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2022-09-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1089,
+   "titleEnglish": "C2 T17",
+   "titleRomaji": "Cluster 2 Title 17",
+   "format": "TV",
+   "year": 2006,
+   "totalEpisodes": 25,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 25,
+   "myScore": 8,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2023-01-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1000,
+   "titleEnglish": "C0 T0",
+   "titleRomaji": "Cluster 0 Title 0",
+   "format": "TV",
+   "year": 2014,
+   "totalEpisodes": 24,
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 24,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2024-02-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1036,
+   "titleEnglish": "C1 T0",
+   "titleRomaji": "Cluster 1 Title 0",
+   "format": "TV",
+   "year": 2009,
+   "totalEpisodes": 50,
+   "genres": [
+    "Mystery",
+    "Psychological"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2024-02-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1072,
+   "titleEnglish": "C2 T0",
+   "titleRomaji": "Cluster 2 Title 0",
+   "format": "TV",
+   "year": 2002,
+   "totalEpisodes": 24,
+   "genres": [
+    "Sports",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 24,
+   "myScore": 9,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2024-02-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1116,
+   "titleEnglish": "C3 T8",
+   "titleRomaji": "Cluster 3 Title 8",
+   "format": "TV",
+   "year": 2009,
+   "totalEpisodes": 50,
+   "genres": [
+    "Comedy",
+    "Slice of Life"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 6,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2020-01-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1117,
+   "titleEnglish": "C3 T9",
+   "titleRomaji": "Cluster 3 Title 9",
+   "format": "TV",
+   "year": 2021,
+   "totalEpisodes": 12,
+   "genres": [
+    "Comedy",
+    "Slice of Life"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 12,
+   "myScore": 7,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2021-02-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1118,
+   "titleEnglish": "C3 T10",
+   "titleRomaji": "Cluster 3 Title 10",
+   "format": "TV",
+   "year": 2014,
+   "totalEpisodes": 12,
+   "genres": [
+    "Comedy",
+    "Slice of Life"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 12,
+   "myScore": 6,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2022-03-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1119,
+   "titleEnglish": "C3 T11",
+   "titleRomaji": "Cluster 3 Title 11",
+   "format": "TV",
+   "year": 1999,
+   "totalEpisodes": 24,
+   "genres": [
+    "Comedy",
+    "Slice of Life"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 24,
+   "myScore": 7,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2023-04-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1120,
+   "titleEnglish": "C3 T12",
+   "titleRomaji": "Cluster 3 Title 12",
+   "format": "TV",
+   "year": 2019,
+   "totalEpisodes": 12,
+   "genres": [
+    "Comedy",
+    "Slice of Life"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 12,
+   "myScore": 6,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2024-05-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1152,
+   "titleEnglish": "C4 T8",
+   "titleRomaji": "Cluster 4 Title 8",
+   "format": "TV",
+   "year": 2012,
+   "totalEpisodes": 13,
+   "genres": [
+    "Romance",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 13,
+   "myScore": 3,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2020-01-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1153,
+   "titleEnglish": "C4 T9",
+   "titleRomaji": "Cluster 4 Title 9",
+   "format": "TV",
+   "year": 2003,
+   "totalEpisodes": 50,
+   "genres": [
+    "Romance",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 50,
+   "myScore": 4,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2021-02-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1154,
+   "titleEnglish": "C4 T10",
+   "titleRomaji": "Cluster 4 Title 10",
+   "format": "TV",
+   "year": 2011,
+   "totalEpisodes": 25,
+   "genres": [
+    "Romance",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 25,
+   "myScore": 3,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2022-03-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1155,
+   "titleEnglish": "C4 T11",
+   "titleRomaji": "Cluster 4 Title 11",
+   "format": "TV",
+   "year": 2024,
+   "totalEpisodes": 13,
+   "genres": [
+    "Romance",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 13,
+   "myScore": 4,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2023-04-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1156,
+   "titleEnglish": "C4 T12",
+   "titleRomaji": "Cluster 4 Title 12",
+   "format": "TV",
+   "year": 2007,
+   "totalEpisodes": 25,
+   "genres": [
+    "Romance",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 25,
+   "myScore": 3,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2024-05-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1157,
+   "titleEnglish": "C4 T13",
+   "titleRomaji": "Cluster 4 Title 13",
+   "format": "MOVIE",
+   "year": 2020,
+   "totalEpisodes": 1,
+   "genres": [
+    "Romance",
+    "Drama"
+   ],
+   "listStatus": "watched",
+   "episodesWatched": 1,
+   "myScore": 4,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": "2025-06-15T12:00:00.000Z"
+  },
+  {
+   "anilistId": 1188,
+   "titleEnglish": "C5 T8",
+   "titleRomaji": "Cluster 5 Title 8",
+   "format": "TV",
+   "year": 2019,
+   "totalEpisodes": 50,
+   "genres": [
+    "Horror",
+    "Supernatural"
+   ],
+   "listStatus": "dropped",
+   "episodesWatched": 2,
+   "myScore": null,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": null
+  },
+  {
+   "anilistId": 1189,
+   "titleEnglish": "C5 T9",
+   "titleRomaji": "Cluster 5 Title 9",
+   "format": "TV",
+   "year": 2004,
+   "totalEpisodes": 13,
+   "genres": [
+    "Horror",
+    "Supernatural"
+   ],
+   "listStatus": "dropped",
+   "episodesWatched": 2,
+   "myScore": null,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": null
+  },
+  {
+   "anilistId": 1190,
+   "titleEnglish": "C5 T10",
+   "titleRomaji": "Cluster 5 Title 10",
+   "format": "TV",
+   "year": 2014,
+   "totalEpisodes": 24,
+   "genres": [
+    "Horror",
+    "Supernatural"
+   ],
+   "listStatus": "dropped",
+   "episodesWatched": 2,
+   "myScore": null,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": null
+  },
+  {
+   "anilistId": 1236,
+   "titleEnglish": "C6 T20",
+   "titleRomaji": "Cluster 6 Title 20",
+   "format": "MOVIE",
+   "year": 2016,
+   "totalEpisodes": 1,
+   "genres": [
+    "Mecha",
+    "Sci-Fi"
+   ],
+   "listStatus": "watchlist",
+   "episodesWatched": 0,
+   "myScore": null,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": null
+  },
+  {
+   "anilistId": 1237,
+   "titleEnglish": "C6 T21",
+   "titleRomaji": "Cluster 6 Title 21",
+   "format": "TV",
+   "year": 1999,
+   "totalEpisodes": 12,
+   "genres": [
+    "Mecha",
+    "Sci-Fi"
+   ],
+   "listStatus": "watchlist",
+   "episodesWatched": 0,
+   "myScore": null,
+   "relatedIds": [],
+   "updatedAt": "2026-09-01T00:00:00.000Z",
+   "completedAt": null
+  }
+ ],
+ "dismissedItems": [
+  {
+   "anilistId": 1272,
+   "title": null,
+   "coverImage": null
+  },
+  {
+   "anilistId": 1030,
+   "title": null,
+   "coverImage": null
+  }
+ ],
+ "preferences": {
+  "adventurousnessEnabled": true,
+  "adventurousness": 5,
+  "likedRecommendationIds": [],
+  "coldStartPicks": []
+ }
+}

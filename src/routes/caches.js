@@ -21,7 +21,9 @@ const {
   readTasteProfileCache,
   ensureClassBWriteQuota,
 } = require('../storage/classB.js');
-const { computeAndSaveTasteProfile } = require('../services/tasteProfile.js');
+const { computeAndSaveTasteProfile, settleTasteProfile, TASTE_CACHE_VERSION } = require('../services/tasteProfile.js');
+const fs = require('node:fs');
+const { EVENTS_FILE } = require('../config.js');
 
 module.exports = function register({ route, prefix }) {
   route('GET', '/api/recommendations', async ({ req, res, url, pathname }) => {
@@ -169,8 +171,19 @@ module.exports = function register({ route, prefix }) {
     // already on disk. Computing once, here, the first time anything
     // actually reads this route closes that gap without needing a
     // dedicated migration or boot-time job for every existing library.
+    // v3 Phase 6: a rebuild still waiting in its debounce lands first, and a
+    // cache from before the Discover rebuild (no fold) is recomputed.
+    // A log changed outside the event route (a restore, a reset) is newer
+    // than the cache: fold again.
+    await settleTasteProfile().catch(() => {});
     let cache = readTasteProfileCache();
-    if (!cache.generatedAt) {
+    let logChangedAt = 0;
+    try {
+      logChangedAt = fs.statSync(EVENTS_FILE).mtimeMs;
+    } catch {
+      logChangedAt = 0;
+    }
+    if (!cache.generatedAt || cache.version !== TASTE_CACHE_VERSION || Date.parse(cache.generatedAt) < logChangedAt) {
       try {
         await computeAndSaveTasteProfile();
         cache = readTasteProfileCache();

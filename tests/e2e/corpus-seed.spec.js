@@ -51,6 +51,22 @@ function fulfillPage(route, media, hasNextPage) {
   });
 }
 
+// v3 Phase 6, corpus v2: after the popularity pass the seed runs a second
+// pass sorted by score, then fetches library and neighbour titles by id, and
+// only then is the corpus complete. These tests are about the first pass, so
+// the score pass is answered as one empty, final page and the by-id pass as
+// nothing found.
+function answeredAsScorePass(route) {
+  const { variables } = parseGraphqlBody(route);
+  if (Array.isArray(variables?.idIn)) {
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { Page: { media: [] } } }) });
+    return true;
+  }
+  if (!(Array.isArray(variables?.sort) && variables.sort.includes('SCORE_DESC'))) return false;
+  fulfillPage(route, [], false);
+  return true;
+}
+
 async function corpusStatus(server) {
   return (await fetch(`${server.url}/api/corpus/status`)).json();
 }
@@ -63,6 +79,7 @@ async function corpusStatus(server) {
 // convention every other e2e spec in this suite already uses.
 function mockCorpusPages(page, pages) {
   return page.route('**/graphql.anilist.co/**', (route) => {
+    if (answeredAsScorePass(route)) return;
     const { variables } = parseGraphqlBody(route);
     if (variables && typeof variables.page === 'number') {
       const media = pages[variables.page - 1] || [];
@@ -98,6 +115,7 @@ test('an interrupted seed resumes from the persisted cursor on the next boot, ne
     let page1Requests = 0;
     let allowPage2 = false;
     await page.route('**/graphql.anilist.co/**', (route) => {
+      if (answeredAsScorePass(route)) return;
       const { variables } = parseGraphqlBody(route);
       if (variables && variables.page === 1) {
         page1Requests += 1;
@@ -137,6 +155,7 @@ test('a 429 triggers backoff honoring Retry-After, then retries the SAME page ra
   try {
     let page1Attempts = 0;
     await page.route('**/graphql.anilist.co/**', (route) => {
+      if (answeredAsScorePass(route)) return;
       const { variables } = parseGraphqlBody(route);
       if (variables && variables.page === 1) {
         page1Attempts += 1;
@@ -184,15 +203,15 @@ test('a warm, complete, freshly-generated corpus issues zero AniList requests on
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        cursor: { page: 1, complete: true },
-        newEntries: { '101922': { anilistId: 101922, popularity: 999 } },
+        cursor: { version: 2, phase: 'done', page: 0, complete: true },
+        newEntries: { '101922': { anilistId: 101922, popularity: 999, recs: [] } },
         targetSize: 1,
       }),
     });
 
     // Only counts CORPUS-shaped requests (CORPUS_QUERY/CORPUS_BY_IDS_QUERY
-    // both request `staff(perPage: 5)`, which no other query in this app's
-    // api.js does) — app.js's own unrelated Airing.ensureFreshOnOpen() also
+    // both request `staff(sort: RELEVANCE, perPage: 10)`, which no other
+    // query in this app's api.js does) — app.js's own unrelated Airing.ensureFreshOnOpen() also
     // legitimately hits AniList at boot for the fixture's one library entry,
     // same reasoning airing-countdown.spec.js's own zero-request test
     // already documents for its own unrelated background call. Every
@@ -200,7 +219,7 @@ test('a warm, complete, freshly-generated corpus issues zero AniList requests on
     // ones count toward the assertion.
     let corpusRequestCount = 0;
     await page.route('**/graphql.anilist.co/**', (route) => {
-      if ((route.request().postData() || '').includes('staff(perPage: 5)')) corpusRequestCount += 1;
+      if ((route.request().postData() || '').includes('staff(sort: RELEVANCE, perPage: 10)')) corpusRequestCount += 1;
       route.abort();
     });
 

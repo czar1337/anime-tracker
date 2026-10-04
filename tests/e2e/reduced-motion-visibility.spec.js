@@ -95,7 +95,7 @@ test('Discover cards are fully visible with reduced motion on', async ({ page })
     const res = await fetch(`${server.url}/api/corpus`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: entries, targetSize: 40 }),
+      body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: entries, targetSize: 40 }),
     });
     expect(res.ok).toBe(true);
     await page.goto(server.url);

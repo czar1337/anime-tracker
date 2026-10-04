@@ -239,8 +239,8 @@
     </div>
   </dialog>
 
-  <!-- Discover: dismissed ("Not interested") items, with undo -->
-  <dialog id="dismissed-overlay" class="overlay" aria-label="Not interested">
+  <!-- Discover: the Dismissed drawer, with reasons, Bring back and Clear all -->
+  <dialog id="dismissed-overlay" class="overlay" aria-label="Dismissed">
     <div class="overlay-panel import-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <div id="dismissed-content"></div>
@@ -277,19 +277,13 @@
     </div>
   </dialog>
 
-  <!-- P5A.2 cold-start taste onboarding: ~30 diverse corpus covers, tap to
-       mark liked. Skippable, re-runnable from Settings (events.js's
-       bindColdStartOverlay/openColdStartOnboarding). -->
-  <dialog id="cold-start-overlay" class="overlay">
-    <div class="overlay-panel" style="max-width:760px">
+  <!-- v3 Phase 6: Discover's Triage, one card at a time (views/discover/
+       actions.js openTriage; keys W, S, X, →, Z). It also replaced the v2
+       cold-start quick picker. -->
+  <dialog id="triage-overlay" class="overlay triage-overlay" aria-label="Swipe through">
+    <div class="overlay-panel triage-panel">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
-      <h2>What do you like?</h2>
-      <p class="notifications-description">Tap a few you'd enjoy — ten taps beats a blank Discover. This just gives your recommendations a starting point; rating shows as you watch them will always matter more.</p>
-      <div id="cold-start-grid" class="coldstart-grid"></div>
-      <div class="row" style="margin-top:var(--sp-3);justify-content:space-between">
-        <button id="cold-start-skip-btn" class="btn btn-ghost sm">Skip for now</button>
-        <button id="cold-start-submit-btn" class="btn btn-primary sm rip-host">Done</button>
-      </div>
+      <div id="triage-body"></div>
     </div>
   </dialog>
 
@@ -301,7 +295,7 @@
     <div class="overlay-panel" style="max-width:640px">
       <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
       <h2>Scorer debug</h2>
-      <p class="notifications-description">Score breakdown for what Discover is showing right now. Press "d" again to close.</p>
+      <p class="notifications-description">The parts of each score on the Discover page right now. Press "d" again to close.</p>
       <div id="scorer-debug-body" class="scorer-debug-body"></div>
     </div>
   </dialog>

@@ -2,7 +2,7 @@
 // Pure schema migrations for library.json. Kept dependency-free and free of
 // any filesystem access so they're trivial to unit test directly.
 
-const CURRENT_SCHEMA_VERSION = 16;
+const CURRENT_SCHEMA_VERSION = 17;
 
 // v1 -> v2: adds dismissedIds (for the Discover tab) and the rating-filter
 // fields on each list's preferences (for the filter bar), both of which
@@ -585,7 +585,30 @@ function migrate_15_to_16(data) {
   return out;
 }
 
-const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12, 12: migrate_12_to_13, 13: migrate_13_to_14, 14: migrate_14_to_15, 15: migrate_15_to_16 };
+// v3 Phase 6 (schema 17): Discover's adventurousness becomes four levels
+// (public/js/discover/railIds.js, frozen here as of v17). Read once from the
+// v2 slider (1-10, null = never touched) and its on/off switch; both stay in
+// place so a downgraded app still finds them. Additive and idempotent.
+const ADVENTUROUSNESS_LEVELS_AT_V17 = ['off', 'low', 'medium', 'high'];
+function adventurousnessLevelAtV17(slider, enabled) {
+  if (enabled === false) return 'off';
+  if (typeof slider !== 'number') return 'medium';
+  if (slider <= 3) return 'low';
+  if (slider <= 7) return 'medium';
+  return 'high';
+}
+
+function migrate_16_to_17(data) {
+  const out = { ...data };
+  out.schemaVersion = 17;
+  if (out.preferences && typeof out.preferences === 'object' && !ADVENTUROUSNESS_LEVELS_AT_V17.includes(out.preferences.adventurousnessLevel)) {
+    out.preferences = { ...out.preferences, adventurousnessLevel: adventurousnessLevelAtV17(out.preferences.adventurousness, out.preferences.adventurousnessEnabled) };
+  }
+  if ((data.entries || []).length !== (out.entries || []).length) throw new Error('migrate_16_to_17 must not change the entry count');
+  return out;
+}
+
+const MIGRATIONS = { 1: migrate_1_to_2, 2: migrate_2_to_3, 3: migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6, 6: migrate_6_to_7, 7: migrate_7_to_8, 8: migrate_8_to_9, 9: migrate_9_to_10, 10: migrate_10_to_11, 11: migrate_11_to_12, 12: migrate_12_to_13, 13: migrate_13_to_14, 14: migrate_14_to_15, 15: migrate_15_to_16, 16: migrate_16_to_17 };
 
 // 'ok' (matches this app build), 'migrate' (older — can be upgraded here),
 // or 'too-new' (from a future app version — must never be touched).
@@ -612,4 +635,4 @@ function migrate(data, appSchemaVersion = CURRENT_SCHEMA_VERSION) {
   return out;
 }
 
-module.exports = { CURRENT_SCHEMA_VERSION, MIGRATIONS, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_2_to_3, migrate_3_to_4, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, migrate_15_to_16, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 };
+module.exports = { CURRENT_SCHEMA_VERSION, MIGRATIONS, migrate, checkVersionCompatibility, migrate_1_to_2, migrate_2_to_3, migrate_3_to_4, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, migrate_15_to_16, migrate_16_to_17, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 };

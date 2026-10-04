@@ -426,33 +426,6 @@ function renderAll(list) {
 }
 
 
-// No "Hidden N days ago" here — dismissedItems doesn't (and shouldn't)
-// store a timestamp; that's a library.json shape change for a nice-to-have
-// display detail, not something worth touching the storage format for.
-function renderDismissedOverlay(container) {
-  const items = Store.getDismissedItems();
-  if (items.length === 0) {
-    container.innerHTML = `<h2>Not interested</h2><p class="card-meta">Nothing hidden from Discover right now.</p>`;
-    return;
-  }
-  const rows = items
-    .map(
-      (it) => `
-      <div class="import-row" data-anilist-id="${it.anilistId}">
-        ${it.coverImage ? `<img class="screenshot-row-cover" src="${escapeHtml(it.coverImage)}" alt="">` : ''}
-        <span class="import-title">${escapeHtml(it.title || `Anime #${it.anilistId}`)}</span>
-        <button class="btn btn-quiet sm" data-action="undo-dismiss">Bring back</button>
-      </div>`
-    )
-    .join('');
-  container.innerHTML = `
-    <h2>Not interested</h2>
-    <p class="card-meta">${items.length} series hidden from Discover. Bring one back and it can be suggested again.</p>
-    <div class="import-review-list">${rows}</div>
-    <div class="row" style="margin-top:14px"><button class="btn btn-quiet sm" id="dismissed-restore-all-btn">Bring all back</button></div>
-  `;
-}
-
 function renderSearchResults(container, results, ownedIds, { replaceMode = false } = {}) {
   const showNative = Preferences.getOriginalTitlesMode() === 'everywhere';
   container.innerHTML = results
@@ -710,72 +683,34 @@ function stepsHtml(current, labels) {
     .join('')}</div>`;
 }
 
-// P5A.3's scorer debug panel — every additive/subtractive term the spec's
-// own score() formula names, in the same order it's written there, plus its
-// own tuning weight key and sign (serendipity has neither: it's already the
-// raw contribution, not a value*weight product).
-const SCORER_TERMS = [
-  ['genreAffinity', 'Genre affinity', 'wGenre', 1],
-  ['tagAffinity', 'Tag affinity', 'wTag', 1],
-  ['studioAffinity', 'Studio affinity', 'wStudio', 1],
-  ['staffAffinity', 'Staff affinity', 'wStaff', 1],
-  ['normalisedGlobalScore', 'Global score', 'wGlobal', 1],
-  ['recencyBoost', 'Recency boost', 'wRecent', 1],
-  ['lengthMismatchPenalty', 'Length mismatch', 'pLength', -1],
-  ['similarityToDroppedPenalty', 'Similar to dropped', 'pSimilar', -1],
-  ['franchiseAlreadySeenPenalty', 'Franchise already seen', 'pSeen', -1],
+// The scorer debug panel ('d' on Discover): every card on screen with the
+// parts of its score (Discover spec 4.3) and the reason they produced.
+const SCORE_PARTS = [
+  ['content', 'Content'],
+  ['collab', 'Fans also liked'],
+  ['quality', 'Quality'],
+  ['serendipity', 'Serendipity'],
 ];
 
 function scorerDebugRowHtml(row) {
-  if (!row.inCorpus) {
-    return `
-    <div class="scorer-debug-card">
-      <div class="scorer-debug-head"><span class="scorer-debug-title">${escapeHtml(row.title)}</span><span class="scorer-debug-total">not yet in the corpus</span></div>
-    </div>`;
-  }
-  const terms = SCORER_TERMS.map(([key, label, weightKey, sign]) => {
-    const value = row.breakdown[key];
-    const weight = row.weights[weightKey];
-    const contribution = sign * weight * value;
-    return `<div class="scorer-debug-term"><span>${escapeHtml(label)}</span><span>${value.toFixed(2)} × ${weight}${sign < 0 ? ' (−)' : ''}</span><span>${contribution >= 0 ? '+' : ''}${contribution.toFixed(2)}</span></div>`;
+  const terms = SCORE_PARTS.map(([key, label]) => {
+    const v = row.parts?.[key] ?? 0;
+    return `<div class="scorer-debug-term"><span>${escapeHtml(label)}</span><span></span><span>${v >= 0 ? '+' : ''}${v.toFixed(3)}</span></div>`;
   }).join('');
-  const serendipityRow = `<div class="scorer-debug-term"><span>Serendipity</span><span>—</span><span>+${row.breakdown.serendipity.toFixed(2)}</span></div>`;
   return `
     <div class="scorer-debug-card">
-      <div class="scorer-debug-head"><span class="scorer-debug-title">${escapeHtml(row.title)}</span><span class="scorer-debug-total">${row.total.toFixed(2)}</span></div>
-      <div class="scorer-debug-terms">${terms}${serendipityRow}</div>
+      <div class="scorer-debug-head"><span class="scorer-debug-title">${escapeHtml(row.title)}</span><span class="scorer-debug-total">${row.score.toFixed(3)}</span></div>
+      <p class="card-meta">${escapeHtml(row.railId)} · ${escapeHtml(row.reason)}${typeof row.bayes === 'number' ? ` · ★ ${row.bayes.toFixed(2)}` : ''}</p>
+      <div class="scorer-debug-terms">${terms}</div>
     </div>`;
 }
 
-// `rows` is whatever Discover.buildScorerDebugRows() resolved to — this
-// function never fetches or scores anything itself.
 function renderScorerDebugPanel(container, rows) {
   if (!rows.length) {
-    container.innerHTML = '<p class="card-meta">Nothing on screen to score yet — open Discover with some candidates loaded.</p>';
+    container.innerHTML = '<p class="card-meta">Nothing on screen to score yet: open Discover with some cards loaded.</p>';
     return;
   }
   container.innerHTML = rows.map(scorerDebugRowHtml).join('');
-}
-
-// P5A.2's cold-start onboarding grid. `candidates` is whatever
-// TasteProfile.buildColdStartCandidates() resolved to (each already carries
-// its own coverImage, possibly null if the live batch fetch failed for that
-// one entry) — this function never fetches anything itself, and never
-// persists anything: `pickedIds` is events.js's own in-memory selection
-// Set, only written to preferences once the user presses Done.
-function renderColdStartOverlay(container, candidates, pickedIds) {
-  container.innerHTML = candidates
-    .map((c) => {
-      const title = c.titleEnglish || c.titleRomaji || 'Untitled';
-      const picked = pickedIds.has(c.anilistId);
-      return `
-      <button type="button" class="coldstart-tile${picked ? ' on' : ''}" data-anilist-id="${c.anilistId}" aria-pressed="${picked}">
-        <span class="check">✓</span>
-        ${c.coverImage ? `<img src="${escapeHtml(c.coverImage)}" alt="" loading="lazy">` : `<span class="coldstart-tile-noimg" aria-hidden="true"></span>`}
-        <span class="nm">${escapeHtml(title)}</span>
-      </button>`;
-    })
-    .join('');
 }
 
 export const Render = {
@@ -792,7 +727,6 @@ export const Render = {
   renderStatsPage,
   renderDiscoverPage,
   renderSchedulePage,
-  renderDismissedOverlay,
   toggleGroupExpanded,
   toggleGenreOverflow,
   isSelectMode,
@@ -805,7 +739,6 @@ export const Render = {
   renderBulkActionBar,
   renderBulkMoreMenu,
   stepsHtml,
-  renderColdStartOverlay,
   renderScorerDebugPanel,
   renderHelpPanel,
   setHelpTab,

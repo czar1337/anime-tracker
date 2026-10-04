@@ -47,8 +47,10 @@
 
 import { resolvePrimaryGenre } from './tasteProfileLogic.js';
 import { score } from './scorer.js';
-import { matchesMood, isThemeTag, totalRuntimeMinutes } from './moodLogic.js';
-import { MOOD_REGISTRY } from './moodRegistry.js';
+// Archived in v3 Phase 6 (replaced by public/js/discover/engine/); kept as the
+// eval baseline and for the section 1 regression tests.
+import { matchesMood, isThemeTag, totalRuntimeMinutes } from '../../../public/js/moodLogic.js';
+import { MOOD_REGISTRY } from '../../../public/js/moodRegistry.js';
 
 // Mirrors api.js's own GROUPING_RELATIONS exactly (duplicated rather than
 // imported so this module stays fetch-free and independent of api.js) —

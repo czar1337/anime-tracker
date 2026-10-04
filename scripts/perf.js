@@ -24,14 +24,17 @@ const ITERATIONS = 7;
 const SNAPSHOT_BUDGET_MS = 10000;
 const SNAPSHOT_ITERATIONS = 5;
 
-// P5A.4's Tuning-table budget: "Discover load, warm corpus: p95 under
-// 400ms, zero API requests." Reuses the same 2,000-entry, all-rated
-// library the grid-render measurement above already uses (a real stress
-// case for buildAffinities/scorer.js, which both scale with rated-entry
-// count) against a corpus seeded to its own real target size
-// (RECOMMENDATIONS.corpusTargetSize) — the actual scale this budget is
-// meant to hold at, not a token handful of fixture rows.
+// Discover (v3 Phase 6, Discover spec section 9): warm open to the first
+// painted rail under 400ms with zero API requests; a Triage answer until the
+// rails are rebuilt under 150ms; the engine build (features cached, all rails)
+// under 60ms on a 6,000-title corpus with a 300-entry library. The browser
+// runs use the same 2,000-entry, all-rated library as the grid measurement,
+// a harder case than the spec's 300.
 const DISCOVER_BUDGET_MS = 400;
+const TRIAGE_BUDGET_MS = 150;
+const ENGINE_BUDGET_MS = 60;
+const DISCOVER_CORPUS_SIZE = 6000; // DISCOVER.corpusTargetSize
+const DISCOVER_TAGS = ['Swordplay', 'Magic', 'Demons', 'Detective', 'Conspiracy', 'School', 'Rivalry', 'Time Travel', 'Space', 'Found Family', 'Revenge', 'Iyashikei', 'Idol', 'Mecha Pilot', 'Dungeon', 'Gore'];
 const DISCOVER_ITERATIONS = 7;
 const DISCOVER_GENRES = ['Action', 'Isekai', 'Mystery', 'Comedy', 'Drama', 'Romance', 'Slice of Life', 'Fantasy', 'Sports', 'Horror'];
 
@@ -60,12 +63,42 @@ function buildWarmCorpus(size) {
       genres: [DISCOVER_GENRES[i % DISCOVER_GENRES.length]],
       normalizedScore: isNiche ? 6 + (i % 7) / 2 : 5 + (i % 5) / 2.5, // niche slice spans 6.0-9.0 (often clears 7.5); the rest stays 5.0-6.6
       popularity: isNiche ? 1000 + (i % 40) * 1000 : 60000 + (i % 200) * 2000, // niche slice spans 1,000-40,000 (under the ceiling); the rest is comfortably above it
-      tags: [],
-      staff: [],
-      relations: [],
+      startDate: { year: 2000 + (i % 24), month: 1 + (i % 12) },
+      status: i % 50 === 0 ? 'RELEASING' : 'FINISHED',
+      studio: `Studio ${i % 40}`,
+      studios: [{ id: i % 40, name: `Studio ${i % 40}` }],
+      tags: [0, 3, 7].map((k) => ({ name: DISCOVER_TAGS[(i + k) % DISCOVER_TAGS.length], category: 'Theme-Other', rank: 50 + ((i * 7 + k) % 50) })),
+      staff: [{ role: 'Director', name: `Director ${i % 300}`, id: i % 300 }],
+      recs: [1, 2, 3, 4, 5].map((k) => [500000 + ((i * 13 + k * 101) % size), 5 + ((i + k) % 200)]),
+      relations: i % 10 === 1 ? [{ relationType: 'PREQUEL', relatedId: id - 1, relatedType: 'ANIME' }] : i % 10 === 0 ? [{ relationType: 'SEQUEL', relatedId: id + 1, relatedType: 'ANIME' }] : [],
     };
   }
   return entries;
+}
+
+// The engine alone, in Node: a 6,000-title corpus, 300 rated entries drawn
+// from it, features cached (a second build reuses them, as the app does).
+async function measureEngineBuild() {
+  const { pathToFileURL } = require('node:url');
+  const imp = (rel) => import(pathToFileURL(path.join(__dirname, '..', rel)).href);
+  const [{ buildDiscover }, { DISCOVER, RECOMMENDATIONS }] = await Promise.all([imp('public/js/discover/engine/index.js'), imp('config/tuning.js')]);
+  const corpusById = buildWarmCorpus(DISCOVER_CORPUS_SIZE);
+  const ids = Object.keys(corpusById);
+  const entries = Array.from({ length: 300 }, (_, k) => {
+    const c = corpusById[ids[(k * 19) % ids.length]];
+    return { anilistId: c.anilistId, titleEnglish: c.titleEnglish, listStatus: 'watched', myScore: 3 + (k % 8), genres: c.genres, relatedIds: [] };
+  });
+  const input = { corpusById, entries, dismissedIds: [], events: [], preferences: { adventurousnessLevel: 'medium' }, filters: {}, nowMs: Date.now(), localDay: '2026-10-04', tuning: DISCOVER, primaryGenrePriority: RECOMMENDATIONS.primaryGenrePriority };
+  const t0 = performance.now();
+  let out = buildDiscover(input);
+  const cold = performance.now() - t0;
+  const samples = [];
+  for (let i = 0; i < 10; i++) {
+    const t = performance.now();
+    out = buildDiscover({ ...input, cache: out.cache });
+    samples.push(performance.now() - t);
+  }
+  return { cold: Math.round(cold), samples: samples.map((s) => Math.round(s)) };
 }
 
 // v3 Phase 2: the budget is the app's own render of all 2,000 entries: from the
@@ -135,7 +168,7 @@ async function measureDiscoverLoadOnce(corpusSize) {
     await fetch(`${server.url}/api/corpus`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cursor: { page: 1, complete: true }, newEntries: buildWarmCorpus(corpusSize), targetSize: corpusSize }),
+      body: JSON.stringify({ cursor: { version: 2, phase: 'done', page: 0, complete: true }, newEntries: buildWarmCorpus(corpusSize), targetSize: corpusSize }),
     });
     // Three unrelated pre-existing background tasks — none of them this
     // substep's own code — would otherwise contaminate the measurement at
@@ -189,7 +222,15 @@ async function measureDiscoverLoadOnce(corpusSize) {
     // scoring), not just painting shelves built earlier in the background.
     if (!corpusFetchedAfterOpen) throw new Error('Discover shelves were already built before the tab opened; this run measured rendering only.');
     if (aniListRequests.length) throw new Error(`Discover load made ${aniListRequests.length} AniList request(s) — budget requires zero.`);
-    return elapsed;
+    // A Triage answer: open it, answer W, read the measure actions.js sets
+    // around the rebuild and repaint.
+    await page.route('**/graphql.anilist.co/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{"Media":null}}' }));
+    await page.keyboard.press('t');
+    await page.waitForSelector('#triage-overlay[open] .triage-card', { timeout: 5000 });
+    await page.keyboard.press('w');
+    await page.waitForFunction(() => performance.getEntriesByName('discover:answer').length, null, { timeout: 5000 });
+    const triage = await page.evaluate(() => Math.round(performance.getEntriesByName('discover:answer')[0].duration));
+    return { elapsed, triage };
   } finally {
     await browser.close();
     await server.stop();
@@ -232,21 +273,33 @@ async function main() {
   console.log(`Budget (Tuning table): ${SNAPSHOT_BUDGET_MS}ms`);
   console.log(snapshotP95 <= SNAPSHOT_BUDGET_MS ? 'PASS — within budget.' : 'OVER BUDGET.');
 
-  const corpusSize = 3000; // RECOMMENDATIONS.corpusTargetSize (config/tuning.js) — hardcoded here since that module is ESM-only and this script is CommonJS
+  const corpusSize = DISCOVER_CORPUS_SIZE;
   console.log('');
   console.log(`Measuring "Discover load, warm corpus" over ${DISCOVER_ITERATIONS} runs (${corpusSize}-entry corpus, 2,000-entry rated library)...`);
   const discoverSamples = [];
+  const triageSamples = [];
   for (let i = 0; i < DISCOVER_ITERATIONS; i += 1) {
-    const ms = await measureDiscoverLoadOnce(corpusSize);
-    discoverSamples.push(ms);
-    console.log(`  run ${i + 1}/${DISCOVER_ITERATIONS}: ${ms}ms`);
+    const { elapsed, triage } = await measureDiscoverLoadOnce(corpusSize);
+    discoverSamples.push(elapsed);
+    triageSamples.push(triage);
+    console.log(`  run ${i + 1}/${DISCOVER_ITERATIONS}: open to first rail ${elapsed}ms; Triage answer to rebuilt rails ${triage}ms`);
   }
-  const discoverSorted = [...discoverSamples].sort((a, b) => a - b);
-  const discoverP95 = percentile(discoverSorted, 95);
+  const discoverP95 = percentile([...discoverSamples].sort((a, b) => a - b), 95);
+  const triageP95 = percentile([...triageSamples].sort((a, b) => a - b), 95);
   console.log('');
   console.log(`p95 Discover-load time (${corpusSize}-entry corpus): ${discoverP95}ms`);
-  console.log(`Budget (Tuning table): ${DISCOVER_BUDGET_MS}ms, zero API requests (verified per-run above)`);
+  console.log(`Budget: ${DISCOVER_BUDGET_MS}ms, zero API requests (verified per-run above)`);
   console.log(discoverP95 <= DISCOVER_BUDGET_MS ? 'PASS — within budget.' : 'OVER BUDGET.');
+  console.log(`p95 Triage answer until the rails are rebuilt: ${triageP95}ms (budget ${TRIAGE_BUDGET_MS}ms)`);
+  console.log(triageP95 <= TRIAGE_BUDGET_MS ? 'PASS — within budget.' : 'OVER BUDGET.');
+
+  console.log('');
+  console.log(`Measuring the Discover engine build in Node (${DISCOVER_CORPUS_SIZE}-title corpus, 300-entry library, features cached)...`);
+  const engine = await measureEngineBuild();
+  const engineP95 = percentile([...engine.samples].sort((a, b) => a - b), 95);
+  console.log(`  first build (features computed) ${engine.cold}ms; cached builds ${engine.samples.join(', ')}ms`);
+  console.log(`p95 engine build: ${engineP95}ms (budget ${ENGINE_BUDGET_MS}ms)`);
+  console.log(engineP95 <= ENGINE_BUDGET_MS ? 'PASS — within budget.' : 'OVER BUDGET.');
 }
 
 main().catch((err) => {
