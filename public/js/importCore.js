@@ -104,82 +104,109 @@ function historyFor(item, entry) {
   return ids;
 }
 
-// Applies the plan, then saves it with the pre-import snapshot. `choices` maps
-// `${anilistId}:${field}` to a MERGE_CHOICES value (missing = 'mine').
+// The user fields an added series had right after the import; revert removes
+// it only while they are still the same.
+const ADDED_STATE_FIELDS = ['listStatus', 'episodesWatched', 'myScore', 'notes', 'startedAt', 'completedAt', 'rewatchCount', 'tagIds', 'customListIds'];
+const addedState = (entry) => JSON.stringify(ADDED_STATE_FIELDS.map((k) => entry[k] ?? null));
+
+// Commits the plan in one step with the pre-import snapshot. `choices` maps
+// `${anilistId}:${field}` to a MERGE_CHOICES value (missing = 'mine');
 // `excluded` is a Set of anilistIds the user unticked.
+//
+// The saver (app.js) first takes the one-at-a-time save queue, then calls
+// `apply` (the in-memory changes), then sends the PUT; on failure it calls
+// `rollback`. So no other save can carry the import before its snapshot, and a
+// failed import leaves nothing behind. Its events are recorded only once the
+// save has succeeded: a failed import must not add to the event log (and so to
+// the lifetime counters).
 export async function commitImport({ source, plan, choices = {}, excluded = new Set(), now = new Date() }) {
   if (!saveImport) throw new Error('Imports are not ready yet.');
-  const record = { id: newId(), source, at: now.toISOString(), label: importLabel(source, now), snapshot: null, added: [], updated: [], historyAdded: [], counts: { added: 0, updated: 0, unchanged: plan.unchanged }, revertedAt: null };
-  const options = { source: 'import' };
+  const record = { id: newId(), source, at: now.toISOString(), label: importLabel(source, now), snapshot: null, added: [], addedState: {}, updated: [], historyAdded: [], counts: { added: 0, updated: 0, unchanged: plan.unchanged }, revertedAt: null };
+  const events = [];
+  const emit = (type, anilistId, fields) => events.push([type, anilistId, fields]);
 
-  for (const item of plan.adds) {
-    if (excluded.has(item.anilistId) || Store.getEntry(item.anilistId)) continue;
-    const fields = { ...item.fields };
-    if (item.notesAppend) fields.notes = appendNote('', item.notesAppend);
-    const entry = Store.addEntry({ ...item.patch, ...fields, anilistId: item.anilistId });
-    EventLog.recordForEntry('anime_added', entry.anilistId, { to: entry.listStatus }, options);
-    if (entry.episodesWatched > 0) {
-      EventLog.recordForEntry('episode_watched', entry.anilistId, { episode: entry.episodesWatched, from: 0, to: entry.episodesWatched, meta: { durationMinutes: entry.duration || null, format: entry.format || null } }, options);
+  const apply = () => {
+    for (const item of plan.adds) {
+      if (excluded.has(item.anilistId) || Store.getEntry(item.anilistId)) continue;
+      const fields = { ...item.fields };
+      if (item.notesAppend) fields.notes = appendNote('', item.notesAppend);
+      const entry = Store.addEntry({ ...item.patch, ...fields, anilistId: item.anilistId });
+      emit('anime_added', entry.anilistId, { to: entry.listStatus });
+      if (entry.episodesWatched > 0) {
+        emit('episode_watched', entry.anilistId, { episode: entry.episodesWatched, from: 0, to: entry.episodesWatched, meta: { durationMinutes: entry.duration || null, format: entry.format || null } });
+      }
+      if (entry.myScore != null) emit('score_set', entry.anilistId, { from: null, to: entry.myScore });
+      record.added.push(entry.anilistId);
+      record.historyAdded.push(...historyFor(item, entry));
     }
-    if (entry.myScore != null) EventLog.recordForEntry('score_set', entry.anilistId, { from: null, to: entry.myScore }, options);
-    record.added.push(entry.anilistId);
-    record.historyAdded.push(...historyFor(item, entry));
-  }
+    for (const { item, entry, fields } of plan.conflicts) {
+      if (excluded.has(item.anilistId)) continue;
+      const patch = {};
+      for (const f of fields) {
+        if (resolveChoice(choices[`${item.anilistId}:${f.field}`] || 'mine', item, entry) === 'theirs') patch[f.field] = f.theirs;
+      }
+      if (!Object.keys(patch).length) continue;
+      const before = Object.fromEntries(Object.keys(patch).map((k) => [k, entry[k] ?? null]));
+      if ('listStatus' in patch) emit(patch.listStatus === 'dropped' ? 'anime_dropped' : 'status_changed', entry.anilistId, { from: before.listStatus, to: patch.listStatus });
+      if ('episodesWatched' in patch && patch.episodesWatched !== before.episodesWatched) {
+        emit('episode_watched', entry.anilistId, { episode: patch.episodesWatched, from: before.episodesWatched || 0, to: patch.episodesWatched, meta: { durationMinutes: entry.duration || null, format: entry.format || null } });
+      }
+      if ('myScore' in patch) emit('score_set', entry.anilistId, { from: before.myScore, to: patch.myScore });
+      Store.updateEntry(entry.anilistId, patch);
+      record.updated.push({ anilistId: entry.anilistId, before, after: patch });
+    }
+    for (const id of record.added) record.addedState[id] = addedState(Store.getEntry(id));
+    record.counts.added = record.added.length;
+    record.counts.updated = record.updated.length;
+    Store.addImportRecord(record);
+  };
 
-  for (const { item, entry, fields } of plan.conflicts) {
-    if (excluded.has(item.anilistId)) continue;
-    const patch = {};
-    for (const f of fields) {
-      if (resolveChoice(choices[`${item.anilistId}:${f.field}`] || 'mine', item, entry) === 'theirs') patch[f.field] = f.theirs;
-    }
-    if (!Object.keys(patch).length) continue;
-    const before = Object.fromEntries(Object.keys(patch).map((k) => [k, entry[k] ?? null]));
-    if ('listStatus' in patch) EventLog.recordForEntry(patch.listStatus === 'dropped' ? 'anime_dropped' : 'status_changed', entry.anilistId, { from: before.listStatus, to: patch.listStatus }, options);
-    if ('episodesWatched' in patch && patch.episodesWatched !== before.episodesWatched) {
-      EventLog.recordForEntry('episode_watched', entry.anilistId, { episode: patch.episodesWatched, from: before.episodesWatched || 0, to: patch.episodesWatched, meta: { durationMinutes: entry.duration || null, format: entry.format || null } }, options);
-    }
-    if ('myScore' in patch) EventLog.recordForEntry('score_set', entry.anilistId, { from: before.myScore, to: patch.myScore }, options);
-    Store.updateEntry(entry.anilistId, patch);
-    record.updated.push({ anilistId: entry.anilistId, before, after: patch });
-  }
+  const rollback = () => {
+    undoInMemory(record, { force: true });
+    const i = Store.state.imports.indexOf(record);
+    if (i >= 0) Store.state.imports.splice(i, 1);
+  };
 
-  record.counts.added = record.added.length;
-  record.counts.updated = record.updated.length;
-  Store.addImportRecord(record);
-  try {
-    const result = await saveImport(record.label);
-    if (result?.snapshot) Store.updateImportRecord(record.id, { snapshot: result.snapshot });
-  } catch (err) {
-    // Nothing reached the disk: take the import back out of memory too.
-    undoInMemory(record);
-    Store.state.imports.splice(Store.state.imports.indexOf(record), 1);
-    throw err;
-  }
+  const result = await saveImport(record.label, { apply, rollback });
+  for (const [type, anilistId, fields] of events) EventLog.recordForEntry(type, anilistId, fields, { source: 'import' });
+  if (result?.snapshot) Store.updateImportRecord(record.id, { snapshot: result.snapshot });
   return record;
 }
 
-function undoInMemory(record) {
+// `force` (a failed save) takes everything back. A revert removes an added
+// series only while the user has not changed it since the import, and puts a
+// changed field back only where it still has the imported value.
+function undoInMemory(record, { force = false } = {}) {
   const removed = [];
-  for (const id of record.added) if (Store.removeEntry(id)) removed.push(id);
-  for (const recId of record.historyAdded) Store.removeWatchRecord(recId);
+  const kept = [];
+  for (const id of record.added) {
+    const entry = Store.getEntry(id);
+    if (!entry) continue;
+    const untouched = force || !record.addedState || record.addedState[id] === addedState(entry);
+    if (untouched && Store.removeEntry(id)) removed.push(id);
+    else kept.push(id);
+  }
+  for (const recId of record.historyAdded) {
+    const rec = Store.getWatchHistory().find((r) => r.id === recId);
+    if (rec && (force || !kept.includes(rec.anilistId))) Store.removeWatchRecord(recId);
+  }
   const restored = [];
   for (const { anilistId, before, after } of record.updated) {
     const entry = Store.getEntry(anilistId);
     if (!entry) continue;
-    // Field by field, and only where nothing changed it since the import.
     const back = {};
-    for (const [k, v] of Object.entries(after)) if (sameValue(k, entry[k], v)) back[k] = before[k];
+    for (const [k, v] of Object.entries(after)) if (force || sameValue(k, entry[k], v)) back[k] = before[k];
     if (Object.keys(back).length) {
       Store.updateEntry(anilistId, back);
       restored.push(anilistId);
     }
   }
-  return { removed, restored };
+  return { removed, restored, kept };
 }
 
 // "Revert this import": removes what it added (and the history it wrote) and
-// puts back what it changed, where nothing changed it since. The record stays,
-// marked reverted. The caller persists.
+// puts back what it changed, leaving anything the user changed since. The
+// record stays, marked reverted. The caller persists.
 export function revertImport(id) {
   const record = Store.getImports().find((r) => r.id === id);
   if (!record || record.revertedAt) return null;

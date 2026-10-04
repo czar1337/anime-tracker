@@ -150,7 +150,9 @@ export function backupItems(data) {
   return entries
     .filter((e) => e && Number.isInteger(e.anilistId))
     .map((e) => {
-      const { listStatus, episodesWatched, myScore, startedAt, completedAt, rewatchCount, notes, ...rest } = e;
+      // Tag and list ids and the cover file belong to the library the file came
+      // from; here they would point at nothing (the cover is fetched again).
+      const { listStatus, episodesWatched, myScore, startedAt, completedAt, rewatchCount, notes, tagIds, customListIds, coverFile, ...rest } = e;
       return {
         anilistId: e.anilistId,
         title: e.titleEnglish || e.titleRomaji || '',

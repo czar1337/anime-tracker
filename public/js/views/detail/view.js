@@ -12,7 +12,7 @@ import { Api } from '../../api.js';
 import { Preferences } from '../../preferences.js';
 import { copy } from '../../copy.js';
 import { TAG_COLORS, tagColorHex } from '../../listsAndTags.js';
-import { LISTS_AND_TAGS } from '../../../../config/tuning.js';
+import { LISTS_AND_TAGS, HISTORY } from '../../../../config/tuning.js';
 import { partitionSpoilerTags, truncateSynopsis } from '../../detailLogic.js';
 import { html, cls, cssUrl } from '../../core/html.js';
 import { QUICK_MOVE_LISTS } from '../library/view.js';
@@ -159,7 +159,7 @@ function franchiseTimelineHtml(m) {
 // images; https only. AniList's links are not region-aware, and the section
 // says so.
 const httpsUrl = (u) => (typeof u === 'string' && /^https:\/\//i.test(u) ? u : null);
-const EPISODE_LINKS_MAX = 6;
+const EPISODE_LINKS_MAX = HISTORY.episodeLinksMax;
 function whereToWatchHtml(m) {
   const links = (m.externalLinks || []).filter((l) => l && l.type === 'STREAMING' && !l.isDisabled && httpsUrl(l.url));
   const episodes = (m.streamingEpisodes || []).filter((e) => e && httpsUrl(e.url));

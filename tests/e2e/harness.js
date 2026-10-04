@@ -103,6 +103,10 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
     env: {
       ...process.env,
       ANIME_TRACKER_DATA_DIR: dataDir,
+      // v3 Phase 5: the background notifier never reaches the real AniList or
+      // shows a real Windows toast from a test server (a test can override).
+      ANIME_TRACKER_ANILIST_URL: 'http://127.0.0.1:9',
+      ANIME_TRACKER_NOTIFY_LOG: path.join(dataDir, 'notifications.log'),
       ...(opts.env || {}),
       ANIME_TRACKER_PORT: String(testPort),
     },

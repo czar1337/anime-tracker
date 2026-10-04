@@ -380,6 +380,23 @@ Phase 3 (design system and motion):
 - **Server-side copy.** The few words the server shows (toasts, tray menu) come from
   the copy registry, loaded through the same data: URL loader as the other shared
   modules.
+- **Phase 5 review, LOWs left as they are.** The screenshot import keeps its own Undo
+  on its done screen and does not appear under Settings > Imports (the brief names
+  MAL, AniList and files). Pinned pre-import snapshots are kept, not pruned: each is
+  the user's way back from one import and they are small; Phase 7's cleanup can add a
+  retention rule. Dropping or pausing during a rewatch leaves its record open, so
+  finishing it later closes that rewatch (a paused rewatch is still that rewatch).
+  Schedule countdowns update on each render (refresh, tab open), not every minute.
+  The toast's 20 s kill timeout and the tray's pid check are process constants in
+  their modules, not tunables.
+- **An import's events are recorded only after its save.** A failed import (409, a
+  refused snapshot) must leave no trace in the append-only log, or the lifetime
+  counters would count episodes that were never imported; the importer queues its
+  events and records them once the save succeeded.
+- **Revert keeps what the user changed since.** An added series is removed only while
+  its list, progress, score, note, dates, rewatches, tags and lists are still what the
+  import set; otherwise it stays and the toast says how many were kept.
+- **With background notifications on, the open tab does not also notify.**
 - **Streaks and sittings are new on the Stats page.** The brief asks that they read live
   events only, and there was no streak or session logic to restrict, so Phase 5 adds
   them: a day counts when its live progress nets above zero; a sitting is live episodes

@@ -42,7 +42,7 @@ function seasonChartHtml(season) {
         <button type="button" class="season-cover" data-action="show-detail" data-detail-id="${m.id}" aria-label="${copy('schedule.season.open', undefined, { title })}">${coverOrInitialHtml(m.coverImage?.large, title)}</button>
         <div class="season-body">
           <button type="button" class="season-title" data-action="show-detail" data-detail-id="${m.id}">${title}</button>
-          <span class="card-meta">${[formatEnumLabel(m.format), m.episodes ? `${m.episodes} ep` : null, m.studios?.nodes?.[0]?.name, formatReleaseDate(m.startDate)].filter(Boolean).join(' · ')}</span>
+          <span class="card-meta">${[formatEnumLabel(m.format), m.episodes ? copy('schedule.season.episodes', undefined, { n: m.episodes }) : null, m.studios?.nodes?.[0]?.name, formatReleaseDate(m.startDate)].filter(Boolean).join(' · ')}</span>
           ${it.owned
             ? html`<span class="season-owned">${copy('detail.inList', undefined, { list: copy(`list.${it.owned}`) })}</span>`
             : html`<div class="row season-add">${SEASON_ADD_LISTS.map((list) => html`<button type="button" class="btn btn-ghost sm" data-action="season-add" data-list="${list}" aria-label="${copy('schedule.season.addTo', undefined, { title, list: copy(`list.${list}`) })}">${copy(`list.${list}`)}</button>`)}</div>`}

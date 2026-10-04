@@ -14,8 +14,13 @@
 // file as a JSON line instead of showing it (any platform).
 
 const fs = require('node:fs');
+const path = require('node:path');
 const { spawn } = require('node:child_process');
 
+// A toast process that has not finished by then is stopped.
+const TOAST_TIMEOUT_MS = 20000;
+// By full path, never a PATH lookup.
+const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 const POWERSHELL_APP_ID = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe';
 
 const TOAST_SCRIPT = `
@@ -51,7 +56,7 @@ function showToast({ title, body }) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(TOAST_SCRIPT)], {
+      child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(TOAST_SCRIPT)], {
         env: { ...process.env, AT_TOAST_TITLE: String(title || ''), AT_TOAST_BODY: String(body || ''), AT_TOAST_APP: POWERSHELL_APP_ID },
         stdio: 'ignore',
         windowsHide: true,
@@ -67,7 +72,7 @@ function showToast({ title, body }) {
         // already gone
       }
       resolve(false);
-    }, 20000);
+    }, TOAST_TIMEOUT_MS);
     child.on('error', () => {
       clearTimeout(timer);
       resolve(false);
@@ -79,4 +84,4 @@ function showToast({ title, body }) {
   });
 }
 
-module.exports = { showToast, encodedCommand };
+module.exports = { showToast, encodedCommand, POWERSHELL };

@@ -29,10 +29,9 @@ const scheduleState = {
 // v3 Phase 5: the Season chart. One season at a time (previous, this, next),
 // fetched when first shown and kept for the session.
 const seasonState = { offset: 0, status: 'idle', bySeason: {} };
-const SEASON_LABELS = { WINTER: 'Winter', SPRING: 'Spring', SUMMER: 'Summer', FALL: 'Fall' };
 const seasonKey = (offset) => {
   const { season, year } = seasonFor(new Date(), offset);
-  return { season, year, key: `${season}-${year}`, label: `${SEASON_LABELS[season]} ${year}` };
+  return { season, year, key: `${season}-${year}`, label: copy(`schedule.season.${season}`, undefined, { year }) };
 };
 
 let refreshInFlight = null;

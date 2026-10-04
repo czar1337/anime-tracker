@@ -640,7 +640,7 @@ async function run() {
     const before = {
       ...v15,
       entries: [
-        { anilistId: 1, listStatus: 'watched', completedAt: '2025-04-02T10:00:00.000Z', episodesWatched: 12 },
+        { anilistId: 1, titleEnglish: 'One', listStatus: 'watched', completedAt: '2025-04-02T10:00:00.000Z', episodesWatched: 12 },
         { anilistId: 2, listStatus: 'watching', completedAt: null, episodesWatched: 3 },
         { anilistId: 3, listStatus: 'watched', completedAt: null, episodesWatched: 1 },
       ],
@@ -650,7 +650,7 @@ async function run() {
     const out = migrate_15_to_16(before);
     assert.equal(out.schemaVersion, 16);
     assert.deepEqual(out.entries.map((e) => [e.rewatchCount, e.startedAt]), [[0, null], [0, null], [0, null]]);
-    assert.deepEqual(out.watchHistory, [{ id: 'wh-1-0', anilistId: 1, kind: 'watch', startedAt: null, finishedAt: '2025-04-02T10:00:00.000Z', note: '', createdAt: '2025-04-02T10:00:00.000Z' }]);
+    assert.deepEqual(out.watchHistory, [{ id: 'wh-1-0', anilistId: 1, kind: 'watch', startedAt: null, finishedAt: '2025-04-02T10:00:00.000Z', note: '', title: 'One', createdAt: '2025-04-02T10:00:00.000Z' }]);
     assert.deepEqual(out.imports, []);
     assert.equal(out.preferences.sort.paused, 'dateAdded');
     assert.equal(out.preferences.sortDir.paused, 'desc');

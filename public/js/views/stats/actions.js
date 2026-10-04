@@ -30,8 +30,13 @@ export function bindStatsActions() {
   document.getElementById('stats-view').addEventListener('click', (e) => {
     if (e.target.closest('#stats-share-trigger')) openStatsShareOverlay();
     if (e.target.closest('[data-action="diary-more"]')) {
+      const view = document.getElementById('stats-view');
+      const shown = view.querySelectorAll('.diary-row').length;
       showMoreDiary();
-      renderStatsPage(document.getElementById('stats-view'));
+      renderStatsPage(view);
+      // Focus the first newly shown entry (or Show more, if it is still there).
+      const rows = view.querySelectorAll('.diary-row');
+      (rows[shown]?.querySelector('.diary-title') || view.querySelector('[data-action="diary-more"]'))?.focus();
     }
   });
 

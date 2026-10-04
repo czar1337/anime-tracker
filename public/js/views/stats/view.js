@@ -6,6 +6,7 @@ import { Store } from '../../state.js';
 import { EventHistory } from '../../eventHistory.js';
 import { computeLibraryStats, watchStreaks, watchSessions } from '../../statsLogic.js';
 import { computeLocalDay } from '../../eventLog.js';
+import { HISTORY } from '../../../../config/tuning.js';
 import { html } from '../../core/html.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
 import { copy } from '../../copy.js';
@@ -76,7 +77,7 @@ export function renderStatsPage(container) {
   // v3 Phase 5: from live events only (imports and bulk actions never count).
   const liveEvents = EventHistory.allEvents();
   const streaks = watchStreaks(liveEvents, computeLocalDay(new Date()));
-  const monthAgo = Date.now() - 30 * 86400000;
+  const monthAgo = Date.now() - HISTORY.sittingsWindowDays * 86400000;
   const recentSessions = watchSessions(liveEvents).filter((x) => x.end >= monthAgo);
   const perSession = recentSessions.length ? (recentSessions.reduce((n, x) => n + x.episodes, 0) / recentSessions.length).toFixed(1) : '—';
 
@@ -134,7 +135,7 @@ export function renderStatsPage(container) {
         <button class="home-tile" data-nav="${list}">
           <span class="home-tile-icon">${LIST_META[list].icon}</span>
           <span class="home-tile-count">${counts[list]}</span>
-          <span class="home-tile-label">${LIST_META[list].label}</span>
+          <span class="home-tile-label">${copy(`list.${list}`)}</span>
         </button>`
       )}
     </div>
@@ -178,7 +179,7 @@ export function renderStatsPage(container) {
 
 // v3 Phase 5: the diary, every finished watch and rewatch by date, newest
 // first, a page at a time.
-const DIARY_PAGE = 40;
+const DIARY_PAGE = HISTORY.diaryPage;
 let diaryShown = DIARY_PAGE;
 export function showMoreDiary() {
   diaryShown += DIARY_PAGE;

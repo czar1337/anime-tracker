@@ -18,7 +18,8 @@ const airing = (id, next, extra = {}) => ({ id, status: 'RELEASING', episodes: 1
 test('the latest aired episode is one before the next, or the last of a finished series', () => {
   assert.equal(latestAiredEpisode(airing(1, 6)), 5);
   assert.equal(latestAiredEpisode(airing(1, null, { status: 'FINISHED', episodes: 12 })), 12);
-  assert.equal(latestAiredEpisode(airing(1, null, { status: 'NOT_YET_RELEASED' })), null);
+  assert.equal(latestAiredEpisode(airing(1, null, { status: 'NOT_YET_RELEASED' })), 0, 'not started yet: episode 0, so the premiere is announced');
+  assert.equal(latestAiredEpisode(airing(1, null, { status: 'HIATUS' })), null);
 });
 
 test('a first sight is only remembered; a new unwatched episode is announced once', () => {
@@ -58,4 +59,12 @@ test('more than maxNamed new episodes become one summary', () => {
   const [summary] = toasts(many, 3, copy);
   assert.match(summary.title, /notify.summaryTitle.*"n":5/);
   assert.match(summary.body, /S1, S2, S3.*"more":2/);
+});
+
+test('a premiere is announced: a series first seen before it starts announces episode 1', () => {
+  const entries = [entry(7, 0, 'Waited For')];
+  const before = decide({ entries, mediaById: new Map([[7, airing(7, null, { status: 'NOT_YET_RELEASED' })]]), state: { notified: {} }, quiet: false });
+  assert.deepEqual(before.state.notified, { 7: 0 });
+  const aired = decide({ entries, mediaById: new Map([[7, airing(7, 2)]]), state: before.state, quiet: false });
+  assert.deepEqual(aired.toAnnounce, [{ anilistId: 7, title: 'Waited For', episode: 1 }]);
 });

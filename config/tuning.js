@@ -57,6 +57,15 @@ export const APPEARANCE = {
 // checks AniList this often for the lists the user picked, the first time a
 // minute after start; more new episodes than `maxNamed` in one check become
 // one summary notification.
+// v3 Phase 5: the watch history, the Stats diary and sittings, and the detail
+// drawer's episode links.
+export const HISTORY = {
+  sittingsWindowDays: 30, // "Sittings, last 30 days" on the Stats page
+  diaryPage: 40, // diary rows shown per "Show more"
+  noteMaxLength: 500, // characters kept in a history record's note
+  episodeLinksMax: 6, // streaming episode links listed under Where to watch
+};
+
 export const NOTIFICATIONS = {
   pollMinutes: 30,
   firstPollDelaySeconds: 60,

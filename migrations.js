@@ -566,7 +566,7 @@ function migrate_15_to_16(data) {
   if (!Array.isArray(data.watchHistory)) {
     out.watchHistory = (data.entries || [])
       .filter((e) => e.listStatus === 'watched' && typeof e.completedAt === 'string')
-      .map((e) => ({ id: `wh-${e.anilistId}-0`, anilistId: e.anilistId, kind: 'watch', startedAt: null, finishedAt: e.completedAt, note: '', createdAt: e.completedAt }));
+      .map((e) => ({ id: `wh-${e.anilistId}-0`, anilistId: e.anilistId, kind: 'watch', startedAt: null, finishedAt: e.completedAt, note: '', title: e.titleEnglish || e.titleRomaji || '', createdAt: e.completedAt }));
   }
   out.imports = Array.isArray(data.imports) ? data.imports : [];
   const prefs = out.preferences && typeof out.preferences === 'object' ? { ...out.preferences } : null;

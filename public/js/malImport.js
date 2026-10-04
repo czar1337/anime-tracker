@@ -277,6 +277,8 @@ export function initMalImport() {
       if (excluded.has(id)) excluded.delete(id);
       else excluded.add(id);
       renderReview();
+      // The list is rebuilt: keep keyboard focus on the same row's toggle.
+      reviewListEl.querySelector(`.rw[data-id="${id}"] [data-action="toggle-row"]`)?.focus();
       return;
     }
     const btn = e.target.closest('[data-action="manual-match"]');
@@ -327,6 +329,7 @@ export function initMalImport() {
     if (box.checked) excluded.delete(id);
     else excluded.add(id);
     renderReview();
+    mergeEl.querySelector(`[data-action="merge-include"][data-id="${id}"]`)?.focus();
   });
 
   commitBtn.addEventListener('click', async () => {
@@ -358,7 +361,7 @@ export function initMalImport() {
     const result = revertImport(lastRecordId);
     lastRecordId = null;
     document.dispatchEvent(new CustomEvent('covers-updated'));
-    if (result) Render.showToast(copy('import.reverted', undefined, { removed: result.removed.length, restored: result.restored.length }));
+    if (result) Render.showToast(copy('import.reverted', undefined, { removed: result.removed.length, restored: result.restored.length, kept: result.kept.length }));
     closeDialog(overlay);
   });
 

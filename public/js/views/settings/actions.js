@@ -301,7 +301,9 @@ export function bindSettingsActions(context) {
           persist();
           refreshView();
           repaintSettings();
-          Render.showToast(copy('import.reverted', undefined, { removed: result.removed.length, restored: result.restored.length }));
+          // The Revert button became "Reverted": focus the next import's, or the list.
+          (body.querySelector('[data-action="revert-import"]') || body.querySelector('#settings-tab-data'))?.focus();
+          Render.showToast(copy('import.reverted', undefined, { removed: result.removed.length, restored: result.restored.length, kept: result.kept.length }));
         },
       });
       return;

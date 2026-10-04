@@ -8,6 +8,7 @@ import { Api } from '../../api.js';
 import { Render } from '../../render.js';
 import { copy } from '../../copy.js';
 import { EventLog } from '../../eventLog.js';
+import { HISTORY } from '../../../../config/tuning.js';
 import { openOverlay } from '../../events.js';
 import { isDialogOpen, onDialogClose } from '../../core/dialog.js';
 import { runViewTransition, movementAllowed } from '../../core/motion.js';
@@ -335,7 +336,7 @@ export function bindDetailActions(lib) {
       lib.persist();
       lib.refreshGridOnly();
     } else if (action === 'history-note') {
-      Store.updateWatchRecord(e.target.dataset.recordId, { note: e.target.value.slice(0, 500) });
+      Store.updateWatchRecord(e.target.dataset.recordId, { note: e.target.value.slice(0, HISTORY.noteMaxLength) });
       lib.persist();
     }
   });

@@ -38,11 +38,13 @@ function inQuietHours(quietHours, now = new Date()) {
   return from < to ? t >= from && t < to : t >= from || t < to;
 }
 
-// The newest episode that has aired: one before the next to air, or the last
-// one of a finished series. null when AniList does not say.
+// The newest episode that has aired: one before the next to air, the last one
+// of a finished series, or 0 for one that has not started (so its premiere is
+// announced). null when AniList does not say.
 function latestAiredEpisode(media) {
   if (media?.nextAiringEpisode?.episode) return media.nextAiringEpisode.episode - 1;
   if (media?.status === 'FINISHED' && media.episodes) return media.episodes;
+  if (media?.status === 'NOT_YET_RELEASED') return 0;
   return null;
 }
 
@@ -53,7 +55,7 @@ function decide({ entries, mediaById, state, quiet }) {
   const toAnnounce = [];
   for (const entry of entries) {
     const latest = latestAiredEpisode(mediaById.get(entry.anilistId));
-    if (!latest) continue;
+    if (latest === null) continue;
     const key = String(entry.anilistId);
     if (!(key in notified)) {
       notified[key] = latest; // first sight: remember, do not announce

@@ -103,7 +103,7 @@ test('a title alone offers Open first; "move" offers the other lists; fuzzy lett
     await query(page, 'move entry d');
     // A verb acts on the library only: no AniList rows.
     await page.waitForTimeout(600);
-    await expect(options(page)).toHaveText(['Move Entry D to Watchlist', 'Move Entry D to Watched', 'Move Entry D to Dropped']);
+    await expect(options(page)).toHaveText(['Move Entry D to Watchlist', 'Move Entry D to Watched', 'Move Entry D to Dropped', 'Move Entry D to Paused']);
     await page.keyboard.press('Enter');
     await expect(page.locator('#grid > .card[data-id="404"]')).toHaveCount(0);
     await page.click('[data-list="watchlist"]');

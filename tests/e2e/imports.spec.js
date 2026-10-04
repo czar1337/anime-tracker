@@ -104,8 +104,10 @@ test('a MyAnimeList import keeps On-Hold, dates, rewatches and comments, takes a
     expect(snap?.pinned).toBe(true);
     expect(snap?.verified).toBe(true);
 
-    const events = (await (await fetch(`${server.url}/api/events`)).json()).events.filter((e) => e.animeId === '1');
-    expect(events.length).toBeGreaterThan(0);
+    // The import's events are recorded once its save succeeded, and go out with the next save.
+    const importEvents = async () => (await (await fetch(`${server.url}/api/events`)).json()).events.filter((e) => e.animeId === '1');
+    await expect.poll(async () => (await importEvents()).length).toBeGreaterThan(0);
+    const events = await importEvents();
     expect(events.every((e) => e.meta.source === 'import')).toBe(true);
 
     await page.reload();
@@ -174,6 +176,69 @@ test('a backup file from the Backup window goes through the same merge', async (
     await page.click('#import-commit-btn');
     await expect.poll(async () => (await lib(server)).entries.some((e) => e.anilistId === 44)).toBe(true);
     expect((await lib(server)).imports[0].source).toBe('file');
+  } finally {
+    await server.stop();
+  }
+});
+
+test('the server refuses a malformed import label, and a failed pre-import snapshot writes nothing at all', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE, { env: { ANIME_TRACKER_TEST_FAIL_IMPORT_SNAPSHOT: '1' } });
+  try {
+    const res = await fetch(`${server.url}/api/library`);
+    const etag = res.headers.get('ETag');
+    const before = await res.json();
+    const bad = await fetch(`${server.url}/api/library`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': etag, 'x-save-kind': 'import', 'x-import-label': 'pre-import-mal-../../x' }, body: JSON.stringify(before) });
+    expect(bad.status).toBe(400);
+
+    await stubAniList(page);
+    await openApp(page, server);
+    await openImport(page);
+    await page.setInputFiles('#mal-file-input', { name: 'animelist.xml', mimeType: 'text/xml', buffer: Buffer.from(MAL_XML) });
+    await expect(page.locator('#import-step-review')).toBeVisible();
+    await page.click('#import-commit-btn');
+    await expect(page.locator('#toast-container')).toContainText('nothing changed');
+    await expect(page.locator('#import-step-review')).toBeVisible();
+
+    const after = await lib(server);
+    expect(after.entries.map((e) => e.anilistId)).toEqual(before.entries.map((e) => e.anilistId));
+    expect(after.imports || []).toEqual([]);
+    // The in-memory import was rolled back too: a later save sends nothing of it.
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('covers-updated')));
+    await page.waitForTimeout(800);
+    expect((await lib(server)).entries.map((e) => e.anilistId)).toEqual([OWNED]);
+    const events = (await (await fetch(`${server.url}/api/events`)).json()).events;
+    expect(events.filter((e) => e.meta?.source === 'import')).toEqual([]);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('reverting keeps a series the user changed after the import', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await stubAniList(page);
+    await openApp(page, server);
+    await openImport(page);
+    await page.setInputFiles('#mal-file-input', { name: 'animelist.xml', mimeType: 'text/xml', buffer: Buffer.from(MAL_XML) });
+    await page.click('#import-commit-btn');
+    await expect(page.locator('#import-step-done')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // Change series 2 (a note) after the import, from the app.
+    await page.evaluate(async () => {
+      const { Store } = await import('/js/state.js');
+      Store.updateEntry(2, { notes: 'My own note, written later' });
+    });
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('covers-updated')));
+    await expect.poll(async () => (await lib(server)).entries.find((e) => e.anilistId === 2)?.notes).toBe('My own note, written later');
+
+    await page.click('#settings-trigger');
+    await page.click('#settings-tab-data');
+    await page.locator('[data-action="revert-import"]').click();
+    await page.locator('#confirm-overlay').getByRole('button', { name: 'Revert this import' }).click();
+    await expect(page.locator('#toast-container')).toContainText('1 kept');
+    await expect.poll(async () => (await lib(server)).entries.map((e) => e.anilistId).sort()).toEqual([2, OWNED].sort());
   } finally {
     await server.stop();
   }

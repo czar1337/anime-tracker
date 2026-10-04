@@ -168,19 +168,23 @@ function persist() {
   saveDebounceTimer = setTimeout(requestSave, 300);
 }
 
-// v3 Phase 5: an import's save. It goes through the same one-at-a-time queue
-// (waits for a save in flight, takes over a pending debounced one) and asks the
-// server for a named pre-import snapshot taken with the write. Rejects on any
-// failure, so the importer can tell the user and leave the import record out.
-async function saveImportNow(importLabel) {
+// v3 Phase 5: an import's save. It takes the one-at-a-time save queue first
+// (waits for a save in flight, takes over a pending debounced one), and only
+// then applies the import in memory, so no ordinary save can carry the import
+// ahead of its pre-import snapshot. The server takes that named snapshot in the
+// same locked step as the write. On any failure the import is rolled back in
+// memory and edits made before it are saved again normally. Events are not
+// flushed here: the importer records its events only after this succeeds.
+async function saveImportNow(importLabel, { apply, rollback }) {
   while (saveInFlight) await new Promise((r) => setTimeout(r, 50));
   clearTimeout(saveDebounceTimer);
   clearTimeout(retryTimer);
   saveInFlight = true;
   saveQueued = false;
+  const pendingBefore = hasUnsavedChanges;
   dirtySinceSend = false;
+  apply();
   setSaveIndicator('saving', 'Saving');
-  EventLog.flush().catch(() => {});
   try {
     const result = await Api.saveLibrary(Store.toJSON(), Store.getEtag(), { kind: 'import', importLabel });
     Store.setEtag(result.etag);
@@ -188,7 +192,9 @@ async function saveImportNow(importLabel) {
     setSaveIndicator('saved', 'Saved');
     return result;
   } catch (err) {
-    setSaveIndicator('failed', copy('save.indicator.conflict'));
+    rollback();
+    setSaveIndicator('failed', err.conflict ? copy('save.indicator.conflict') : copy('import.indicator.failed'));
+    if (pendingBefore) dirtySinceSend = true;
     throw err;
   } finally {
     saveInFlight = false;

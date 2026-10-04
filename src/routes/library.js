@@ -141,6 +141,8 @@ module.exports = function register({ route, prefix }) {
       if (importLabel !== undefined && importLabel !== null) {
         if (!IMPORT_LABEL.test(importLabel)) return { status: 400, body: { error: 'Invalid import snapshot label.' } };
         try {
+          // Test-only: proves a failed pre-import snapshot writes nothing.
+          if (process.env.ANIME_TRACKER_TEST_FAIL_IMPORT_SNAPSHOT === '1') throw new Error('test: snapshot refused');
           importSnapshot = await createSnapshotNow({ pinned: true, label: importLabel });
         } catch (err) {
           return { status: 500, body: { error: `Could not take the pre-import snapshot, so nothing was imported: ${err.message}` } };

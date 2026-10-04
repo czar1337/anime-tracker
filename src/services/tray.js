@@ -10,7 +10,7 @@
 // exe smoke test.
 
 const { spawn } = require('node:child_process');
-const { encodedCommand } = require('./toast.js');
+const { encodedCommand, POWERSHELL } = require('./toast.js');
 
 const TRAY_SCRIPT = `
 Add-Type -AssemblyName System.Windows.Forms
@@ -40,7 +40,7 @@ function startTray({ labels, on }) {
   if (process.platform !== 'win32' || process.env.ANIME_TRACKER_TEST_NO_TRAY === '1') return null;
   let child;
   try {
-    child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-STA', '-EncodedCommand', encodedCommand(TRAY_SCRIPT)], {
+    child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-STA', '-EncodedCommand', encodedCommand(TRAY_SCRIPT)], {
       env: {
         ...process.env,
         AT_PARENT: String(process.pid),

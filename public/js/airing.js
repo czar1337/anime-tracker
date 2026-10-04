@@ -159,7 +159,9 @@ export async function refreshNow() {
       Store.airingChanged();
       await persistCache();
       document.dispatchEvent(new CustomEvent('airing-updated'));
-      if (newlyAired.length) Notifications.notifyNewEpisodes(newlyAired);
+      // v3 Phase 5: with background notifications on, the server announces new
+      // episodes; the open tab does not repeat them.
+      if (newlyAired.length && !Store.state.preferences.notifications?.enabled) Notifications.notifyNewEpisodes(newlyAired);
     }
   })();
   try {
