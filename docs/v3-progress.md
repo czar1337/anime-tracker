@@ -3,6 +3,75 @@
 Resume state for the v3.0 program. Plan: `docs/v3-plan.md`. Brief: `docs/v3/25-09-2026-v3-brief.md`.
 On "resume": read this table, then `git log --oneline -20`, then continue the active phase.
 
+## Release checkpoint: 3.0.0 is ready, waiting for you (2026-10-04)
+
+The v3.0 program is done through Phase 7 and stopped at the release checkpoint (hard
+stop 5). Nothing has been tagged, published or merged for Phase 7: branch
+`v3/7-release` is pushed and green in CI; `main` still says 2.3.0, so nobody's update
+notice announces 3.0.0 before it exists.
+
+**What shipped** (details in CHANGELOG `3.0.0` and the checkpoints below):
+- Safety: single-instance lock, a verified pinned snapshot before every migration,
+  locked and verified writes, tiered backups, localhost-only with a write token.
+- Speed: library render p95 148 ms for 2,000 entries (v2.3.0: 1,203), warm Discover
+  168 ms (v2.3.0: 4,593).
+- Design and motion, then Home, the palette, the new library, detail drawer and
+  Settings.
+- Features: Paused, rewatches and watch history, lossless MAL / AniList / backup
+  imports with revert, where to watch, Schedule v2, background notifications, the tray.
+- Discover rebuilt: HitRate@20 on your library 0.105 → 0.579, every sanity check at
+  zero, Triage, More like this, the Dismissed drawer.
+- Tooling: 603 unit tests on node:test, parallel e2e on free ports (287, 2.5 min), CI
+  with a token-based release job, pinned build tools, a 98 MB windowless exe (13/13
+  smoke checks).
+
+**Your library:** a dry run on a fresh copy migrates 14 → 17 with a pinned
+`pre-migration-14-to-17` snapshot; 222 entries, 161 rated, 16 events and counters 6388
+are unchanged, and a snapshot → wipe → restore round trip comes back identical
+(`evidence/7/release-dryrun.json`). The Discover catalogue re-seeds once in the
+background (about 14 minutes, 6,000 titles, 13 MB) while the old one keeps working.
+
+**Deferred** (all in `docs/v3-plan.md`, "Later"): two-way AniList sync, Wrapped,
+achievements and Madara Mode, friends' lists, a streaming-service filter, and moving the
+pure root modules under `src/lib/`.
+
+**Known issues:**
+- The exe is not code-signed, so Windows SmartScreen may warn on first run ("More info"
+  → "Run anyway"). Signing goes after the build (see `scripts/build-exe.js`).
+- OCR (screenshot import) ships only the SIMD Tesseract build; a browser without wasm
+  SIMD (none current) could not run it.
+- The exe is 98 MB, 88 MB of it the Node runtime.
+- Two old snapshots in your data folder (from v2) do not verify; they are left as they
+  are, never deleted. Every snapshot v3 takes verifies.
+
+**Your steps, in order** (from the repository folder):
+
+1. Merge Phase 7 and push:
+   ```bash
+   git checkout main
+   git merge --no-ff v3/7-release -m "v3(7): merge Phase 7, tooling, cleanup and release"
+   git push origin main
+   ```
+2. Optional: tag the v2 process history (the commit just before the cleanup moved it):
+   ```bash
+   git tag archive/v2-process def0336
+   git push origin archive/v2-process
+   ```
+3. Release: the tag starts CI, which checks the version, builds and smoke-tests the
+   exe, and publishes the GitHub release with the CHANGELOG `3.0.0` notes and
+   `AnimeTracker.exe` attached:
+   ```bash
+   git tag v3.0.0
+   git push origin v3.0.0
+   ```
+4. Optional: archive the merged branches. Deleting branches is on my never-run list, so
+   that is yours too. Merged into `main`: local `v2/P0.1` `v2/P0.2` `v2/P0.3` `v2/P0.4`
+   `v2/P1.1` `v2/P1.2` `v2/P1.3` `v2/P1.4` `v2/P1.5` `v2/P1.6` `v2/P1.7` `v2/P2`
+   `v2/P3.1` `v2/P3.2` `v2/P4.1` `v2/P4.2` `v2/P4.3` `v2/P4.4` `v2/P5A.1` `v2/P5A.2`
+   `v2/P5A.3` `v2/P5A.4` `v2/P5B.1` `v2/P5B.2` `v2/P5B.3` `v2/P5B.4` `v2/P5B.5`
+   `v2/P6.1` (28), remote `origin/v2/P1.2` `origin/v2/P1.3` `origin/v2/P5B.5`, and the
+   v3 phase branches `v3/0-plan` … `v3/6-discover` (plus `v3/7-release` once merged).
+
 ## Status
 
 | Phase | Branch | Status | Next step |
@@ -14,7 +83,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
 | 6 Discover rebuild | `v3/6-discover` | done | — |
-| 7 Tooling, cleanup, release | `v3/7-release` | in progress | Next: read the Phase 7 brief, plan tooling and cleanup |
+| 7 Tooling, cleanup, release | `v3/7-release` | release checkpoint | Stopped at hard stop 5. Your steps: merge, tag `v3.0.0`, push the tag (see the release summary above) |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
 
@@ -378,6 +447,36 @@ side stories, and the eval itself).
   legacy shelf id map now has a test and the v2 numeric `adventurousness` provenance
   field is kept as is).
 - **Deferred:** nothing.
+
+## Checkpoint 7 (2026-10-04)
+
+- **Changed:** `tests/run-all.js` split into 37 node:test files (603 unit tests with the
+  existing ones, fixed clocks, mocked lock timers; the old file archived); the e2e
+  harness binds free ports (`ANIME_TRACKER_PORT=0`) and the suite runs on 3 workers
+  (287 in 2.5 min, 7.0 before), 2 in CI with one retry and a trace; CI
+  (`.github/workflows/ci.yml`): unit tests on Ubuntu and Windows, e2e, the Discover
+  eval, generated-files check, and the tag release with `GITHUB_TOKEN`; pinned
+  postject and rcedit; `version.json` as the one version source; the exe named
+  `AnimeTracker.exe`, with a size report and no console window (D1, logs in
+  `DATA_DIR/logs/`); one Tesseract core (7.8 MB lighter); v2 docs, design explorations
+  and retired fixtures moved to `docs/archive/` and `archive/` with `git mv`;
+  `docs/architecture.md`; CLAUDE.md, README and CHANGELOG `3.0.0`; version 3.0.0.
+- **Release sweep:** unit 603/603; e2e 287 passed, 1 skipped; CI green on GitHub
+  (Ubuntu and Windows unit, Ubuntu e2e, generated files); `npm run perf` p95: library
+  148 ms (200), snapshot + verify 102 ms (10,000), warm Discover 168 ms (400, zero
+  AniList requests), Triage answer 40 ms (150), engine build 33 ms (60); every screen at
+  1440/390, motion and reduced, both themes, no errors (`evidence/7/`); release dry run
+  with restore round trip on a fresh copy of the real library
+  (`evidence/7/release-dryrun.json`); exe built and smoke-tested, 13/13.
+- **Independent review:** no HIGH. 3 MEDIUM fixed (a mock-timer rewrite had weakened
+  the FIFO lock test; D1's "no console window" was missing; the progress and release
+  summary were not written yet). 7 LOW fixed (release-notes heading match, CI tag
+  handling and persisted credentials, a no-op assertion, three specs on random fixed
+  ports, architecture.md's outbound calls, the OCR test not running the app's worker,
+  stale references); the `src/lib/` move is recorded as deferred.
+- **Not done here, by the rules:** the `archive/v2-process` tag, the `v3.0.0` tag and
+  release, branch deletion, and the merge of this phase into `main` (see the release
+  summary at the top).
 
 ## Evidence index
 
