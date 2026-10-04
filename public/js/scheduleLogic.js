@@ -11,12 +11,18 @@ import { genreSimilarity } from './recommendLogic.js';
 // both places), and sorts best-match-first — ties broken by whichever
 // releases sooner, so equally-matched titles still favor "soon" over
 // "someday".
-export function rankUpcoming(candidates, genreProfile, ownedIds, dismissedIds) {
+//
+// v3 Phase 5: `scoreBy` is either that genre profile (the legacy model, kept
+// for a library with no taste profile yet) or a function media -> score, which
+// the Schedule passes the taste-profile scorer as, so Schedule and Discover
+// agree about taste.
+export function rankUpcoming(candidates, scoreBy, ownedIds, dismissedIds) {
   const owned = new Set(ownedIds);
   const dismissed = new Set(dismissedIds);
+  const scoreOf = typeof scoreBy === 'function' ? scoreBy : (m) => genreSimilarity(m.genres, scoreBy);
   return candidates
     .filter((m) => !owned.has(m.id) && !dismissed.has(m.id))
-    .map((m) => ({ media: m, score: genreSimilarity(m.genres, genreProfile) }))
+    .map((m) => ({ media: m, score: scoreOf(m) }))
     .sort((a, b) => b.score - a.score || startDateValue(a.media.startDate) - startDateValue(b.media.startDate));
 }
 
@@ -37,4 +43,14 @@ export function formatReleaseDate(startDate) {
   const month = MONTH_NAMES[startDate.month - 1];
   if (!startDate.day) return `${month} ${startDate.year}`;
   return `${month} ${startDate.day}, ${startDate.year}`;
+}
+
+// v3 Phase 5: the Season chart. AniList's seasons are calendar quarters
+// (Winter = Jan-Mar, Spring = Apr-Jun, Summer = Jul-Sep, Fall = Oct-Dec).
+// `offset` moves by seasons: -1 is the previous one, +1 the next.
+export const SEASONS = ['WINTER', 'SPRING', 'SUMMER', 'FALL'];
+export function seasonFor(date = new Date(), offset = 0) {
+  const index = Math.floor(date.getMonth() / 3) + offset;
+  const year = date.getFullYear() + Math.floor(index / 4);
+  return { season: SEASONS[((index % 4) + 4) % 4], year };
 }

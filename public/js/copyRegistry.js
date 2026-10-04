@@ -1071,6 +1071,17 @@ export const COPY_REGISTRY = {
   'settings.imports.reverted': same((p) => `Reverted ${p.date}`),
   'settings.imports.confirmTitle': same('Revert this import?'),
   'settings.imports.confirmBody': same('Series it added are removed and fields it changed go back to what they were. Anything you changed since is kept. The pre-import snapshot stays in Data safety.'),
+  // v3 Phase 5: Schedule v2.
+  'schedule.premiere': same('Premiere'),
+  'schedule.inMinutes': same((p) => `in ${p.m} min`),
+  'schedule.inHours': same((p) => `in ${p.h} h`),
+  'schedule.inDays': same((p) => (p.h ? `in ${p.d} d ${p.h} h` : `in ${p.d} d`)),
+  'schedule.season.heading': same('Season chart'),
+  'schedule.season.error': same('Could not load this season.'),
+  'schedule.season.empty': same('Nothing listed for this season yet.'),
+  'schedule.season.open': same((p) => `Open ${p.title}`),
+  'schedule.season.addTo': same((p) => `Add ${p.title} to ${p.list}`),
+  'schedule.season.added': same((p) => `Added ${p.title} to ${p.list}`),
   // v3 Phase 5: where to watch.
   'detail.watch.heading': same('Where to watch'),
   'detail.watch.episodes': same((p) => `${p.n} episode ${p.n === 1 ? 'link' : 'links'}`),

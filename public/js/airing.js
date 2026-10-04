@@ -74,8 +74,16 @@ export function getCacheState() {
 
 // For the Schedule tab's "This week" view — always live off the same cache
 // the unseen-episode badges already use, so it can never disagree with them.
+// v3 Phase 5: Schedule v2 covers Watchlist and Paused too, so a premiere or a
+// new season of something you are waiting for shows up. Unseen counts and the
+// in-browser episode notifications stay Watching-only.
+export const AIRING_LISTS = ['watching', 'watchlist', 'paused'];
+function airingEntries() {
+  return AIRING_LISTS.flatMap((list) => Store.getEntriesByList(list));
+}
+
 export function getWeekSchedule() {
-  return buildWeekSchedule(cacheEntries, Store.getEntriesByList('watching'));
+  return buildWeekSchedule(cacheEntries, airingEntries());
 }
 
 async function loadCacheFromServer() {
@@ -106,7 +114,7 @@ export async function refreshNow() {
     // empty oldCache would make every already-unseen episode look "newly
     // aired" and fire a notification burst for the whole watching list.
     const hadPriorCache = generatedAt != null;
-    const ids = Store.getEntriesByList('watching').map((e) => e.anilistId);
+    const ids = airingEntries().map((e) => e.anilistId);
     const batches = chunk(ids, BATCH_SIZE);
     const nextEntries = {};
     let anySucceeded = batches.length === 0; // nothing to fetch is a trivial success, not a failure

@@ -480,6 +480,36 @@ async function fetchAiringBatch(idIn) {
 // Sorted by popularity (not by date) so the pool is anticipated, known
 // titles rather than obscure not-yet-announced-in-detail entries — the
 // Schedule tab re-sorts this pool by taste + release date itself.
+// v3 Phase 5: the Season chart, one season at a time, most popular first.
+const SEASON_QUERY = `
+query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
+  Page(page: $page, perPage: 50) {
+    pageInfo { hasNextPage }
+    media(season: $season, seasonYear: $seasonYear, type: ANIME, isAdult: false, sort: POPULARITY_DESC) {
+      id
+      title { romaji english }
+      coverImage { large extraLarge }
+      format
+      status
+      genres
+      season
+      seasonYear
+      startDate { year month day }
+      averageScore
+      popularity
+      episodes
+      duration
+      studios(isMain: true) { nodes { name } }
+      ${RELATIONS_FIELD}
+    }
+  }
+}`;
+
+async function fetchSeasonMedia(season, seasonYear, page = 1) {
+  const data = await anilistRequest(SEASON_QUERY, { season, seasonYear, page });
+  return { media: data.Page.media, hasNextPage: Boolean(data.Page.pageInfo?.hasNextPage) };
+}
+
 const UPCOMING_QUERY = `
 query ($page: Int) {
   Page(page: $page, perPage: 50) {
@@ -489,6 +519,8 @@ query ($page: Int) {
       coverImage { large extraLarge }
       format
       genres
+      source
+      tags { name category rank }
       seasonYear
       startDate { year month day }
       averageScore
@@ -698,6 +730,7 @@ async function fetchAnimeDetail(anilistId) {
 }
 
 export const Api = {
+  fetchSeasonMedia,
   fetchAniListCollection,
   getCoverHues,
   saveCoverHues,
