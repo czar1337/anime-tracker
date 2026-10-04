@@ -1257,31 +1257,73 @@ kbd {
 .discover-levels { margin-bottom: var(--sp-4); }
 .dismissed-reason { display: block; font: var(--t-nano); color: var(--faint); margin-top: 2px; }
 
-/* Triage: one large card at a time. */
-.triage-panel { max-width: 760px; width: min(760px, calc(100vw - var(--sp-8))); }
-.triage-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); padding-right: var(--sp-8); }
+/* Triage, "Swipe through": one large card at a time (views/discover/triageView.js).
+   The stage holds the live card in flow; a card on its way out is .leaving,
+   laid over it, and removed when its fly-out ends. */
+.overlay-panel.triage-panel { max-width: 820px; width: min(820px, calc(100vw - var(--sp-8))); }
+.triage-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-1); padding-right: var(--sp-8); }
 .triage-head h2 { margin: 0; }
-.triage-counter { margin: 0; font: var(--t-meta); color: var(--dim); }
-.triage-card { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; background: var(--card); }
-.triage-banner { background: var(--bg-elevated); min-height: 260px; }
-.triage-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.triage-info { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4) var(--sp-4) var(--sp-4) 0; min-width: 0; }
-.triage-info .why { margin: 0; font: var(--t-body); font-weight: var(--w-med); color: var(--text); }
-.triage-info h3 { margin: 0; font: var(--t-title); font-size: var(--fs-display-xs, 1.3rem); text-transform: none; letter-spacing: normal; color: var(--text); }
+.triage-progress { display: flex; align-items: center; gap: var(--sp-2); }
+.triage-counter { font: var(--t-meta); font-variant-numeric: tabular-nums; color: var(--text); font-weight: var(--w-med); }
+.triage-progress-track { width: 96px; height: 4px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.triage-progress-fill { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; transform: scaleX(var(--p, 0)); transition: transform var(--dur-base) var(--ease-standard); }
+.triage-intro { margin: 0 0 var(--sp-3); font: var(--t-nano); color: var(--faint); }
+.triage-stage { position: relative; min-height: 340px; }
+.triage-stage > .leaving { position: absolute; inset: 0 0 auto 0; z-index: 2; pointer-events: none; }
+.triage-card {
+  display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--sp-6);
+  border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden;
+  background: var(--card); box-shadow: var(--sh-2);
+  touch-action: none; user-select: none; cursor: grab; will-change: transform;
+}
+.triage-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.triage-card.dragging { cursor: grabbing; box-shadow: var(--sh-3); }
+.triage-poster { position: relative; aspect-ratio: 2 / 3; background: linear-gradient(160deg, var(--bg-elevated), var(--line)); overflow: hidden; }
+.triage-poster::before { content: attr(data-initial); position: absolute; inset: 0; display: grid; place-items: center; font: var(--t-title); font-size: 3rem; color: var(--faint); }
+.triage-poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity var(--dur-base) var(--ease-standard); -webkit-user-drag: none; }
+.triage-poster img.loaded { opacity: 1; }
+.triage-stamp {
+  position: absolute; top: var(--sp-4); padding: var(--sp-1) var(--sp-3); border: 2px solid currentColor; border-radius: var(--radius-sm);
+  font: var(--t-meta); font-weight: var(--w-strong); letter-spacing: .06em; text-transform: uppercase;
+  background: color-mix(in srgb, var(--bg) 70%, transparent); opacity: 0; pointer-events: none;
+}
+.stamp-want { left: var(--sp-4); color: var(--positive); transform: rotate(-8deg); }
+.stamp-nope { right: var(--sp-4); color: var(--accent-lit); transform: rotate(8deg); }
+.stamp-seen { left: 50%; top: auto; bottom: var(--sp-4); translate: -50% 0; color: var(--support); }
+.stamp-skip { left: 50%; translate: -50% 0; color: var(--dim); }
+.triage-card[data-swipe="want"] .stamp-want,
+.triage-card[data-swipe="not-for-me"] .stamp-nope,
+.triage-card[data-swipe="seen-it"] .stamp-seen,
+.triage-card[data-swipe="skip"] .stamp-skip { opacity: var(--swipe-p, 0); }
+.triage-info { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-6) var(--sp-6) var(--sp-6) 0; min-width: 0; }
+.triage-info .why { margin: 0; font: var(--t-meta); font-weight: var(--w-med); color: var(--accent-lit); }
+.triage-similar { margin: 0; font: var(--t-meta); color: var(--dim); }
+.overlay-panel .triage-title { margin: 0; font: var(--t-display-s); line-height: 1.2; text-transform: none; letter-spacing: normal; color: var(--text); overflow-wrap: anywhere; }
+.triage-alt { margin: 0; font: var(--t-meta); color: var(--faint); }
 .triage-info .m { margin: 0; font: var(--t-meta); color: var(--dim); }
-.triage-synopsis { margin: 0; font: var(--t-meta); color: var(--dim); line-height: 1.55; white-space: pre-line; max-height: 11em; overflow-y: auto; }
-.triage-trailer { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--accent-lit); font: var(--t-meta); text-decoration: none; }
-.triage-trailer img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; }
-.triage-answers, .triage-rate-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-4); }
-.triage-answers kbd { font: var(--t-nano); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-right: var(--sp-1); opacity: .8; }
+.triage-synopsis { margin: var(--sp-1) 0 0; font: var(--t-meta); color: var(--dim); line-height: 1.55; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 7; line-clamp: 7; overflow: hidden; }
+.triage-synopsis-sk { margin-top: var(--sp-1); }
+.triage-note { margin: 0; font: var(--t-nano); color: var(--faint); }
+.triage-card-skeleton { cursor: default; }
+.triage-card-skeleton .triage-poster { border-radius: 0; }
+.triage-card-skeleton .sk-heading { width: 70%; margin: var(--sp-3) 0 var(--sp-2); }
+.triage-message { display: grid; place-content: center; gap: var(--sp-2); text-align: center; min-height: 340px; padding: var(--sp-6); border: 1px dashed var(--line-lit); border-radius: var(--radius-lg); }
+.triage-message-title { margin: 0; font: var(--t-body); font-weight: var(--w-med); color: var(--text); }
+.triage-answers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); margin-top: var(--sp-4); }
+.triage-answers .btn { justify-content: center; }
+.triage-answers kbd, .triage-foot kbd { font: var(--t-nano); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-right: var(--sp-1); opacity: .8; }
+.triage-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-3); }
 .triage-rate { margin-top: var(--sp-4); }
-.triage-rate-row { margin-top: var(--sp-2); }
+.triage-rate-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-2) 0; }
 .triage-why-not { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: var(--sp-3); }
-.triage-done-row { justify-content: flex-end; margin-top: var(--sp-4); }
+@media (prefers-reduced-motion: reduce) { .triage-progress-fill { transition: none; } }
 @media (max-width: 640px) {
-  .triage-card { grid-template-columns: 1fr; }
-  .triage-banner { min-height: 160px; max-height: 200px; }
-  .triage-info { padding: 0 var(--sp-3) var(--sp-3); }
+  .triage-card { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--sp-3); }
+  .triage-info { padding: var(--sp-3) var(--sp-3) var(--sp-3) 0; }
+  .overlay-panel .triage-title { font-size: var(--fs-heading); }
+  .triage-synopsis { -webkit-line-clamp: 5; line-clamp: 5; }
+  .triage-answers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .triage-stage, .triage-message { min-height: 260px; }
   .rail.hero-rail { grid-auto-columns: 92%; }
   .discover-card.dc-hero { min-height: 260px; }
   .discover-search { flex: 1 1 100%; order: 5; }

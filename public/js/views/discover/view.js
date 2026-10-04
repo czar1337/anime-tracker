@@ -52,7 +52,7 @@ export function discoverCardTitle(c) {
 
 // The reason line, with its anchor (the rated title it names) in the accent
 // colour. The engine says which title that is; nothing is guessed from text.
-function reasonHtml(reason) {
+export function reasonHtml(reason) {
   if (!reason?.text) return '';
   const anchor = reason.anchorTitle;
   if (!anchor || !reason.text.includes(anchor)) return escapeHtml(reason.text);
@@ -515,58 +515,6 @@ export function synopsisText(description, max = 600) {
   let text = description.replace(/~![\s\S]*?!~/g, ' ').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/__|\*\*/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   if (text.length > max) text = `${text.slice(0, max).replace(/\s+\S*$/, '')}…`;
   return { text, spoilersHidden };
-}
-
-const KEY_HINTS = { want: 'W', seen: 'S', notForMe: 'X', skip: '→', undo: 'Z' };
-
-// Triage (spec 7): one large card at a time. `t` is actions.js's triage
-// state: { card, answered, rating, detail, lastDismissed, canUndo }.
-export function renderTriage(container, t) {
-  if (!container) return;
-  const counter = t.answered ? copy('triage.counter', undefined, { n: t.answered }) : copy('triage.intro');
-  const head = `<div class="triage-head"><h2 id="triage-title">${escapeHtml(copy('discover.triage'))}</h2><p class="triage-counter" aria-live="polite">${escapeHtml(counter)}</p></div>`;
-  if (!t.card) {
-    morphInto(container, `${head}<p class="card-meta">${escapeHtml(copy('triage.empty'))}</p><div class="row triage-done-row"><button class="btn btn-primary sm" data-action="triage-done">${escapeHtml(copy('triage.done'))}</button></div>`);
-    return;
-  }
-  const card = t.card;
-  const c = card.entry;
-  const title = discoverCardTitle(c);
-  const banner = t.detail?.bannerImage || c.bannerImage || c.coverLarge || c.coverMedium;
-  const syn = synopsisText(t.detail?.description);
-  const trailer = t.detail?.trailer?.site === 'youtube' && t.detail.trailer.id ? { href: `https://www.youtube.com/watch?v=${encodeURIComponent(t.detail.trailer.id)}`, thumb: t.detail.trailer.thumbnail } : null;
-  const chips = (card.chips || []).slice(0, 3);
-  const answers = t.rating
-    ? `<div class="triage-rate" role="group" aria-label="${escapeHtml(copy('triage.rateLabel', undefined, { title: title.primary }))}">
-        <p class="card-meta">${escapeHtml(copy('triage.rateHint'))}</p>
-        <div class="triage-rate-row">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<button class="btn btn-ghost sm" data-action="triage-rate" data-score="${n}">${n}</button>`).join('')}</div>
-        <div class="row"><button class="btn btn-quiet sm" data-action="triage-rate" data-score="">${escapeHtml(copy('discover.noRating'))}</button><button class="btn btn-quiet sm" data-action="triage-rate-cancel">${escapeHtml(copy('triage.cancel'))}</button></div>
-      </div>`
-    : `<div class="triage-answers">
-        <button class="btn btn-primary rip-host" data-action="triage-want"><kbd>${KEY_HINTS.want}</kbd> ${escapeHtml(copy('discover.want'))}</button>
-        <button class="btn btn-ghost" data-action="triage-seen"><kbd>${KEY_HINTS.seen}</kbd> ${escapeHtml(copy('discover.seenIt'))}</button>
-        <button class="btn btn-ghost" data-action="triage-not-for-me"><kbd>${KEY_HINTS.notForMe}</kbd> ${escapeHtml(copy('discover.notForMe'))}</button>
-        <button class="btn btn-quiet" data-action="triage-skip"><kbd>${KEY_HINTS.skip}</kbd> ${escapeHtml(copy('triage.skip'))}</button>
-        <button class="btn btn-quiet" data-action="triage-undo" ${t.canUndo ? '' : 'disabled'}><kbd>${KEY_HINTS.undo}</kbd> ${escapeHtml(copy('triage.undo'))}</button>
-      </div>`;
-  const whyNot = t.lastDismissed
-    ? `<div class="triage-why-not"><span class="card-meta">${escapeHtml(copy('triage.whyNot', undefined, { title: t.lastDismissed.title }))}</span>${dismissReasons().map((r) => `<button class="chip${t.lastDismissed.reason === r.id ? ' on' : ''}" data-action="triage-reason" data-reason="${r.id}">${escapeHtml(r.label)}</button>`).join('')}</div>`
-    : '';
-  morphInto(container, `${head}
-    <article class="triage-card" data-key="triage-${card.id}" data-anilist-id="${card.id}">
-      <div class="triage-banner">${banner ? `<img src="${escapeHtml(banner)}" alt="" decoding="async">` : ''}</div>
-      <div class="triage-info">
-        <p class="why">${reasonHtml(card.reason)}</p>
-        <h3 ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h3>
-        <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
-        ${chips.length ? `<div class="dc-chips">${chips.map((ch) => `<span class="dc-chip">${escapeHtml(ch)}</span>`).join('')}</div>` : ''}
-        <p class="triage-synopsis">${t.detail === undefined ? escapeHtml(copy('triage.loadingSynopsis')) : escapeHtml(syn.text || copy('triage.noSynopsis'))}</p>
-        ${syn.spoilersHidden ? `<p class="card-meta">${escapeHtml(copy('triage.spoilersHidden'))}</p>` : ''}
-        ${trailer ? `<a class="triage-trailer" href="${escapeHtml(trailer.href)}" target="_blank" rel="noopener noreferrer">${trailer.thumb ? `<img src="${escapeHtml(trailer.thumb)}" alt="" loading="lazy">` : ''}<span>${escapeHtml(copy('triage.trailer'))}</span></a>` : ''}
-      </div>
-    </article>
-    ${answers}
-    ${whyNot}`);
 }
 
 // The Dismissed drawer: each title with its reason, "Bring back" and "Clear all".

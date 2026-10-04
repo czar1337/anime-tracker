@@ -409,3 +409,14 @@ export const DISCOVER = {
   evalCoverageDays: 7,
   evalHitRateFloor: 0.1, // the CI floor on the committed synthetic fixture
 };
+
+// Triage, "Swipe through" (v3 finish, Section 0).
+export const TRIAGE = {
+  sessionGoal: 20, // cards per session before the summary; "Keep going" adds another round
+  growStep: 40, // Top picks grow by this many when the queue runs low or on "Fetch more"
+  lowWater: 3, // the queue grows before it gets this short
+  detailPaceMs: 3000, // at most one synopsis request per this many ms, well inside AniList's limit
+  swipeDistancePx: 110, // a drag this far answers
+  swipeFlickPx: 40, // a fast flick this far answers too
+  swipeFlickSpeed: 0.6, // px per ms
+};

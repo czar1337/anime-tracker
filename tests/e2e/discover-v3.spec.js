@@ -118,12 +118,12 @@ test('Triage: T opens it, W S X → Z answer and undo, and the counter grows', a
   try {
     await openDiscover(page, server);
     await page.keyboard.press('t');
-    const cardId = async () => Number(await page.getAttribute('#triage-body .triage-card', 'data-anilist-id'));
-    await expect(page.locator('#triage-body .triage-card')).toBeVisible();
+    const cardId = async () => Number(await page.getAttribute('#triage-body .triage-card:not(.leaving)', 'data-anilist-id'));
+    await expect(page.locator('#triage-body .triage-card:not(.leaving)')).toBeVisible();
     const first = await cardId();
     await page.keyboard.press('w');
     await expect.poll(cardId).not.toBe(first);
-    await expect(page.locator('.triage-counter')).toHaveText('1 answered, your picks just got sharper');
+    await expect(page.locator('.triage-counter')).toHaveText('1 / 20');
     const second = await cardId();
     await page.keyboard.press('s');
     await expect(page.locator('.triage-rate')).toBeVisible();
@@ -136,7 +136,7 @@ test('Triage: T opens it, W S X → Z answer and undo, and the counter grows', a
     const fourth = await cardId();
     await page.keyboard.press('ArrowRight');
     await expect.poll(cardId).not.toBe(fourth);
-    await expect(page.locator('.triage-counter')).toHaveText('4 answered, your picks just got sharper');
+    await expect(page.locator('.triage-counter')).toHaveText('4 / 20');
     await page.keyboard.press('z'); // the skip comes back
     await expect.poll(cardId).toBe(fourth);
     await expect.poll(async () => (await entryOf(server, first))?.listStatus, { timeout: 10000 }).toBe('watchlist');
@@ -344,12 +344,12 @@ test('Triage Undo reaches back only within its own session, and a held key answe
   try {
     await openDiscover(page, server);
     await page.keyboard.press('t');
-    const cardId = async () => Number(await page.getAttribute('#triage-body .triage-card', 'data-anilist-id'));
+    const cardId = async () => Number(await page.getAttribute('#triage-body .triage-card:not(.leaving)', 'data-anilist-id'));
     const first = await cardId();
     await page.keyboard.down('w'); // held: auto-repeat must not answer the next cards too
     await page.waitForTimeout(400);
     await page.keyboard.up('w');
-    await expect(page.locator('.triage-counter')).toHaveText('1 answered, your picks just got sharper');
+    await expect(page.locator('.triage-counter')).toHaveText('1 / 20');
     await page.keyboard.press('z');
     await expect.poll(cardId).toBe(first);
     await expect.poll(async () => Boolean(await entryOf(server, first)), { timeout: 10000 }).toBe(false);
