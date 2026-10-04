@@ -469,6 +469,16 @@ Phase 3 (design system and motion):
 - **Old e2e specs for removed v2 behaviour are archived** (`archive/tests/e2e/`:
   shelves, moods page, layout, feedback loop, the quick-picker taste profile); what
   still applies is ported to `discover-v3.spec.js`.
+- **Phase 6 review, LOWs kept as they are.** `LEGACY_SHELF_TO_RAIL` / `railIdFor` is the
+  one place old shelf ids map to rails (tested); nothing in v3.0 reads old shelf ids
+  back yet, so it has no caller. A Discover add keeps writing the v2 numeric
+  `adventurousness` provenance field rather than changing a Class A field's type; the
+  v3 level is in the `recommendation_added` event's meta. Triage Undo of "Seen it"
+  writes the progress and score back as events; the `anime_added` event stays, like any
+  later removal.
+- **The GIF evidence uses a small dev-only encoder** (`scripts/record-discover-gif.js`:
+  a fixed colour cube with ordered dithering and LZW). No ffmpeg or image library is
+  installed, and a dependency is a hard stop.
 
 ## Later (out of scope for v3.0)
 

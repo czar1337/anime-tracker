@@ -13,8 +13,8 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
-| 6 Discover rebuild | `v3/6-discover` | in progress | Engine, corpus v2, UI, Triage, events, e2e committed (`e1ff63c`). Next: full e2e, perf, evidence (screenshots, GIF), review, checkpoint 6 |
-| 7 Tooling, cleanup, release | `v3/7-release` | not started | |
+| 6 Discover rebuild | `v3/6-discover` | done | — |
+| 7 Tooling, cleanup, release | `v3/7-release` | in progress | Next: read the Phase 7 brief, plan tooling and cleanup |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
 
@@ -318,6 +318,66 @@ tests: genre-only reasons, no collab, the 5.3 floor, unreleased on taste rails, 
 pruning, spoiler tags in reasons, reshuffling, "View more" prefix, drops counted three
 times, Bring back keeping the penalty, undated ratings at full recency, owned-franchise
 side stories, and the eval itself).
+
+## Checkpoint 6 (2026-10-04)
+
+- **Changed:** Discover rebuilt on a new pure engine (`public/js/discover/engine/`):
+  per-title taste signal, hybrid content + AniList "fans also liked" + Bayesian quality
+  score, hard gates after franchise entry-point resolution, MMR rails deduplicated down
+  the page, contribution-based reasons. Corpus v2 (recommendations, spoiler flags, key
+  staff, no adult titles; popularity then score pass, library and neighbour fill). New
+  rails, Top picks hero, the three-answer card with a menu, Tune with mood lens and four
+  adventurousness levels, search, Triage (T; W S X → Z), More like this (cards, detail
+  drawer, library menu), the Dismissed drawer with reasons and Bring back. Triage
+  replaced the v2 quick picker. Schedule's Coming soon ranks with the same engine. The
+  v2 engine is archived in `archive/js/v2-discover/` as the eval baseline.
+- **Schema 17:** `preferences.adventurousnessLevel` from the v2 slider and switch,
+  additive and idempotent. Dry run on a fresh real-library copy: 222 entries, 16 events,
+  counters 6388, pinned `pre-migration-14-to-17`, level `off`
+  (`evidence/6/schema17-dryrun.json`). No new Class A store; `preferences` already
+  round-trips (settings-round-trip spec).
+- **Events:** `recommendation_undismissed`, `recommendation_seen_it`,
+  `discover_triage_answered`, validated server-side. "Seen it" and every Discover add
+  carry `meta.source = 'discover'`. The taste cache is the log folded into per-title
+  latest state, rebuilt 400 ms after the last relevant event, outside the write lock.
+- **Acceptance (spec 11):**
+  1. Eval before → after (table above): HitRate@20 0.105 → 0.579, MRR 0.021 → 0.370,
+     sanity 61 → 0, diversity 0.841 → 0.874, coverage 0.026 (baseline on the same corpus
+     0.016). Floors hold.
+  2. Real library page (`evidence/6/real-library-page-check.json`): 138 cards, at most
+     one per franchise, no unreleased title on a taste rail, every anchored reason names
+     its rated title, highest anchor share 0.25 (none over 40%).
+  3. Every failure in spec section 1 has a test that passes on v3 and is asserted to fail
+     on v2.3.0 (`tests/unit/discoverRegressions.test.js`, 17 tests).
+  4. Budgets (`npm run perf`, p95): warm open to first rail 171 ms (budget 400, zero
+     AniList requests); Triage answer to rebuilt rails 46 ms (150); engine build with
+     features cached 32 ms on 6,000 titles and 300 entries (60; first build 127 ms).
+  5. Screenshots: `evidence/6/real-discover-{1440,390}{,-reduced}.png`,
+     `real-tune-*.png`, `real-triage-*.png` (a scratch copy of the real library, corpus
+     v2), plus every screen at 1440/390, motion and reduced, both themes
+     (`capture-evidence.js 6`: no errors). GIF of Triage and Want to watch:
+     `evidence/6/discover-triage-and-want.gif` (synthetic fixture, dev-only encoder,
+     no dependency).
+- **Tests before → after:** unit 438 + 136 → 438 + 165; e2e 300 + 1 skipped → 287 + 1
+  skipped (the v2 shelves, moods page, layout, feedback-loop and quick-picker specs are
+  archived in `archive/tests/e2e/`, and what still applies is ported into
+  `discover-v3.spec.js`, 17 tests). New: discover-v3, taste-cache, discoverEngine,
+  discoverEvents, discoverRegressions; `npm run eval:discover -- --assert` on the
+  committed synthetic fixture.
+- **Exe:** rebuilt and smoke-tested, 11/11 (new check: the taste fold module loads in the
+  exe).
+- **Independent review:** 1 HIGH, fixed: Triage Undo reached across sessions and could
+  delete an entry edited since; it is now session-scoped, removes only an untouched entry
+  and writes its progress and score back out of the log. 6 MEDIUM fixed: held keys
+  answered repeatedly; "View more" could move shown cards (now replayed as ordered
+  steps); reasons could name unrated titles; Watchlist titles with hide-owned off could
+  not be answered; showing dismissed titles dropped their penalty; the Triage offer
+  repeated every launch. 8 LOW fixed or recorded in the plan (folded Because reasons,
+  fans reasons without a recommendation, dead View more, taste cache staleness after a
+  restore, stale rebuild overwrite, copy fallback, paced Triage detail fetches; the
+  legacy shelf id map now has a test and the v2 numeric `adventurousness` provenance
+  field is kept as is).
+- **Deferred:** nothing.
 
 ## Evidence index
 

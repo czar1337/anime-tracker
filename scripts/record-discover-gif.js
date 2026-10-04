@@ -24,13 +24,15 @@ const PALETTE = (() => {
   return p;
 })();
 
-function indexPixels(rgba) {
+// Ordered (4×4 Bayer) dithering, so the dark UI's gradients do not band in
+// a 252-colour cube.
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => v / 16 - 0.5);
+function indexPixels(rgba, width) {
   const out = new Uint8Array(rgba.length / 4);
+  const level = (v, steps, d) => Math.min(steps, Math.max(0, Math.round((v * steps) / 255 + d)));
   for (let i = 0, j = 0; i < rgba.length; i += 4, j++) {
-    const r = Math.round((rgba[i] * 5) / 255);
-    const g = Math.round((rgba[i + 1] * 6) / 255);
-    const b = Math.round((rgba[i + 2] * 5) / 255);
-    out[j] = r * 42 + g * 6 + b;
+    const d = BAYER[((Math.floor(j / width) % 4) * 4) + ((j % width) % 4)];
+    out[j] = level(rgba[i], 5, d) * 42 + level(rgba[i + 1], 6, d) * 6 + level(rgba[i + 2], 5, d);
   }
   return out;
 }
@@ -100,7 +102,7 @@ function encodeGif(frames, width, height, delayCs) {
     u16(width);
     u16(height);
     out.push(0, 8);
-    const data = lzw(indexPixels(rgba));
+    const data = lzw(indexPixels(rgba, width));
     for (let i = 0; i < data.length; i += 255) {
       const chunk = data.slice(i, i + 255);
       out.push(chunk.length, ...chunk);

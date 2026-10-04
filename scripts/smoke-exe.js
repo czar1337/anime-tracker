@@ -76,6 +76,9 @@ async function waitFor(url, ms) {
     check('write with token accepted (200)', (await put({ 'x-anime-tracker-token': token })).status === 200);
     const events = await fetch(`http://localhost:${port}/api/events`);
     check('event log readable (data: URL modules load in the exe)', events.ok);
+    // v3 Phase 6: the Discover taste fold is another embedded data: URL module.
+    const taste = await (await fetch(`http://localhost:${port}/api/taste-profile`)).json().catch(() => ({}));
+    check('taste cache folds the event log (Discover fold module loads)', taste.version === 2 && Boolean(taste.folded));
     const snaps = await (await fetch(`http://localhost:${port}/api/snapshots`)).json();
     check('pinned snapshot created and verified', snaps.snapshots?.some((s) => s.pinned && s.verified));
   } catch (err) {
