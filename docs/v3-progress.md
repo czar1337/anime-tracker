@@ -13,7 +13,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
-| 6 Discover rebuild | `v3/6-discover` | in progress | Baseline eval committed. Next: regression tests (spec 1), corpus v2, engine |
+| 6 Discover rebuild | `v3/6-discover` | in progress | Engine, corpus v2 and section-1 regression tests committed (`c70bade`). Next: build corpus v2 for the eval (`scripts/build-eval-corpus.js`), tune with the grid, then rails UI, triage, events |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
