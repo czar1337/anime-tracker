@@ -88,7 +88,8 @@ test('1. a reason names the rated title that actually drove the score, not a rot
   await bothWays(
     () => {
       const { anchors, fillers } = baseWorld();
-      const x = title(50, { tags: tags('Boxing', 'Martial Arts', 'Rivalry', 'Coming of Age'), genres: ['Action', 'Sports'], normalizedScore: 8.6, popularity: 200000 });
+      // A good, not great, title: its overlap with Title 3 is what scores it.
+      const x = title(50, { tags: tags('Boxing', 'Martial Arts', 'Rivalry', 'Coming of Age'), genres: ['Action', 'Sports'], normalizedScore: 7.8, popularity: 40000 });
       return inputFor([...anchors, ...fillers, x], [watched(anchors[0], 10), watched(anchors[1], 10), watched(anchors[2], 9)]);
     },
     (out) => {
@@ -98,6 +99,20 @@ test('1. a reason names the rated title that actually drove the score, not a rot
       assert.doesNotMatch(card.reason, /Title [12]\b/, 'and not the 10/10 titles it only shares the Action genre with');
     },
   );
+});
+
+test('1b. every reason is the largest part of its card score (spec 4.5)', async () => {
+  const { v3 } = await getEngines();
+  const { anchors, fillers } = baseWorld();
+  anchors[0].recs = [[60, 900]];
+  const r = title(60, { genres: ['Music'], tags: tags('Band'), normalizedScore: 8.4, popularity: 150000 });
+  const x = title(50, { tags: tags('Boxing', 'Martial Arts', 'Rivalry'), genres: ['Action', 'Sports'], normalizedScore: 7.8, popularity: 40000 });
+  const out = v3(inputFor([...anchors, ...fillers, r, x], [watched(anchors[0], 10), watched(anchors[1], 9), watched(anchors[2], 9)])).raw;
+  for (const c of out.rails.find((rail) => rail.id === 'top-picks').cards) {
+    const largest = Object.entries({ collab: c.parts.collab, content: c.parts.content, quality: c.parts.quality }).sort((a, b) => b[1] - a[1])[0][0];
+    if (largest === 'collab' && c.reason.kind !== 'collab') continue; // collab from a disliked title only: no positive anchor to name
+    assert.equal(c.reason.kind, largest, `${c.id}: ${c.reason.text}`);
+  }
 });
 
 test('2. AniList "fans also liked" counts: a recommendation with no shared genre still surfaces, citing its anchor', async () => {
