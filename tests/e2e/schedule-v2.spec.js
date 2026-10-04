@@ -65,7 +65,7 @@ test('the Season chart shows this season, switches seasons with its tabs, and ad
     expect(asked.length).toBe(1);
 
     const card = chart.locator('.season-card[data-anilist-id="9201"]');
-    await card.locator('[data-action="season-add"][data-list="watching"]').click();
+    await card.locator('[data-action="season-add"][data-add-list="watching"]').click();
     await expect(card.locator('.season-owned')).toContainText('Watching');
     await expect.poll(async () => (await (await fetch(`${server.url}/api/library`)).json()).entries.find((e) => e.anilistId === 9201)?.listStatus).toBe('watching');
 

@@ -45,7 +45,7 @@ function seasonChartHtml(season) {
           <span class="card-meta">${[formatEnumLabel(m.format), m.episodes ? copy('schedule.season.episodes', undefined, { n: m.episodes }) : null, m.studios?.nodes?.[0]?.name, formatReleaseDate(m.startDate)].filter(Boolean).join(' · ')}</span>
           ${it.owned
             ? html`<span class="season-owned">${copy('detail.inList', undefined, { list: copy(`list.${it.owned}`) })}</span>`
-            : html`<div class="row season-add">${SEASON_ADD_LISTS.map((list) => html`<button type="button" class="btn btn-ghost sm" data-action="season-add" data-list="${list}" aria-label="${copy('schedule.season.addTo', undefined, { title, list: copy(`list.${list}`) })}">${copy(`list.${list}`)}</button>`)}</div>`}
+            : html`<div class="row season-add">${SEASON_ADD_LISTS.map((list) => html`<button type="button" class="btn btn-ghost sm" data-action="season-add" data-add-list="${list}" aria-label="${copy('schedule.season.addTo', undefined, { title, list: copy(`list.${list}`) })}">${copy(`list.${list}`)}</button>`)}</div>`}
         </div>
       </li>`;
     })}</ul>`;

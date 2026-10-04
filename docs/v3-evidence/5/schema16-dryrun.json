@@ -11,19 +11,14 @@
  },
  "snapshotsVerified": "4/6",
  "pinnedLabels": [
-  "pre-migration-14-to-16",
-  null,
-  null,
-  null
+  "pre-migration-14-to-16"
  ],
  "watchHistory": 76,
+ "historyWithTitle": 76,
  "watchedWithCompletedAt": 76,
  "imports": 0,
  "rewatchCounts": [
   0
- ],
- "startedAt": [
-  null
  ],
  "notifications": {
   "enabled": false,
@@ -35,7 +30,6 @@
    "to": "08:00"
   }
  },
- "pausedSort": "dateAdded",
  "appearanceV3": "moonlit-shrine",
- "note": "Schema 15 -> 16 dry run on a copy of the real data folder, 2026-09-27. The real folder was only read."
+ "note": "Schema 14 -> 16 dry run on a copy of the real data folder, 2026-10-04. The real folder was only read."
 }

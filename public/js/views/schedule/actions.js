@@ -263,7 +263,7 @@ export function initSchedule({ persistFn } = {}) {
       const anilistId = Number(seasonAdd.closest('.season-card').dataset.anilistId);
       const media = (seasonState.bySeason[seasonKey(seasonState.offset).key]?.media || []).find((m) => m.id === anilistId);
       if (!media || Store.getEntry(anilistId)) return;
-      const list = seasonAdd.dataset.list === 'watching' ? 'watching' : 'watchlist';
+      const list = seasonAdd.dataset.addList === 'watching' ? 'watching' : 'watchlist';
       Store.addEntry({
         anilistId: media.id,
         titleRomaji: media.title.romaji,

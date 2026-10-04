@@ -69,6 +69,22 @@ Entries are added phase by phase and rewritten into final release notes at the e
 - **Fix: renaming a tag or list with Enter reopened the rename field.**
 - Internal: library format 15 adds the new appearance fields next to the old ones (which stay untouched), with a checked snapshot taken first.
 
+### Features
+
+- **Paused.** A fifth list for series on hold, with its own place in the Library. MyAnimeList's On-Hold now lands here instead of in Watching.
+- **Watch again.** A finished series can be started over from the details: it goes back to Watching from episode 1 and counts the rewatch.
+- **Watch history.** Every series keeps a dated history: when you started and finished it, each rewatch, and a note for each. Edit the dates in the details; Stats has a Diary of everything you finished, by month.
+- **Import from AniList by username**, and a much better MyAnimeList import: start and finish dates (even partial ones), rewatches and your comments are kept now; a partial date no longer stops the whole import. A backup file can be imported the same way.
+- **Series you already have are merged, not skipped.** For every difference you choose: keep yours, take the imported one, or take whichever changed last. Nothing is overwritten unless you choose it.
+- **Every import can be reverted, any time.** A snapshot is taken first and kept, and Settings > Data lists your imports with "Revert this import", which removes what it added and puts back what it changed (unless you changed it since). This also works after closing the app.
+- **Where to watch.** The details list the streaming services AniList knows for a series, with links to episodes. They are not by country, and the app says so.
+- **Schedule.** Shows you are waiting for in your Watchlist or Paused appear too, so a premiere or a new season shows up. Each episode shows its time and how long until it airs. A Season chart shows the previous, this and next season with one-click adding. "Coming soon" is now ranked by your taste, the same way Discover is.
+- **Notifications while the app is closed.** Opt in under Settings > Notifications, pick the lists and quiet hours, and Windows tells you when a new episode is out, with no browser tab open. The app now has a tray icon (Open, Open data folder, Quit).
+- **Stats: day streaks and sittings**, counted only from episodes you marked yourself, one at a time. A big import or a bulk change never makes a streak, and "Episodes this year" no longer counts imports.
+- **Fix: finish dates from a MyAnimeList export were dropped.**
+- **Fix: adding a series as already watched from its details or from Discover counted no episodes.**
+- Internal: every new activity record says where it came from (you, an import, a bulk action, a fill-in); library format 16 adds the new fields and the watch history and imports stores, with a checked snapshot taken first.
+
 ## 2.3.0
 
 Two new features requested after trying 2.2.2 for real, plus a note on the rest of that feedback round.
