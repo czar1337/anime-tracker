@@ -1,10 +1,8 @@
 # Changelog
 
-## 3.0.0 (in progress)
+## 3.0.0
 
-Entries are added phase by phase and rewritten into final release notes at the end.
-
-- Internal: the v3 plan is in place (`docs/v3-plan.md`), with every issue from the external review re-checked against the code first (`docs/v3-verification.md`).
+A large release: Discover is rebuilt from the ground up, the app is faster and calmer to use, it keeps much more of your history, and your data is better protected. Your library carries over by itself: the first start takes a verified snapshot of it, keeps that snapshot permanently, then upgrades it. Nothing in it is removed.
 
 ### Safety and correctness
 
@@ -16,7 +14,7 @@ Entries are added phase by phase and rewritten into final release notes at the e
 - **Undo only undoes what the action did.** Undoing "Moved to Watched" no longer reverts a note or score you changed in the meantime, and undoing +1 steps back from the current count instead of jumping back.
 - **+1 stops at the last episode** instead of counting past the total.
 - **Typing is no longer interrupted** when airing data or covers arrive in the background.
-- **The "What do you like?" picker no longer pops up over whatever you are doing.** If you have already started using the app, it is offered as a small prompt instead.
+- **Discover's first-run suggestion no longer pops up over whatever you are doing.** It is offered as a small prompt instead.
 - **Fix: a rebuild of Discover could be lost** when you changed a filter while it was still loading, leaving it on "Refreshing…".
 - **Fix: one bad activity record could stop all later ones from being saved.** Activity is now confirmed only once it is on disk.
 - **Fix: a show without a cover image could break the Schedule and search lists.** It now shows its first letter.
@@ -59,7 +57,6 @@ Entries are added phase by phase and rewritten into final release notes at the e
 - **Cleaner library cards**: the cover, one title line and one line of details. +1, the status and a menu appear on hover or focus, and are always there on touch. Right-click a card, long-press it or press Shift+F10 for every action. A compact list view suits large libraries, and a filter you use often can be saved as a view.
 - **The series details open as a drawer from the right**, with the banner, progress as the main button, a 1 to 10 rating (keys 1 to 0), the list, your note, tags, About, the franchise in order and the trailer.
 - **Home, the Watching hero and the details take their colour from the cover art**, within the same contrast rules every theme follows.
-- **Discover in rows you scroll sideways**, each card leading with why it is there. Add a series in one click (or pick the list from its arrow), say "More like this", or "Not for me" with a reason. Moods, filters and "Pick for me" moved into one Tune button. Shelves with nothing to show are listed together at the bottom.
 - **Settings is a drawer with six sections** (Appearance, Library, Recommendations, Notifications, Data, Help) and no longer jumps back to the top when you change something.
 - **Fewer, clearer appearance options.** Twelve themes (nine dark, three light) plus your own two colours. The eight typography sliders became Text size (five steps), Density (Compact or Comfortable), Motion (Full, Reduced or Off) and Decoration (Off, Low or Full). Your look carries over to the nearest match. If anything could not carry over exactly (a retired theme, the grain or gradient background, a finer setting), the app tells you once, and lists what changed. The background grain and gradient layer and the theme share codes are gone.
 - **Empty lists say what to do next.** A list whose series are all hidden by filters says so, with Clear filters. An empty Watching list offers your oldest Watchlist series to start right there.
@@ -84,6 +81,14 @@ Entries are added phase by phase and rewritten into final release notes at the e
 - **Fix: finish dates from a MyAnimeList export were dropped.**
 - **Fix: adding a series as already watched from its details or from Discover counted no episodes.**
 - Internal: every new activity record says where it came from (you, an import, a bulk action, a fill-in); library format 16 adds the new fields and the watch history and imports stores, with a checked snapshot taken first.
+
+### For developers
+
+- The tests run on Node's own test runner: the one 5,000-line test file is split per module (`tests/unit/`), with a fixed clock and mocked timers where timing mattered. 603 unit tests.
+- End-to-end tests run in parallel, each on its own free port (`ANIME_TRACKER_PORT=0`), in about a third of the time.
+- Continuous integration on GitHub: unit tests on Ubuntu and Windows, end-to-end tests, the Discover evaluation and a check that generated files are current. A version tag builds the exe, smoke-tests it and publishes the release with these notes.
+- The exe build uses pinned tools, reads the version from `version.json` only, prints a size report, and ships one OCR engine build instead of three (about 8 MB smaller). Code signing, if wanted, goes after the build.
+- The v2 process documents and retired code moved to `docs/archive/` and `archive/`; `docs/architecture.md` describes how the app is put together and the rules that keep data safe.
 
 ## 2.3.0
 
