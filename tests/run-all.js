@@ -3576,7 +3576,8 @@ async function run() {
     relations: { edges: [{ relationType: 'SEQUEL', node: { id: 20958, type: 'ANIME' } }] },
   };
 
-  await test('pruneMediaFields keeps exactly the spec\'s named fields plus id/title/season, and drops coverImage/idMal', () => {
+  // v3 Phase 6: corpus v2 (docs/v3/25-09-2026-v3-discover-spec.md, section 3).
+  await test('pruneMediaFields (corpus v2) keeps the fields Discover v3 reads and drops idMal', () => {
     const pruned = pruneMediaFields(RAW_MEDIA_FIXTURE);
     assert.equal(pruned.anilistId, 16498);
     assert.equal(pruned.titleRomaji, 'Shingeki no Kyojin');
@@ -3588,25 +3589,27 @@ async function run() {
     assert.equal(pruned.duration, 24);
     assert.deepEqual(pruned.genres, ['Action', 'Drama']);
     assert.equal(pruned.popularity, 1036850);
-    assert.equal(pruned.source, 'MANGA'); // P5A.2's "source material" affinity dimension
+    assert.equal(pruned.source, 'MANGA');
     assert.equal(pruned.studio, 'WIT STUDIO');
-    assert.deepEqual(pruned.tags, [{ name: 'Kaiju', category: 'Theme-Fantasy', rank: 93 }]);
-    assert.deepEqual(pruned.staff, [{ role: 'Director', name: 'Some Person' }]);
+    assert.deepEqual(pruned.studios, [{ id: null, name: 'WIT STUDIO' }]);
+    assert.deepEqual(pruned.tags, [{ id: null, name: 'Kaiju', category: 'Theme-Fantasy', rank: 93 }], 'a tag that is not a spoiler carries no spoiler flag');
+    assert.deepEqual(pruned.staff, [{ role: 'Director', name: 'Some Person', id: null }]);
     assert.deepEqual(pruned.relations, [{ relationType: 'SEQUEL', relatedId: 20958, relatedType: 'ANIME' }]);
-    assert.equal('coverImage' in pruned, false, 'coverImage must be dropped — covers are cached separately (P0.3)');
-    assert.equal('idMal' in pruned, false, 'idMal must be dropped — this app\'s sole persisted external key is anilistId');
+    assert.deepEqual(pruned.recs, []);
+    assert.equal(pruned.coverLarge, 'https://example.test/should-be-dropped.jpg', 'the portrait card shows the large cover');
+    assert.equal(pruned.isAdult, false);
+    assert.equal('idMal' in pruned, false, 'idMal must be dropped: the only persisted external key is anilistId');
   });
 
-  await test('pruneMediaFields (P5B.5) keeps coverMedium/titleNative when AniList provides them', () => {
-    const pruned = pruneMediaFields({ ...RAW_MEDIA_FIXTURE, title: { ...RAW_MEDIA_FIXTURE.title, native: '進撃の巨人' }, coverImage: { medium: 'https://example.test/medium.jpg' } });
-    assert.equal(pruned.coverMedium, 'https://example.test/medium.jpg');
+  await test('pruneMediaFields (corpus v2) keeps the native title, banner and next episode, and nulls them when absent', () => {
+    const pruned = pruneMediaFields({ ...RAW_MEDIA_FIXTURE, title: { ...RAW_MEDIA_FIXTURE.title, native: '進撃の巨人' }, nextAiringEpisode: { airingAt: 1790000000, episode: 4 }, bannerImage: 'https://example.test/banner.jpg' });
     assert.equal(pruned.titleNative, '進撃の巨人');
-  });
-
-  await test('pruneMediaFields (P5B.5) degrades coverMedium/titleNative to null when absent — existing corpus entries pre-dating these fields', () => {
-    const pruned = pruneMediaFields(RAW_MEDIA_FIXTURE); // no title.native, coverImage has no .medium
-    assert.equal(pruned.coverMedium, null);
-    assert.equal(pruned.titleNative, null);
+    assert.deepEqual(pruned.nextAiring, { airingAt: 1790000000, episode: 4 });
+    assert.equal(pruned.bannerImage, 'https://example.test/banner.jpg');
+    const bare = pruneMediaFields(RAW_MEDIA_FIXTURE);
+    assert.equal(bare.titleNative, null);
+    assert.equal(bare.nextAiring, null);
+    assert.equal(bare.bannerImage, null);
   });
 
   await test('pruneMediaFields normalises averageScore from AniList\'s 0-100 scale to this app\'s canonical 1-10', () => {

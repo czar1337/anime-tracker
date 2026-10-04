@@ -538,86 +538,63 @@ async function fetchUpcomingMedia(page = 1) {
   return data.Page.media;
 }
 
-// P5A.1's corpus seed. Field shape is the exact one P0.3 already proved
-// live against AniList (docs/v2-discovery-fixtures/anilist/
-// CORPUS_QUERY_page1.json — `perPage: 50` confirmed as AniList's real
-// ceiling for this shape, not silently capped lower). Sorted by popularity
-// descending so the seed's own early pages are exactly the most useful
-// (most-recognizable, most affinity-relevant) titles first — if a seed is
-// ever interrupted for good, what it already has is the best possible
-// partial corpus, not an arbitrary slice. Deliberately omits `idMal` (this
-// app's sole persisted external key is `anilistId`) — corpusLogic.js's
-// `pruneMediaFields` drops it again defensively even though it's never
-// requested here.
-//
-// P5B.5: `coverImage { medium }` and `title.native` were added back after
-// P0.3 originally excluded the whole `coverImage` object (see
-// docs/v2-discovery.md's payload finding). That finding measured dropping
-// coverImage-plus-trimmed-staff/tags together, not this one small URL
-// field in isolation — even fully unpruned at 5,000 titles the corpus
-// projects to ~17.65MB, under 12% of the 150MB ceiling, so one ~90-char
-// URL string per entry at the current 3,000-title target is immaterial.
-// A lazy `<img>` pointed at it is a media load, not a data-client request
-// — the spec's own rule 107 explicitly carves those out of "no per-card
-// API request, ever".
-const CORPUS_QUERY = `
-query ($page: Int) {
-  Page(page: $page, perPage: 50) {
-    pageInfo { hasNextPage }
-    media(type: ANIME, sort: POPULARITY_DESC) {
+// v3 Phase 6, corpus v2 (docs/v3/25-09-2026-v3-discover-spec.md, section 3).
+// Measured live on 2026-10-04: the nested `recommendations` field works inside
+// Page.media at perPage 50, with no complexity error, and adds ~26 KB to a
+// ~252 KB page (+10%) at the same one request. So it rides along here
+// instead of needing a second batched pass. Spoiler flags on tags, ten key
+// staff, the main studios, streaming site names and the next episode come
+// with it; corpusLogic.js's pruneMediaFields keeps only what Discover reads.
+const CORPUS_FIELDS = `
       id
       title { romaji english native }
-      coverImage { medium }
+      coverImage { large }
+      bannerImage
       format
       status
       season
       seasonYear
+      startDate { year month day }
       episodes
       duration
       genres
       averageScore
       popularity
       source
-      studios(isMain: true) { nodes { name } }
-      tags { name category rank }
-      staff(perPage: 5) { edges { role node { name { full } } } }
-      ${RELATIONS_FIELD}
+      isAdult
+      studios(isMain: true) { nodes { id name } }
+      tags { id name category rank isMediaSpoiler }
+      staff(sort: RELEVANCE, perPage: 10) { edges { role node { id name { full } } } }
+      recommendations(sort: RATING_DESC, perPage: 10) { nodes { rating mediaRecommendation { id } } }
+      externalLinks { site type }
+      nextAiringEpisode { airingAt episode }
+      ${RELATIONS_FIELD}`;
+
+// Two seed passes share this query: by popularity, then by score among
+// titles with more than `popularityGreater` members (so well-rated,
+// less-known titles exist at all). Adult titles are never fetched. AniList
+// refuses a null filter value, so the popularity pass sends 0.
+const CORPUS_QUERY = `
+query ($page: Int, $sort: [MediaSort], $popularityGreater: Int) {
+  Page(page: $page, perPage: 50) {
+    pageInfo { hasNextPage }
+    media(type: ANIME, sort: $sort, isAdult: false, popularity_greater: $popularityGreater) {${CORPUS_FIELDS}
     }
   }
 }`;
 
-async function fetchCorpusPage(page) {
-  const data = await anilistRequest(CORPUS_QUERY, { page });
+async function fetchCorpusPage(page, { sort = 'POPULARITY_DESC', popularityGreater = 0 } = {}) {
+  const data = await anilistRequest(CORPUS_QUERY, { page, sort: [sort], popularityGreater });
   return { media: data.Page.media, hasNextPage: data.Page.pageInfo.hasNextPage };
 }
 
-// Same field shape as CORPUS_QUERY, keyed by id rather than paged by
-// popularity — corpus.js's supplemental pass for the spec's "plus all
-// currently airing, plus everything in the library" requirement: a title
-// the user tracks (however obscure) or that just started airing (too new
-// to have accumulated popularity) can legitimately fall outside the
-// popularity-sorted pass's cutoff, so it's fetched directly by id instead.
+// The same fields by id: the library, airing titles, the recommendation
+// targets of titles you rated highly (the neighbour fill) and entries still
+// in the v1 shape.
 const CORPUS_BY_IDS_QUERY = `
 query ($idIn: [Int]) {
   Page(page: 1, perPage: 50) {
-    media(id_in: $idIn, type: ANIME) {
-      id
-      title { romaji english native }
-      coverImage { medium }
-      format
-      status
-      season
-      seasonYear
-      episodes
-      duration
-      genres
-      averageScore
-      popularity
-      source
-      studios(isMain: true) { nodes { name } }
-      tags { name category rank }
-      staff(perPage: 5) { edges { role node { name { full } } } }
-      ${RELATIONS_FIELD}
+    media(id_in: $idIn, type: ANIME) {${CORPUS_FIELDS}
     }
   }
 }`;

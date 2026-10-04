@@ -356,6 +356,7 @@ export const UI_TIMING = {
 export const DISCOVER = {
   // Corpus v2 (spec section 3).
   corpusTargetSize: 6000,
+  corpusPopularityPassSize: 4500, // titles from the POPULARITY_DESC pass; the SCORE_DESC pass fills to the target
   corpusScoreSeedMinPopularity: 1000, // the SCORE_DESC pass only takes titles with more members than this
   neighbourFillMinScore: 8, // every rec target of a title you rated this or higher is fetched
   neighbourFillMax: 500,
@@ -365,11 +366,11 @@ export const DISCOVER = {
   tagMinRank: 40,
   creatorRoleWeights: { director: 1.0, original: 1.0, composition: 0.8, character: 0.5, music: 0.35 },
   // Your taste signal (4.2).
+  ratingPivotMax: 7, // a rating above this is never a negative signal, however high your mean
   recencyHalfLifeDays: 365,
   confidenceFullAt: 25,
   dropWeight: 1.0, // a drop at episode 1; scaled by the share left unwatched
   notForMeWeights: { wrongGenre: 1.0, tooLong: 0.3, artStyle: 0.5, seenEnough: 0.4, notInMood: 0.1, none: 0.6 },
-  thumbsDownWeight: 0.6,
   thumbsUpWeight: 0.5,
   wantWeight: 0.3,
   // Candidate score (4.3).
