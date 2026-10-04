@@ -1497,10 +1497,10 @@ async function run() {
     hasRequiredEventFields,
   } = await import(publicJsUrl('eventTypes.js'));
 
-  await test('EVENT_TYPES is the spec\'s closed 13-type union, no duplicates', () => {
-    assert.equal(EVENT_TYPES.length, 13);
-    assert.equal(new Set(EVENT_TYPES).size, 13);
-    for (const t of ['episode_watched', 'status_changed', 'score_set', 'anime_added', 'anime_dropped', 'rewatch_started', 'review_written', 'settings_changed', 'font_previewed', 'app_opened', 'route_dwell', 'recommendation_added', 'recommendation_dismissed']) {
+  await test('EVENT_TYPES is the closed 16-type union (v3 Phase 6 adds three Discover types), no duplicates', () => {
+    assert.equal(EVENT_TYPES.length, 16);
+    assert.equal(new Set(EVENT_TYPES).size, 16);
+    for (const t of ['episode_watched', 'status_changed', 'score_set', 'anime_added', 'anime_dropped', 'rewatch_started', 'review_written', 'settings_changed', 'font_previewed', 'app_opened', 'route_dwell', 'recommendation_added', 'recommendation_dismissed', 'recommendation_undismissed', 'recommendation_seen_it', 'discover_triage_answered']) {
       assert.ok(EVENT_TYPES.includes(t), `${t} must be in the union`);
     }
     assert.equal(isKnownEventType('not_a_real_type'), false);

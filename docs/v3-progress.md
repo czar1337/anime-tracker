@@ -13,7 +13,7 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 3 Design system and motion | `v3/3-design-motion` | done | — |
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
-| 6 Discover rebuild | `v3/6-discover` | in progress | Engine, corpus v2 and section-1 regression tests committed (`c70bade`). Next: build corpus v2 for the eval (`scripts/build-eval-corpus.js`), tune with the grid, then rails UI, triage, events |
+| 6 Discover rebuild | `v3/6-discover` | in progress | Engine tuned (HitRate@20 0.105 to 0.579, sanity 0), schema 17, new event types and the folded taste cache. Next: Discover UI on the engine (rails, hero, card, Tune levels, Triage, More like this, Dismissed), retire v2 shelves, e2e |
 | 7 Tooling, cleanup, release | `v3/7-release` | not started | |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
@@ -267,6 +267,58 @@ unreleased and 16 owned-franchise cards; 16 franchises appear twice on the page;
 "Year: 2015+" 15 cards are older (Kingdom 2012 among them). "Because you liked" cites
 Attack on Titan or JUJUTSU KAISEN on 67% of its cards, "From the studio" one anchor on
 100%.
+
+**Corpus v2, measured** (`scripts/build-eval-corpus.js`, the app's own queries and passes,
+2026-10-04): the nested `recommendations(perPage: 10)` field works inside `Page.media` at
+perPage 50 with no complexity error, adding ~26 KB to a ~252 KB page (+10%) at the same
+single request, so no second pass is needed. Popularity pass to 4,500, score pass
+(`popularity_greater: 1000`) to 6,035, then by id: 3 library titles and a neighbour fill of
+2. **6,040 titles, 12.7 MB** (ceiling 150 MB), 185 requests, 14 min at 70% of 30/min with
+one 60 s rate-limit wait. Every title rated 8+ already had its recommendation targets in the
+corpus but two.
+
+**Engine and corpus, before → after** (same real library, `--now 2026-10-04T12:00`):
+
+| run | HitRate@20 | MRR | diversity | franchises | genres | coverage | median bayes | sanity | max anchor share | engine ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| v2.3.0, corpus v1 (baseline) | 0.105 | 0.021 | 0.841 | 20 | 11 | 0.026 | 7.29 | 61 | 1.00 | 55.0 |
+| v2.3.0, corpus v2 | 0.079 | 0.009 | 0.841 | 20 | 8 | 0.016 | 7.10 | 69 | 1.00 | 108.5 |
+| v3, corpus v1 | 0.421 | 0.258 | 0.825 | 20 | 8 | 0.047 | 8.43 | 0 | 0.33 | 27.8 |
+| **v3, corpus v2 (chosen)** | **0.579** | **0.370** | **0.874** | 20 | 9 | 0.026 | 7.77 | **0** | **0.25** | **36.2** |
+
+The engine change alone takes HitRate@20 from 0.105 to 0.421; the recommendations graph in
+corpus v2 adds the rest. Floors held: diversity ≥ the baseline's 0.841, coverage ≥ 0.016
+(v2 on the same corpus). Engine ms is the median build with features cached, 6,040 titles
+and 222 entries (budget 60). Anchor share excludes nothing: "Because you loved" cards name
+features, not the anchor, which the rail title already names.
+
+**Tuning grid** (81 runs, alpha × beta × gamma × mmrLambda at lambdaNeg 0.5,
+`evidence/6/eval-grid.md`): every run has sanity 0, HitRate@20 is 0.50–0.58 everywhere, so
+the result does not hinge on the weights. Chosen: **alpha 0.6, beta 0.3, gamma 0.35,
+lambdaNeg 0.5, mmrLambda 0.7, m 3000**: the best HitRate@20 (0.579, tied with five runs),
+with the best MRR among them.
+
+**Top picks for the real library, after** (all twenty cite a different rated title; no
+spoiler tag, no unreleased title, nothing under the 6.9 floor):
+1 A Silent Voice (Fans of The Fragrant Flower Blooms With Dignity, 9) · 2 The Promised
+Neverland (Attack on Titan, 10) · 3 You and I Are Polar Opposites (The Fragrant Flower…, 9)
+· 4 To Be Hero X (My Hero Academia, 10) · 5 Secrets of the Silent Witch (Wistoria S2, 9) ·
+6 Inazuma Eleven (BLUE LOCK, 9) · 7 Tomorrow's Joe (BAKI, 9) · 8 Kemono Jihen (JUJUTSU
+KAISEN, 10) · 9 Cyberpunk: Edgerunners (Akame ga Kill!, 9) · 10 Sword of the Stranger
+(Dororo, 9) · 11 World Trigger (Demon Slayer, 10) · 12 REBORN! (My Hero Academia, 10) ·
+13 Blue Box (The Fragrant Flower…, 9) · 14 Reincarnated as a Sword (Slime S2, 9) · 15 SANDA
+(Chainsaw Man, 9) · 16 Gate (Sword Art Online, 9) · 17 AJIN (Tokyo Ghoul, 9) · 18 Saint
+Seiya: Knights of the Zodiac (Dragon Ball Z, 9) · 19 Princess Mononoke (Demon Slayer, 10) ·
+20 Viral Hit (The God of High School, 10). Every reason reads "Fans of X rate this highly
+(you gave it N)": with the graph present, collab is the largest part for all twenty.
+
+**Regression tests** (`tests/unit/discoverRegressions.test.js`): every failure in spec
+section 1 runs on both engines; each passes on v3 and is asserted to fail on v2.3.0 (16
+tests: genre-only reasons, no collab, the 5.3 floor, unreleased on taste rails, Kingdom
+2012 under "2015+", Kingdom / Season 3 with the middle season missing, the corpus query and
+pruning, spoiler tags in reasons, reshuffling, "View more" prefix, drops counted three
+times, Bring back keeping the penalty, undated ratings at full recency, owned-franchise
+side stories, and the eval itself).
 
 ## Evidence index
 

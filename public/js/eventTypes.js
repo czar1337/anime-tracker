@@ -40,9 +40,14 @@ export const EVENT_TYPES = [
   'route_dwell',
   'recommendation_added',
   'recommendation_dismissed',
+  // v3 Phase 6 (Discover spec section 8): "Bring back" (removes the dismiss
+  // penalty), "Seen it" (with an optional score), and a Triage answer.
+  'recommendation_undismissed',
+  'recommendation_seen_it',
+  'discover_triage_answered',
 ];
 
-// Of the 13 above, these have NO user action anywhere in the app today, so
+// Of the 16 above, these have NO user action anywhere in the app today, so
 // nothing emits them yet. They are declared regardless, because the union is
 // the contract readers switch over and a reader written now must already
 // tolerate them. Recorded here (rather than only in the progress file) so the
@@ -60,6 +65,24 @@ export const UNREACHABLE_EVENT_TYPES = ['review_written'];
 
 export function isKnownEventType(type) {
   return EVENT_TYPES.includes(type);
+}
+
+// The Triage answers (Discover spec section 7): W want, S seen it, X not for
+// me, → skip.
+export const DISCOVER_TRIAGE_ANSWERS = ['want', 'seen-it', 'not-for-me', 'skip'];
+
+// What the v3 Phase 6 types must carry, beyond the common fields. Returns a
+// reason to reject the event, or null. Older types keep their v2 rules.
+export function eventPayloadProblem(event) {
+  const needsTitle = ['recommendation_undismissed', 'recommendation_seen_it', 'discover_triage_answered'];
+  if (!needsTitle.includes(event?.type)) return null;
+  if (animeIdToAnilistId(event.animeId) === null) return `${event.type} needs an animeId.`;
+  if (event.type === 'recommendation_seen_it') {
+    const score = event.meta?.score;
+    if (score !== undefined && score !== null && !(typeof score === 'number' && score >= 1 && score <= 10)) return 'recommendation_seen_it: meta.score must be 1-10 or null.';
+  }
+  if (event.type === 'discover_triage_answered' && !DISCOVER_TRIAGE_ANSWERS.includes(event.meta?.answer)) return 'discover_triage_answered: meta.answer must be one of ' + DISCOVER_TRIAGE_ANSWERS.join(', ') + '.';
+  return null;
 }
 
 // v3 Phase 5: where an event came from, in `meta.source`.

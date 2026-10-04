@@ -9,7 +9,7 @@ const { sendJson, readJsonBody } = require('../http/middleware.js');
 const { libraryWriteLock } = require('../storage/library.js');
 const { readEventLog, appendEvents, EventValidationError, readCountersFile, writeCountersAtomic } = require('../storage/eventLog.js');
 const { fileSizeBytes } = require('../storage/fsUtil.js');
-const { computeAndSaveTasteProfile } = require('../services/tasteProfile.js');
+const { scheduleTasteProfileRebuild, TASTE_EVENT_TYPES } = require('../services/tasteProfile.js');
 const { loadEventModules } = require('../services/browserModules.js');
 
 module.exports = function register({ route, prefix }) {
@@ -58,22 +58,10 @@ module.exports = function register({ route, prefix }) {
           updated.logBytes = fileSizeBytes(EVENTS_FILE);
           writeCountersAtomic(updated);
 
-          // P5A.2: the taste profile's own inputs are exactly these three
-          // event types — nothing else it reads (episode_watched,
-          // settings_changed, app_opened, ...) changes any affinity, so
-          // the expensive full recompute only runs when one of them is
-          // actually present in this batch.
-          if (accepted.some((e) => e.type === 'score_set' || e.type === 'anime_dropped' || e.type === 'recommendation_dismissed')) {
-            try {
-              await computeAndSaveTasteProfile();
-            } catch (err) {
-              // A derived Class B artifact failing to recompute must
-              // never fail the events write itself — the events are
-              // already durably appended by this point, and the next
-              // triggering event tries again.
-              console.error(`[taste-profile] Recompute failed: ${err.message}`);
-            }
-          }
+          // v3 Phase 6: the taste fold only changes with these types. The
+          // rebuild is debounced and runs after this lock is released, so a
+          // burst of Triage answers is one rebuild and never delays a write.
+          if (accepted.some((e) => TASTE_EVENT_TYPES.has(e.type))) scheduleTasteProfileRebuild();
         }
         return {
           status: 200,

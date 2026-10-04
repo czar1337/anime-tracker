@@ -1,64 +1,54 @@
 'use strict';
-// P5A.2's taste profile: a Class B artifact derived from the library, the
-// corpus and the event log. v3 Phase 2: split out of server.js.
+// The taste cache (Class B): the event log folded into per-title latest state
+// for Discover (public/js/discover/engine/fold.js) — when each score was given,
+// and which titles are dismissed now, with their reason. The browser engine
+// combines it with the library itself, so a rating, a "Seen it" or a "Not for
+// me" counts at once, and this cache only adds the dates and reasons.
+//
+// v3 Phase 6 (Discover spec section 8): rebuilt outside the write lock and
+// debounced. A burst of Triage answers is one rebuild, and no write ever
+// waits for it. Folding into latest state means a title dismissed and
+// brought back, or dropped twice, is never counted twice.
 
-const { readLibrary } = require('../storage/library.js');
-const { readCorpusCache, writeTasteProfileCacheAtomic } = require('../storage/classB.js');
 const { readEventLog } = require('../storage/eventLog.js');
-const { loadTasteProfileModule, loadEventModules } = require('./browserModules.js');
+const { writeTasteProfileCacheAtomic } = require('../storage/classB.js');
+const { loadTasteFoldModule } = require('./browserModules.js');
 
-// A FULL recompute every time, deliberately NOT a delta-fold like
-// counters.json's own incremental pattern just below in the events
-// handler: z-score affinity weighting depends on the MEAN and STANDARD
-// DEVIATION over every currently-rated entry, and a single new rating
-// changes both for every PREVIOUSLY-rated entry too, not just the new
-// one — there is no valid way to fold "just the delta" for a statistic
-// like this. "Recomputed incrementally on change" (the spec's own words)
-// is honored in the sense that actually matters here: triggered promptly
-// by each relevant mutation, never lazily deferred to render — see the
-// trigger in the POST /api/events handler below for which event types
-// warrant paying this cost.
+const TASTE_CACHE_VERSION = 2;
+const REBUILD_DEBOUNCE_MS = 400;
+
 async function computeAndSaveTasteProfile() {
-  const { buildAffinities } = await loadTasteProfileModule();
-  const { types: EventTypes, tuning } = await loadEventModules();
-  const library = readLibrary();
-  const corpus = readCorpusCache();
-  const events = readEventLog();
-
-  const scoreTimestamps = {};
-  const drops = [];
-  const dismissals = [];
-  for (const event of events) {
-    const anilistId = EventTypes.animeIdToAnilistId(event.animeId);
-    if (anilistId === null) continue;
-    if (event.type === 'score_set' && typeof event.to === 'number') {
-      // Events are read in append order, so a later score_set for the same
-      // title always overwrites an earlier one here — only the LATEST
-      // rating's own timestamp is the relevant recency signal.
-      scoreTimestamps[String(anilistId)] = event.ts;
-    } else if (event.type === 'anime_dropped') {
-      drops.push({ anilistId, episode: event.episode });
-    } else if (event.type === 'recommendation_dismissed') {
-      // P5B.4: real reasons now flow through meta.reason; buildAffinities'
-      // dismissalPlan() falls back to the old flat penalty for any event
-      // missing one (every dismissal recorded before this substep shipped).
-      dismissals.push({ anilistId, reason: event.meta?.reason ?? null });
-    }
-  }
-
-  const result = buildAffinities({
-    entries: library.entries || [],
-    corpusById: corpus.entries || {},
-    scoreTimestamps,
-    drops,
-    dismissals,
-    coldStartPicks: library.preferences?.coldStartPicks || [],
-    likedRecommendationIds: library.preferences?.likedRecommendationIds || [],
-    nowMs: Date.now(),
-    tuning: tuning.RECOMMENDATIONS,
-  });
-
-  writeTasteProfileCacheAtomic({ generatedAt: new Date().toISOString(), ...result });
+  const { foldTasteEvents } = await loadTasteFoldModule();
+  const folded = foldTasteEvents(readEventLog());
+  writeTasteProfileCacheAtomic({ version: TASTE_CACHE_VERSION, generatedAt: new Date().toISOString(), folded });
 }
 
-module.exports = { computeAndSaveTasteProfile };
+// The event types that change the fold.
+const TASTE_EVENT_TYPES = new Set(['score_set', 'recommendation_dismissed', 'recommendation_undismissed', 'recommendation_seen_it', 'discover_triage_answered']);
+
+let timer = null;
+let running = null;
+function scheduleTasteProfileRebuild(delayMs = REBUILD_DEBOUNCE_MS) {
+  if (timer) clearTimeout(timer);
+  timer = setTimeout(() => {
+    timer = null;
+    running = computeAndSaveTasteProfile()
+      .catch((err) => console.error(`[taste-profile] Recompute failed: ${err.message}`))
+      .finally(() => {
+        running = null;
+      });
+  }, delayMs);
+  timer.unref?.();
+}
+
+// For tests and the lazy GET: wait for a pending rebuild to land.
+async function settleTasteProfile() {
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
+    await computeAndSaveTasteProfile();
+  }
+  if (running) await running;
+}
+
+module.exports = { computeAndSaveTasteProfile, scheduleTasteProfileRebuild, settleTasteProfile, TASTE_EVENT_TYPES, TASTE_CACHE_VERSION };

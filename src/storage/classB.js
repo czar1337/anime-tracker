@@ -153,7 +153,7 @@ function writeTasteProfileCacheAtomic(data) {
 }
 
 function readTasteProfileCache() {
-  const empty = { generatedAt: null, affinities: null, meanScore: null, scoreStdDev: null, ratedCount: 0, confidence: 0 };
+  const empty = { version: 2, generatedAt: null, folded: { scoredAt: {}, dismissal: {} } };
   if (!fs.existsSync(TASTE_PROFILE_CACHE_FILE)) return empty;
   try {
     return JSON.parse(fs.readFileSync(TASTE_PROFILE_CACHE_FILE, 'utf8'));
@@ -225,7 +225,7 @@ const CLASS_B_STORE_RESETTERS = {
   coverHueCache: () => writeCoverHuesAtomic({ entries: {} }),
   recommendationsCache: () => writeRecsCacheAtomic({ generatedAt: null, items: [] }),
   tasteProfileCache: () =>
-    writeTasteProfileCacheAtomic({ generatedAt: null, affinities: null, meanScore: null, scoreStdDev: null, ratedCount: 0, confidence: 0 }),
+    writeTasteProfileCacheAtomic({ version: 2, generatedAt: null, folded: { scoredAt: {}, dismissal: {} } }),
   airingCache: () => writeAiringCacheAtomic({ generatedAt: null, entries: {} }),
   upcomingCache: () => writeUpcomingCacheAtomic({ generatedAt: null, items: [] }),
   corpusCache: (deficitBytes) => trimCorpusCache(deficitBytes),

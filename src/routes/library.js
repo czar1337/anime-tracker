@@ -24,7 +24,6 @@ const { buildClassASources, createSnapshotNow } = require('../storage/snapshots.
 
 // "pre-import-<source>-<YYYY-MM-DD-HHMMSS>" (library import snapshots, v3 Phase 5).
 const IMPORT_LABEL = /^pre-import-(mal|anilist|file|screenshot)-\d{4}-\d{2}-\d{2}-\d{6}$/;
-const { computeAndSaveTasteProfile } = require('../services/tasteProfile.js');
 const { loadExportRegistryModule } = require('../services/browserModules.js');
 
 module.exports = function register({ route, prefix }) {
@@ -151,25 +150,11 @@ module.exports = function register({ route, prefix }) {
       // An ordinary save coalesces its backup with others in the same minute;
       // a file import (the client marks it) always gets its own.
       writeLibraryAtomic(toWrite, { coalesceBackup: req.headers['x-save-kind'] !== 'import' && toWrite === body });
-      // P5A.2: coldStartPicks is the one preferences field the taste
-      // profile depends on that never flows through /api/events (it's
-      // written straight into preferences by the onboarding overlay, the
-      // same way every other Settings choice is) — so this is the one
-      // place a change to it can be observed. Every other library save
-      // (a rating, a filter change, ...) compares equal here and skips
-      // the recompute, same "only pay for it when it can actually change
-      // something" rule as the /api/events trigger below.
-      const picksChanged =
-        JSON.stringify(current.preferences?.coldStartPicks || []) !== JSON.stringify(toWrite.preferences?.coldStartPicks || []);
-      return { status: 200, body: importSnapshot ? { ok: true, snapshot: importSnapshot.file, label: importSnapshot.label } : { ok: true }, etag: computeLibraryEtag(toWrite), picksChanged };
+      // v3 Phase 6: the taste cache is only the folded event log; the
+      // library itself (ratings, cold-start picks, thumbs-up) is read by the
+      // Discover engine directly, so a library save never rebuilds it.
+      return { status: 200, body: importSnapshot ? { ok: true, snapshot: importSnapshot.file, label: importSnapshot.label } : { ok: true }, etag: computeLibraryEtag(toWrite) };
     });
-    if (result.picksChanged) {
-      try {
-        await computeAndSaveTasteProfile();
-      } catch (err) {
-        console.error(`[taste-profile] Recompute failed: ${err.message}`);
-      }
-    }
     sendJson(res, result.status, result.body, result.etag ? { ETag: result.etag } : {});
     return;
   });

@@ -374,8 +374,10 @@ export const DISCOVER = {
   thumbsUpWeight: 0.5,
   wantWeight: 0.3,
   // Candidate score (4.3).
-  alpha: 1.0, // content
-  beta: 0.6, // collab
+  // Picked by the 81-run grid on 2026-10-04 (docs/v3-progress.md, Phase 6):
+  // the best HitRate@20 (0.579) with the best MRR among the tied runs.
+  alpha: 0.6, // content
+  beta: 0.3, // collab
   gamma: 0.35, // quality
   lambdaNeg: 0.5,
   bayesM: 3000, // members of prior weight in the Bayesian-adjusted score

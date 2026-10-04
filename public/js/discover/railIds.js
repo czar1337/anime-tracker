@@ -56,5 +56,5 @@ export function legacyAdventurousnessLevel(slider, enabled) {
   return 'high';
 }
 
-// The Discover triage answers (spec 7, Triage mode) and their event meta.
-export const TRIAGE_ANSWERS = ['want', 'seen-it', 'not-for-me', 'skip'];
+// The Discover triage answers live with the event types (eventTypes.js).
+export { DISCOVER_TRIAGE_ANSWERS as TRIAGE_ANSWERS } from '../eventTypes.js';

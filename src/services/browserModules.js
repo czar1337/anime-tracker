@@ -91,4 +91,16 @@ function loadCopyRegistry() {
   return copyModulePromise;
 }
 
-module.exports = { loadExportRegistryModule, loadEventModules, loadTasteProfileModule, loadCopyRegistry };
+// v3 Phase 6: the Discover taste fold (public/js/discover/engine/fold.js).
+let tasteFoldModulePromise = null;
+function loadTasteFoldModule() {
+  if (!tasteFoldModulePromise) {
+    tasteFoldModulePromise = (async () => {
+      const src = readAppSource('public/js/discover/engine/fold.js');
+      return import(`data:text/javascript;base64,${Buffer.from(src, 'utf8').toString('base64')}`);
+    })();
+  }
+  return tasteFoldModulePromise;
+}
+
+module.exports = { loadExportRegistryModule, loadEventModules, loadTasteProfileModule, loadTasteFoldModule, loadCopyRegistry };

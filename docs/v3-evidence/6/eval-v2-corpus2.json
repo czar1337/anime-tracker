@@ -1,0 +1,395 @@
+[
+  {
+    "label": "v2",
+    "result": {
+      "folds": 38,
+      "evaluated": 38,
+      "unreachable": 0,
+      "hitRate": 0.07894736842105263,
+      "mrr": 0.0092797783933518,
+      "perFold": [
+        {
+          "id": 16498,
+          "title": "Attack on Titan",
+          "rank": null
+        },
+        {
+          "id": 97940,
+          "title": "Black Clover",
+          "rank": null
+        },
+        {
+          "id": 97888,
+          "title": "BAKI",
+          "rank": 20
+        },
+        {
+          "id": 137822,
+          "title": "BLUE LOCK",
+          "rank": 4
+        },
+        {
+          "id": 5114,
+          "title": "Fullmetal Alchemist: Brotherhood",
+          "rank": null
+        },
+        {
+          "id": 127230,
+          "title": "Chainsaw Man",
+          "rank": null
+        },
+        {
+          "id": 99423,
+          "title": "DARLING in the FRANXX",
+          "rank": null
+        },
+        {
+          "id": 136,
+          "title": "Hunter x Hunter",
+          "rank": null
+        },
+        {
+          "id": 1535,
+          "title": "Death Note",
+          "rank": null
+        },
+        {
+          "id": 113415,
+          "title": "JUJUTSU KAISEN",
+          "rank": null
+        },
+        {
+          "id": 101347,
+          "title": "Dororo",
+          "rank": null
+        },
+        {
+          "id": 105333,
+          "title": "Dr. STONE",
+          "rank": null
+        },
+        {
+          "id": 21459,
+          "title": "My Hero Academia",
+          "rank": null
+        },
+        {
+          "id": 20,
+          "title": "Naruto",
+          "rank": null
+        },
+        {
+          "id": 105310,
+          "title": "Fire Force",
+          "rank": null
+        },
+        {
+          "id": 20464,
+          "title": "HAIKYU!!",
+          "rank": null
+        },
+        {
+          "id": 124080,
+          "title": "Horimiya",
+          "rank": null
+        },
+        {
+          "id": 21087,
+          "title": "One-Punch Man",
+          "rank": null
+        },
+        {
+          "id": 101280,
+          "title": "That Time I Got Reincarnated as a Slime",
+          "rank": null
+        },
+        {
+          "id": 20605,
+          "title": "Tokyo Ghoul",
+          "rank": null
+        },
+        {
+          "id": 120120,
+          "title": "Tokyo Revengers",
+          "rank": null
+        },
+        {
+          "id": 132405,
+          "title": "My Dress-Up Darling",
+          "rank": null
+        },
+        {
+          "id": 21234,
+          "title": "ERASED",
+          "rank": null
+        },
+        {
+          "id": 98437,
+          "title": "Overlord II",
+          "rank": null
+        },
+        {
+          "id": 116006,
+          "title": "The God of High School",
+          "rank": null
+        },
+        {
+          "id": 21507,
+          "title": "Mob Psycho 100",
+          "rank": null
+        },
+        {
+          "id": 11757,
+          "title": "Sword Art Online",
+          "rank": null
+        },
+        {
+          "id": 129898,
+          "title": "The World's Finest Assassin Gets Reincarnated in Another World as an Aristocrat",
+          "rank": null
+        },
+        {
+          "id": 813,
+          "title": "Dragon Ball Z",
+          "rank": 19
+        },
+        {
+          "id": 20613,
+          "title": "Akame ga Kill!",
+          "rank": null
+        },
+        {
+          "id": 101922,
+          "title": "Demon Slayer: Kimetsu no Yaiba",
+          "rank": null
+        },
+        {
+          "id": 182300,
+          "title": "Wistoria: Wand and Sword Season 2",
+          "rank": null
+        },
+        {
+          "id": 171018,
+          "title": "DAN DA DAN",
+          "rank": null
+        },
+        {
+          "id": 113717,
+          "title": "Ranking of Kings",
+          "rank": null
+        },
+        {
+          "id": 127911,
+          "title": "Shikimori's Not Just a Cutie",
+          "rank": null
+        },
+        {
+          "id": 151807,
+          "title": "Solo Leveling",
+          "rank": null
+        },
+        {
+          "id": 178680,
+          "title": "WIND BREAKER Season 2",
+          "rank": null
+        },
+        {
+          "id": 181444,
+          "title": "The Fragrant Flower Blooms With Dignity",
+          "rank": null
+        }
+      ],
+      "diversity": {
+        "meanPairwiseDistance": 0.8407063270012786,
+        "distinctFranchises": 20,
+        "distinctPrimaryGenres": 8
+      },
+      "coverage": 0.015728476821192054,
+      "shownTitles": 95,
+      "medianBayes": 7.0958776992413775,
+      "sanity": {
+        "top": {
+          "unreleased": 1,
+          "owned": 1,
+          "dismissed": 0,
+          "belowFloor": 7,
+          "adult": 0
+        },
+        "rails": {
+          "unreleased": 8,
+          "owned": 13,
+          "dismissed": 0
+        },
+        "duplicateFranchises": 12,
+        "spoilerReasons": 0,
+        "filterViolations": 27
+      },
+      "maxAnchorShare": 1,
+      "anchorShares": [
+        {
+          "rail": "because-you-liked",
+          "share": 0.8333333333333334
+        },
+        {
+          "rail": "finish-what-you-started",
+          "share": 0.16666666666666666
+        },
+        {
+          "rail": "hidden-gems",
+          "share": 0
+        },
+        {
+          "rail": "short-and-finishable",
+          "share": 0
+        },
+        {
+          "rail": "from-studio",
+          "share": 1
+        },
+        {
+          "rail": "from-director",
+          "share": 1
+        },
+        {
+          "rail": "community-classics",
+          "share": 0
+        },
+        {
+          "rail": "this-season",
+          "share": 0
+        },
+        {
+          "rail": "ironically-essential",
+          "share": 0
+        }
+      ],
+      "pageCards": 97,
+      "topPicks": [
+        {
+          "id": 5079,
+          "title": "Black God",
+          "reason": "Because you rated JUJUTSU KAISEN 10 and The God of High School 10.",
+          "bayes": 6.741209253552849
+        },
+        {
+          "id": 169258,
+          "title": "Blue Miburo",
+          "reason": "Because you rated Attack on Titan 10 and JUJUTSU KAISEN 10.",
+          "bayes": 6.506752431896654
+        },
+        {
+          "id": 12031,
+          "title": "Kingdom",
+          "reason": "Because you rated Hunter x Hunter 10 and Attack on Titan 10.",
+          "bayes": 7.3843505323396705
+        },
+        {
+          "id": 340,
+          "title": "Time of Shura",
+          "reason": "Because you rated JUJUTSU KAISEN 10 and The God of High School 10.",
+          "bayes": 7.086989567323727
+        },
+        {
+          "id": 122508,
+          "title": "Biaoren",
+          "reason": "Because you rated Attack on Titan 10 and JUJUTSU KAISEN 10.",
+          "bayes": 7.266934031269538
+        },
+        {
+          "id": 267,
+          "title": "Gungrave",
+          "reason": "Because you rated Attack on Titan 10 and JUJUTSU KAISEN 10.",
+          "bayes": 7.471298278878159
+        },
+        {
+          "id": 589,
+          "title": "Ginga: Nagareboshi Gin",
+          "reason": "Because you rated JUJUTSU KAISEN 10 and The God of High School 10.",
+          "bayes": 7.294015800460287
+        },
+        {
+          "id": 110,
+          "title": "Cooking Master Boy",
+          "reason": "Because you rated Naruto 10 and Hunter x Hunter 10.",
+          "bayes": 7.026751754804223
+        },
+        {
+          "id": 1974,
+          "title": "Glass Mask (2005)",
+          "reason": "Because you rated Attack on Titan 10 and JUJUTSU KAISEN 10.",
+          "bayes": 7.545805776761042
+        },
+        {
+          "id": 2158,
+          "title": "Toward the Terra (TV)",
+          "reason": "Because you rated JUJUTSU KAISEN 10 and The God of High School 10.",
+          "bayes": 7.426720426139685
+        },
+        {
+          "id": 2694,
+          "title": "Hidamari no Ki",
+          "reason": "Because you rated JUJUTSU KAISEN 10 and Naruto 10.",
+          "bayes": 7.1923193085188855
+        },
+        {
+          "id": 158791,
+          "title": "Firefighter Daigo: Rescuer in Orange",
+          "reason": "Because you rated JUJUTSU KAISEN 10 and The God of High School 10.",
+          "bayes": 6.53303845581227
+        },
+        {
+          "id": 102352,
+          "title": "Super Dragon Ball Heroes",
+          "reason": "Because you rated Attack on Titan 10 and JUJUTSU KAISEN 10.",
+          "bayes": 5.478476175556794
+        },
+        {
+          "id": 101239,
+          "title": "Ahiru no Sora",
+          "reason": "Because you rated Naruto 10 and Attack on Titan 10.",
+          "bayes": 7.003224587071456
+        },
+        {
+          "id": 483,
+          "title": "Kurau Phantom Memory",
+          "reason": "Because you rated Hunter x Hunter 10 and Attack on Titan 10.",
+          "bayes": 6.874545071694169
+        },
+        {
+          "id": 1663,
+          "title": "3000 Leagues in Search of Mother",
+          "reason": "Because you rated Attack on Titan 10 and JUJUTSU KAISEN 10.",
+          "bayes": 7.151153564742927
+        },
+        {
+          "id": 3655,
+          "title": "Nabari no Ou",
+          "reason": "Because you rated JUJUTSU KAISEN 10 and The God of High School 10.",
+          "bayes": 6.827317161756315
+        },
+        {
+          "id": 100745,
+          "title": "Captain Tsubasa (2018)",
+          "reason": "Because you rated Attack on Titan 10 and JUJUTSU KAISEN 10.",
+          "bayes": 7.0958776992413775
+        },
+        {
+          "id": 479,
+          "title": "The Law of Ueki",
+          "reason": "Because you rated The God of High School 10 and Naruto 10.",
+          "bayes": 7.272710131590814
+        },
+        {
+          "id": 204011,
+          "title": "PSYREN",
+          "reason": "Because you rated The God of High School 10 and Naruto 10.",
+          "bayes": null
+        }
+      ],
+      "engineMs": {
+        "median": 108.47555,
+        "max": 155.2757
+      }
+    }
+  }
+]

@@ -7,26 +7,11 @@
 // twice or left penalised.
 
 import { addScaled, norm } from './features.js';
+import { foldTasteEvents } from './fold.js';
+
+export { foldTasteEvents };
 
 const DAY_MS = 86400000;
-
-// Folds the event log into per-title latest state. The server keeps the
-// result as a Class B cache; the engine also folds raw events itself (tests,
-// the eval script).
-export function foldTasteEvents(events = []) {
-  const scoredAt = {};
-  const dismissal = {};
-  for (const ev of events) {
-    const id = ev.animeId == null || ev.animeId === '' ? null : Number(ev.animeId);
-    if (!Number.isFinite(id)) continue;
-    if (ev.type === 'score_set' && typeof ev.to === 'number') scoredAt[id] = ev.ts;
-    else if (ev.type === 'recommendation_seen_it' && typeof ev.meta?.score === 'number') scoredAt[id] = ev.ts;
-    else if (ev.type === 'recommendation_dismissed') dismissal[id] = { reason: ev.meta?.reason ?? null, ts: ev.ts, active: true };
-    else if (ev.type === 'recommendation_undismissed' && dismissal[id]) dismissal[id] = { ...dismissal[id], active: false };
-    else if (ev.type === 'discover_triage_answered' && ev.meta?.answer === 'not-for-me') dismissal[id] = { reason: ev.meta?.reason ?? null, ts: ev.ts, active: true };
-  }
-  return { scoredAt, dismissal };
-}
 
 function meanAndStd(values) {
   if (!values.length) return { mean: 0, std: 1 };
