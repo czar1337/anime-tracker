@@ -479,6 +479,27 @@ Phase 3 (design system and motion):
 - **The GIF evidence uses a small dev-only encoder** (`scripts/record-discover-gif.js`:
   a fixed colour cube with ordered dithering and LZW). No ffmpeg or image library is
   installed, and a dependency is a hard stop.
+- **Phase 7: the `archive/v2-process` tag is left for the user.** The brief asks for it
+  before the cleanup, but creating a tag is hard stop 2. The cleanup went ahead with
+  `git mv` (nothing deleted); the tag can still point at the last commit before it,
+  `def0336` (command in the release summary).
+- **Phase 7 is not merged into `main` at the release checkpoint.** `main` still says
+  2.3.0, so the in-app update notice (it reads `version.json` on `main`) does not announce
+  a 3.0.0 that is not published yet. The merge, the tag and the release are the user's
+  steps, in that order (release summary).
+- **The split tests are ES modules** (`tests/unit/*.suite.test.mjs`): each run-all.js
+  section kept its top-level `await import(...)` and every test stays a top-level
+  `node:test` test (subtests would have counted as one each). Names shared between
+  sections are imported again in each file that uses them.
+- **One Tesseract core.** The SIMD build runs in every current browser; the plain and
+  relaxed-SIMD builds are archived. OCR under the CSP still passes.
+- **E2E workers: 3 locally, 2 in CI**, now that each server takes a free port. 287 tests
+  in 2.6 minutes locally (7 before), about 4 minutes on GitHub's Ubuntu runner.
+- **The theme generator no longer writes the date** into its contrast audit, so
+  regenerating is byte-identical and CI can check it.
+- **`version.json` is the one version source.** `package.json` keeps a `version` (npm
+  needs one) and `scripts/check-version.js` fails CI when the two differ or a tag does
+  not match.
 
 ## Later (out of scope for v3.0)
 
