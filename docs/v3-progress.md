@@ -84,6 +84,7 @@ pure root modules under `src/lib/`.
 | 5 Features | `v3/5-features` | done | — |
 | 6 Discover rebuild | `v3/6-discover` | done | — |
 | 7 Tooling, cleanup, release | `v3/7-release` | release checkpoint | Stopped at hard stop 5. Your steps: merge, tag `v3.0.0`, push the tag (see the release summary above) |
+| 8 Finish run 1 (brief Sections 0–2) | `v3/8-finish` | done, stopped | Report: `docs/v3-finish-report.md`. Next run: Sections 3–6 and the version |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
 
