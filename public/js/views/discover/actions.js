@@ -26,6 +26,7 @@ import { isDialogOpen, closeAllDialogs } from '../../core/dialog.js';
 import { Detail } from '../detail/actions.js';
 import { handleSetStatus, recordProgressEvent } from '../library/actions.js';
 import { renderTriage, liveStageNode } from './triageView.js';
+import { settlePosters } from '../../ui/poster.js';
 import { renderDiscoverPage, renderDismissedDrawer, dismissReasons, dismissSkipLabel, discoverCardTitle } from './view.js';
 
 // Below this many corpus titles there is nothing worth ranking yet.
@@ -483,7 +484,7 @@ function renderTriageNow() {
     canFetchMore: !triage.exhausted || triage.skipped.size > 0,
   });
   if (fresh) {
-    wireTriagePoster(fresh);
+    settlePosters(fresh);
     playTriageEnter(fresh, triage.enterFrom);
   }
   triage.enterFrom = null;
@@ -509,18 +510,6 @@ export function openTriage() {
 // Where each answer sends the card: right Want, left Not for me, up Seen it,
 // down Skip. The same directions a drag answers in.
 const TRIAGE_FLY = { want: [1, 0], 'not-for-me': [-1, 0], 'seen-it': [0, -1], skip: [0, 1] };
-
-// The poster fades in when it has loaded; a broken one leaves the initial.
-function wireTriagePoster(el) {
-  const img = el.querySelector('.triage-poster img');
-  if (!img) return;
-  const done = () => img.classList.add('loaded');
-  if (img.complete && img.naturalWidth) done();
-  else {
-    img.addEventListener('load', done, { once: true });
-    img.addEventListener('error', () => img.remove(), { once: true });
-  }
-}
 
 // No fill: when the entrance ends (or is cut short) the card is simply at
 // rest, whatever happens to the node afterwards.

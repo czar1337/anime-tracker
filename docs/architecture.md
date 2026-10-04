@@ -14,7 +14,8 @@ The lasting rules of Anime Tracker, as v3.0 left them. The program history lives
   tests and the build only.
 - **The browser talks to AniList; the server stores.** The server's own outbound calls
   are few: it downloads cover images from AniList's image host when the page asks
-  (`coverDownload.js`, AniList images only, 5 MB cap), checks `version.json` on GitHub
+  (`coverDownload.js`, AniList images only, 5 MB cap), fills the local poster cache the
+  same way (`src/routes/posters.js`, `/api/poster`), checks `version.json` on GitHub
   once a day, and, when the user turns them on, checks for new episodes in the
   background (`src/services/notifier.js`).
 - **The exe** is a Node single executable (`scripts/build-exe.js`): the runtime, an
@@ -31,7 +32,7 @@ Everything lives in the data folder (`%APPDATA%\anime-tracker` on Windows, or
 | Class | What | Rules |
 | --- | --- | --- |
 | A, the user's own | `library.json` (entries, preferences, dismissed items, tags, lists, watch history, imports), `events.jsonl` (append-only activity log), `counters.json` | Never evicted, never pruned. Exported, snapshotted, checksummed and restored as registered stores (`public/js/exportRegistry.js` `CLASS_A_STORES`). |
-| B, regenerable | the Discover corpus, airing, upcoming and recommendation caches, the taste cache, cover colours | May be evicted under disk pressure, in `classBEviction.js` `CLASS_B_STORES` order; the corpus never loses titles that are in the library. |
+| B, regenerable | the Discover corpus, airing, upcoming and recommendation caches, the taste cache, cover colours, the poster cache (`poster-cache/`, capped by `POSTER_CACHE`, oldest first) | May be evicted under disk pressure, in `classBEviction.js` `CLASS_B_STORES` order; the corpus never loses titles that are in the library. |
 | C, safety copies | backups of `library.json`, verified snapshots | Kept by tiers; the pinned snapshot never rotates; an invalid file is quarantined, never deleted. |
 
 Invariants no change may break:
@@ -60,6 +61,12 @@ Invariants no change may break:
 - **Events:** the event type union is closed (`public/js/eventTypes.js`), every event is
   validated on the server, and every event says where it came from (`meta.source`:
   live, import, bulk, backfill, discover). Streaks and sittings read live events only.
+- **Components:** screens build from the shared pieces in `public/js/ui/` (Poster, Tooltip,
+  Toast with Undo, buttons, chips, badges; `ui/index.js` lists them with the menu, dialog
+  and skeleton helpers) and `public/components.css`, on the tokens in `public/tokens.css`
+  (spacing, radius, type, colour, shadows, layers `--z-*`, the focus ring, one motion
+  set). `npm run check:css` fails on a raw colour, a literal duration or an undefined
+  `var(--token)`.
 - **Rendering:** views render into their containers through `core/reconcile.js`
   (`morphInto`), which keeps focus, scroll and unchanged nodes. Motion uses the tokens in
   `public/tokens.css`, and every animation is opacity-only under reduced motion.

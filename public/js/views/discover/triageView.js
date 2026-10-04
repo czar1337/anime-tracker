@@ -11,6 +11,7 @@ import { escapeHtml, toElement } from '../../core/html.js';
 import { morph, morphInto } from '../../core/reconcile.js';
 import { formatEnumLabel } from '../shared/format.js';
 import { discoverCardTitle, reasonHtml, synopsisText, dismissReasons } from './view.js';
+import { posterHtml } from '../../ui/poster.js';
 
 export const TRIAGE_KEYS = { want: 'W', seen: 'S', notForMe: 'X', skip: '→', undo: 'Z' };
 
@@ -64,10 +65,9 @@ export function triageCardHtml(card, { detail, anchorOf }) {
   const title = discoverCardTitle(c);
   const poster = c.coverLarge || c.coverMedium || '';
   const genres = (c.genres || []).slice(0, 4);
-  const initial = escapeHtml((title.primary || '?').trim().charAt(0).toUpperCase());
   return `<article class="triage-card" data-stage-key="card-${card.id}" data-anilist-id="${card.id}" tabindex="-1" aria-roledescription="card" aria-label="${escapeHtml(copy('triage.cardLabel', undefined, { title: title.primary }))}">
-      <div class="triage-poster" data-initial="${initial}">
-        ${poster ? `<img src="${escapeHtml(poster)}" alt="" decoding="async" draggable="false">` : ''}
+      <div class="triage-poster">
+        ${posterHtml({ url: poster, title: title.primary, size: 'lg', eager: true })}
         <span class="triage-stamp stamp-want" aria-hidden="true">${escapeHtml(copy('triage.stampWant'))}</span>
         <span class="triage-stamp stamp-nope" aria-hidden="true">${escapeHtml(copy('triage.stampNope'))}</span>
         <span class="triage-stamp stamp-seen" aria-hidden="true">${escapeHtml(copy('triage.stampSeen'))}</span>

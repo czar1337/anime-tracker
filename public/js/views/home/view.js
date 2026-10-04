@@ -2,9 +2,9 @@
 // are html``; every background image goes through cssUrl(), which fixes v2's
 // unescaped url('...').
 //
-// Home: a "Continue watching" rail of landscape cards (AniList's banner, or
-// the cover blurred; never a small cover blown up), whose first card is the
-// hero; a clickable "Airing tonight" timeline; "Up next from your Watchlist"
+// Home: a "Continue watching" rail of landscape cards (the sharp poster, on
+// AniList's banner when there is one, else on a calm wash of the cover's own
+// colour; v3 finish: no more blurred cover), whose first card is the hero; a clickable "Airing tonight" timeline; "Up next from your Watchlist"
 // with Start buttons; and three numbers for this year.
 
 import { Store } from '../../state.js';
@@ -19,6 +19,7 @@ import { morphInto } from '../../core/reconcile.js';
 import { coverSrc } from '../library/view.js';
 import { HOME } from '../../../../config/tuning.js';
 import { paintAccents } from '../../accent.js';
+import { posterHtml } from '../../ui/poster.js';
 
 const title = (entry) => titlesInOrder(entry, Store.state.preferences.titleLanguage)[0];
 
@@ -114,19 +115,24 @@ export function renderWatchingHero() {
   }
 }
 
-// One card of the Continue watching rail: the image, the title, the next
-// episode, the unseen count and a large +1.
+// One card of the Continue watching rail: the sharp poster, the title (two
+// lines, never cut to one), the next episode, a progress bar, the unseen
+// count and a large +1. The banner is used only when AniList has one; a
+// cover is never blurred into a backdrop.
 function continueCardHtml(entry, { hero = false } = {}) {
-  const { src, blurred } = wideImage(entry);
+  const banner = Airing.getBanner(entry.anilistId);
   const next = entry.episodesWatched + 1;
   const unseen = Airing.getUnseenCount(entry.anilistId);
   const name = title(entry);
-  return html`<article class="${cls('continue-card', hero && 'is-hero')}" role="listitem" data-continue-id="${entry.anilistId}" ${hero ? html`data-accent-id="${entry.anilistId}"` : ''}>
-      <div class="${cls('continue-bg', blurred && 'from-cover')}" style="${src ? html`background-image:${cssUrl(src)}` : ''}" aria-hidden="true"></div>
+  const total = entry.totalEpisodes;
+  return html`<article class="${cls('continue-card', hero && 'is-hero', !banner && 'no-banner')}" role="listitem" data-continue-id="${entry.anilistId}" ${hero ? html`data-accent-id="${entry.anilistId}"` : ''}>
+      <div class="continue-bg" style="${banner ? html`background-image:${cssUrl(banner)}` : ''}" aria-hidden="true"></div>
+      ${posterHtml({ url: coverSrc(entry), title: name, size: hero ? 'md' : 'sm', eager: true, className: 'continue-poster' })}
       <div class="continue-in">
         ${hero && html`<div class="kick"><i></i>${unseen > 0 ? copy('home.kickNew') : copy('home.kickCalm')}</div>`}
         <h3 class="continue-title" data-action="show-detail" data-detail-id="${entry.anilistId}" title="${name}">${name}</h3>
         <div class="continue-meta"><span>${copy('home.nextEpisode', undefined, { episode: next })}</span>${unseen > 0 && html`<span class="unseen-badge">${copy('home.newCount', undefined, { n: unseen })}</span>`}</div>
+        ${total ? html`<div class="continue-track" aria-hidden="true"><i style="--p:${Math.min(1, entry.episodesWatched / total)}"></i></div>` : ''}
       </div>
       <button class="continue-plus" data-action="increment" data-hero-id="${entry.anilistId}" aria-label="${copy('home.plusOne', undefined, { title: name, episode: next })}" title="${copy('home.plusOne', undefined, { title: name, episode: next })}">+1</button>
     </article>`;
@@ -183,9 +189,8 @@ export function renderHome(container) {
         <div class="disc-head"><h3>${copy('home.upNext')}</h3><span class="rule"></span></div>
         ${upNext.length
           ? html`<ul class="up-next">${upNext.map((e) => {
-              const src = coverSrc(e);
               return html`<li class="up-next-row">
-                <span class="up-next-cover" style="${src ? html`background-image:${cssUrl(src)}` : ''}" aria-hidden="true"></span>
+                ${posterHtml({ url: coverSrc(e), title: title(e), size: 'xs', className: 'up-next-cover' })}
                 <span class="up-next-text"><button type="button" class="text-btn up-next-title" data-action="show-detail" data-detail-id="${e.anilistId}">${title(e)}</button><span class="meta-line">${[e.totalEpisodes ? `${e.totalEpisodes} ep` : null, e.year].filter(Boolean).join(' · ')}</span></span>
                 <button type="button" class="btn btn-ghost sm" data-action="home-start" data-id="${e.anilistId}" aria-label="${copy('home.startLabel', undefined, { title: title(e) })}">${copy('home.start')}</button>
               </li>`;

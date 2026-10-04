@@ -21,6 +21,7 @@ const ROUTE_MODULES = [
   require('../routes/events.js'),
   require('../routes/caches.js'),
   require('../routes/covers.js'),
+  require('../routes/posters.js'),
   require('../routes/meta.js'),
 ];
 

@@ -35,6 +35,9 @@ const CONFIG_DIR = path.join(ROOT, 'config');
 const DATA_DIR = resolveDataDir();
 const LEGACY_DATA_DIR = path.join(APP_ROOT, 'data');
 const COVERS_DIR = path.join(DATA_DIR, 'covers');
+// v3 finish: AniList posters seen in Discover and Triage (Class B, capped;
+// src/routes/posters.js).
+const POSTER_CACHE_DIR = path.join(DATA_DIR, 'poster-cache');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 const SNAPSHOTS_DIR = resolveSnapshotsDir(DATA_DIR);
 const LIBRARY_FILE = path.join(DATA_DIR, 'library.json');
@@ -97,6 +100,7 @@ module.exports = {
   ANILIST_GRAPHQL_URL,
   LEGACY_DATA_DIR,
   COVERS_DIR,
+  POSTER_CACHE_DIR,
   BACKUPS_DIR,
   SNAPSHOTS_DIR,
   LIBRARY_FILE,

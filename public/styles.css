@@ -78,7 +78,7 @@ body {
    leaves/feathers actually cover any content; moon glow only ever touches
    the header area. z-index sits just below every overlay (100) so a
    dialog is never dimmed by it. */
-#atmosphere { position: fixed; inset: 0; z-index: 90; overflow: hidden; pointer-events: none; }
+#atmosphere { position: fixed; inset: 0; z-index: var(--z-atmosphere); overflow: hidden; pointer-events: none; }
 
 .atmo-moon {
   position: absolute;
@@ -153,7 +153,6 @@ button, input, select {
 :focus-visible {
   outline: 2px solid var(--accent-lit);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 kbd {
@@ -177,7 +176,7 @@ kbd {
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: var(--z-sticky);
 }
 .brand {
   appearance: none;
@@ -1058,7 +1057,7 @@ kbd {
   visibility: hidden;
   pointer-events: none;
   transition: opacity var(--dur-base);
-  z-index: 20;
+  z-index: var(--z-tooltip);
 }
 .info-hint:hover .info-hint-bubble,
 .info-hint:focus .info-hint-bubble,
@@ -1190,27 +1189,7 @@ kbd {
 .dc-want { width: 100%; justify-content: center; }
 .dc-icons { display: flex; gap: var(--sp-1); justify-content: space-between; }
 .dc-icons .dc-icon { flex: 1 1 0; width: auto; }
-.dc-icon[data-tip] { position: relative; }
-.dc-icon[data-tip]:hover::after,
-.dc-icon[data-tip]:focus-visible::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  translate: -50% 0;
-  z-index: 3;
-  max-width: 220px;
-  width: max-content;
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: 6px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--line-lit);
-  color: var(--text);
-  font: var(--t-nano);
-  white-space: normal;
-  pointer-events: none;
-  box-shadow: var(--sh-2);
-}
+/* .dc-icon[data-tip]: the shared tooltip (public/js/ui/tooltip.js) shows it. */
 .dc-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
 .dc-chip { font: var(--t-nano); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 1px var(--sp-2); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
@@ -1278,10 +1257,8 @@ kbd {
 }
 .triage-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .triage-card.dragging { cursor: grabbing; box-shadow: var(--sh-3); }
-.triage-poster { position: relative; aspect-ratio: 2 / 3; background: linear-gradient(160deg, var(--bg-elevated), var(--line)); overflow: hidden; }
-.triage-poster::before { content: attr(data-initial); position: absolute; inset: 0; display: grid; place-items: center; font: var(--t-title); font-size: 3rem; color: var(--faint); }
-.triage-poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity var(--dur-base) var(--ease-standard); -webkit-user-drag: none; }
-.triage-poster img.loaded { opacity: 1; }
+.triage-poster { position: relative; aspect-ratio: 2 / 3; overflow: hidden; }
+.triage-poster > .poster { position: absolute; inset: 0; width: 100%; height: 100%; }
 .triage-stamp {
   position: absolute; top: var(--sp-4); padding: var(--sp-1) var(--sp-3); border: 2px solid currentColor; border-radius: var(--radius-sm);
   font: var(--t-meta); font-weight: var(--w-strong); letter-spacing: .06em; text-transform: uppercase;
@@ -2206,14 +2183,18 @@ kbd {
 .continue-card {
   position: relative;
   scroll-snap-align: start;
-  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  min-height: 148px;
+  padding: var(--sp-3) 76px var(--sp-3) var(--sp-3);
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--line);
   background: var(--card);
   isolation: isolate;
 }
-.continue-card.is-hero { grid-column: span 2; aspect-ratio: auto; min-height: 196px; border-color: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: 0 0 46px -24px color-mix(in srgb, var(--accent) 60%, transparent); }
+.continue-card.is-hero { grid-column: span 2; min-height: 196px; padding: var(--sp-4) 84px var(--sp-4) var(--sp-4); gap: var(--sp-4); border-color: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: 0 0 46px -24px color-mix(in srgb, var(--accent) 60%, transparent); }
 .continue-bg {
   position: absolute;
   inset: 0;
@@ -2222,18 +2203,24 @@ kbd {
   background-position: center;
   filter: var(--cover-filter);
 }
-.continue-bg.from-cover { filter: blur(18px) saturate(1.1); transform: scale(1.3); }
+/* No banner: a calm wash of the card's accent instead of a blurred cover. */
+.continue-card.no-banner .continue-bg { filter: none; background: radial-gradient(120% 120% at 0% 100%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--card); }
+.continue-card.no-banner .continue-bg::after { display: none; }
+.continue-poster { width: 64px; box-shadow: var(--sh-2); }
+.continue-card.is-hero .continue-poster { width: 104px; }
 .continue-bg::after {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(0deg, color-mix(in srgb, var(--bg) 92%, transparent) 18%, color-mix(in srgb, var(--bg) 40%, transparent) 70%, transparent);
 }
-.continue-in { position: absolute; left: var(--sp-4); right: 76px; bottom: var(--sp-4); }
+.continue-in { position: relative; flex: 1 1 auto; min-width: 0; }
+.continue-track { height: 3px; margin-top: var(--sp-2); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--text) 12%, transparent); overflow: hidden; }
+.continue-track i { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; transform: scaleX(var(--p, 0)); }
 .continue-card .kick { font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--accent-lit); margin-bottom: var(--sp-2); display: flex; align-items: center; gap: var(--sp-2); }
 .continue-card .kick i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
-.continue-title { margin: 0 0 var(--sp-1); font: var(--t-title); font-weight: var(--w-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-.continue-card.is-hero .continue-title { font: var(--t-display-m); letter-spacing: var(--tr-display); white-space: normal; }
+.continue-title { margin: 0 0 var(--sp-1); font: var(--t-title); font-weight: var(--w-strong); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; cursor: pointer; }
+.continue-card.is-hero .continue-title { font: var(--t-display-m); letter-spacing: var(--tr-display); -webkit-line-clamp: 3; line-clamp: 3; }
 .continue-title:hover { color: var(--accent-lit); }
 .continue-meta { display: flex; gap: var(--sp-2); align-items: center; font: var(--t-meta); color: var(--dim); }
 .continue-plus {
@@ -2257,7 +2244,10 @@ kbd {
 .continue-plus:active { transform: scale(var(--press-icon)); transition-duration: var(--dur-press); }
 @media (max-width: 900px) {
   .continue-rail { grid-auto-columns: 82%; }
-  .continue-card.is-hero { grid-column: auto; }
+  .continue-card.is-hero { grid-column: auto; padding: var(--sp-3) 76px var(--sp-3) var(--sp-3); gap: var(--sp-3); }
+  .continue-card.is-hero .continue-poster { width: 64px; }
+  .continue-card.is-hero .continue-title { font: var(--t-title); font-weight: var(--w-strong); -webkit-line-clamp: 3; line-clamp: 3; }
+  .continue-card .kick { letter-spacing: normal; }
 }
 
 /* Airing tonight: a timeline; each row opens the series. */
@@ -2291,7 +2281,7 @@ kbd {
 /* Up next from the Watchlist. */
 .up-next { list-style: none; margin: 0 0 var(--sp-6); padding: 0; display: grid; gap: var(--sp-2); }
 .up-next-row { display: grid; grid-template-columns: 36px 1fr auto; gap: var(--sp-3); align-items: center; }
-.up-next-cover { width: 36px; aspect-ratio: 2 / 3; border-radius: var(--radius-xs); background: var(--card) center / cover; }
+.up-next-cover { width: 36px; }
 .up-next-text { min-width: 0; }
 .up-next-title { display: block; max-width: 100%; padding: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: var(--t-body); color: var(--text); }
 .home-year-head { margin-top: var(--sp-2); }
@@ -2530,7 +2520,7 @@ dialog.overlay::backdrop { background: transparent; }
   align-items: flex-start;
   justify-content: center;
   padding: 10vh 20px 20px;
-  z-index: 100;
+  z-index: var(--z-overlay);
   opacity: 1;
   transition:
     opacity calc(var(--dur-slow) * .7) var(--ease-exit),
@@ -3363,7 +3353,7 @@ a.btn { text-decoration: none; }
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  z-index: 200;
+  z-index: var(--z-toast);
 }
 /* design/moonlit-shrine-design-system.md §10: "Toast · 300ms in, 4.2s
    visible · --e-out · rises from the bottom, leaves by itself." */
@@ -3455,7 +3445,7 @@ a.btn { text-decoration: none; }
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 40;
+    z-index: var(--z-dropdown);
     gap: 0;
     border-bottom: 0;
     border-top: 1px solid var(--line);

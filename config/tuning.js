@@ -346,6 +346,9 @@ export const UI_TIMING = {
   appearanceNoticeToastMs: 12000, // the one-time D2 "your look was updated" toast
   accentSaveDebounceMs: 1500, // learned cover colours are saved in batches
   menuCloseScrollPx: 48, // a popup menu closes once the page scrolls this far
+  // v3 finish, Section 1.
+  tooltipDelayMs: 450, // hover this long before a tooltip shows (keyboard focus shows it at once)
+  undoToastMs: 6000, // how long a toast with Undo stays
 };
 
 // v3 Phase 6: the Discover engine (docs/v3/25-09-2026-v3-discover-spec.md,
@@ -408,6 +411,13 @@ export const DISCOVER = {
   evalTopN: 20,
   evalCoverageDays: 7,
   evalHitRateFloor: 0.1, // the CI floor on the committed synthetic fixture
+};
+
+// The local poster cache (v3 finish, Section 1; src/routes/posters.js). Class B:
+// the oldest posters go first once either cap is passed.
+export const POSTER_CACHE = {
+  maxFiles: 4000,
+  maxBytes: 200 * 1024 * 1024,
 };
 
 // Triage, "Swipe through" (v3 finish, Section 0).

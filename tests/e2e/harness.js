@@ -107,6 +107,8 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
       // shows a real Windows toast from a test server (a test can override).
       ANIME_TRACKER_ANILIST_URL: 'http://127.0.0.1:9',
       ANIME_TRACKER_NOTIFY_LOG: path.join(dataDir, 'notifications.log'),
+      // v3 finish: the poster cache never downloads from a test server.
+      ANIME_TRACKER_POSTER_FETCH: 'off',
       ...(opts.env || {}),
       ANIME_TRACKER_PORT: String(fixedPort),
     },

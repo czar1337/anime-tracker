@@ -12,6 +12,10 @@
 //    (colour changes are not movement); never `all`
 //  - no literal durations in animation/transition declarations: they read the
 //    --dur-* tokens (or a custom property set per element)
+// Tokens (v3 finish, Section 1):
+//  - every var(--name) without a fallback names a custom property that is
+//    defined somewhere: in a stylesheet, or set by a script or template
+//    (public/js, public/index.html), so a typo such as --sp-5 cannot pass
 // A rule or keyframe may opt out of a motion check with a comment containing
 // "motion-exception:" and the reason, inside its block.
 //
@@ -65,6 +69,30 @@ function* blocks(raw) {
 // tokens).
 const VALUES_ONLY = process.argv.includes('--values-only');
 
+// Every custom property the app defines: declared in any stylesheet, or
+// written by a script or template (style="--p:…", setProperty('--p', …)).
+function walkFiles(dir, ext, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      if (e.name !== 'vendor' && e.name !== 'fonts') walkFiles(full, ext, out);
+    } else if (ext.some((x) => e.name.endsWith(x))) out.push(full);
+  }
+  return out;
+}
+let definedProps = null;
+function definedCustomProperties() {
+  if (definedProps) return definedProps;
+  definedProps = new Set();
+  for (const file of walkFiles(path.join(ROOT, 'public'), ['.css'])) {
+    for (const m of stripComments(fs.readFileSync(file, 'utf8')).matchAll(/(--[\w-]+)\s*:/g)) definedProps.add(m[1]);
+  }
+  for (const file of [...walkFiles(path.join(ROOT, 'public', 'js'), ['.js']), path.join(ROOT, 'public', 'index.html')]) {
+    for (const m of fs.readFileSync(file, 'utf8').matchAll(/(--[a-zA-Z][\w-]*)/g)) definedProps.add(m[1]);
+  }
+  return definedProps;
+}
+
 function checkFile(file) {
   const raw = fs.readFileSync(file, 'utf8');
   const css = stripComments(raw);
@@ -79,6 +107,11 @@ function checkFile(file) {
   for (const m of masked.matchAll(/(?<![\w-])(white|black)(?![\w-])/g)) add(m.index, `colour keyword "${m[1]}" (use --on-shade / --shade)`);
   for (const m of masked.matchAll(/font-size\s*:\s*[^;}]*?\b\d+(\.\d+)?px/g)) add(m.index, 'pixel font size (use an --fs-* token)');
   for (const m of masked.matchAll(/(?<![\w-])font\s*:\s*[^;}]*?\b\d+(\.\d+)?px/g)) add(m.index, 'pixel font size in the font shorthand (use a --t-*/--fs-* token)');
+
+  const defined = definedCustomProperties();
+  for (const m of css.matchAll(/var\(\s*(--[\w-]+)\s*\)/g)) {
+    if (!defined.has(m[1])) add(m.index, `var(${m[1]}) is not defined anywhere (a typo, or a missing token?)`);
+  }
 
   if (!VALUES_ONLY) for (const b of blocks(raw)) checkBlock(b, add);
   return problems;

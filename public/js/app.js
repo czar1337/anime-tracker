@@ -19,6 +19,7 @@ import { EventHistory } from './eventHistory.js';
 import { openDialog, closeDialog } from './core/dialog.js';
 import { whenSettled } from './core/reconcile.js';
 import { syncShimmers } from './core/motion.js';
+import { installPosterWiring, installTooltips } from './ui/index.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 import { UI_TIMING } from '../../config/tuning.js';
@@ -416,6 +417,8 @@ function initEventFlushLifecycle() {
 
 async function boot() {
   syncShimmers(); // before the library arrives: the boot skeleton is already sweeping
+  installPosterWiring();
+  installTooltips();
   let loaded;
   try {
     loaded = await loadLibraryOrRetry();
