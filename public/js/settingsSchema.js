@@ -23,6 +23,7 @@
 import { DEFAULT_THEME_ID, DEFAULT_LIGHT_THEME_ID, curatedThemeId } from './themes.js';
 import { DEFAULT_UI_FONT, DEFAULT_HEADING_FONT, DEFAULT_NUMBERS_FONT, isValidFontId } from './fonts.js';
 import { SLIDER_KEYS, DEFAULT_STEP, MIN_STEP, MAX_STEP } from './typographySliders.js';
+import { ADVENTUROUSNESS_LEVELS, legacyAdventurousnessLevel } from './discover/railIds.js';
 
 export const TITLE_LANGUAGES = ['romaji', 'english', 'native'];
 // Standard is the only tier reachable without the P6.4 unlock gate; the
@@ -330,6 +331,10 @@ export function defaultSettings() {
     // "disabled". True means the slider's value is honoured; false means
     // scorer.js's serendipity() is skipped entirely.
     adventurousnessEnabled: true,
+    // v3 Phase 6 (schema 17): Discover's Tune offers Off / Low / Medium / High
+    // instead of the slider; migrate_16_to_17 reads it from the two fields
+    // above once. The old fields stay, untouched, for a downgrade.
+    adventurousnessLevel: 'medium',
   };
 }
 
@@ -413,6 +418,7 @@ export function ensureSettingsShape(preferences) {
   prefs.adventurousness = typeof prefs.adventurousness === 'number' && prefs.adventurousness >= 1 && prefs.adventurousness <= 10 ? prefs.adventurousness : defaults.adventurousness;
   prefs.likedRecommendationIds = Array.isArray(prefs.likedRecommendationIds) ? prefs.likedRecommendationIds : defaults.likedRecommendationIds;
   prefs.adventurousnessEnabled = prefs.adventurousnessEnabled === undefined ? defaults.adventurousnessEnabled : Boolean(prefs.adventurousnessEnabled);
+  prefs.adventurousnessLevel = ADVENTUROUSNESS_LEVELS.includes(prefs.adventurousnessLevel) ? prefs.adventurousnessLevel : legacyAdventurousnessLevel(prefs.adventurousness, prefs.adventurousnessEnabled);
 
   return prefs;
 }

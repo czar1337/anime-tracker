@@ -1,0 +1,29 @@
+{
+ "schemaVersion": 17,
+ "entries": 222,
+ "counts": {
+  "watched": 210,
+  "watching": 12
+ },
+ "rated": 161,
+ "events": 16,
+ "counters": {
+  "totalEpisodes": 6388
+ },
+ "snapshots": 6,
+ "snapshotsVerified": 4,
+ "corpusEntries": 3052,
+ "v17": {
+  "adventurousnessLevel": "off",
+  "adventurousness": null,
+  "adventurousnessEnabled": false,
+  "watchHistory": 76,
+  "imports": 0
+ },
+ "pinnedLabels": [
+  "pre-migration-14-to-17",
+  null,
+  null,
+  null
+ ]
+}

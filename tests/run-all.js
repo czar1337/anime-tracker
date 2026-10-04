@@ -35,7 +35,7 @@ async function run() {
   // Schema migrations (migrations.js) — pure, no filesystem involved
   // -------------------------------------------------------------------------
   console.log('migrations.js');
-  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, migrate_15_to_16, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 } = require('../migrations.js');
+  const { migrate, checkVersionCompatibility, CURRENT_SCHEMA_VERSION, migrate_4_to_5, migrate_5_to_6, migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, migrate_10_to_11, migrate_11_to_12, migrate_12_to_13, migrate_13_to_14, migrate_14_to_15, migrate_15_to_16, migrate_16_to_17, CURATED_THEME_IDS_AT_V15, RETIRED_THEME_MAP_AT_V15 } = require('../migrations.js');
   // The v2 light themes (migrate_9_to_10's frozen list): a retired light theme must map to a light one.
   const LIGHT_THEME_IDS = new Set(['clean-interface', 'radiant', 'daybreak', 'parchment', 'amberlight', 'rosequartz', 'cinderglass']);
 
@@ -667,6 +667,31 @@ async function run() {
     const edited = { ...once, watchHistory: [...once.watchHistory, { id: 'wh-x', anilistId: 1, kind: 'rewatch', startedAt: null, finishedAt: null, note: 'again', createdAt: 'x' }], preferences: { ...once.preferences, notifications: { enabled: false, lists: ['watchlist'], quietHours: null } } };
     assert.deepEqual(migrate_15_to_16(edited), edited);
     assert.deepEqual([once.entries[0].rewatchCount, once.entries[0].startedAt], [2, '2024-12-01T00:00:00.000Z']);
+  });
+
+  // v3 Phase 6 (schema 17): adventurousness levels from the v2 slider.
+  await test('migration v16->v17 reads the adventurousness level from the slider and its switch, keeping both', () => {
+    const level = (adventurousness, adventurousnessEnabled) => migrate_16_to_17({ schemaVersion: 16, entries: [{ anilistId: 1 }], preferences: { adventurousness, adventurousnessEnabled } }).preferences;
+    assert.equal(level(null, false).adventurousnessLevel, 'off');
+    assert.equal(level(9, false).adventurousnessLevel, 'off', 'switched off wins over the slider');
+    assert.equal(level(null, true).adventurousnessLevel, 'medium');
+    assert.equal(level(2, true).adventurousnessLevel, 'low');
+    assert.equal(level(5, true).adventurousnessLevel, 'medium');
+    assert.equal(level(10, true).adventurousnessLevel, 'high');
+    assert.deepEqual([level(10, true).adventurousness, level(10, true).adventurousnessEnabled], [10, true], 'the old fields stay');
+    const once = migrate_16_to_17({ schemaVersion: 16, entries: [], preferences: { adventurousness: 2, adventurousnessLevel: 'high' } });
+    assert.equal(once.preferences.adventurousnessLevel, 'high', 'a level already set is kept');
+    assert.deepEqual(migrate_16_to_17(once), { ...once, schemaVersion: 17 });
+    assert.equal(CURRENT_SCHEMA_VERSION, 17);
+  });
+
+  await test('the frozen v17 adventurousness mapping matches railIds.js', async () => {
+    const railUrl = 'file:///' + path.join(__dirname, '..', 'public', 'js', 'discover', 'railIds.js').replace(/\\/g, '/');
+    const { ADVENTUROUSNESS_LEVELS, legacyAdventurousnessLevel } = await import(railUrl);
+    assert.deepEqual(ADVENTUROUSNESS_LEVELS, ['off', 'low', 'medium', 'high']);
+    for (const [s, en] of [[null, true], [null, false], [1, true], [3, true], [4, true], [7, true], [8, true], [10, false]]) {
+      assert.equal(migrate_16_to_17({ schemaVersion: 16, entries: [], preferences: { adventurousness: s, adventurousnessEnabled: en } }).preferences.adventurousnessLevel, legacyAdventurousnessLevel(s, en));
+    }
   });
 
   await test("migrate_14_to_15's frozen theme lists match themes.js's live curated set and retired map", async () => {

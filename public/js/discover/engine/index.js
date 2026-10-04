@@ -106,8 +106,11 @@ export function prepareCorpus(corpusById, tuning, cache = null) {
 
 // MMR (spec 4.4) over a fixed pool: next = argmax λ·score − (1−λ)·max sim to
 // the cards already picked. `prefix` continues an earlier pick, so a rail
-// grown by "View more" keeps every card it already showed, in order.
-function mmrPick(pool, size, { lambda, sim, exclude, prefix = [] }) {
+// grown by "View more" keeps every card it already showed, in order. With
+// `reasonOf` and `cap`, no anchor is cited by more than `cap` cards: the
+// next best card with another reason takes the place (the reason itself is
+// never changed to make room).
+function mmrPick(pool, size, { lambda, sim, exclude, prefix = [], reasonOf = null, cap = Infinity }) {
   const avail = pool.filter((c) => !exclude.has(c.key)).slice(0, MMR_POOL);
   if (!avail.length) return prefix.slice();
   let lo = Infinity;
@@ -119,6 +122,16 @@ function mmrPick(pool, size, { lambda, sim, exclude, prefix = [] }) {
   const span = hi - lo || 1;
   const picked = prefix.slice();
   const pickedKeys = new Set(picked.map((c) => c.key));
+  const cited = new Map();
+  const citeOf = (c) => {
+    if (!reasonOf) return null;
+    if (!c.reasonCache) c.reasonCache = reasonOf(c);
+    return c.reasonCache.anchorTitle ? c.reasonCache.anchorId : null;
+  };
+  for (const c of picked) {
+    const a = citeOf(c);
+    if (a != null) cited.set(a, (cited.get(a) || 0) + 1);
+  }
   const maxSim = new Map();
   for (const c of avail) {
     let m = 0;
@@ -137,8 +150,11 @@ function mmrPick(pool, size, { lambda, sim, exclude, prefix = [] }) {
       }
     }
     if (!best) break;
-    picked.push(best);
     pickedKeys.add(best.key);
+    const anchor = citeOf(best);
+    if (anchor != null && (cited.get(anchor) || 0) >= cap) continue;
+    if (anchor != null) cited.set(anchor, (cited.get(anchor) || 0) + 1);
+    picked.push(best);
     for (const c of avail) if (!pickedKeys.has(c.key)) maxSim.set(c.key, Math.max(maxSim.get(c.key), sim(c, best)));
   }
   return picked;
@@ -453,7 +469,7 @@ export function buildDiscover(input) {
   }
   const favourites = [...creatorStats.entries()]
     .filter(([, s]) => s.n >= tuning.creatorMinRated)
-    .map(([k, s]) => ({ k, shrunk: s.sum / (s.n + 2), anchor: s.anchors.sort((x, y) => y.w - x.w)[0] }))
+    .map(([k, s]) => ({ k, shrunk: s.sum / (s.n + 2), anchors: s.anchors.filter((a) => a.w > 0) }))
     .filter((f) => f.shrunk > 0)
     .sort((a, b) => b.shrunk - a.shrunk || a.k.localeCompare(b.k))
     .slice(0, 3);
@@ -469,7 +485,8 @@ export function buildDiscover(input) {
     reason: (c) => {
       const name = c.creator.k.slice(2);
       const label = c.creator.k.startsWith('s:') ? Explain.featureLabel({ block: 'studio', name }, c.entry) : Explain.creatorLabel(name, c.entry);
-      return Explain.creatorReason(label, c.creator.anchor, anchorTitle);
+      // The creator's own rated title closest to this one.
+      return Explain.creatorReason(label, contentAnchor(c, c.creator.anchors) || c.creator.anchors[0], anchorTitle);
     },
   });
 
@@ -527,19 +544,38 @@ export function buildDiscover(input) {
     add({ id: 'wildcard', kind: 'wildcard', size: tuning.wildcardMax, pool: wild, reason: (c) => Explain.wildcardReason(genreOf(c.entry)) });
   }
 
+  const anchorCap = (size) => Math.max(1, Math.floor(size * tuning.maxAnchorShare));
+  // A rail that came out short can still cite one anchor too often: drop its
+  // last cards for that anchor until the share holds at the final size.
+  function trimToCap(picks) {
+    let out = picks;
+    for (;;) {
+      const cap = anchorCap(out.length);
+      const counts = new Map();
+      let drop = -1;
+      out.forEach((c, i) => {
+        const a = c.reasonCache?.anchorTitle ? c.reasonCache.anchorId : null;
+        if (a == null) return;
+        counts.set(a, (counts.get(a) || 0) + 1);
+        if (counts.get(a) > cap) drop = i;
+      });
+      if (drop < 0 || out.length <= 1) return out;
+      out = out.filter((_, i) => i !== drop);
+    }
+  }
   const used = new Set();
   const picksBySpec = new Map();
   for (const spec of specs) {
-    const picks = spec.mmr === false ? spec.pool.filter((c) => !used.has(c.key)).slice(0, spec.size) : mmrPick(spec.pool, spec.size, { lambda: tuning.mmrLambda, sim, exclude: used });
+    const picks = spec.mmr === false ? spec.pool.filter((c) => !used.has(c.key)).slice(0, spec.size) : mmrPick(spec.pool, spec.size, { lambda: tuning.mmrLambda, sim, exclude: used, reasonOf: spec.reason, cap: anchorCap(spec.size) });
     for (const c of picks) used.add(c.key);
-    picksBySpec.set(spec.id, picks);
+    picksBySpec.set(spec.id, spec.mmr === false ? picks : trimToCap(picks));
   }
   for (const spec of specs) {
     const want = expanded[spec.id];
     if (!(want > spec.size)) continue;
     const prefix = picksBySpec.get(spec.id);
     const others = new Set([...used].filter((k) => !prefix.some((c) => c.key === k)));
-    const grown = spec.mmr === false ? [...prefix, ...spec.pool.filter((c) => !used.has(c.key)).slice(0, want - prefix.length)] : mmrPick(spec.pool, want, { lambda: tuning.mmrLambda, sim, exclude: others, prefix });
+    const grown = spec.mmr === false ? [...prefix, ...spec.pool.filter((c) => !used.has(c.key)).slice(0, want - prefix.length)] : mmrPick(spec.pool, want, { lambda: tuning.mmrLambda, sim, exclude: others, prefix, reasonOf: spec.reason, cap: anchorCap(want) });
     for (const c of grown) used.add(c.key);
     picksBySpec.set(spec.id, grown);
   }
@@ -547,7 +583,7 @@ export function buildDiscover(input) {
   const rails = [];
   const leftovers = [];
   for (const spec of specs) {
-    const cards = picksBySpec.get(spec.id).map((c) => card(c, spec.reason(c)));
+    const cards = picksBySpec.get(spec.id).map((c) => card(c, c.reasonCache || spec.reason(c)));
     const rail = { id: spec.id, kind: spec.kind, anchorId: spec.anchorId ?? null, anchorTitle: spec.anchorTitle ?? null, cards, total: spec.pool.length };
     // A small taste rail folds into "More picks"; Continue and Coming soon
     // never do, since their cards are owned franchises and unreleased titles.

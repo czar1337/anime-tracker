@@ -106,8 +106,8 @@ async function v3Engine(overrides = {}) {
     cache = out.cache;
     return {
       raw: out,
-      topPicks: out.topPicks.map((c) => ({ id: c.id, reason: c.reason.text, anchorIds: c.reason.anchorId ? [c.reason.anchorId] : [] })),
-      rails: out.rails.map((r) => ({ id: r.id, cards: r.cards.map((c) => ({ id: c.id, reason: c.reason.text, anchorIds: c.reason.anchorId ? [c.reason.anchorId] : [] })) })),
+      topPicks: out.topPicks.map((c) => ({ id: c.id, reason: c.reason.text, anchorIds: c.reason.anchorTitle ? [c.reason.anchorId] : [] })),
+      rails: out.rails.map((r) => ({ id: r.id, cards: r.cards.map((c) => ({ id: c.id, reason: c.reason.text, anchorIds: c.reason.anchorTitle ? [c.reason.anchorId] : [] })) })),
     };
   };
 }
