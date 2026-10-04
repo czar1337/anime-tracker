@@ -53,6 +53,16 @@ export const APPEARANCE = {
   densitySpacingStep: { compact: 3, comfortable: 5 },
   compactTitlesMaxTextSize: 3,
 };
+// v3 Phase 5: episode notifications while no browser tab is open. The server
+// checks AniList this often for the lists the user picked, the first time a
+// minute after start; more new episodes than `maxNamed` in one check become
+// one summary notification.
+export const NOTIFICATIONS = {
+  pollMinutes: 30,
+  firstPollDelaySeconds: 60,
+  maxNamed: 3,
+  batchSize: 50,
+};
 export const MIN_EFFECTIVE_FONT_SIZE_PX = 12;
 export const RADIUS_SURFACE_CAP_PX = 24;
 

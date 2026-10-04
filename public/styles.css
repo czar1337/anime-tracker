@@ -3444,3 +3444,8 @@ a.btn { text-decoration: none; }
 .season-title:hover { color: var(--accent-lit); }
 .season-add { margin-top: auto; gap: var(--sp-1); }
 .season-owned { margin-top: auto; font: var(--t-meta); color: var(--positive); }
+
+/* v3 Phase 5: notification settings. */
+.check-row { display: inline-flex; align-items: center; gap: var(--sp-2); font: var(--t-body); color: var(--text); cursor: pointer; }
+.quiet-hours { gap: var(--sp-3); }
+.quiet-hours input:disabled { opacity: .5; }

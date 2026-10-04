@@ -364,6 +364,22 @@ Phase 3 (design system and motion):
 - **A backup file now merges instead of replacing.** Backup's "Import series from a
   backup file" opens the import flow (series only). Replacing the whole library is what
   the backups and snapshots lists are for.
+- **Background notifications are the server's only AniList call.** Opt-in
+  (`preferences.notifications`, computed in schema 16 from the old in-browser opt-in),
+  polled every `NOTIFICATIONS.pollMinutes` (30) from a minute after start, for the
+  chosen lists; the first sight of a series only records it (no burst), quiet hours
+  hold announcements until after them, more than three become one summary. Toasts go
+  through a hidden PowerShell process with the WinRT ToastNotificationManager under
+  Windows PowerShell's registered AppUserModelID (an unregistered id is dropped
+  silently); the text travels in environment variables, never the command line. The
+  in-browser notifications (tab open) stay as they were.
+- **The tray icon lands now, the console window in Phase 7.** A hidden PowerShell
+  WinForms NotifyIcon (Open, Open data folder, Quit; a left click opens) talks to the
+  server over stdout and closes itself when the server's pid is gone. Packaged
+  Windows app only; off in development, tests and the exe smoke test.
+- **Server-side copy.** The few words the server shows (toasts, tray menu) come from
+  the copy registry, loaded through the same data: URL loader as the other shared
+  modules.
 - **Streaks and sittings are new on the Stats page.** The brief asks that they read live
   events only, and there was no streak or session logic to restrict, so Phase 5 adds
   them: a day counts when its live progress nets above zero; a sitting is live episodes

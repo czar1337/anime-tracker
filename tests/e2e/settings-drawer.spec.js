@@ -198,3 +198,23 @@ test('the migration toast shows once; the list stays in Settings until "Got it"'
     await server.stop();
   }
 });
+
+test('background notifications: turn them on, pick the lists and quiet hours, all saved', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await page.goto(server.url);
+    await page.waitForSelector('.card');
+    await openSettings(page);
+    await page.click('#settings-tab-notifications');
+    await page.click('.seg[data-seg="notify-enabled"] button[data-value="on"]');
+    await page.locator('[data-action="notify-list"][data-list="paused"]').check();
+    await page.locator('[data-action="notify-quiet"]').uncheck();
+    await expect.poll(async () => (await prefs(server)).notifications).toEqual({ enabled: true, lists: ['watching', 'paused'], quietHours: null });
+    await page.locator('[data-action="notify-quiet"]').check();
+    await page.locator('[data-action="notify-quiet-from"]').fill('22:30');
+    await page.locator('[data-action="notify-quiet-from"]').dispatchEvent('change');
+    await expect.poll(async () => (await prefs(server)).notifications.quietHours).toEqual({ from: '22:30', to: '08:00' });
+  } finally {
+    await server.stop();
+  }
+});

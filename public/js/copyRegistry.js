@@ -1071,6 +1071,28 @@ export const COPY_REGISTRY = {
   'settings.imports.reverted': same((p) => `Reverted ${p.date}`),
   'settings.imports.confirmTitle': same('Revert this import?'),
   'settings.imports.confirmBody': same('Series it added are removed and fields it changed go back to what they were. Anything you changed since is kept. The pre-import snapshot stays in Data safety.'),
+  // v3 Phase 5: background notification settings.
+  'settings.notify.heading': same('Notify me while the app is closed'),
+  'settings.notify.description': same('Anime Tracker checks for new episodes in the background and shows a Windows notification, with no browser tab open. It runs while the app is running (the tray icon).'),
+  'settings.notify.on': same('On'),
+  'settings.notify.off': same('Off'),
+  'settings.notify.lists': same('For these lists'),
+  'settings.notify.listsDescription': same('Watchlist and Paused announce premieres and new seasons you are waiting for.'),
+  'settings.notify.quiet': same('Quiet hours'),
+  'settings.notify.quietDescription': same('Nothing is shown in this window; what aired is announced after it.'),
+  'settings.notify.quietOn': same('Use quiet hours'),
+  'settings.notify.from': same('From'),
+  'settings.notify.to': same('To'),
+  // v3 Phase 5: the tray icon (packaged Windows app).
+  'tray.title': same('Anime Tracker'),
+  'tray.open': same('Open Anime Tracker'),
+  'tray.folder': same('Open data folder'),
+  'tray.quit': same('Quit'),
+  // v3 Phase 5: background notifications (shown by the server).
+  'notify.episodeTitle': same((p) => `${p.title}: episode ${p.episode} is out`),
+  'notify.episodeBody': same('Open Anime Tracker to mark it watched.'),
+  'notify.summaryTitle': same((p) => `${p.n} new episodes`),
+  'notify.summaryBody': same((p) => `${p.names} and ${p.more} more.`),
   // v3 Phase 5: Schedule v2.
   'schedule.premiere': same('Premiere'),
   'schedule.inMinutes': same((p) => `in ${p.m} min`),

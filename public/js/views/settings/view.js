@@ -19,6 +19,7 @@ import { buildPalette, hslToRgb, themeInputFromAccent } from '../../themeBuilder
 import { TasteProfile } from '../../tasteProfile.js';
 import { escapeHtml } from '../../core/html.js';
 import { morphInto } from '../../core/reconcile.js';
+import { NOTIFICATION_LISTS } from '../../settingsSchema.js';
 
 export const SETTINGS_SECTIONS = ['appearance', 'library', 'recommendations', 'notifications', 'data', 'help'];
 let activeSection = 'appearance';
@@ -337,8 +338,23 @@ function recommendationsHtml() {
 
 // ------------------------------------------------ Notifications, Data, Help
 
-function notificationsHtml() {
-  return rowHtml(copy('settings.notifications.heading'), copy('settings.notifications.description'), commandButton('notifications.open', 'command.notifications'));
+// v3 Phase 5: background notifications (the server checks while the app runs,
+// with no tab open): opt-in, which lists, quiet hours. The in-browser ones
+// (while a tab is open) keep their own window.
+function notificationsHtml(prefs) {
+  const n = prefs.notifications;
+  const listBox = (list) => `<label class="check-row"><input type="checkbox" data-action="notify-list" data-list="${list}" ${n.lists.includes(list) ? 'checked' : ''}> ${escapeHtml(copy(`list.${list}`))}</label>`;
+  const quiet = n.quietHours;
+  return `
+    ${rowHtml(copy('settings.notify.heading'), copy('settings.notify.description'), segHtml('notify-enabled', copy('settings.notify.heading'), [['on', copy('settings.notify.on')], ['off', copy('settings.notify.off')]], n.enabled ? 'on' : 'off'))}
+    ${rowHtml(copy('settings.notify.lists'), copy('settings.notify.listsDescription'), `<div class="row">${NOTIFICATION_LISTS.map(listBox).join('')}</div>`)}
+    ${rowHtml(copy('settings.notify.quiet'), copy('settings.notify.quietDescription'), `
+      <div class="row quiet-hours">
+        <label class="check-row"><input type="checkbox" data-action="notify-quiet" ${quiet ? 'checked' : ''}> ${escapeHtml(copy('settings.notify.quietOn'))}</label>
+        <label class="history-date">${escapeHtml(copy('settings.notify.from'))}<input type="time" data-action="notify-quiet-from" value="${escapeHtml(quiet?.from || '23:00')}" ${quiet ? '' : 'disabled'}></label>
+        <label class="history-date">${escapeHtml(copy('settings.notify.to'))}<input type="time" data-action="notify-quiet-to" value="${escapeHtml(quiet?.to || '08:00')}" ${quiet ? '' : 'disabled'}></label>
+      </div>`)}
+    ${rowHtml(copy('settings.notifications.heading'), copy('settings.notifications.description'), commandButton('notifications.open', 'command.notifications'))}`;
 }
 
 // v3 Phase 5: every import, newest first, each revertable for as long as it is

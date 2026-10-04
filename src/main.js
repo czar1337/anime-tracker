@@ -31,6 +31,9 @@ const { createSnapshotNow, ensurePinnedSnapshot } = require('./storage/snapshots
 const { checkForUpdateIfDue } = require('./services/updateCheck.js');
 const { WRITE_TOKEN } = require('./http/middleware.js');
 const { createRequestHandler } = require('./http/router.js');
+const { startNotifier } = require('./services/notifier.js');
+const { startTray } = require('./services/tray.js');
+const { loadCopyRegistry } = require('./services/browserModules.js');
 
 // Best-effort: opens the user's default browser. Only used in SEA mode, where
 // the exe is the whole app. Detached and unref'd so it survives this process
@@ -202,6 +205,32 @@ function listenOnIpv6Loopback() {
     }
     if (IS_SEA) {
       openBrowser(`http://localhost:${PORT}`);
+    }
+    // v3 Phase 5: episode notifications while no tab is open (opt-in, see
+    // services/notifier.js), and in the packaged Windows app the tray icon.
+    startNotifier().catch((err) => console.error(`[notifier] Could not start: ${err.message}`));
+    if (IS_SEA) {
+      loadCopyRegistry()
+        .then((copy) =>
+          startTray({
+            labels: { title: copy('tray.title'), open: copy('tray.open'), folder: copy('tray.folder'), quit: copy('tray.quit') },
+            on: {
+              open: () => openBrowser(`http://localhost:${PORT}`),
+              folder: () => {
+                try {
+                  require('node:child_process').spawn('explorer.exe', [DATA_DIR], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+                } catch {
+                  // best effort
+                }
+              },
+              quit: () => {
+                server.close();
+                setTimeout(() => process.exit(0), 300);
+              },
+            },
+          })
+        )
+        .catch((err) => console.error(`[tray] ${err.message}`));
     }
   });
 })();
