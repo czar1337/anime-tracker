@@ -1,5 +1,5 @@
 'use strict';
-// Class C: schema-versioned, checksummed, verified snapshots (docs/v2-spec.md's
+// Class C: schema-versioned, checksummed, verified snapshots (docs/archive/v2/v2-spec.md's
 // "Storage classes and data safety", rules 7 and 10). Pure logic only — no
 // filesystem access here, same split as migrations.js/datadir.js — so this is
 // unit-testable without booting a real server, and so it can never accidentally
@@ -12,7 +12,7 @@
 // Node/CommonJS-only because it needs node:crypto, which a browser-loaded ES
 // module can't import without a bundler this project doesn't have. Both are
 // loaded from the exact same registry array, so "the export and snapshot writer
-// both walk the registry" (docs/v2-plan.md) is true of the real objects, not
+// both walk the registry" (docs/archive/v2/v2-plan.md) is true of the real objects, not
 // just in spirit.
 
 const crypto = require('node:crypto');

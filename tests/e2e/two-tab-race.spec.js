@@ -3,7 +3,7 @@
 // its own independently-loaded Store/etag state (not synthesized), editing
 // the same library concurrently. Proves the ETag/If-Match mechanism (see
 // server.js's PUT /api/library handler and libraryEtag.js) actually catches
-// the lost-update race described in docs/v2-plan.md's P1.2 entry: two tabs
+// the lost-update race described in docs/archive/v2/v2-plan.md's P1.2 entry: two tabs
 // both PUT-ing a full library snapshot, one of which must not silently
 // overwrite the other.
 //

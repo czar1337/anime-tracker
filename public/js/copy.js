@@ -1,5 +1,5 @@
 'use strict';
-// The copy resolver (docs/v2-spec.md's P1.6): `copy(key, tier, params)` over
+// The copy resolver (docs/archive/v2/v2-spec.md's P1.6): `copy(key, tier, params)` over
 // the three-tier registry in copyRegistry.js.
 //
 // WHY THE TIER IS RESOLVED CLIENT-SIDE. Several of the strings this substep

@@ -1,4 +1,4 @@
-// P4.1's shared sort logic (docs/v2-spec.md's P4.1 section): the "one sort
+// P4.1's shared sort logic (docs/archive/v2/v2-spec.md's P4.1 section): the "one sort
 // component, used on Discover and on the user's lists" the spec asks for.
 // Pure, DOM-free, dynamic-import()-able from Node, same shape as
 // airingLogic.js/scheduleLogic.js — this app's other pure-logic modules.

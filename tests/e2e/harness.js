@@ -2,7 +2,7 @@
 // Boots a real `node server.js` instance against a disposable temp data
 // directory, for Playwright tests and the perf script. Never touches the
 // user's real app-data folder — the live store stays read-only, per rule 9
-// in docs/v2-spec.md's "Storage classes and data safety": a fixture is
+// in docs/archive/v2/v2-spec.md's "Storage classes and data safety": a fixture is
 // copied into a fresh temp directory and the server is pointed at that copy
 // via ANIME_TRACKER_DATA_DIR, never at the real one.
 

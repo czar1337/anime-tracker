@@ -1,5 +1,5 @@
 'use strict';
-// The client half of the event log (docs/v2-spec.md's P1.5): mints events with
+// The client half of the event log (docs/archive/v2/v2-spec.md's P1.5): mints events with
 // every field frozen at the moment of the user's action, buffers them in a
 // durable outbox, and flushes them to POST /api/events.
 //

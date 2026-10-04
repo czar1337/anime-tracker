@@ -1,5 +1,5 @@
 'use strict';
-// P1.1's automatic pinned-anchor bootstrap (docs/v2-spec.md's rule 10: "one
+// P1.1's automatic pinned-anchor bootstrap (docs/archive/v2/v2-spec.md's rule 10: "one
 // immutable snapshot that retention never rotates out"): created without any
 // user action on first boot, and idempotent across restarts against the same
 // data directory — a second boot must never create a second pinned copy.

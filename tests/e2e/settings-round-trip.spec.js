@@ -1,7 +1,7 @@
 'use strict';
 // P1.3's rule-3a round trip: `preferences` was already a registered Class A
 // store before this substep (P1.1), so no exportRegistry.js/snapshots.js code
-// change was needed for the new/promoted fields — but per docs/v2-spec.md's
+// change was needed for the new/promoted fields — but per docs/archive/v2/v2-spec.md's
 // "naming the store is not sufficient... show the data going out and coming
 // back", this proves the round trip actually covers all 9 of them
 // specifically, not just whatever fields existed before P1.3.

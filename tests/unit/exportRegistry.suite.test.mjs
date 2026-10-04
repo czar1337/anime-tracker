@@ -75,7 +75,7 @@ await test('P1.7: the tags/customLists stores are registered as exact-match reco
 });
 
 await test('buildExport is registry-driven: a synthetic extra store flows through with no code change', () => {
-  // The real coverage guard (docs/v2-spec.md rule 3a's "mechanical
+  // The real coverage guard (docs/archive/v2/v2-spec.md rule 3a's "mechanical
   // backstop"): proves buildExport() never hardcodes a store id, by
   // injecting one it has never seen before into a *copy* of the registry,
   // rather than re-checking today's known stores.

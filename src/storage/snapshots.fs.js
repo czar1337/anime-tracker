@@ -74,7 +74,7 @@ function pruneSnapshots() {
 }
 
 // Test-only fault injection, same pattern/spirit as the existing
-// ANIME_TRACKER_DATA_DIR/ANIME_TRACKER_PORT harness overrides (docs/v2-plan.md):
+// ANIME_TRACKER_DATA_DIR/ANIME_TRACKER_PORT harness overrides (docs/archive/v2/v2-plan.md):
 // unset in normal use, so production behavior is unchanged. Corrupting the
 // just-written file on disk (rather than throwing directly) is what lets the
 // e2e suite exercise the *read-back* verification path deterministically and

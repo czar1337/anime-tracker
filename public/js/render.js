@@ -523,7 +523,7 @@ function formatRelativeIsoTime(iso) {
 }
 
 // P1.1's verified Class C snapshots — a separate list from renderBackupList's
-// automatic backups above (different mechanism, see docs/v2-plan.md). Restore
+// automatic backups above (different mechanism, see docs/archive/v2/v2-plan.md). Restore
 // is disabled for any snapshot whose `verified` flag came back false from
 // GET /api/snapshots: the UI must never offer to restore from something the
 // server itself couldn't re-verify.

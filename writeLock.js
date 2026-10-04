@@ -1,6 +1,6 @@
 'use strict';
-// Single-writer enforcement (docs/v2-spec.md's "Storage classes and data
-// safety", rule 6), reframed server-side per docs/v2-plan.md's P1.2 entry:
+// Single-writer enforcement (docs/archive/v2/v2-spec.md's "Storage classes and data
+// safety", rule 6), reframed server-side per docs/archive/v2/v2-plan.md's P1.2 entry:
 // there is no navigator.locks here, so this is a small in-process FIFO queue
 // that every migration/snapshot/restore/import/reset route runs its critical
 // section through, guaranteeing at most one such operation touches

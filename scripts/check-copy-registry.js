@@ -1,5 +1,5 @@
 'use strict';
-// Build-time checks for the copy registry (docs/v2-spec.md's P1.6).
+// Build-time checks for the copy registry (docs/archive/v2/v2-spec.md's P1.6).
 //
 // Run directly:            node scripts/check-copy-registry.js
 // Or via the npm script:   npm run check:copy

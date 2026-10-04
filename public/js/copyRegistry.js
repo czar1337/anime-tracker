@@ -1,5 +1,5 @@
 'use strict';
-// The copy registry (docs/v2-spec.md's P1.6). ONE registry, three variants per
+// The copy registry (docs/archive/v2/v2-spec.md's P1.6). ONE registry, three variants per
 // entry — never three parallel registries, never a runtime string transform
 // over Standard copy, and never a profanity filter.
 //
@@ -200,7 +200,7 @@ export const COPY_REGISTRY = {
       'Replaces your current library with this snapshot. Your current library is not deleted — it is kept in the automatic backups list.',
   },
 
-  // NEW copy, not a retrofit. docs/v2-spec.md requires the restore UI to state
+  // NEW copy, not a retrofit. docs/archive/v2/v2-spec.md requires the restore UI to state
   // plainly what a restore does NOT bring back (rule 3, P1.1's section, and
   // P1.6's own retrofit list) — but no such string existed anywhere, so there
   // was nothing to move.

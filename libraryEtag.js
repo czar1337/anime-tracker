@@ -1,7 +1,7 @@
 'use strict';
-// Computes an HTTP ETag for the current library.json content (docs/v2-spec.md's
+// Computes an HTTP ETag for the current library.json content (docs/archive/v2/v2-spec.md's
 // "Storage classes and data safety", P1.2's concurrency reframe in
-// docs/v2-plan.md). A strong, quoted ETag: we fully control both sides of every
+// docs/archive/v2/v2-plan.md). A strong, quoted ETag: we fully control both sides of every
 // comparison (this app generates the value it later compares against), so
 // strong-comparison semantics are trivially valid without needing the `W/`
 // weak-etag prefix. No wildcard ("*") support is implemented — no route here

@@ -1,5 +1,5 @@
 'use strict';
-// The single typed settings object (docs/v2-spec.md's P1.3: "A single typed
+// The single typed settings object (docs/archive/v2/v2-spec.md's P1.3: "A single typed
 // settings object with a version number, a defaults map and a migration
 // chain") — the canonical source for every preferences field's valid values
 // and defaults, both the pre-existing ones (sort/filters/activeTab/...) and

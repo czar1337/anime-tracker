@@ -1,9 +1,9 @@
 'use strict';
-// Quota calculation before large Class B writes (docs/v2-spec.md's "Storage
+// Quota calculation before large Class B writes (docs/archive/v2/v2-spec.md's "Storage
 // classes and data safety", rule 5: "Quota is calculated before writing, not
 // discovered by failing... Reserve a floor for Class A plus Class C"). There
 // is no navigator.storage.estimate() here (no browser storage involved,
-// per docs/v2-plan.md's architecture correction) — the real equivalent is
+// per docs/archive/v2/v2-plan.md's architecture correction) — the real equivalent is
 // real free disk space under the data directory, which server.js measures
 // via fs.statfsSync and passes in here.
 //

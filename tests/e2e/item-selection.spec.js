@@ -5,7 +5,7 @@
 // point into select mode, the count's aria-live announcement, and clearing
 // on navigation. The always-visible select-mode checkbox, the toggle button,
 // and the bulk move/delete actions themselves already had coverage before
-// this substep (see docs/v2-backlog.md) and are exercised only incidentally
+// this substep (see docs/archive/v2/v2-backlog.md) and are exercised only incidentally
 // here, not re-verified from scratch.
 
 const { test, expect } = require('@playwright/test');

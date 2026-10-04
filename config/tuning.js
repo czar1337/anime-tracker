@@ -1,5 +1,5 @@
 'use strict';
-// The central tuning config (docs/v2-spec.md's "Where constants live" rule
+// The central tuning config (docs/archive/v2/v2-spec.md's "Where constants live" rule
 // and P1.4 section): every ADJUSTABLE PRODUCT/TUNING VALUE from the spec's
 // Tuning table, transcribed here, verbatim, once. No substep after this one
 // may introduce an adjustable threshold outside this file — a schema
@@ -10,7 +10,7 @@
 // dynamic import() from Node (same "pure, testable without a browser"
 // pattern as public/js/settingsSchema.js/exportRegistry.js) and served to
 // the browser from the new top-level config/ static root server.js adds
-// alongside the existing public/ one (see docs/v2-progress.md's P1.4 entry
+// alongside the existing public/ one (see docs/archive/v2/v2-progress.md's P1.4 entry
 // for why this needed a small server-side extension rather than living
 // under public/js/ like every other browser-loaded module).
 //
@@ -22,7 +22,7 @@
 // (achievements).
 
 // Canonical internal score scale (spec: "1 to 10, one decimal allowed").
-// docs/v2-plan.md's P0.1 finding: real stored scores are integer-only today
+// docs/archive/v2/v2-plan.md's P0.1 finding: real stored scores are integer-only today
 // — nothing to migrate on the scale question itself, per the spec's own
 // "do not migrate stored scores to change scale" rule. This describes the
 // scale user-facing sliders/inputs should offer, not a retroactive rewrite.
@@ -92,7 +92,7 @@ export const TIME_SEMANTICS = {
 // than a generic catch-all. Every one of AniList's 19 real genre values.
 // Confirmed with the user as a reasonable, easily-revisable placeholder —
 // nothing consumes this yet (P5A.1, the first real consumer, is blocked on
-// the AniList ToS question per docs/v2-progress.md's standing decisions).
+// the AniList ToS question per docs/archive/v2/v2-progress.md's standing decisions).
 // Recalibrating this later is a config edit, never a data migration: the
 // resolved "primary genre" is never itself stored on an entry.
 const PRIMARY_GENRE_PRIORITY = [
@@ -123,7 +123,7 @@ export const RECOMMENDATIONS = {
   primaryGenrePriority: PRIMARY_GENRE_PRIORITY,
   genreDiversityCapRatio: 0.35,
   randomnessSeedSource: 'localDay',
-  // User-confirmed at the P0.4 approval gate (docs/v2-progress.md's
+  // User-confirmed at the P0.4 approval gate (docs/archive/v2/v2-progress.md's
   // "Standing decisions"), after P0.3's feasibility measurement.
   corpusTargetSize: 3000,
   rateLimitSafetyMargin: 0.7,

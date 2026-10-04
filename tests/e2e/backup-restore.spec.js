@@ -1,5 +1,5 @@
 'use strict';
-// P1.1's core acceptance round trip (docs/v2-spec.md's P1.1 section): export,
+// P1.1's core acceptance round trip (docs/archive/v2/v2-spec.md's P1.1 section): export,
 // take a snapshot, wipe the real library.json on disk (simulating real data
 // loss), restore from the snapshot, and confirm the library is byte-identical
 // to what it was before the wipe, with post-restore verification passing.

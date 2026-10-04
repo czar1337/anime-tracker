@@ -2,7 +2,7 @@
 // localStorage for prepaint.js and the modules that read them synchronously.
 // library.json's Class A `preferences` is the source of truth (see
 // settingsSchema.js); localStorage is only the read-through mirror
-// docs/v2-spec.md's rule 12 asks for. syncFromLibrary()/reconcileFirstBoot()
+// docs/archive/v2/v2-spec.md's rule 12 asks for. syncFromLibrary()/reconcileFirstBoot()
 // below keep the two from drifting apart.
 //
 // v3 Phase 4 (decision D2, schema 15): appearance is appearanceV3 (twelve

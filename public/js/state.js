@@ -12,7 +12,7 @@ import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partit
 const LISTS = ['watching', 'watchlist', 'watched', 'dropped', 'paused'];
 
 // P1.3: defaults/repair moved to settingsSchema.js (the single typed settings
-// object docs/v2-spec.md's P1.3 asks for) — this module is now a thin
+// object docs/archive/v2/v2-spec.md's P1.3 asks for) — this module is now a thin
 // consumer, same call sites as before.
 const DEFAULT_PREFERENCES = defaultSettings;
 
@@ -32,7 +32,7 @@ const state = {
 };
 
 // Tracks the server's ETag for whatever library content this Store currently
-// reflects (P1.2's concurrency reframe, docs/v2-plan.md/docs/v2-spec.md rule
+// reflects (P1.2's concurrency reframe, docs/archive/v2/v2-plan.md/docs/archive/v2/v2-spec.md rule
 // 6). Used as the If-Match header on the next save so a stale write (this
 // tab holding an older copy than what's actually on disk, e.g. because
 // another tab saved in the meantime) is rejected by the server instead of
@@ -55,7 +55,7 @@ function reindex() {
 const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dismissedItems', 'tags', 'customLists', 'watchHistory', 'imports'];
 
 // Everything the server sent that this build doesn't model, kept so toJSON()
-// can hand it back untouched (docs/v2-spec.md rule 13, "forward
+// can hand it back untouched (docs/archive/v2/v2-spec.md rule 13, "forward
 // compatibility": every reader tolerates a schema version higher than it
 // knows — "preserve unknown fields, default missing ones, and refuse to write
 // rather than downgrading data").
@@ -67,7 +67,7 @@ const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dism
 // settingsSchema.js's ensureSettingsShape() already honours this rule one
 // level down, inside `preferences`; this closes the same hole at the top
 // level. Found by an independent design review during P1.5's planning, before
-// any new top-level field existed to lose. See docs/v2-progress.md's P1.5
+// any new top-level field existed to lose. See docs/archive/v2/v2-progress.md's P1.5
 // entry.
 let unknownTopLevelFields = {};
 

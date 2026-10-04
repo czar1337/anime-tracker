@@ -3,7 +3,7 @@
 // shaped fixture actually reaches schemaVersion 5 with every new/promoted
 // preferences field defaulted, existing data untouched, and the existing
 // rotateBackup() safety net (relied on instead of a new Class C snapshot —
-// see docs/v2-progress.md's P1.3 entry for why) actually fires. Plus the
+// see docs/archive/v2/v2-progress.md's P1.3 entry for why) actually fires. Plus the
 // migrateIncomingLibrary() proof (server.js): all three whole-library
 // "replace" routes now run an old-schemaVersion payload through migrate()
 // before writing, and reject a too-new one outright rather than writing it.
