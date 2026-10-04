@@ -66,6 +66,42 @@ function walk(dir, out) {
   return out;
 }
 
+// The PE header's Subsystem field (decision D1, v3 Phase 7): 3 is a console
+// program (a console window opens with it), 2 a Windows GUI program (none).
+// It sits 68 bytes into the optional header, for 32- and 64-bit images alike.
+const PE_SUBSYSTEM = { GUI: 2, CONSOLE: 3 };
+function subsystemOffset(buf) {
+  const peOffset = buf.readUInt32LE(0x3c);
+  if (buf.readUInt32LE(peOffset) !== 0x00004550) throw new Error('Not a PE executable');
+  return peOffset + 24 + 68;
+}
+function readSubsystem(file) {
+  const buf = Buffer.alloc(4096);
+  const fd = fs.openSync(file, 'r');
+  try {
+    fs.readSync(fd, buf, 0, buf.length, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
+  return buf.readUInt16LE(subsystemOffset(buf));
+}
+// Patched last, after postject: only the header changes, not the SEA blob.
+function makeWindowless(file) {
+  const current = readSubsystem(file);
+  if (current === PE_SUBSYSTEM.GUI) return;
+  if (current !== PE_SUBSYSTEM.CONSOLE) throw new Error(`Unexpected PE subsystem ${current}`);
+  const head = Buffer.alloc(4096);
+  const fd = fs.openSync(file, 'r+');
+  try {
+    fs.readSync(fd, head, 0, head.length, 0);
+    const value = Buffer.alloc(2);
+    value.writeUInt16LE(PE_SUBSYSTEM.GUI);
+    fs.writeSync(fd, value, 0, 2, subsystemOffset(head));
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
 
 // What the exe is made of: the Node runtime, the server bundle, and the
@@ -134,7 +170,19 @@ async function main() {
   if (fs.existsSync(ICON_PATH)) {
     console.log('Setting exe icon (rcedit)...');
     const { rcedit } = await import('rcedit');
-    await rcedit(EXE_PATH, { icon: ICON_PATH });
+    // A freshly copied exe can be held for a moment (antivirus scanning it),
+    // which rcedit reports as "Unable to commit changes": try a few times.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await rcedit(EXE_PATH, { icon: ICON_PATH });
+        break;
+      } catch (err) {
+        if (attempt >= 4) throw err;
+        const firstLine = String(err.message).split(String.fromCharCode(10))[0].trim();
+        console.log(`  rcedit could not write the exe yet (${firstLine}); retrying...`);
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
   } else {
     console.log('No icon found at scripts/icon/anime-tracker.ico, skipping (exe will use the default Node icon).');
   }
@@ -143,13 +191,22 @@ async function main() {
   const { inject } = require('postject');
   await inject(EXE_PATH, 'NODE_SEA_BLOB', fs.readFileSync(BLOB_PATH), { sentinelFuse: SENTINEL_FUSE, overwrite: true });
 
+  console.log('Switching to the Windows GUI subsystem (no console window)...');
+  makeWindowless(EXE_PATH);
+  if (readSubsystem(EXE_PATH) !== PE_SUBSYSTEM.GUI) throw new Error('The PE subsystem did not change');
+
   sizeReport(assets);
   console.log(`\nDone: ${EXE_PATH} (version ${APP_VERSION})`);
   console.log('Copy this single file anywhere and double-click it to run Anime Tracker.');
+  console.log('It runs without a console window: quit it from the tray icon. Its log is in the data folder, under logs/.');
   console.log('Your data lives in the OS app-data folder (e.g. %APPDATA%\\anime-tracker on Windows), not next to the exe.');
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+module.exports = { readSubsystem, PE_SUBSYSTEM };
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

@@ -220,12 +220,13 @@ async function startProcessExpectingExit(fixtureLibraryPath, envOverrides = {}, 
   if (fixtureLibraryPath) {
     fs.copyFileSync(fixtureLibraryPath, path.join(dataDir, 'library.json'));
   }
-  const testPort = 41000 + Math.floor(Math.random() * 4000);
+  // Port 0: such a process is expected never to listen, and must not take a
+  // port a parallel worker could be using if it does.
   const child = spawn(process.execPath, [SERVER_PATH], {
     env: {
       ...process.env,
       ANIME_TRACKER_DATA_DIR: dataDir,
-      ANIME_TRACKER_PORT: String(testPort),
+      ANIME_TRACKER_PORT: '0',
       ...envOverrides,
     },
     stdio: 'pipe',

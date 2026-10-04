@@ -3,7 +3,7 @@
 //
 // Run directly:            node scripts/check-copy-registry.js
 // Or via the npm script:   npm run check:copy
-// Also invoked from tests/run-all.js, so `npm test` actually gates on it —
+// Also invoked from the unit tests (tests/unit/), so `npm test` actually gates on it —
 // there is no pretest hook in this project and `npm test` runs only that one
 // file, so a standalone script would otherwise never run on its own.
 //
@@ -122,7 +122,7 @@ const SELF_HARM_PATTERNS = [
 // being hidden: there is no Madara copy in the app yet beyond this substep's
 // own entries (P7B writes the achievement copy), so there is nothing for a
 // seeded list to catch. The mechanism is built, tested against a planted hash
-// by tests/run-all.js, and ready for P6.4/P7B to populate as real Madara copy
+// by the unit tests (tests/unit/), and ready for P6.4/P7B to populate as real Madara copy
 // is written. Add entries as `hashWord('term')` output, never plaintext.
 const SLUR_WORD_HASHES = new Set([]);
 
@@ -250,7 +250,7 @@ async function main() {
   );
 }
 
-// Exported so tests/run-all.js can invoke the checks in-process and assert they
+// Exported so the unit tests (tests/unit/) can invoke the checks in-process and assert they
 // both pass on the real registry AND fail on deliberately broken input — a
 // check that cannot fail proves nothing.
 module.exports = {

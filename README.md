@@ -17,7 +17,7 @@ The full list is in [CHANGELOG.md](CHANGELOG.md).
 **Easiest — the standalone `.exe` (Windows, nothing else required):**
 
 1. Download `AnimeTracker.exe`.
-2. Double-click it. A small console window opens and your browser starts automatically.
+2. Double-click it. Your browser opens the app, and an Anime Tracker icon appears in the system tray (bottom right): use it to open the app again, open the data folder, or quit.
 
 That's it — no installation, no Node.js required.
 

@@ -76,6 +76,7 @@ A large release: Discover is rebuilt from the ground up, the app is faster and c
 - **Every import can be reverted, any time.** A snapshot is taken first and kept, and Settings > Data lists your imports with "Revert this import", which removes what it added and puts back what it changed (unless you changed it since). This also works after closing the app.
 - **Where to watch.** The details list the streaming services AniList knows for a series, with links to episodes. They are not by country, and the app says so.
 - **Schedule.** Shows you are waiting for in your Watchlist or Paused appear too, so a premiere or a new season shows up. Each episode shows its time and how long until it airs. A Season chart shows the previous, this and next season with one-click adding. "Coming soon" is now ranked by your taste, the same way Discover is.
+- **No more console window.** The Windows app opens just your browser and a tray icon (Open, Open data folder, Quit). Its log, if you ever need it, is in the data folder under `logs/`.
 - **Notifications while the app is closed.** Opt in under Settings > Notifications, pick the lists and quiet hours, and Windows tells you when a new episode is out, with no browser tab open. The app now has a tray icon (Open, Open data folder, Quit).
 - **Stats: day streaks and sittings**, counted only from episodes you marked yourself, one at a time. A big import or a bulk change never makes a streak, and "Episodes this year" no longer counts imports.
 - **Fix: finish dates from a MyAnimeList export were dropped.**

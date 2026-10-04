@@ -1,6 +1,6 @@
 // Pure recommendation logic — no DOM, no fetch, no Store import — so it can
 // be exercised directly both from discover.js (browser) and from
-// tests/run-all.js (Node, via dynamic import()) without any test doubles.
+// the unit tests (tests/unit/) (Node, via dynamic import()) without any test doubles.
 
 // Caps how many seeds a refresh ever uses. Without this, a large, generously-
 // rated library means an unbounded number of AniList batch calls — slower,

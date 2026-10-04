@@ -28,6 +28,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -44,6 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -66,6 +70,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -84,22 +90,29 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    # The tag reaches the commands only as an environment variable, never pasted
+    # into a command line.
+    env:
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - name: version.json matches the tag
-        run: node scripts/check-version.js "${{ github.ref_name }}"
+        shell: bash
+        run: node scripts/check-version.js "$TAG"
       - run: node scripts/build-exe.js
       - run: node scripts/smoke-exe.js
       - name: Release notes from CHANGELOG.md
         shell: bash
-        run: node scripts/release-notes.js "${{ github.ref_name }}" > release-notes.md
+        run: node scripts/release-notes.js "$TAG" > release-notes.md
       - name: Create the GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${{ github.ref_name }}" dist/AnimeTracker.exe --title "Anime Tracker ${{ github.ref_name }}" --notes-file release-notes.md --verify-tag
+        run: gh release create "$TAG" dist/AnimeTracker.exe --title "Anime Tracker $TAG" --notes-file release-notes.md --verify-tag

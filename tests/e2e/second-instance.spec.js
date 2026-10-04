@@ -38,9 +38,10 @@ test('a second instance on the same data folder exits without writing anything',
     const countersPath = path.join(first.dataDir, 'counters.json');
     fs.renameSync(countersPath, `${countersPath}.held-by-test`);
     const before = fingerprint(first.dataDir);
-    const secondPort = 41000 + Math.floor(Math.random() * 4000);
+    // Port 0: it stops at the lock before listening, and never takes a port
+    // a parallel test might be using.
     const second = spawn(process.execPath, [SERVER_PATH], {
-      env: { ...process.env, ANIME_TRACKER_DATA_DIR: first.dataDir, ANIME_TRACKER_PORT: String(secondPort) },
+      env: { ...process.env, ANIME_TRACKER_DATA_DIR: first.dataDir, ANIME_TRACKER_PORT: '0' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stderr = '';

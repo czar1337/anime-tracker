@@ -65,14 +65,17 @@ await test('writeLock: queued tasks run in strict FIFO order', async (t) => {
     await new Promise((r) => setTimeout(r, 10));
     order.push(1);
   });
-  await settle();
-  t.mock.timers.tick(10);
+  // Queued while the first task is still waiting on its timer, so a lock
+  // without mutual exclusion would let 2 and 3 run first.
   const p2 = lock.run(async () => {
     order.push(2);
   });
   const p3 = lock.run(async () => {
     order.push(3);
   });
+  await settle();
+  assert.deepEqual(order, [], 'nothing finished while the first task holds the lock');
+  t.mock.timers.tick(10);
   await Promise.all([p1, p2, p3]);
   assert.deepEqual(order, [1, 2, 3]);
 });
@@ -87,13 +90,15 @@ await test('writeLock: a waiter gives up after timeoutMs and its task never runs
   lock.run(() => holderDone); // holds the lock until releaseHolder() is called
   let neverRuns = false;
   let threw = null;
+  let settled = false;
   const waiting = lock.run(() => {
     neverRuns = true;
   }, { timeoutMs: 30 });
+  waiting.then(() => (settled = true), () => (settled = true));
   await settle();
   t.mock.timers.tick(29);
   await settle();
-  assert.equal(threw, null, 'still waiting one millisecond before the timeout');
+  assert.equal(settled, false, 'still waiting one millisecond before the timeout');
   t.mock.timers.tick(1);
   try {
     await waiting;

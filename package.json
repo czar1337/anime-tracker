@@ -2,7 +2,7 @@
   "name": "anime-tracker",
   "version": "3.0.0",
   "private": true,
-  "description": "Local-only anime tracker. No runtime dependencies, no build step. Playwright and fontkit are devDependencies only, for the v2 verification harness and the font-manifest generator script respectively.",
+  "description": "Local-only anime tracker. No runtime dependencies, no build step. devDependencies are for tests and tooling only: Playwright (end-to-end tests), esbuild, postject and rcedit (the Windows exe), fontkit (the font manifest generator).",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

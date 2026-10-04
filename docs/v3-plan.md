@@ -500,6 +500,22 @@ Phase 3 (design system and motion):
 - **`version.json` is the one version source.** `package.json` keeps a `version` (npm
   needs one) and `scripts/check-version.js` fails CI when the two differ or a tag does
   not match.
+- **The root server modules stay at the repo root.** The Phase 2 plan put moving
+  `datadir.js`, `migrations.js`, `snapshots.js`, `httpSecurity.js` and the other pure
+  modules under `src/lib/` into the Phase 7 cleanup. It is deferred: it touches every
+  require path in the server, the unit tests and the build for no behaviour change, at
+  the release checkpoint. Recorded under "Later".
+- **No console window (D1) is done in Phase 7 as planned.** After postject the build
+  switches the exe's PE subsystem to Windows GUI, and the packaged app logs to
+  `DATA_DIR/logs/anime-tracker.log` (capped at 1 MB, one previous file kept), installed
+  after the single-instance lock and the legacy-folder move so neither sees a folder it
+  created. The smoke test checks both. Quit is the tray icon's.
+- **Phase 7 review fixes.** The FIFO lock test queues its waiters before the timer
+  fires again (a lock without exclusion now fails it); the 29 ms "still waiting" check
+  reads the real promise state; the release-notes heading match accepts a dated heading
+  and nothing looser; CI passes the tag through an environment variable and checks out
+  without persisted credentials; the restart, second-instance and migration specs use
+  free ports; the OCR test runs the app's own worker setup.
 
 ## Later (out of scope for v3.0)
 
@@ -510,4 +526,5 @@ Phase 3 (design system and motion):
   optional roast pack, every line read by the user first (v3.1+).
 - Friends' lists by AniList username with an affinity score (unlocks shelf 10).
 - Streaming-service filter in Discover.
+- Move the pure root server modules (`datadir.js`, `migrations.js`, `snapshots.js`, ...) under `src/lib/`.
 - Offline-first (not applicable) and more font families (cut).

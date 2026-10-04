@@ -96,6 +96,12 @@ if (migrationResult.action === 'migrated') {
 // must not do.
 const dataDirConflict = migrationResult.action === 'conflict' ? migrationResult : null;
 
+// The packaged exe has no console window (v3 Phase 7, D1): from here on its log
+// also goes to DATA_DIR/logs/ (after the instance lock and the legacy-folder
+// move, so neither ever sees a folder this created). ANIME_TRACKER_LOG_FILE=1
+// does the same in development.
+if (IS_SEA || process.env.ANIME_TRACKER_LOG_FILE === '1') require('./services/fileLog.js').installFileLog(DATA_DIR);
+
 const dirsToEnsure = IS_SEA ? [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR] : [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR];
 for (const dir of dirsToEnsure) {
   fs.mkdirSync(dir, { recursive: true });

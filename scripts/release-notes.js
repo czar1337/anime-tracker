@@ -14,7 +14,9 @@ if (!version) {
 }
 const text = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8').replace(/\r\n/g, '\n');
 const lines = text.split('\n');
-const start = lines.findIndex((l) => new RegExp(`^## ${version.replace(/\./g, '\.')}(\s|$)`).test(l));
+// "## 3.0.0" or "## 3.0.0 (2026-10-04)", never "## 3.0.01".
+const isHeading = (l) => l === `## ${version}` || l.startsWith(`## ${version} `);
+const start = lines.findIndex(isHeading);
 if (start < 0) {
   console.error(`release-notes: no "## ${version}" section in CHANGELOG.md`);
   process.exit(1);

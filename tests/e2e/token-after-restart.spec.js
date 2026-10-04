@@ -11,8 +11,9 @@ const FIXTURE = path.join(__dirname, '..', 'fixtures', 'watching-entry-library.j
 const ID = 101922; // 5/12
 
 test('a tab kept open across a server restart can still save its edits', async ({ page }) => {
-  const port = String(41000 + Math.floor(Math.random() * 4000));
-  const first = await startFixtureServer(FIXTURE, { env: { ANIME_TRACKER_PORT: port } });
+  // A free port first (v3 Phase 7), then the restart reuses that same port.
+  const first = await startFixtureServer(FIXTURE);
+  const port = new URL(first.url).port;
   await page.goto(first.url);
   await page.waitForSelector(`.card[data-id="${ID}"]`);
   await first.stop({ keepDataDir: true });

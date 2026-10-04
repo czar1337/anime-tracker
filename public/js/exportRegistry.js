@@ -8,7 +8,7 @@
 // consumer. See docs/archive/v2/v2-plan.md's P1.1 entry.
 //
 // Deliberately zero-dependency and free of any Node or DOM API: the browser
-// imports this directly, and server.js/tests/run-all.js load it via a dynamic
+// imports this directly, and server.js/the unit tests (tests/unit/) load it via a dynamic
 // import() (native in Node, no bundler needed), so the exact same registry and
 // selectors run in both places.
 //

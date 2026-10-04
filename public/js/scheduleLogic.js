@@ -1,6 +1,6 @@
 // Pure logic for the Schedule tab's "Coming soon" list — no DOM, no fetch,
 // no Store import — exercised directly both from schedule.js (browser) and
-// tests/run-all.js (Node, via dynamic import()).
+// the unit tests (tests/unit/) (Node, via dynamic import()).
 
 import { genreSimilarity } from './recommendLogic.js';
 

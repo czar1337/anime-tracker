@@ -12,12 +12,15 @@ The lasting rules of Anime Tracker, as v3.0 left them. The program history lives
 - **Zero runtime dependencies.** Node built-ins on the server, plain ES modules in the
   browser. devDependencies (Playwright, esbuild, fontkit, postject, rcedit) are for
   tests and the build only.
-- **The browser talks to AniList; the server stores.** The only outbound calls from the
-  server are the daily version check and, when the user turns them on, background
-  episode notifications (`src/services/notifier.js`).
+- **The browser talks to AniList; the server stores.** The server's own outbound calls
+  are few: it downloads cover images from AniList's image host when the page asks
+  (`coverDownload.js`, AniList images only, 5 MB cap), checks `version.json` on GitHub
+  once a day, and, when the user turns them on, checks for new episodes in the
+  background (`src/services/notifier.js`).
 - **The exe** is a Node single executable (`scripts/build-exe.js`): the runtime, an
   esbuild bundle of the server, and `public/`, `config/` and `version.json` as
-  embedded assets. Browser modules the server also runs (event types, the taste fold,
+  embedded assets. It is a Windows GUI program (no console window): it is quit from its
+  tray icon and logs to `logs/` in the data folder. Browser modules the server also runs (event types, the taste fold,
   the copy registry) are loaded as `data:` URLs, so they must stay import-free.
 
 ## Data

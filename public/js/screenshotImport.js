@@ -105,6 +105,9 @@ function reviewRowHtml(result, idx, included) {
 
 const SCREENSHOT_STEP_LABELS = ['Paste or upload', 'Check matches'];
 
+// The OCR worker exactly as the import uses it (the CSP e2e test runs it).
+export { getWorker as getOcrWorker };
+
 export function initScreenshotImport() {
   const overlay = document.getElementById('screenshot-overlay');
   const stepsEl = document.getElementById('screenshot-steps-indicator');
