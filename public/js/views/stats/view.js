@@ -15,9 +15,9 @@ import { coverSrc } from '../library/view.js';
 const LIST_META = {
   watching: { label: 'Watching', icon: '▶' },
   watchlist: { label: 'Watchlist', icon: '☰' },
-  watched: { label: 'Watched', icon: '✓' },
+  watched: { label: 'Completed', icon: '✓' },
   dropped: { label: 'Dropped', icon: '✕' },
-  paused: { label: 'Paused', icon: '❚❚' },
+  paused: { label: 'On hold', icon: '❚❚' },
 };
 
 export function barChartHtml(data, { formatValue = (v) => v } = {}) {
@@ -162,7 +162,7 @@ export function renderStatsPage(container) {
     <div class="stats-grid-2col">
       <div class="stats-section">
         <h3>Top rated</h3>
-        <div class="stat-mini-list">${topRated.length ? miniListHtml(topRated) : html`<p class="card-meta">Score something in Watched to see it here.</p>`}</div>
+        <div class="stat-mini-list">${topRated.length ? miniListHtml(topRated) : html`<p class="card-meta">Score something in Completed to see it here.</p>`}</div>
       </div>
       <div class="stats-section">
         <h3>Most episodes watched</h3>

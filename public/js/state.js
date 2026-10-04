@@ -4,7 +4,7 @@
 
 import { displayTitle } from './titles.js';
 import { createRevisionStore, memoize } from './core/store.js';
-import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
+import { defaultSettings, ensureSettingsShape, LIBRARY_TABS } from './settingsSchema.js';
 import { createTagId, createListId, normalizeName, isDuplicateTagName, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partitionAiringLast, compareValues } from './sortLogic.js';
 
@@ -151,11 +151,22 @@ function getEntriesByList(list) {
   return state.entries.filter((e) => e.listStatus === list);
 }
 
+// What a Library tab shows: one list, or one of the two views over them
+// (v3 finish): 'new' is Watching with aired episodes not marked yet (the
+// same rule as the Library tab's badge), 'all' is everything.
+function getEntriesForTab(tab) {
+  if (tab === 'all') return state.entries.slice();
+  if (tab === 'new') return state.entries.filter((e) => e.listStatus === 'watching' && unseenLookup && unseenLookup(e.anilistId) > 0);
+  return getEntriesByList(tab);
+}
+
 function getCounts() {
   const counts = Object.fromEntries(LISTS.map((l) => [l, 0]));
   for (const e of state.entries) {
     if (counts[e.listStatus] !== undefined) counts[e.listStatus] += 1;
   }
+  counts.new = getEntriesForTab('new').length;
+  counts.all = state.entries.length;
   return counts;
 }
 
@@ -730,11 +741,11 @@ function groupSortValue(group, sortKey) {
 // "Recommended" there, nothing to substitute). Resolved BEFORE any sorting
 // happens, so groupSortValue/compareValues never actually see the literal
 // key 'recommended' for a list.
-const LIST_RECOMMENDED_KEY = { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'lastUpdated' };
+const LIST_RECOMMENDED_KEY = { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'lastUpdated', new: 'unseenEpisodes', all: 'lastUpdated' };
 
 // Free-text title filter is intentionally NOT persisted (like a Ctrl-F, not
 // a lasting preference) — kept as simple in-memory state per list.
-const titleFilters = Object.fromEntries(LISTS.map((l) => [l, '']));
+const titleFilters = Object.fromEntries(LIBRARY_TABS.map((l) => [l, '']));
 function setTitleFilter(list, text) {
   titleFilters[list] = text;
   touch();
@@ -762,7 +773,7 @@ function computeGroupedFilteredSorted(list) {
   const sortKey = rawSortKey === 'recommended' ? LIST_RECOMMENDED_KEY[list] || 'dateAdded' : rawSortKey;
   const sortDir = state.preferences.sortDir[list];
 
-  let groups = buildGroups(getEntriesByList(list));
+  let groups = buildGroups(getEntriesForTab(list));
 
   // P4.1: search now also matches tag names and studio, not just title/
   // notes — a tag id only means something once resolved to its name, so
@@ -860,6 +871,7 @@ function allAiringStatuses() {
 
 export const Store = {
   LISTS,
+  TABS: LIBRARY_TABS,
   state,
   get revision() {
     return core.revision;
@@ -874,6 +886,7 @@ export const Store = {
   getEntries,
   getEntry,
   getEntriesByList,
+  getEntriesForTab,
   getCounts,
   addEntry,
   updateEntry,

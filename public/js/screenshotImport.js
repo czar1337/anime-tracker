@@ -96,7 +96,7 @@ function reviewRowHtml(result, idx, included) {
       <span class="conf ${media ? confidenceClass(result.confidence) : 'lo'}">${media ? `${Math.round(result.confidence * 100)}%` : '—'}</span>
       <span>
         ${media
-          ? `<select class="filter-select screenshot-status-select" data-idx="${idx}"><option value="watchlist" selected>Watchlist</option><option value="watching">Watching</option><option value="watched">Watched</option><option value="dropped">Dropped</option></select>`
+          ? `<select class="filter-select screenshot-status-select" data-idx="${idx}"><option value="watchlist" selected>Watchlist</option><option value="watching">Watching</option><option value="watched">Completed</option><option value="dropped">Dropped</option></select>`
           : `<button class="fix" data-action="manual-match" data-idx="${idx}">Search</button>`}
       </span>
     </div>

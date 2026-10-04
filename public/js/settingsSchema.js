@@ -60,8 +60,13 @@ export function isValidHexColor(value) {
   return typeof value === 'string' && HEX_COLOR_RE.test(value);
 }
 
-export const LIBRARY_LAYOUTS = ['grid', 'list'];
-export const SAVED_VIEW_LISTS = ['watching', 'watchlist', 'watched', 'dropped', 'paused'];
+// v3 finish: 'compact' is the denser cover grid; 'list' the real list view.
+export const LIBRARY_LAYOUTS = ['grid', 'compact', 'list'];
+// The Library's tabs: the five lists plus two views over them, 'new' (Watching
+// with aired episodes not marked yet) and 'all'. Each tab keeps its own
+// filters and sort. Order is the tab order.
+export const LIBRARY_TABS = ['watching', 'new', 'watchlist', 'watched', 'paused', 'dropped', 'all'];
+export const SAVED_VIEW_LISTS = LIBRARY_TABS;
 export const SAVED_VIEWS_MAX = 20;
 export const SAVED_VIEW_NAME_MAX = 40;
 
@@ -212,8 +217,8 @@ export function defaultSettings() {
     // (see sortLogic.js's isNoopSort), so sortDir.discover's value is a
     // placeholder; kept 'desc' for consistency with the four lists' own
     // unchanged defaults below.
-    sort: { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'dateAdded', discover: 'recommended' },
-    sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc', paused: 'desc', discover: 'desc' },
+    sort: { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'dateAdded', discover: 'recommended', new: 'unseenEpisodes', all: 'lastUpdated' },
+    sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc', paused: 'desc', discover: 'desc', new: 'desc', all: 'desc' },
     filters: {
       // P4.1: airingStatus is new (AniList's own status enum, or '' for
       // "any") — a filter dimension distinct from the four tabs (which
@@ -224,6 +229,8 @@ export function defaultSettings() {
       watched: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
       dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
       paused: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
+      new: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
+      all: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
     },
     activeTab: 'watching',
     // v3 Phase 4: the library's layout (covers, or the compact list for large
@@ -351,7 +358,7 @@ export function ensureSettingsShape(preferences) {
   prefs.sort = { ...defaults.sort, ...prefs.sort };
   prefs.sortDir = { ...defaults.sortDir, ...prefs.sortDir };
   prefs.filters = prefs.filters || {};
-  for (const list of LISTS) {
+  for (const list of LIBRARY_TABS) {
     prefs.filters[list] = { ...defaults.filters[list], ...(prefs.filters[list] || {}) };
   }
   prefs.activeTab = prefs.activeTab || defaults.activeTab;

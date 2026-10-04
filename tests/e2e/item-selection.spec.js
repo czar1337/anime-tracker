@@ -69,7 +69,9 @@ test('Ctrl/Cmd+A selects only the currently visible, filtered set — never the 
   const server = await startFixtureServer(FIXTURE);
   try {
     await gotoSortedByTitle(page, server);
+    await page.click('#filters-toggle'); // v3 finish: filters live in the panel
     await page.selectOption('#studio-filter', 'Studio X'); // narrows to 301-303
+    await page.click('[data-action="filters-done"]');
     await expect.poll(() => page.locator('#grid .card').evaluateAll((cards) => cards.map((c) => c.dataset.id))).toEqual(['301', '302', '303']);
 
     await page.click('#grid'); // ensure focus is on the page, not a text field
@@ -79,6 +81,7 @@ test('Ctrl/Cmd+A selects only the currently visible, filtered set — never the 
 
     // clearing the filter reveals 304/305 but must not retroactively select
     // them — the selection was frozen to what Ctrl/Cmd+A actually saw.
+    await page.click('#filters-toggle');
     await page.selectOption('#studio-filter', '');
     await expect.poll(() => page.locator('#grid .card').evaluateAll((cards) => cards.map((c) => c.dataset.id))).toEqual(['301', '302', '303', '304', '305']);
     await expect.poll(() => selectedIds(page)).toEqual(['301', '302', '303']);

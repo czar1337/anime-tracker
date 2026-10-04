@@ -30,7 +30,7 @@ test('a single +1 on a 2,000-entry library updates exactly one card', async ({ p
       window.__observer.observe(document.getElementById('grid'), { subtree: true, childList: true, attributes: true, characterData: true });
     });
     await target.locator('[data-action="increment"]').click();
-    await expect(target.locator('.progress-label')).toHaveText(/^1\b|^\d+/);
+    await expect(target.locator('.progress-label')).toHaveText(/^Ep \d+ \/ (\d+|\?)$/);
     await page.waitForTimeout(300); // let any chunked follow-up frames run
     const result = await page.evaluate(() => {
       window.__observer.disconnect();
@@ -124,7 +124,7 @@ test('keyboard focus stays on a card that moves, and inside it when its controls
     const id = await page.evaluate(() => {
       const cards = [...document.querySelectorAll('#grid > .card')].slice(30);
       return cards.find((c) => {
-        const [done, total] = c.querySelector('.progress-label').textContent.split('/').map(Number);
+        const [, done, total] = c.querySelector('.progress-label').textContent.match(/Ep (\d+) \/ (\d+|\?)/).map(Number);
         return total && total - done >= 4;
       }).dataset.id;
     });

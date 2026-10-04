@@ -55,7 +55,10 @@ export function getUnseenSeriesCount() {
 export function getNextEpisodeCountdown(anilistId) {
   const entry = Store.getEntry(anilistId);
   if (!entry) return null;
-  return formatEpisodeCountdown(cacheEntries[anilistId]?.nextAiringEpisode);
+  const next = cacheEntries[anilistId]?.nextAiringEpisode;
+  const left = formatEpisodeCountdown(next);
+  // v3 finish: the episode number too, for the card's "Ep 7 in 3d 1h".
+  return left ? { ...left, episode: Number.isInteger(next.episode) ? next.episode : null } : null;
 }
 
 // v3 Phase 4: AniList's banner image and dominant cover colour for a series in

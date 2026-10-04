@@ -1,11 +1,13 @@
-// Home, "Tonight at the shrine" (v3 Phase 4), and the Watching hero. Templates
+// Home, "Tonight at the shrine" (v3 Phase 4). v3 finish: the Watching hero left
+// the Library; its place is the first Continue watching card here. Templates
 // are html``; every background image goes through cssUrl(), which fixes v2's
 // unescaped url('...').
 //
 // Home: a "Continue watching" rail of landscape cards (the sharp poster, on
 // AniList's banner when there is one, else on a calm wash of the cover's own
-// colour; v3 finish: no more blurred cover), whose first card is the hero; a clickable "Airing tonight" timeline; "Up next from your Watchlist"
-// with Start buttons; and three numbers for this year.
+// colour; v3 finish: no more blurred cover), whose first card is the hero;
+// a clickable "Airing tonight" timeline; "Up next from your Watchlist" with
+// Start buttons; and three numbers for this year.
 
 import { Store } from '../../state.js';
 import { Airing } from '../../airing.js';
@@ -58,61 +60,6 @@ export function heroPick() {
     return { entry, mode: 'new' };
   }
   return { entry: watching[0], mode: 'calm' };
-}
-
-// The image for a wide header: AniList's banner when the airing refresh has
-// it, else the cover blurred (the .from-cover class). A small cover is never
-// stretched sharp across a wide box.
-function wideImage(entry) {
-  const banner = Airing.getBanner(entry.anilistId);
-  const src = banner || coverSrc(entry);
-  return { src, blurred: !banner };
-}
-
-// The same "Progress" string in both modes (design §12 core strings).
-function heroProgressLine(entry) {
-  const total = entry.totalEpisodes;
-  if (!total) return `${entry.episodesWatched} watched · no total known`;
-  const left = total - entry.episodesWatched;
-  return `Episode ${entry.episodesWatched} of ${total} watched${left > 0 ? ` · ${left} to go` : ''}`;
-}
-
-export function heroHtml(pick, { tall = false } = {}) {
-  if (!pick) return '';
-  const { entry, mode } = pick;
-  const { src, blurred } = wideImage(entry);
-  const total = entry.totalEpisodes;
-  const nextEp = entry.episodesWatched + 1;
-  const canMarkNext = !total || nextEp <= total;
-  const metaBits = [entry.genres?.[0], entry.format, entry.year].filter(Boolean);
-  return html`
-    <div class="${cls('hero', mode === 'calm' && 'calm', tall && 'tall')}" data-accent-id="${entry.anilistId}">
-      <div class="${cls('bg', blurred && 'from-cover')}" style="${src ? html`background-image:${cssUrl(src)}` : ''}"></div>
-      <div class="in">
-        <div class="kick"><i></i>${mode === 'new' ? copy('home.kickNew') : copy('home.kickCalm')}</div>
-        <h2 data-action="show-detail" data-detail-id="${entry.anilistId}">${title(entry)}</h2>
-        ${metaBits.length ? html`<div class="sub">${metaBits.join(' · ')}</div>` : ''}
-        ${total ? html`<div class="track"><i style="--p:${Math.min(1, entry.episodesWatched / total)}"></i></div>` : ''}
-        <div class="n">${heroProgressLine(entry)}</div>
-        <div class="row">
-          ${canMarkNext && html`<button class="btn btn-primary rip-host" data-action="increment" data-hero-id="${entry.anilistId}">Mark episode ${nextEp} watched</button>`}
-          <button class="btn btn-ghost" data-action="show-detail" data-detail-id="${entry.anilistId}">Open series</button>
-        </div>
-      </div>
-    </div>`;
-}
-
-// Above the filter bar on the Watching list (design §5). Morphed rather than
-// replaced, so a +1 on the featured series does not reload its image.
-export function renderWatchingHero() {
-  const el = document.getElementById('watching-hero');
-  if (!el) return;
-  const pick = heroPick();
-  el.hidden = !pick;
-  if (pick) {
-    morphInto(el, heroHtml(pick, { tall: true }));
-    paintAccents(el);
-  }
 }
 
 // One card of the Continue watching rail: the sharp poster, the title (two

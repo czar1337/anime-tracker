@@ -6,8 +6,10 @@
 // hidden under the top layer.
 //
 // Icon-only buttons carry both aria-label (what assistive tech reads) and
-// data-tip (what a sighted pointer user sees); the bubble is aria-hidden when
-// it only repeats the label, and described-by otherwise.
+// data-tip (what a sighted pointer user sees); an empty data-tip shows the
+// aria-label, so a long label is not written twice into every card. The
+// bubble is aria-hidden when it only repeats the label, and described-by
+// otherwise.
 
 import { UI_TIMING } from '../../../config/tuning.js';
 
@@ -41,7 +43,7 @@ function place(el) {
 }
 
 function show(el) {
-  const text = el.dataset.tip;
+  const text = el.dataset.tip || el.getAttribute('aria-label');
   if (!text || !el.isConnected) return;
   const t = bubble();
   const host = el.closest('dialog[open]') || document.body;
@@ -49,7 +51,7 @@ function show(el) {
   t.textContent = text;
   t.hidden = false;
   current = el;
-  const repeatsLabel = el.getAttribute('aria-label') === text;
+  const repeatsLabel = !el.dataset.tip || el.getAttribute('aria-label') === text;
   t.setAttribute('aria-hidden', String(repeatsLabel));
   if (!repeatsLabel) el.setAttribute('aria-describedby', 'ui-tooltip');
   place(el);

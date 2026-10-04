@@ -28,7 +28,7 @@ async function open(page, url) {
   await page.waitForFunction(() => !document.querySelector('#grid > .enter'));
 }
 
-test('a card is a 2:3 cover, one title line, one meta line and a hairline, with nothing else on it', async ({ page }) => {
+test('a card is a 2:3 cover, a title with room for two lines, one meta line and a hairline, with nothing else on it', async ({ page }) => {
   const server = await startFixtureServer(BULK);
   try {
     await open(page, server.url);
@@ -46,7 +46,8 @@ test('a card is a 2:3 cover, one title line, one meta line and a hairline, with 
         leftovers: card.querySelectorAll('.score-dot, .quick-move-btn, .notes-field, .notes-toggle, [data-action="set-status"], [data-action="delete"]').length,
       };
     });
-    expect(shape).toEqual({ ratio: 0.67, titleLines: 1, metaLines: 1, hairline: 2, leftovers: 0 });
+    // v3 finish: every title reserves two lines, so rows stay even.
+    expect(shape).toEqual({ ratio: 0.67, titleLines: 2, metaLines: 1, hairline: 3, leftovers: 0 });
     // 402 is 24/24 but still in Watching: no "Finished! Move to Watched?" prompt.
     await expect(page.locator('#grid')).not.toContainText('Finished!');
   } finally {
@@ -82,7 +83,7 @@ test('+1 is reachable from the keyboard: focusing the card shows its toolbar', a
     await expect(card.locator('[data-action="increment"]')).toBeFocused();
     await expect(card.locator('[data-action="increment"]')).toHaveAttribute('aria-label', 'Mark Entry A episode 6 watched');
     await page.keyboard.press('Enter');
-    await expect(card.locator('.progress-label')).toHaveText('6/12');
+    await expect(card.locator('.progress-label')).toHaveText('Ep 6 / 12');
   } finally {
     await server.stop();
   }
@@ -134,7 +135,7 @@ test('the context menu: right-click or Shift+F10, arrow keys, Escape returns foc
     await expect(card.locator('[data-action="card-menu"]')).toBeFocused();
 
     await card.locator('[data-action="card-status-menu"]').click();
-    await expect(page.getByRole('menuitem')).toHaveText(['Move to Watchlist', 'Move to Watched', 'Move to Dropped', 'Move to Paused']);
+    await expect(page.getByRole('menuitem')).toHaveText(['Move to Watchlist', 'Move to Completed', 'Move to Dropped', 'Move to On hold']);
     await page.getByRole('menuitem', { name: 'Move to Watchlist' }).click();
     await expect(page.locator('#grid > .card[data-id="401"]')).toHaveCount(0);
     await expect
@@ -148,12 +149,15 @@ test('the context menu: right-click or Shift+F10, arrow keys, Escape returns foc
   }
 });
 
-test('the compact list layout: a radiogroup, arrow keys, and it is remembered', async ({ page }) => {
+test('the layouts (comfortable, compact, list): a radiogroup, arrow keys, and it is remembered', async ({ page }) => {
   const server = await startFixtureServer(BULK);
   try {
     await open(page, server.url);
     await expect(page.locator('[data-layout="grid"]')).toHaveAttribute('aria-checked', 'true');
     await page.locator('[data-layout="grid"]').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('[data-layout="compact"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#grid')).toHaveClass(/compact-layout/);
     await page.keyboard.press('ArrowRight');
     await expect(page.locator('[data-layout="list"]')).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator('#grid')).toHaveClass(/list-layout/);
@@ -173,6 +177,8 @@ test('saved filter views: save the current filters, apply them later, delete wit
   const server = await startFixtureServer(syntheticFixture());
   try {
     await open(page, server.url);
+    // v3 finish: the genres are in the Filters panel.
+    await page.click('#filters-toggle');
     await page.click('#genre-filter [data-genre="Drama"], #genre-filter button:has-text("Drama")');
     const filtered = await page.locator('#grid > .card').count();
     await page.click('[data-action="save-view"]');

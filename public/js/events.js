@@ -59,7 +59,7 @@ function restoreCopyFor(result) {
 
 
 let activeList = 'watching';
-let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
+let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.TABS (the Library's tabs)
 let persist = () => {};
 let searchDebounceTimer = null;
 let replaceTargetId = null; // set while the search overlay is being used to fix a wrong match
@@ -282,7 +282,7 @@ function playViewEnter(el) {
 // v3 Phase 4: five sections in the header (Home · Library · Schedule ·
 // Discover · Stats); the four lists are a segmented control inside Library.
 function sectionOf(view) {
-  return Store.LISTS.includes(view) ? 'library' : view;
+  return Store.TABS.includes(view) ? 'library' : view;
 }
 
 // Marks `view` selected in both tablists (aria-selected plus the roving
@@ -290,7 +290,7 @@ function sectionOf(view) {
 function markSelected(view) {
   const section = sectionOf(view);
   selectTab(document.querySelectorAll('#section-tabs .tab'), (t) => t.dataset.tab === section);
-  if (Store.LISTS.includes(view)) {
+  if (Store.TABS.includes(view)) {
     selectTab(document.querySelectorAll('.list-seg'), (s) => s.dataset.list === view);
     // On a phone the five lists can overflow their row, which scrolls: keep
     // the selected one in sight.
@@ -917,6 +917,40 @@ function bindPickForMeOverlay() {
 // strip — whatever #grid/the page currently has). No wraparound: k at the
 // first card or j at the last just stays put, matching the "move between
 // cards" wording rather than a carousel.
+// v3 finish: the arrow keys move between the Library's cards the way they
+// sit on screen: left and right along the row (or the list), up and down to
+// the card above or below.
+function focusCardInDirection(key) {
+  const current = document.activeElement?.closest?.('#grid .card');
+  if (!current) return false;
+  const cards = [...document.querySelectorAll('#grid .card')].filter((c) => c.offsetParent !== null);
+  const i = cards.indexOf(current);
+  if (i < 0) return false;
+  let next = null;
+  if (key === 'ArrowLeft') next = cards[i - 1];
+  else if (key === 'ArrowRight') next = cards[i + 1];
+  else {
+    const r = current.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const down = key === 'ArrowDown';
+    let best = Infinity;
+    for (const c of cards) {
+      const b = c.getBoundingClientRect();
+      const dy = down ? b.top - r.bottom : r.top - b.bottom;
+      if (dy < -2) continue;
+      const score = dy * 4 + Math.abs(b.left + b.width / 2 - cx);
+      if (c !== current && score < best) {
+        best = score;
+        next = c;
+      }
+    }
+  }
+  if (!next) return true;
+  next.focus({ preventScroll: true });
+  next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  return true;
+}
+
 function focusAdjacentCard(delta) {
   // P5B.5: extended to Discover's own card type so j/k also rove there —
   // reuses this existing roving-focus shortcut instead of a parallel one.
@@ -977,7 +1011,7 @@ function bindKeyboardShortcuts() {
     // four list tabs (Discover/Schedule/Home/Stats have no selection UI at
     // all), so it's a no-op elsewhere rather than hijacking native
     // select-all on those pages.
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && Store.LISTS.includes(currentView)) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && Store.TABS.includes(currentView)) {
       e.preventDefault();
       Render.selectAllVisible(activeList);
       refreshGridOnly();
@@ -988,7 +1022,7 @@ function bindKeyboardShortcuts() {
     if (e.key === '/') {
       e.preventDefault();
       // The list view appears inside a View Transition, a frame later.
-      const shown = Store.LISTS.includes(currentView) ? null : showListView(activeList);
+      const shown = Store.TABS.includes(currentView) ? null : showListView(activeList);
       Promise.resolve(shown?.updateCallbackDone).catch(() => {}).then(() => document.getElementById('title-filter').focus());
       return;
     }
@@ -1034,6 +1068,12 @@ function bindKeyboardShortcuts() {
     if (e.key === 'j' || e.key === 'k') {
       e.preventDefault();
       focusAdjacentCard(e.key === 'j' ? 1 : -1);
+      return;
+    }
+
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey && document.activeElement.matches('#grid .card')) {
+      e.preventDefault();
+      focusCardInDirection(e.key);
       return;
     }
 
@@ -1098,7 +1138,7 @@ function showView(view) {
   else if (view === 'discover') showDiscoverView();
   else if (view === 'schedule') showScheduleView();
   else if (view === 'library') showListView(activeList);
-  else if (Store.LISTS.includes(view)) showListView(view);
+  else if (Store.TABS.includes(view)) showListView(view);
 }
 
 function bindTabs() {
@@ -1118,7 +1158,7 @@ function bindTabs() {
   for (const key of ['home', 'library', 'schedule', 'discover', 'stats']) {
     registerCommand({ id: `go.${key}`, title: copy('command.goTo', undefined, { place: place(key) }), section: 'navigate', run: () => showView(key) });
   }
-  for (const list of Store.LISTS) {
+  for (const list of Store.TABS) {
     registerCommand({ id: `go.${list}`, title: copy('command.goTo', undefined, { place: copy(`list.${list}`) }), section: 'navigate', run: () => showView(list) });
   }
 }

@@ -77,6 +77,10 @@ test('the list segments are a tablist too, and the grid panel follows the select
     await open(page, server.url);
     await expect(page.locator('[data-list="watching"] .tab-count')).toHaveText('4');
     await page.locator('[data-list="watching"]').focus();
+    // v3 finish: New episodes sits between Watching and the Watchlist.
+    await expect(page.locator('.list-seg')).toHaveText([/^Watching/, /^New episodes/, /^Watchlist/, /^Completed/, /^On hold/, /^Dropped/, /^All/]);
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('[data-list="new"]')).toBeFocused();
     await page.keyboard.press('ArrowRight');
     await expect(page.locator('[data-list="watchlist"]')).toBeFocused();
     await expect(page.locator('[data-list="watchlist"]')).toHaveAttribute('aria-selected', 'true');
@@ -124,6 +128,8 @@ test('new episodes: one number on the Library tab, the bell appears, and the Wat
     // The Library tab shows one number; the segment shows the list count once.
     expect((await page.locator('#tab-library').innerText()).match(/\d+/g)).toEqual(['1']);
     expect((await page.locator('[data-list="watching"]').innerText()).match(/\d+/g)).toEqual(['4']);
+    // v3 finish: the New episodes tab counts the same series as the badge.
+    expect((await page.locator('[data-list="new"]').innerText()).match(/\d+/g)).toEqual(['1']);
   } finally {
     await server.stop();
   }
