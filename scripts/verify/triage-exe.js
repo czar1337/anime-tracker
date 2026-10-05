@@ -20,7 +20,9 @@ const { startExe } = require('./exe-session.js');
 const [backupDir, outDir] = process.argv.slice(2);
 const runsArg = process.argv.indexOf('--runs');
 const RUNS = runsArg > 0 ? Number(process.argv[runsArg + 1]) : 3;
-if (!backupDir || !outDir) {
+// Both folders first, before any --option (a missing one used to make "3"
+// the screenshot folder).
+if (!backupDir || !outDir || backupDir.startsWith('--') || outDir.startsWith('--') || !fs.existsSync(backupDir)) {
   console.error('usage: node scripts/verify/triage-exe.js <backup-folder> <screenshot-folder> [--runs 3]');
   process.exit(1);
 }
