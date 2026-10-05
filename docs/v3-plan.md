@@ -517,6 +517,12 @@ Phase 3 (design system and motion):
   without persisted credentials; the restart, second-instance and migration specs use
   free ports; the OCR test runs the app's own worker setup.
 
+- **Finish run 2 (2026-10-05).** Every decision of that run (arrows follow the drag,
+  northern-hemisphere seasons, the poster route limited to AniList's image CDN, What's new
+  in preferences and skipped for an empty library, a fresh Triage session per open, the
+  local merge into `main` and the `v3.0.0` tag) is listed with its reason in
+  `docs/v3-run2-report.md` §7.
+
 ## Later (out of scope for v3.0)
 
 - Two-way AniList OAuth sync (v3.1).

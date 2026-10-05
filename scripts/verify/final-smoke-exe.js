@@ -45,11 +45,14 @@ async function closeDialogs(page) {
   const dataDir = s.dataDir;
   const browser = await chromium.launch();
   const errors = [];
+  const failedRequests = [];
   const watch = (page) => {
     page.on('console', (m) => {
       if (m.type() === 'error' && !/graphql\.anilist\.co|ERR_NAME_NOT_RESOLVED|429/.test(m.text())) errors.push(m.text());
     });
     page.on('pageerror', (e) => errors.push(String(e)));
+    // Which request a "Failed to load resource" was (the console line has no URL).
+    page.on('requestfailed', (r) => failedRequests.push(`${r.failure()?.errorText} ${r.url().slice(0, 140)}`));
   };
   try {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -191,6 +194,7 @@ async function closeDialogs(page) {
     await s.stop();
   }
   check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+  if (failedRequests.length) console.log(`failed requests:\n  ${failedRequests.join('\n  ')}`);
   fs.writeFileSync(path.join(outDir, 'final-smoke.json'), JSON.stringify({ at: new Date().toISOString(), results }, null, 2));
   const failed = results.filter((r) => !r.ok).length;
   console.log(failed ? `\n${failed} check(s) failed.` : `\nAll ${results.length} checks passed.`);

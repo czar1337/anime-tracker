@@ -3,74 +3,37 @@
 Resume state for the v3.0 program. Plan: `docs/v3-plan.md`. Brief: `docs/v3/25-09-2026-v3-brief.md`.
 On "resume": read this table, then `git log --oneline -20`, then continue the active phase.
 
-## Release checkpoint: 3.0.0 is ready, waiting for you (2026-10-04)
+## Release: 3.0.0 is merged and tagged locally, waiting for you (2026-10-05)
 
-The v3.0 program is done through Phase 7 and stopped at the release checkpoint (hard
-stop 5). Nothing has been tagged, published or merged for Phase 7: branch
-`v3/7-release` is pushed and green in CI; `main` still says 2.3.0, so nobody's update
-notice announces 3.0.0 before it exists.
+v3 is finished. Run 2 (`v3/9-run2`) did brief Sections A–D, 3–6, a full self-review and
+the release; its report is `docs/v3-run2-report.md` (run 1: `docs/v3-finish-report.md`).
+`v3/9-run2` (which contains Phase 7 and run 1) is merged into local `main` with
+`--no-ff`, and the merge commit is tagged `v3.0.0`. **Nothing is pushed.**
 
-**What shipped** (details in CHANGELOG `3.0.0` and the checkpoints below):
-- Safety: single-instance lock, a verified pinned snapshot before every migration,
-  locked and verified writes, tiered backups, localhost-only with a write token.
-- Speed: library render p95 148 ms for 2,000 entries (v2.3.0: 1,203), warm Discover
-  168 ms (v2.3.0: 4,593).
-- Design and motion, then Home, the palette, the new library, detail drawer and
-  Settings.
-- Features: Paused, rewatches and watch history, lossless MAL / AniList / backup
-  imports with revert, where to watch, Schedule v2, background notifications, the tray.
-- Discover rebuilt: HitRate@20 on your library 0.105 → 0.579, every sanity check at
-  zero, Triage, More like this, the Dismissed drawer.
-- Tooling: 603 unit tests on node:test, parallel e2e on free ports (287, 2.5 min), CI
-  with a token-based release job, pinned build tools, a 98 MB windowless exe (13/13
-  smoke checks).
+- The exe: `dist\AnimeTracker.exe` (the only one), built from the tagged commit. Hover
+  the version in the header, or open Settings > Help > Version: "3.0.0, built …".
+- Checks on the final code: unit 607/607, e2e 322 passed (1 skipped), perf budgets
+  pass, `eval:discover --assert` passes; in the built exe: smoke 13/13, Triage 3 runs in
+  a row plus the end of the queue, final smoke 39/39, migration of a copy of the
+  335-entry library 12/12, 60 fps on every decoration level.
 
-**Your library:** a dry run on a fresh copy migrates 14 → 17 with a pinned
-`pre-migration-14-to-17` snapshot; 222 entries, 161 rated, 16 events and counters 6388
-are unchanged, and a snapshot → wipe → restore round trip comes back identical
-(`evidence/7/release-dryrun.json`). The Discover catalogue re-seeds once in the
-background (about 14 minutes, 6,000 titles, 13 MB) while the old one keeps working.
+**Your steps, after testing** (from the repository folder):
 
-**Deferred** (all in `docs/v3-plan.md`, "Later"): two-way AniList sync, Wrapped,
-achievements and Madara Mode, friends' lists, a streaming-service filter, and moving the
-pure root modules under `src/lib/`.
-
-**Known issues:**
-- The exe is not code-signed, so Windows SmartScreen may warn on first run ("More info"
-  → "Run anyway"). Signing goes after the build (see `scripts/build-exe.js`).
-- OCR (screenshot import) ships only the SIMD Tesseract build; a browser without wasm
-  SIMD (none current) could not run it.
-- The exe is 98 MB, 88 MB of it the Node runtime.
-- Two old snapshots in your data folder (from v2) do not verify; they are left as they
-  are, never deleted. Every snapshot v3 takes verifies.
-
-**Your steps, in order** (from the repository folder):
-
-1. Merge Phase 7 and push:
+1. Push `main` and the run branch:
    ```bash
-   git checkout main
-   git merge --no-ff v3/7-release -m "v3(7): merge Phase 7, tooling, cleanup and release"
-   git push origin main
+   git push origin main v3/9-run2
    ```
-2. Optional: tag the v2 process history (the commit just before the cleanup moved it):
+2. Release: pushing the tag starts CI, which checks the version, builds and smoke-tests
+   the exe, and publishes the GitHub release with the CHANGELOG `3.0.0` notes:
    ```bash
-   git tag archive/v2-process def0336
-   git push origin archive/v2-process
-   ```
-3. Release: the tag starts CI, which checks the version, builds and smoke-tests the
-   exe, and publishes the GitHub release with the CHANGELOG `3.0.0` notes and
-   `AnimeTracker.exe` attached:
-   ```bash
-   git tag v3.0.0
    git push origin v3.0.0
    ```
-4. Optional: archive the merged branches. Deleting branches is on my never-run list, so
-   that is yours too. Merged into `main`: local `v2/P0.1` `v2/P0.2` `v2/P0.3` `v2/P0.4`
-   `v2/P1.1` `v2/P1.2` `v2/P1.3` `v2/P1.4` `v2/P1.5` `v2/P1.6` `v2/P1.7` `v2/P2`
-   `v2/P3.1` `v2/P3.2` `v2/P4.1` `v2/P4.2` `v2/P4.3` `v2/P4.4` `v2/P5A.1` `v2/P5A.2`
-   `v2/P5A.3` `v2/P5A.4` `v2/P5B.1` `v2/P5B.2` `v2/P5B.3` `v2/P5B.4` `v2/P5B.5`
-   `v2/P6.1` (28), remote `origin/v2/P1.2` `origin/v2/P1.3` `origin/v2/P5B.5`, and the
-   v3 phase branches `v3/0-plan` … `v3/6-discover` (plus `v3/7-release` once merged).
+3. Optional, as before: tag the v2 process history (`git tag archive/v2-process def0336`)
+   and archive merged branches (deleting branches is on my never-run list).
+
+**Known issues** are in `docs/v3-run2-report.md` §8 (the exe is not code-signed, so
+SmartScreen may warn on first run; two old v2 snapshots in the data folder do not
+verify and are left as they are).
 
 ## Status
 
@@ -83,8 +46,9 @@ pure root modules under `src/lib/`.
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
 | 6 Discover rebuild | `v3/6-discover` | done | — |
-| 7 Tooling, cleanup, release | `v3/7-release` | release checkpoint | Stopped at hard stop 5. Your steps: merge, tag `v3.0.0`, push the tag (see the release summary above) |
-| 8 Finish run 1 (brief Sections 0–2) | `v3/8-finish` | done, stopped | Report: `docs/v3-finish-report.md`. Next run: Sections 3–6 and the version |
+| 7 Tooling, cleanup, release | `v3/7-release` | done | Merged into `main` with run 2 |
+| 8 Finish run 1 (brief Sections 0–2) | `v3/8-finish` | done | Report: `docs/v3-finish-report.md` |
+| 9 Finish run 2 (A–D, 3–6, review, release) | `v3/9-run2` | done, tagged `v3.0.0` locally | Yours: push `main` and the tag (see above). Report: `docs/v3-run2-report.md` |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
 
