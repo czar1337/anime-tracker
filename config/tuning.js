@@ -332,6 +332,7 @@ export const PALETTE = {
   anilistMinChars: 3, // AniList is searched from this many typed characters
   anilistDebounceMs: 350,
   anilistResults: 5,
+  pageStep: 5, // rows PageUp and PageDown move
   minMatchRatio: 0.15, // a fuzzy match must cover at least this share of the name
 };
 
@@ -425,6 +426,17 @@ export const ATMOSPHERE = {
   fpsSample: 90, // frames per measurement
   minScale: 0.35, // never cut below this share of the budget
   maxDpr: 1.5, // the canvas never draws at more device pixels than this
+  fpsRecover: 55, // an average above this gives some of the budget back
+  scaleDownStep: 0.75, // a slow sample multiplies the budget by this
+  scaleUpStep: 0.1, // a fast sample adds this share back
+  // Per depth layer (far, middle, near): size, speed, opacity and parallax (px).
+  depth: [
+    { size: 0.6, speed: 0.55, alpha: 0.45, parallax: 6 },
+    { size: 1, speed: 0.8, alpha: 0.7, parallax: 14 },
+    { size: 1.8, speed: 1.15, alpha: 0.9, parallax: 30 },
+  ],
+  burst: { small: 22, big: 60, insaneFactor: 1.5 }, // sparks per burst
+  maxSparks: 300, // bursts in a row (holding +) never pile up past this
 };
 
 // The local poster cache (v3 finish, Section 1; src/routes/posters.js). Class B:
@@ -443,4 +455,6 @@ export const TRIAGE = {
   swipeDistancePx: 110, // a drag this far answers
   swipeFlickPx: 40, // a fast flick this far answers too
   swipeFlickSpeed: 0.6, // px per ms
+  detailCacheMax: 200, // synopses kept for the page; cleared past this on open
+  minVisibleOpacity: 0.15, // an answer counts only while its card is at least this opaque
 };

@@ -35,7 +35,7 @@ await test('buildFilterQueryParams/parseFilterQueryParams round-trip a real filt
     yearMin: 2015, yearMax: 2020, episodeMin: null, episodeMax: 26, scoreMin: 7.5, scoreMax: null,
     memberMin: null, memberMax: 50000, studio: 'Kyoto Animation', source: 'LIGHT_NOVEL', staffQuery: 'Yamada',
     format: 'TV', airingStatus: 'FINISHED', includeTags: ['Isekai', 'Tragedy'], excludeTags: ['Ecchi'],
-    maxLengthMinutes: 180, enforcePrerequisiteChain: false, hideDismissed: true,
+    maxLengthMinutes: 180, genres: ['Drama', 'Romance'], season: 'SPRING', enforcePrerequisiteChain: false, hideDismissed: true,
   };
   const params = buildFilterQueryParams(filters);
   assert.equal(hasDiscoverFilterParams(params), true);

@@ -161,7 +161,6 @@ function reasonLineHtml(card) {
 function cardHtml(railId, card, index = 0) {
   const c = card.entry;
   const title = discoverCardTitle(c);
-  const chips = (card.chips || []).slice(0, 3);
   return `
     <article class="discover-card dc-portrait" role="listitem" data-key="card-${escapeHtml(railId)}-${card.id}" data-rail-id="${escapeHtml(railId)}" data-anilist-id="${card.id}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
       <div class="cov">${coverHtml(c, title.primary)}</div>
@@ -479,14 +478,19 @@ function findBarHtml(f, corpusEntries) {
   const formats = corpusFieldValues(corpusEntries, 'format');
   const thisYear = new Date().getFullYear() + 1;
   const years = Array.from({ length: thisYear - 1979 }, (_, i) => thisYear - i);
-  const year = f.yearMin != null && f.yearMin === f.yearMax ? f.yearMin : '';
+  const single = f.yearMin != null && f.yearMin === f.yearMax && years.includes(f.yearMin);
+  // A range from the Filters panel (or a year before the list starts) shows
+  // as itself, so the bar never claims "any year" while one is set.
+  const hasRange = !single && (f.yearMin != null || f.yearMax != null);
+  const rangeLabel = f.yearMin === f.yearMax ? String(f.yearMin) : `${f.yearMin ?? ''}–${f.yearMax ?? ''}`;
+  const year = single ? f.yearMin : hasRange ? 'range' : '';
   const opt = (value, label, current) => `<option value="${escapeHtml(String(value))}" ${String(value) === String(current ?? '') ? 'selected' : ''}>${escapeHtml(label)}</option>`;
   const sel = (id, label, options) => `<label class="find-field"><span class="sr-only">${escapeHtml(label)}</span><select class="sel" data-find="${id}" aria-label="${escapeHtml(label)}">${options}</select></label>`;
   return `
     <div class="discover-find" role="group" aria-label="${escapeHtml(copy('discover.findLabel'))}">
       ${sel('genre', copy('discover.findGenre'), opt('', copy('discover.findGenre'), '') + genres.map((g) => opt(g, g, (f.genres || [])[0])).join(''))}
       ${sel('season', copy('discover.findSeason'), opt('', copy('discover.findSeason'), '') + SEASONS.map((s) => opt(s, copy(`season.${s}`), f.season)).join(''))}
-      ${sel('year', copy('discover.findYear'), opt('', copy('discover.findYear'), '') + years.map((y) => opt(y, String(y), year)).join(''))}
+      ${sel('year', copy('discover.findYear'), opt('', copy('discover.findYear'), year) + (hasRange ? opt('range', rangeLabel, year) : '') + years.map((y) => opt(y, String(y), year)).join(''))}
       ${sel('format', copy('discover.findFormat'), opt('', copy('discover.findFormat'), '') + formats.map((x) => opt(x, formatEnumLabel(x), f.format)).join(''))}
       ${sel('length', copy('discover.findLength'), opt('', copy('discover.findLength'), '') + Object.keys(LENGTHS).map((k) => opt(k, copy(`discover.length${k[0].toUpperCase()}${k.slice(1)}`), lengthOf(f))).join(''))}
       <label class="togg find-completed${f.airingStatus === 'FINISHED' ? ' on' : ''}"><input type="checkbox" data-find="completed" ${f.airingStatus === 'FINISHED' ? 'checked' : ''}><b>✓</b>${escapeHtml(copy('discover.onlyCompleted'))}</label>

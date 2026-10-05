@@ -39,6 +39,23 @@ const STALE_TMP_MS = 60 * 60 * 1000; // a temp file this old was left by a kille
 const queued = new Map(); // file -> url, waiting
 const running = new Set(); // files downloading now
 
+// The poster route takes AniList's image CDN only (s4.anilist.co/file/...),
+// not every *.anilist.co host: a page elsewhere can never make this server
+// call the AniList API or another subdomain through it.
+function isPosterUrl(value) {
+  if (!isAllowedCoverUrl(value)) return false;
+  const url = new URL(value);
+  return /^s\d+\.anilist\.co$/i.test(url.hostname) && url.pathname.startsWith('/file/');
+}
+
+// An <img> on the app's own page sends Sec-Fetch-Site: same-origin (or none
+// at all). Another site embedding /api/poster is refused, so it cannot fill
+// the cache or spend the AniList rate limit from this computer.
+function fromOtherSite(req) {
+  const site = String(req.headers['sec-fetch-site'] || '').toLowerCase();
+  return site === 'cross-site' || site === 'same-site';
+}
+
 function cacheFileFor(url) {
   const ext = path.extname(new URL(url).pathname).toLowerCase();
   const safeExt = MIME[ext] ? ext : '.jpg';
@@ -99,9 +116,22 @@ async function trimNow() {
     }
   }
 }
+let trimLater = null;
 function trim({ force = false } = {}) {
   if (trimming) return trimming;
-  if (!force && Date.now() - lastTrimAt < TRIM_EVERY_MS) return Promise.resolve();
+  const wait = TRIM_EVERY_MS - (Date.now() - lastTrimAt);
+  if (!force && wait > 0) {
+    // Skipped for the interval: run it once later, so a burst of downloads
+    // right after a trim never leaves the cache over its caps.
+    if (!trimLater) {
+      trimLater = setTimeout(() => {
+        trimLater = null;
+        trim();
+      }, wait);
+      trimLater.unref?.();
+    }
+    return Promise.resolve();
+  }
   lastTrimAt = Date.now();
   trimming = trimNow().catch(() => {}).finally(() => {
     trimming = null;
@@ -145,7 +175,11 @@ async function statFile(file) {
 module.exports = function register({ route }) {
   route('GET', '/api/poster', async ({ req, res, url }) => {
     const target = url.searchParams.get('u') || '';
-    if (!isAllowedCoverUrl(target)) {
+    if (fromOtherSite(req)) {
+      sendJson(res, 403, { error: 'Posters are only served to the app itself.' });
+      return;
+    }
+    if (!isPosterUrl(target)) {
       sendJson(res, 400, { error: 'Posters are only cached from AniList.' });
       return;
     }
@@ -175,9 +209,17 @@ module.exports = function register({ route }) {
       res.end();
       return;
     }
+    // The size of the file actually opened (a trim and a new download may
+    // have replaced it since the stat above).
+    let size = stat.size;
+    try {
+      size = fs.fstatSync(stream.fd).size;
+    } catch {
+      // keep the earlier size
+    }
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(file)] || 'image/jpeg',
-      'Content-Length': stat.size,
+      'Content-Length': size,
       'Cache-Control': 'private, max-age=31536000, immutable',
       ...HttpSecurity.securityHeaders(),
     });
@@ -191,4 +233,5 @@ module.exports = function register({ route }) {
 };
 
 module.exports.cacheFileFor = cacheFileFor;
+module.exports.isPosterUrl = isPosterUrl;
 module.exports.trimPosterCache = () => trim({ force: true });

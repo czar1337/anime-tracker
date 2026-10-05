@@ -8,7 +8,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { chromium } = require('playwright-core');
+const { chromium } = require('@playwright/test');
 const { startExe } = require('./exe-session.js');
 
 const [backupDir, outDir] = process.argv.slice(2);

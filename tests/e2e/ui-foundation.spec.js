@@ -33,10 +33,14 @@ test('the poster cache serves a cached AniList image from disk, answers a miss i
     const miss = await fetch(`${server.url}/api/poster?u=${encodeURIComponent(missUrl)}`, { redirect: 'manual' });
     expect(miss.status).toBe(404);
 
-    for (const bad of ['https://example.com/x.jpg', 'http://s4.anilist.co/x.jpg', 'file:///C:/Windows/win.ini', '']) {
+    // AniList's image CDN only: not its API or any other subdomain.
+    for (const bad of ['https://example.com/x.jpg', 'http://s4.anilist.co/x.jpg', 'https://graphql.anilist.co/?query=x', 'https://anilist.co/file/x.jpg', 'https://s4.anilist.co/api/x', 'file:///C:/Windows/win.ini', '']) {
       const res = await fetch(`${server.url}/api/poster?u=${encodeURIComponent(bad)}`, { redirect: 'manual' });
-      expect(res.status).toBe(400);
+      expect(res.status, bad).toBe(400);
     }
+    // Another site embedding the route is refused, cached or not.
+    const embedded = await fetch(`${server.url}/api/poster?u=${encodeURIComponent(cached)}`, { redirect: 'manual', headers: { 'Sec-Fetch-Site': 'cross-site' } });
+    expect(embedded.status).toBe(403);
   } finally {
     await server.stop();
   }

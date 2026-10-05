@@ -1,8 +1,59 @@
 # Changelog
 
-## Unreleased (v3 finish, first run)
+## 3.0.0
 
-### Swipe through (Triage)
+A large release: Discover is rebuilt from the ground up, the app is faster and calmer to use, it keeps much more of your history, and your data is better protected. Your library carries over by itself: the first start takes a verified snapshot of it, keeps that snapshot permanently, then upgrades it. Nothing in it is removed.
+
+### Highlights
+
+#### One app, one data folder
+
+- **One exe, `AnimeTracker.exe`.** The app can be asked to quit cleanly, so a build or an update never fights a copy that is still running.
+- **The version and build time are shown in the app**: hover the version in the header, or open Settings > Help > Version.
+- **Settings > Data names the data folder the app really uses**, and the app writes it to its log at startup. If Windows redirects the folder (an app started from a packaged program such as the Claude desktop app sees its own copy), a warning says so instead of silently showing an old library.
+
+#### Swipe through, proven
+
+- **The arrow keys follow the drag**: → Want to watch, ← Not for me, ↑ Seen it, ↓ Skip. W, S and X still work. The keys are shown on the buttons.
+- An answer only counts when you can see the card; holding a key or clicking fast no longer answers cards you never saw.
+- Fix: "Fetch more" now brings back the titles you skipped.
+- A poster that fails to load is tried once more, then shows the title's letter instead of an empty frame.
+
+#### Posters everywhere
+
+- Every cover (Discover rails and hero, Schedule, Stats, the series page, Search, Home) uses the same poster: it fades in, keeps its shape while loading, and falls back to the title's letter. A series without a banner gets a calm accent wash instead of a blurred cover.
+
+#### Search (Ctrl + K)
+
+- Results show posters and your progress ("Ep 9 / 13 · Watching", "★ 8 · Completed").
+- New actions: "+1 episode on <title>" right from the results, Go to Schedule, Stats or Settings, Toggle light and dark theme, Run Triage, and Decoration: Off, Low, Full or Insane.
+- Forgiving matching (a few letters such as "magi" are enough), your last five searches, and a short pause before AniList is asked.
+
+#### Discover
+
+- **Every icon-only button in the app has a tooltip** with its name and keyboard shortcut.
+- "Why this pick" chips on each card (shared genres, studio, the title it is similar to).
+- An answered card animates out with an Undo message; Undo puts it back where it was.
+- A Find bar: genre, season, year, format, length and "only completed".
+- W, S, X and M answer the focused card.
+
+#### Decoration
+
+- **A new level, Insane**: drifting particles in three depth layers with parallax, an aurora, light sweeps, a glow under the pointer and a burst on +1.
+- **Seasonal looks**: sakura in spring, fireflies in summer, falling leaves in autumn, snow in winter. Chosen by the date, or pick one in Settings > Appearance.
+- Smooth: measured at 60 fps on every level. The effects pause when the window is hidden and scale themselves down on a slow computer. Reduced motion stops all movement; light themes skip the falling particles.
+
+#### Polish
+
+- **"What's new in v3"** opens once after the update, and again from Settings > Help.
+- **Press ?** for every keyboard shortcut, generated from the same map the keys use, so it is never out of date.
+- Home: "This year" numbers count up; when nothing airs tonight, Home says when the next episode is and links to the Schedule.
+- Airing times say which time zone they are in (for example Europe/Stockholm, CEST).
+- Contrast checked on all 12 themes; useful empty states with a next step.
+
+### Library, Home and Swipe through
+
+#### Swipe through (Triage)
 
 - **Fix: after the first answer the card area went empty**, while the keys kept answering cards you could not see. Every card now shows, every time.
 - A big poster card with the title, year, format, genres, a short synopsis and why it was picked ("Similar to X, which you rated 9").
@@ -10,14 +61,14 @@
 - "4 / 20" shows how far into the session you are, and after 20 a summary says what you did, with Keep going. Closing early shows the same summary as a short message.
 - A loading card while titles are found, "Fetch more" when a batch runs out, and Try again when Discover could not load. The answer buttons are only there when there is a card to answer.
 
-### A fresher look everywhere
+#### A fresher look everywhere
 
 - One visible focus ring on every button, tab and field, and proper disabled states.
 - Icon buttons in Discover show a small tooltip on hover and on keyboard focus.
 - Posters from Discover and Swipe through are kept on your computer after the first view, so they appear at once next time, even offline.
 - **Home: Continue watching shows each series' poster sharply** instead of a blurred smear, with the full title on two lines and a progress bar.
 
-### Library
+#### Library
 
 - **Tabs for every list, with counts**: Watching, New episodes, Watchlist, Completed, On hold, Dropped and All. The Library remembers the one you were on. New episodes counts the same series as the number on the Library tab.
 - **Watched is now called Completed and Paused is called On hold**, the names AniList and MyAnimeList use. Nothing moves; only the names change.
@@ -28,10 +79,6 @@
 - The big "Pick up where you left off" banner moved to Home only, so the Library starts with your series.
 - The arrow keys move between cards; + marks the next episode and Enter opens the series, which comes back to the same place in the list when you close it.
 
-## 3.0.0
-
-A large release: Discover is rebuilt from the ground up, the app is faster and calmer to use, it keeps much more of your history, and your data is better protected. Your library carries over by itself: the first start takes a verified snapshot of it, keeps that snapshot permanently, then upgrades it. Nothing in it is removed.
-
 ### Safety and correctness
 
 - **Fix: with "reduce motion" turned on in Windows, the library looked empty.** Cards, Discover cards and schedule days only became visible through their entrance animation, which reduced motion switches off. They are now always visible; the animation only adds movement.
@@ -39,7 +86,7 @@ A large release: Discover is rebuilt from the ground up, the app is faster and c
 - **Starting the app twice is now harmless.** A second copy stops before touching anything and opens the running one instead. Before, it could rewrite files in the data folder first.
 - **Before upgrading your library to a new format, the app now takes a checked backup snapshot of the old version and keeps it permanently.** If that snapshot can't be verified, nothing is changed.
 - **Two quick edits no longer show "changed elsewhere".** Saves now go out one at a time.
-- **Undo only undoes what the action did.** Undoing "Moved to Watched" no longer reverts a note or score you changed in the meantime, and undoing +1 steps back from the current count instead of jumping back.
+- **Undo only undoes what the action did.** Undoing "Moved to Completed" no longer reverts a note or score you changed in the meantime, and undoing +1 steps back from the current count instead of jumping back.
 - **+1 stops at the last episode** instead of counting past the total.
 - **Typing is no longer interrupted** when airing data or covers arrive in the background.
 - **Discover's first-run suggestion no longer pops up over whatever you are doing.** It is offered as a small prompt instead.
@@ -65,7 +112,7 @@ A large release: Discover is rebuilt from the ground up, the app is faster and c
 ### Look and motion
 
 - **One motion system, and the Animation slider now reaches every animation.** Many animations used fixed lengths the slider never touched. At Off, nothing moves at all. With Windows' "reduce motion", nothing slides or scales; you get short fades instead.
-- **Finishing a series is a small moment.** Marking the last episode turns the bar green with a sweep of light, one feather falls from that card, and the series moves to Watched by itself. The message offers Undo and lets you rate it 1 to 10 right there.
+- **Finishing a series is a small moment.** Marking the last episode turns the bar green with a sweep of light, one feather falls from that card, and the series moves to Completed by itself. The message offers Undo and lets you rate it 1 to 10 right there.
 - **+1 feels like a press.** The button springs back, the bar grows from where it was (never from zero), and the episode number slides to the next one. The message names the series: "Frieren · episode 19 marked watched · Undo".
 - **Moving between tabs slides a little in the direction you're going**, and the tab underline now follows the tab exactly (it used to be narrower than wide tabs).
 - **Opening a series grows its cover out of the card**, and closing puts it back.
@@ -79,7 +126,7 @@ A large release: Discover is rebuilt from the ground up, the app is faster and c
 
 ### Flow and screens
 
-- **Five sections: Home, Library, Schedule, Discover and Stats.** Watching, Watchlist, Watched and Dropped are now one Library with a switch at the top. On a phone the sections sit in a tab bar at the bottom. Keys 1 to 5 jump between them.
+- **Five sections: Home, Library, Schedule, Discover and Stats.** Watching, Watchlist, Completed and Dropped are now one Library with a switch at the top. On a phone the sections sit in a tab bar at the bottom. Keys 1 to 5 jump between them.
 - **Ctrl+K opens a command palette**: jump to any series, run any action ("theme jade", "go to schedule", "export library"), from anywhere, even while typing.
 - **Home shows what to watch now**: the series with the newest episode large at the top (with its banner, or a soft blur of its cover), what airs tonight, what is next in your Watchlist, and this year in three numbers.
 - **Cleaner library cards**: the cover, one title line and one line of details. +1, the status and a menu appear on hover or focus, and are always there on touch. Right-click a card, long-press it or press Shift+F10 for every action. A compact list view suits large libraries, and a filter you use often can be saved as a view.
@@ -96,14 +143,14 @@ A large release: Discover is rebuilt from the ground up, the app is faster and c
 
 ### Features
 
-- **Paused.** A fifth list for series on hold, with its own place in the Library. MyAnimeList's On-Hold now lands here instead of in Watching.
+- **On hold.** A fifth list for series you paused, with its own place in the Library. MyAnimeList's On-Hold now lands here instead of in Watching.
 - **Watch again.** A finished series can be started over from the details: it goes back to Watching from episode 1 and counts the rewatch.
 - **Watch history.** Every series keeps a dated history: when you started and finished it, each rewatch, and a note for each. Edit the dates in the details; Stats has a Diary of everything you finished, by month.
 - **Import from AniList by username**, and a much better MyAnimeList import: start and finish dates (even partial ones), rewatches and your comments are kept now; a partial date no longer stops the whole import. A backup file can be imported the same way.
 - **Series you already have are merged, not skipped.** For every difference you choose: keep yours, take the imported one, or take whichever changed last. Nothing is overwritten unless you choose it.
 - **Every import can be reverted, any time.** A snapshot is taken first and kept, and Settings > Data lists your imports with "Revert this import", which removes what it added and puts back what it changed (unless you changed it since). This also works after closing the app.
 - **Where to watch.** The details list the streaming services AniList knows for a series, with links to episodes. They are not by country, and the app says so.
-- **Schedule.** Shows you are waiting for in your Watchlist or Paused appear too, so a premiere or a new season shows up. Each episode shows its time and how long until it airs. A Season chart shows the previous, this and next season with one-click adding. "Coming soon" is now ranked by your taste, the same way Discover is.
+- **Schedule.** Shows you are waiting for in your Watchlist or On hold appear too, so a premiere or a new season shows up. Each episode shows its time and how long until it airs. A Season chart shows the previous, this and next season with one-click adding. "Coming soon" is now ranked by your taste, the same way Discover is.
 - **No more console window.** The Windows app opens just your browser and a tray icon (Open, Open data folder, Quit). Its log, if you ever need it, is in the data folder under `logs/`.
 - **Notifications while the app is closed.** Opt in under Settings > Notifications, pick the lists and quiet hours, and Windows tells you when a new episode is out, with no browser tab open. The app now has a tray icon (Open, Open data folder, Quit).
 - **Stats: day streaks and sittings**, counted only from episodes you marked yourself, one at a time. A big import or a bulk change never makes a streak, and "Episodes this year" no longer counts imports.

@@ -111,25 +111,13 @@ function configureField() {
   document.documentElement.dataset.season = season;
   // For the light-theme versions of Insane's aurora and glow (atmosphere CSS).
   document.documentElement.dataset.scheme = isLightTheme() ? 'light' : 'dark';
-  field.configure({ level: level === 'off' ? 'off' : level, kind: SEASON_KIND[season], falling: decorativeLayerAllowed() });
+  field.configure({ level, kind: SEASON_KIND[season], falling: decorativeLayerAllowed() });
 }
 
-// Kept for the v2 DOM leaves' density math (densityConfig); the canvas field
-// replaced them, so this only clears any left from an older page state.
+// The canvas field replaced v2's DOM leaves: this only clears any left from
+// an older page state.
 function buildLeaves() {
   leavesEl.innerHTML = '';
-  for (let i = 0; i < 0; i++) {
-    const leaf = document.createElement('span');
-    leaf.className = 'atmo-leaf';
-    leaf.style.setProperty('--leaf-x', `${rand(2, 96)}vw`);
-    leaf.style.setProperty('--leaf-dx', `${rand(-16, 16)}vw`);
-    leaf.style.setProperty('--leaf-rot', `${rand(180, 560)}deg`);
-    leaf.style.setProperty('--leaf-op', rand(0.26, 0.4).toFixed(2));
-    const dur = rand(19, 27);
-    leaf.style.setProperty('--leaf-dur', `${dur.toFixed(1)}s`);
-    leaf.style.animationDelay = `${(-rand(0, dur)).toFixed(1)}s`; // staggers them so all 5 don't fall in sync
-    leavesEl.appendChild(leaf);
-  }
 }
 
 function removeFeather(el) {

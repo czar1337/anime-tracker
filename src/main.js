@@ -147,8 +147,15 @@ async function runPendingMigration() {
 // The port actually bound: PORT, or the free one the OS gave for PORT 0.
 let boundPort = PORT;
 const server = http.createServer(createRequestHandler({ port: () => boundPort, token: WRITE_TOKEN, getDataDirConflict: () => dataDirConflict }));
-onQuitRequested(() => {
+// Quit (tray or POST /api/quit): stop taking requests, let a write that is
+// already in its critical section finish, then exit.
+onQuitRequested(async () => {
   server.close();
+  try {
+    await Library.libraryWriteLock.run(() => {}, { timeoutMs: 15000 });
+  } catch {
+    // a write that hangs for 15 s is not waited for
+  }
   setTimeout(() => process.exit(0), 300);
 });
 
@@ -235,6 +242,8 @@ function requestQuitFromTray() {
     // v3 Phase 5: episode notifications while no tab is open (opt-in, see
     // services/notifier.js), and in the packaged Windows app the tray icon.
     startNotifier().catch((err) => console.error(`[notifier] Could not start: ${err.message}`));
+    // The poster cache back inside its caps after the last session.
+    require('./routes/posters.js').trimPosterCache().catch(() => {});
     if (IS_SEA) {
       loadCopyRegistry()
         .then((copy) =>

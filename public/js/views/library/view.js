@@ -20,11 +20,11 @@ import { defaultSettings } from '../../settingsSchema.js';
 import { posterHtml } from '../../ui/poster.js';
 
 export const QUICK_MOVE_LISTS = [
-  { key: 'watching', label: 'Watching', short: 'Watch' },
-  { key: 'watchlist', label: 'Watchlist', short: 'List' },
-  { key: 'watched', label: 'Completed', short: 'Done' },
-  { key: 'dropped', label: 'Dropped', short: 'Drop' },
-  { key: 'paused', label: 'On hold', short: 'Hold' },
+  { key: 'watching', label: copy('list.watching') },
+  { key: 'watchlist', label: copy('list.watchlist') },
+  { key: 'watched', label: copy('list.watched') },
+  { key: 'dropped', label: copy('list.dropped') },
+  { key: 'paused', label: copy('list.paused') },
 ];
 
 export function coverSrc(entry) {
@@ -173,7 +173,7 @@ export function cardHtml(entry, list, seasonLabel = null) {
           : entry.format ? html`<span class="card-format-badge">${entry.format}</span>` : ''}
         ${unseen > 0 && html`<span class="${cls('unseen-badge', 'new-pill', unseenPopClass(entry.anilistId, unseen))}" aria-label="${newLabel}" data-tip="${newLabel}">${copy('card.newPill', undefined, { n: unseen })}</span>`}
         ${selectMode
-          ? html`<label class="card-select-box" data-tip="Select"><input type="checkbox" data-action="toggle-select" aria-label="Select ${title}" ${isSelected && raw('checked')}></label>`
+          ? html`<label class="card-select-box" data-tip="${copy('card.selectTip')}"><input type="checkbox" data-action="toggle-select" aria-label="${copy('card.selectLabel', undefined, { title })}" ${isSelected && raw('checked')}></label>`
           : toolbarHtml(entry, list, title)}
       </div>
       <div class="card-body">
@@ -205,8 +205,8 @@ export function franchiseCardHtml(group, list) {
         <div class="card-body">
           <div class="card-title-block" data-action="show-detail" data-detail-id="${primary.anilistId}"><h3 class="card-title" data-tip="${title}">${title}</h3></div>
           <div class="card-meta">
-            <span>${totalEpisodes ? `${totalWatched}/${totalEpisodes}` : totalWatched} ep</span>
-            ${avgScore && html`<span>★ ${avgScore} avg</span>`}
+            <span>${copy('card.episodes', undefined, { n: totalEpisodes ? `${totalWatched}/${totalEpisodes}` : totalWatched })}</span>
+            ${avgScore && html`<span>${copy('card.avgScore', undefined, { score: avgScore })}</span>`}
           </div>
           <button class="text-btn franchise-toggle-label" data-action="toggle-group" aria-expanded="${expanded}">${expanded ? copy('card.hideSeasons') : copy('card.showSeasons', undefined, { n: group.length })}</button>
         </div>
@@ -365,7 +365,8 @@ export function viewSignature(filters, sort, sortDir) {
   return JSON.stringify([Object.keys(f).sort().map((k) => [k, f[k]]), sort, sortDir]);
 }
 
-const listLabel = (list) => QUICK_MOVE_LISTS.find((l) => l.key === list)?.label || list;
+// Every Library tab, the virtual New episodes and All included.
+const listLabel = (list) => copy(`list.${list}`);
 
 export function renderSavedViews(list) {
   const el = document.getElementById('saved-views');

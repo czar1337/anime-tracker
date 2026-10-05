@@ -32,11 +32,11 @@ test('Settings offers Insane and a season; Insane fills the canvas and adds the 
     await page.locator('[data-seg="decorSeason"] [data-value="winter"]').click();
     await expect(page.locator('html')).toHaveAttribute('data-season', 'winter');
     await page.keyboard.press('Escape');
-    const scheme = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
-    if (scheme === 'dark') {
-      await expect.poll(() => particles(page)).toBeGreaterThan(60);
-      await expect(page.locator('.atmo-aurora')).toBeVisible();
-    }
+    // The default theme is dark: particles fall there (light themes keep
+    // only the aurora and bursts).
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('dark');
+    await expect.poll(() => particles(page)).toBeGreaterThan(60);
+    await expect(page.locator('.atmo-aurora')).toBeVisible();
     await expect.poll(async () => (await (await fetch(`${server.url}/api/library`)).json()).preferences).toMatchObject({ decoration: 'insane', decorSeason: 'winter' });
   } finally {
     await server.stop();
@@ -51,6 +51,8 @@ test('reduced motion stops every particle, Insane included', async ({ page }) =>
       (await import('/js/preferences.js')).Preferences.setDecoration('insane');
       (await import('/js/atmosphere.js')).Atmosphere.resyncDensity();
     });
+    // Drawing first, so the 0 below is reduced motion's doing.
+    await expect.poll(() => particles(page)).toBeGreaterThan(0);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await expect.poll(() => particles(page)).toBe(0);
     // A burst does nothing either.

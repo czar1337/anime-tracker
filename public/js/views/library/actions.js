@@ -440,6 +440,22 @@ export function handleSetStatus(id, newStatus) {
   });
 }
 
+// The same move without its own toast, for a caller that shows one (Discover's
+// "Seen it" on a title already in a list). Returns its undo, which reverts the
+// whole move (status, fast-forwarded progress, the watch record), or null.
+export function moveQuietly(id, newStatus) {
+  if (newStatus === 'watched' && Store.getEntry(id)?.listStatus !== 'watched') {
+    Atmosphere.rewardFeather({ from: cardOnScreen(id)?.getBoundingClientRect() });
+  }
+  const revert = moveToStatus(id, newStatus);
+  if (!revert) return null;
+  refreshAfterMove(id);
+  return () => {
+    revert();
+    refreshAfterMove(id);
+  };
+}
+
 // v3 Phase 5: "Watch again". A Watched series goes back to Watching from
 // episode 0 with its rewatch count up by one and an open rewatch record in the
 // history; finishing it again closes that record (recordHistoryForMove). The

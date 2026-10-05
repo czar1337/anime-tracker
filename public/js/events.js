@@ -15,6 +15,7 @@ import { TasteProfile } from './tasteProfile.js';
 import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
 import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs, keepAboveDialogs } from './core/dialog.js';
+import { isMenuOpen } from './core/menu.js';
 import { trapTab, bindRovingTablist, selectTab } from './core/focus.js';
 import { initLiveRegions } from './core/announce.js';
 import { registerCommand, runCommand, bindCommandButtons } from './core/commands.js';
@@ -160,9 +161,14 @@ function setCurrentView(next) {
   resetDwell();
 }
 
+// A select counts too: its letters jump to an option.
 function isTypingTarget(el) {
-  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  return Boolean(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable));
 }
+
+// Space, + and - step episodes only where the card offers +1: a series on
+// Watching (the All tab shows every list).
+const stepsEpisodes = (id) => Store.getEntry(id)?.listStatus === 'watching';
 
 // design/moonlit-shrine-design-system.md §13: "All overlays trap focus,
 // restore it on close, and close on esc." Overlays are native modal dialogs
@@ -321,7 +327,8 @@ function updateTabPill() {
 // of travel through the tab order plus a crossfade (styles.css,
 // :active-view-transition-type(tab)). Without View Transitions, or when the
 // view does not change, the view's own fade plays instead.
-const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'paused', 'schedule', 'discover', 'stats'];
+// The Library's tabs in the order they are shown, new and all included.
+const VIEW_ORDER = ['home', ...Store.TABS, 'schedule', 'discover', 'stats'];
 let navigationToken = 0;
 function switchView(next, update, viewEl) {
   const from = VIEW_ORDER.indexOf(currentView);
@@ -836,7 +843,9 @@ function bindDiscoverFiltersOverlay() {
       return;
     }
     if (e.target.closest('#discover-filters-apply')) {
-      Store.setPreference(['discoverFilters'], readDiscoverFiltersFromPanelDom());
+      // The panel's fields over the current filters: the Find bar's genres
+      // and season are not in the panel and stay as they were.
+      Store.setPreference(['discoverFilters'], { ...Store.state.preferences.discoverFilters, ...readDiscoverFiltersFromPanelDom() });
       persist();
       closeAllOverlays();
       Discover.rebuildShelvesNow().catch(() => {});
@@ -850,7 +859,7 @@ function bindDiscoverFiltersOverlay() {
       return;
     }
     if (e.target.closest('#discover-filters-copy-link')) {
-      const params = buildFilterQueryParams(readDiscoverFiltersFromPanelDom());
+      const params = buildFilterQueryParams({ ...Store.state.preferences.discoverFilters, ...readDiscoverFiltersFromPanelDom() });
       const query = params.toString();
       const url = query ? `${location.origin}${location.pathname}?${query}` : `${location.origin}${location.pathname}`;
       navigator.clipboard.writeText(url).then(
@@ -961,7 +970,8 @@ function focusCardInDirection(key) {
 function focusAdjacentCard(delta) {
   // P5B.5: extended to Discover's own card type so j/k also rove there —
   // reuses this existing roving-focus shortcut instead of a parallel one.
-  const cards = Array.from(document.querySelectorAll('.card, .discover-card'));
+  // Only cards on screen: not the hidden view, not a collapsed franchise group.
+  const cards = Array.from(document.querySelectorAll('.card, .discover-card')).filter((c) => c.offsetParent !== null);
   if (cards.length === 0) return;
   const current = document.activeElement.closest && document.activeElement.closest('.card, .discover-card');
   const currentIndex = current ? cards.indexOf(current) : -1;
@@ -1007,6 +1017,8 @@ function bindKeyboardShortcuts() {
     if (isAnyDialogOpen() && !(e.key === 'd' && isDialogOpen('scorer-debug-overlay'))) return;
 
     if (isTypingTarget(e.target)) return;
+    // An open card menu has the keys (its own arrows, Enter, Escape).
+    if (isMenuOpen()) return;
 
     if (e.ctrlKey && e.key.toLowerCase() === 'z') {
       e.preventDefault();
@@ -1051,7 +1063,7 @@ function bindKeyboardShortcuts() {
       return;
     }
 
-    if (e.key === 's') {
+    if (e.key === 's' && Store.TABS.includes(currentView)) {
       Render.toggleSelectMode();
       refreshGridOnly();
       return;
@@ -1088,7 +1100,7 @@ function bindKeyboardShortcuts() {
     if (e.key === ' ' && document.activeElement.matches('.card')) {
       e.preventDefault();
       const card = document.activeElement;
-      handleIncrement(card, Number(card.dataset.id));
+      if (stepsEpisodes(Number(card.dataset.id))) handleIncrement(card, Number(card.dataset.id));
       return;
     }
 
@@ -1105,6 +1117,7 @@ function bindKeyboardShortcuts() {
     const card = e.target.closest && e.target.closest('.card');
     if (!card) return;
     const id = Number(card.dataset.id);
+    if (!stepsEpisodes(id)) return;
     if (e.key === '+' || e.key === '=') handleIncrement(card, id);
     else if (e.key === '-') handleDecrement(id);
   });

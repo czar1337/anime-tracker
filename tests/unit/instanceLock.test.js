@@ -45,6 +45,16 @@ test('an unreadable lock file is treated as stale', (t) => {
   assert.equal(lock.acquired, true);
 });
 
+test('a fresh lock that exists but cannot be read right now is respected (a scanner holding it)', (t) => {
+  const dir = tempDir(t);
+  // A directory in its place: reading fails with something other than ENOENT,
+  // as with a file a virus scanner holds open.
+  fs.mkdirSync(path.join(dir, LOCK_FILENAME));
+  const lock = acquireInstanceLock(dir, { port: 4321, pid: 3333, isAlive: () => true });
+  assert.equal(lock.acquired, false);
+  assert.equal(fs.statSync(path.join(dir, LOCK_FILENAME)).isDirectory(), true, 'left where it is');
+});
+
 test('a lock whose pid is alive but has not been refreshed is stale (the pid was reused after a crash)', (t) => {
   const dir = tempDir(t);
   const lockPath = path.join(dir, LOCK_FILENAME);

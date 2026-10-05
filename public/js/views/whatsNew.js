@@ -28,7 +28,10 @@ export function openWhatsNew() {
   openDialog('whats-new-overlay');
 }
 
+let persistLater = () => {};
+
 export function initWhatsNew({ persist }) {
+  persistLater = persist;
   registerCommand({ id: 'whatsnew.open', title: copy('command.whatsNew'), section: 'help', keywords: 'new changes changelog version release notes', run: () => openWhatsNew() });
   document.getElementById('whats-new-body')?.addEventListener('click', (e) => {
     if (e.target.closest('[data-action="whats-new-done"]')) closeDialog('whats-new-overlay');
@@ -40,10 +43,16 @@ export function initWhatsNew({ persist }) {
   });
 }
 
-// Once, after boot, when nothing else is open.
+// Once, after boot, when nothing else is open. Someone starting with an
+// empty library has nothing that changed: it is marked seen quietly.
 export function maybeShowWhatsNew(info) {
   if (!info || info.quietIntro) return;
   if (Store.state.preferences.whatsNewSeen === WHATS_NEW_ID) return;
+  if (!Store.state.entries.length) {
+    Store.setPreference(['whatsNewSeen'], WHATS_NEW_ID);
+    persistLater();
+    return;
+  }
   if (document.querySelector('dialog[open]')) return;
   openWhatsNew();
 }

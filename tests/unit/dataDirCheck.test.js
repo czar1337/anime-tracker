@@ -10,9 +10,15 @@ const os = require('node:os');
 const path = require('node:path');
 const { detectRedirectedDataDir } = require('../../src/services/dataDirCheck.js');
 
+const made = [];
 function tmp() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'datadir-check-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'datadir-check-'));
+  made.push(dir);
+  return dir;
 }
+test.after(() => {
+  for (const dir of made) fs.rmSync(dir, { recursive: true, force: true });
+});
 
 test('a folder outside %APPDATA% is never checked', () => {
   const root = tmp();

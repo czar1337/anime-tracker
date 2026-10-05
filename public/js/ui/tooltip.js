@@ -122,7 +122,12 @@ export function installTooltips() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && current) hideTooltip();
   }, true);
-  // A shown bubble would drift from its element; a pending one is placed
-  // when it shows, so it may stay.
-  window.addEventListener('scroll', () => current && hideTooltip(), { capture: true, passive: true });
+  // A shown bubble follows its element when the page or a rail scrolls while
+  // the pointer or focus is still on it, and goes otherwise; a pending one is
+  // placed when it shows, so it may stay.
+  window.addEventListener('scroll', () => {
+    if (!current) return;
+    if (current.isConnected && (current.matches(':hover') || current.matches(':focus-visible'))) place(current);
+    else hideTooltip();
+  }, { capture: true, passive: true });
 }

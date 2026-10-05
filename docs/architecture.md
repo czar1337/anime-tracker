@@ -95,7 +95,14 @@ Measured by `npm run perf` (p95):
 
 - `npm test`: the CSS token check and every `node:test` file under `tests/unit/`.
 - `npx playwright test`: end-to-end tests, each on its own server, temp data folder and
-  free port.
+  free port. Nothing reaches the network: the harness points the server's AniList
+  calls at a dead port (`ANIME_TRACKER_ANILIST_URL`), turns poster downloads off
+  (`ANIME_TRACKER_POSTER_FETCH=off`), keeps What's new shut
+  (`ANIME_TRACKER_QUIET_INTRO=1`) and marks the update check as done; the test browser
+  cannot resolve `*.anilist.co` (`playwright.config.js`), so a test that needs AniList
+  answers it with `page.route`.
+- `scripts/verify/*.js`: checks against the built exe on a copy of a data folder
+  (Triage, every screen, fps, the migration); they refuse a live data folder.
 - `npm run eval:discover -- --assert`: the Discover evaluation on the committed fixture.
 - CI (`.github/workflows/ci.yml`) runs all of these. On a `v*` tag it checks that
   `version.json` matches the tag, builds and smoke-tests the exe, and publishes the

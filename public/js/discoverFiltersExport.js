@@ -10,8 +10,8 @@
 const PARAM_PREFIX = 'df_';
 
 const NUMERIC_FIELDS = ['yearMin', 'yearMax', 'episodeMin', 'episodeMax', 'scoreMin', 'scoreMax', 'memberMin', 'memberMax', 'maxLengthMinutes'];
-const STRING_FIELDS = ['studio', 'source', 'staffQuery', 'format', 'airingStatus'];
-const ARRAY_FIELDS = ['includeTags', 'excludeTags'];
+const STRING_FIELDS = ['studio', 'source', 'staffQuery', 'format', 'airingStatus', 'season'];
+const ARRAY_FIELDS = ['includeTags', 'excludeTags', 'genres'];
 const BOOLEAN_FIELDS = ['enforcePrerequisiteChain', 'hideDismissed'];
 
 // Only fields that differ from "unset"/the default are ever written, so an
@@ -76,6 +76,8 @@ export function parseFilterQueryParams(searchParams) {
     includeTags: [],
     excludeTags: [],
     maxLengthMinutes: null,
+    genres: [],
+    season: '',
     enforcePrerequisiteChain: true,
     hideDismissed: true,
   };

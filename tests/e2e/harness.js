@@ -93,6 +93,10 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
   if (fixtureLibraryPath && !reusingDataDir) {
     fs.copyFileSync(fixtureLibraryPath, path.join(dataDir, 'library.json'));
   }
+  // The update check counts as just done, so a test server never asks
+  // GitHub (a test that needs it writes its own file first).
+  const updateCheck = path.join(dataDir, 'update-check.json');
+  if (!fs.existsSync(updateCheck)) fs.writeFileSync(updateCheck, JSON.stringify({ lastCheckedAt: Date.now(), remoteVersion: null }));
 
   // v3 Phase 7: port 0 lets the OS pick a free port, which the server prints
   // ("running at http://localhost:<port>") and this reads back, so parallel
@@ -231,6 +235,11 @@ async function startProcessExpectingExit(fixtureLibraryPath, envOverrides = {}, 
       ...process.env,
       ANIME_TRACKER_DATA_DIR: dataDir,
       ANIME_TRACKER_PORT: '0',
+      // The same no-network switches as startFixtureServer.
+      ANIME_TRACKER_ANILIST_URL: 'http://127.0.0.1:9',
+      ANIME_TRACKER_NOTIFY_LOG: path.join(dataDir, 'notifications.log'),
+      ANIME_TRACKER_POSTER_FETCH: 'off',
+      ANIME_TRACKER_QUIET_INTRO: '1',
       ...envOverrides,
     },
     stdio: 'pipe',

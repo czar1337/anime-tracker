@@ -24,7 +24,7 @@ import { openMenu } from '../../core/menu.js';
 import { tokenMs, tokenEase, movementAllowed } from '../../core/motion.js';
 import { isDialogOpen, closeAllDialogs } from '../../core/dialog.js';
 import { Detail } from '../detail/actions.js';
-import { handleSetStatus, recordProgressEvent } from '../library/actions.js';
+import { moveQuietly, recordProgressEvent } from '../library/actions.js';
 import { renderTriage, liveStageNode } from './triageView.js';
 import { settlePosters } from '../../ui/poster.js';
 import { toastWithUndo } from '../../ui/toast.js';
@@ -296,25 +296,40 @@ function want(card, ctx, listStatus = 'watchlist') {
 
 // A title already on your Watchlist or Paused (shown with "hide owned" off)
 // moves to Watched the library's own way, with the score set alongside.
+// Returns the undo of both (the whole move, progress and watch record
+// included, then the score), or null when there was nothing to move.
 function markOwnedSeen(card, score) {
   const entry = Store.getEntry(card.id);
-  if (!entry || entry.listStatus === 'watched') return false;
-  handleSetStatus(card.id, 'watched');
+  if (!entry || entry.listStatus === 'watched') return null;
+  const undoMove = moveQuietly(card.id, 'watched');
+  if (!undoMove) return null;
+  let scoreBefore;
   if (typeof score === 'number' && Store.getEntry(card.id)?.myScore !== score) {
-    const before = Store.getEntry(card.id).myScore ?? null;
+    scoreBefore = Store.getEntry(card.id).myScore ?? null;
     Store.updateEntry(card.id, { myScore: score });
-    EventLog.recordForEntry('score_set', card.id, { from: before, to: score }, { source: 'discover' });
+    EventLog.recordForEntry('score_set', card.id, { from: scoreBefore, to: score }, { source: 'discover' });
   }
-  return true;
+  return () => {
+    // The score goes back only if it is still the one this answer set.
+    if (scoreBefore !== undefined && Store.getEntry(card.id)?.myScore === score) {
+      EventLog.recordForEntry('score_set', card.id, { from: score, to: scoreBefore }, { source: 'discover' });
+      Store.updateEntry(card.id, { myScore: scoreBefore });
+    }
+    undoMove();
+  };
 }
 
+// Truthy when it answered: for a title that was already in a list, the
+// function that takes the move back; otherwise true.
 function seenIt(card, ctx, score) {
+  let undo = true;
   if (Store.getEntry(card.id)) {
-    if (!markOwnedSeen(card, score)) return false;
+    undo = markOwnedSeen(card, score);
+    if (!undo) return false;
   } else if (!addToLibrary(card, 'watched', { railId: ctx.railId, score })) return false;
   EventLog.recordForEntry('recommendation_seen_it', card.id, { shelfId: ctx.railId, meta: { score: typeof score === 'number' ? score : null } }, { source: 'discover' });
   persist();
-  return true;
+  return undo;
 }
 
 function notForMe(card, ctx, reason) {
@@ -414,8 +429,9 @@ function triageQueue() {
   if (lastQueue.r === r && lastQueue.key.every((k, i) => k === key[i])) return lastQueue.out;
   const out = [];
   const ids = new Set();
+  const dismissed = new Set(Store.getDismissedIds());
   const push = (c) => {
-    if (ids.has(c.id) || triage.skipped.has(c.id) || triage.seen.has(c.id) || Store.getEntry(c.id)) return;
+    if (ids.has(c.id) || triage.skipped.has(c.id) || triage.seen.has(c.id) || Store.getEntry(c.id) || dismissed.has(c.id)) return;
     if (c.entry.status !== 'RELEASING' && c.entry.status !== 'FINISHED') return;
     ids.add(c.id);
     out.push(c);
@@ -530,6 +546,14 @@ export function openTriage() {
   triage.session = newTriageSession();
   // Undo reaches back only within this Triage session.
   triage.history = [];
+  // A new session starts from Discover as it is now: what was answered is
+  // owned or dismissed there (and comes back if restored), and skips get
+  // another chance.
+  triage.seen.clear();
+  triage.skipped.clear();
+  // A synopsis that failed is asked for again; the cache stays small.
+  for (const [id, media] of triage.detail) if (media == null) triage.detail.delete(id);
+  if (triage.detail.size > TRIAGE.detailCacheMax) triage.detail.clear();
   // A fresh stage on every open: the first card enters again, and a poster
   // that failed last time is asked for again.
   document.querySelector('#triage-body .triage-stage')?.replaceChildren();
@@ -586,7 +610,7 @@ function springTriageBack(el) {
 // An answer is recorded only for the card on screen: the live card for this
 // title, laid out, inside the window and past the first frames of its
 // entrance (v3 run 2; v3.0 recorded answers for cards nobody could see).
-const MIN_VISIBLE_OPACITY = 0.15;
+const MIN_VISIBLE_OPACITY = TRIAGE.minVisibleOpacity;
 function triageCardShown(el, card) {
   if (!el || !el.isConnected || el.classList.contains('leaving') || el.dataset.anilistId !== String(card.id)) return false;
   if (!isDialogOpen('triage-overlay')) return false;
@@ -608,8 +632,13 @@ function triageAnswer(answer, { score = null } = {}) {
   const ctx = { railId: 'triage', position: triage.session.answered };
   const owned = Boolean(Store.getEntry(card.id));
   let counted = null;
+  let undoOwned = null;
   if (answer === 'want') counted = want(card, ctx) ? 'added' : null;
-  else if (answer === 'seen-it') counted = seenIt(card, ctx, score) ? 'seen' : null;
+  else if (answer === 'seen-it') {
+    const result = seenIt(card, ctx, score);
+    counted = result ? 'seen' : null;
+    if (typeof result === 'function') undoOwned = result;
+  }
   else if (answer === 'not-for-me') {
     notForMe(card, ctx, null);
     counted = 'dismissed';
@@ -618,8 +647,8 @@ function triageAnswer(answer, { score = null } = {}) {
   if (triage.front === card.id) triage.front = null;
   EventLog.recordForEntry('discover_triage_answered', card.id, { meta: { answer, ...(answer === 'seen-it' ? { score } : {}) } }, { source: 'discover' });
   // What Undo may take back: an entry this answer created, as it was then.
-  const created = !owned && (answer === 'want' || answer === 'seen-it') ? Store.getEntry(card.id) : null;
-  triage.history.push({ id: card.id, answer, counted, created: created ? { updatedAt: created.updatedAt, episodesWatched: created.episodesWatched, myScore: created.myScore } : null });
+  const created = !owned && (answer === 'want' || answer === 'seen-it') ? createdSnapshot(card.id) : null;
+  triage.history.push({ id: card.id, answer, counted, created, undoOwned });
   triage.session.answered += 1;
   if (counted) triage.session[counted] += 1;
   triage.rating = false;
@@ -631,13 +660,17 @@ function triageAnswer(answer, { score = null } = {}) {
   flyTriageOut(el, answer);
 }
 
-// An entry an answer created goes again only while it is exactly as the
-// answer left it; its progress and score are written back out of the log
-// (the log is append-only). Returns false when it was changed since.
+// An entry an answer created goes again only while the user has not changed
+// it since; its progress and score are written back out of the log (the log
+// is append-only). Returns false when it was changed since. Only the fields a
+// person edits count: the cover arriving a second later (coverFile, which
+// also moves updatedAt) does not block Undo.
+const USER_FIELDS = ['listStatus', 'episodesWatched', 'myScore', 'notes', 'tagIds', 'customListIds', 'rewatchCount', 'startedAt', 'completedAt'];
+const userFingerprint = (e) => JSON.stringify(USER_FIELDS.map((k) => e[k] ?? null));
 function takeBackCreated(id, created) {
   const entry = Store.getEntry(id);
   if (!entry) return true;
-  if (!created || entry.updatedAt !== created.updatedAt) return false;
+  if (!created || userFingerprint(entry) !== created.fingerprint) return false;
   if (created.episodesWatched) recordProgressEvent(entry, created.episodesWatched, 0, 'backfill');
   if (typeof created.myScore === 'number') EventLog.recordForEntry('score_set', id, { from: created.myScore, to: null }, { source: 'discover' });
   Store.removeEntry(id);
@@ -646,7 +679,7 @@ function takeBackCreated(id, created) {
 }
 const createdSnapshot = (id) => {
   const e = Store.getEntry(id);
-  return e ? { updatedAt: e.updatedAt, episodesWatched: e.episodesWatched, myScore: e.myScore } : null;
+  return e ? { fingerprint: userFingerprint(e), episodesWatched: e.episodesWatched, myScore: e.myScore } : null;
 };
 
 // Z: the last answer of this Triage session is taken back. An entry it
@@ -659,7 +692,9 @@ function triageUndo() {
   if (!last) return;
   triage.seen.delete(last.id);
   triage.skipped.delete(last.id);
-  if (last.answer === 'want' || last.answer === 'seen-it') {
+  if (last.undoOwned) {
+    last.undoOwned();
+  } else if (last.answer === 'want' || last.answer === 'seen-it') {
     const entry = Store.getEntry(last.id);
     if (entry && !(last.created && takeBackCreated(last.id, last.created))) Render.showToast(copy('triage.undoKept', undefined, { title: titleOf(entry) }));
   } else if (last.answer === 'not-for-me') {
@@ -820,6 +855,8 @@ function bindTriage() {
         if (e.repeat) return;
         triageAnswer('seen-it', { score: k === '0' ? 10 : Number(k) });
       } else if (k === 'enter') {
+        // A focused button (a score, Cancel) keeps its own Enter.
+        if (e.target.closest?.('button')) return;
         e.preventDefault();
         triageAnswer('seen-it', { score: null });
       } else if (k === 'escape') {
@@ -961,21 +998,19 @@ export function initDiscover({ persistFn } = {}) {
     renderKeepingPlace(el);
   };
   const onSeen = async (card, ctx, el, score) => {
-    const before = Store.getEntry(card.id) ? { listStatus: Store.getEntry(card.id).listStatus, myScore: Store.getEntry(card.id).myScore ?? null } : null;
     await collapse(el);
-    if (seenIt(card, ctx, score)) {
-      const created = before ? null : createdSnapshot(card.id);
+    const result = seenIt(card, ctx, score);
+    if (result) {
+      const created = typeof result === 'function' ? null : createdSnapshot(card.id);
       const text = typeof score === 'number' ? copy('discover.seenToastScored', undefined, { title: titleOf(card.entry), score }) : copy('discover.seenToast', undefined, { title: titleOf(card.entry) });
       toastWithUndo(text, () => {
-        if (!before) return undoDone(takeBackCreated(card.id, created), titleOf(card.entry));
-        // It was already on a list: it goes back there, with its old score.
-        handleSetStatus(card.id, before.listStatus);
-        const now = Store.getEntry(card.id);
-        if (now && (now.myScore ?? null) !== before.myScore) {
-          EventLog.recordForEntry('score_set', card.id, { from: now.myScore ?? null, to: before.myScore }, { source: 'discover' });
-          Store.updateEntry(card.id, { myScore: before.myScore });
+        if (typeof result === 'function') {
+          // It was already on a list: the whole move goes back (list,
+          // progress, the watch record), and its old score.
+          result();
+          return undoDone(true);
         }
-        undoDone(true);
+        undoDone(takeBackCreated(card.id, created), titleOf(card.entry));
       });
     }
     renderKeepingPlace(el);
@@ -1028,6 +1063,7 @@ export function initDiscover({ persistFn } = {}) {
       if (find === 'genre') f.genres = v ? [v] : [];
       else if (find === 'season') f.season = v;
       else if (find === 'year') {
+        if (v === 'range') return; // the panel's range, shown as it is
         f.yearMin = v ? Number(v) : null;
         f.yearMax = v ? Number(v) : null;
       } else if (find === 'format') f.format = v;

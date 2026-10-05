@@ -39,9 +39,24 @@ function defaultIsAlive(pid) {
   }
 }
 
+// null when there is no lock (or it holds no JSON). A lock that exists but
+// cannot be read right now (on Windows, a virus scanner holding it: EBUSY,
+// EPERM) is { unreadable: true, mtimeMs }: it may well be live, so it is never
+// treated as stale while it is fresh, and a heartbeat skips that tick.
 function readHolder(lockPath) {
+  let raw;
   try {
-    return { ...JSON.parse(fs.readFileSync(lockPath, 'utf8')), mtimeMs: fs.statSync(lockPath).mtimeMs };
+    raw = fs.readFileSync(lockPath, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    try {
+      return { unreadable: true, mtimeMs: fs.statSync(lockPath).mtimeMs };
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return { ...JSON.parse(raw), mtimeMs: fs.statSync(lockPath).mtimeMs };
   } catch {
     return null;
   }
@@ -99,6 +114,7 @@ function acquireInstanceLock(
         // sleep), onLost is called: two copies must never write the same folder.
         startHeartbeat(onLost) {
           timer = setInterval(() => {
+            if (readHolder(lockPath)?.unreadable) return; // try again next tick
             if (!isOurs()) {
               clearInterval(timer);
               onLost?.();
@@ -134,6 +150,7 @@ function acquireInstanceLock(
     if (holder && fresh && holder.pid !== pid && isAlive(holder.pid)) {
       return { acquired: false, holder, lockPath };
     }
+    if (holder?.unreadable && fresh) return { acquired: false, holder, lockPath };
     // Stale (dead pid, not refreshed, or unreadable): move it aside atomically,
     // then retry the exclusive create.
     const aside = `${lockPath}.stale-${process.pid}-${now()}-${attempt}`;

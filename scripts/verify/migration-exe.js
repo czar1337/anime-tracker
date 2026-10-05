@@ -32,6 +32,14 @@ const pick = (e) => JSON.stringify(FIELDS.map((f) => e[f] ?? null));
   const events = snap.stores.eventLog.records;
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-migrate-'));
+  // A copy of the real library: gone when the check ends.
+  process.on('exit', () => {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // the OS temp cleanup has it
+    }
+  });
   fs.writeFileSync(path.join(dir, 'library.json'), JSON.stringify(pre));
   fs.writeFileSync(path.join(dir, 'events.jsonl'), events.map((e) => JSON.stringify(e)).join('\n') + '\n');
   check('copy prepared (schema 14, 335 entries, 359 events)', pre.schemaVersion === 14 && pre.entries.length === 335 && events.length === 359, `schema ${pre.schemaVersion}, ${pre.entries.length} entries, ${events.length} events`);

@@ -42,13 +42,17 @@ const BUILD_INFO_PATH = path.join(OUT_DIR, 'build-info.json');
 // page's own token); every write it makes is already on disk. If it cannot be
 // reached, the build stops and says what to do, unless --force-close is given
 // (then it is ended with taskkill, as Task Manager would).
+// The pids of running copies of exePath: [] when none, null when that could
+// not be checked (Get-Process exits 1 when none run: hence the exit 0).
+// The path goes in through the environment, never into the
+// command text (PowerShell also ends a string at typographic quotes).
 function runningCopies(exePath) {
   if (process.platform !== 'win32') return [];
   try {
-    const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Get-Process -Name AnimeTracker -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${exePath.replace(/'/g, "''")}' } | ForEach-Object { $_.Id }`], { encoding: 'utf8', windowsHide: true });
+    const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-Process -Name AnimeTracker -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $env:AT_EXE_PATH } | ForEach-Object { $_.Id }; exit 0'], { encoding: 'utf8', windowsHide: true, env: { ...process.env, AT_EXE_PATH: exePath } });
     return out.split(/\s+/).filter(Boolean).map(Number);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -73,7 +77,8 @@ async function askToQuit(pid) {
 async function waitForExit(pids, ms) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
-    if (!runningCopies(EXE_PATH).some((p) => pids.includes(p))) return true;
+    const now = runningCopies(EXE_PATH);
+    if (now && !now.some((p) => pids.includes(p))) return true;
     await new Promise((r) => setTimeout(r, 500));
   }
   return false;
@@ -81,6 +86,7 @@ async function waitForExit(pids, ms) {
 
 async function closeRunningCopy() {
   const pids = runningCopies(EXE_PATH);
+  if (pids === null) throw new Error(`Could not check whether ${EXE_PATH} is running (PowerShell failed). Quit Anime Tracker from its tray icon and build again.`);
   if (!pids.length) return;
   console.log(`${EXE_PATH} is running (pid ${pids.join(', ')}). Asking it to quit...`);
   for (const pid of pids) await askToQuit(pid);

@@ -252,7 +252,7 @@ function searchAniList(query, myGeneration) {
       items = [...items.filter((r) => r.group !== 'anilist'), ...rows, searchRow];
       render();
     } catch {
-      if (myGeneration !== generation) return;
+      if (myGeneration !== generation || !isDialogOpen('palette-overlay')) return;
       items = [...items.filter((r) => r.group !== 'anilist'), searchRow];
       render();
       document.getElementById('palette-status').textContent = copy('palette.anilistFailed');
@@ -278,6 +278,7 @@ function runActive() {
     const input = document.getElementById('palette-input');
     input.value = row.search;
     update();
+    input.focus(); // a click moved focus to the list; the keys live on the field
     return;
   }
   if (row.recent) remember(row.recent);
@@ -307,12 +308,21 @@ export function initPalette() {
       syncActive();
     } else if (e.key === 'PageDown' || e.key === 'PageUp') {
       e.preventDefault();
-      active = Math.max(0, Math.min(items.length - 1, active + (e.key === 'PageDown' ? 5 : -5)));
+      active = Math.max(0, Math.min(items.length - 1, active + (e.key === 'PageDown' ? PALETTE.pageStep : -PALETTE.pageStep)));
       syncActive();
     } else if (e.key === 'Enter') {
       e.preventDefault();
       runActive();
     }
+  });
+  // A click on a row never takes focus from the field.
+  list.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.palette-option')) e.preventDefault();
+  });
+  // Closed: an AniList search still waiting for its pause is not sent.
+  document.getElementById('palette-overlay')?.addEventListener('close', () => {
+    clearTimeout(anilistTimer);
+    generation += 1;
   });
   list.addEventListener('mousemove', (e) => {
     const option = e.target.closest('.palette-option');

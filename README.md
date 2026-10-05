@@ -6,7 +6,8 @@ A local anime tracker that runs on your own computer. No cloud service, no accou
 
 - **Discover, rebuilt.** Recommendations now combine what your favourite shows have in common with AniList's "fans of this also liked", and every card says honestly why it is there ("Fans of Mob Psycho 100 rate this highly (you gave it 10)"). One card per franchise, nothing unreleased or poorly rated on the taste rails, and three one-tap answers on every card: Want to watch, Seen it, Not for me. **Swipe through** (press T) answers one card at a time.
 - **A faster, calmer app**: a new Home screen ("Tonight"), a command palette (Ctrl+K), a cleaner library with saved views, a detail drawer with your watch history, and a simpler Settings with 12 curated themes.
-- **More of your history kept**: Paused, rewatches, start dates and a watch diary; lossless imports from MyAnimeList, AniList (by username) and backup files, each with an undo.
+- **Sharper and livelier**: the same poster everywhere, tooltips with keyboard shortcuts, Library tabs with a list view, a Search that can mark episodes, a seasonal decoration level called Insane, and ? for every shortcut.
+- **More of your history kept**: On hold, rewatches, start dates and a watch diary; lossless imports from MyAnimeList, AniList (by username) and backup files, each with an undo.
 - **Schedule v2** with countdowns and a season chart, and optional episode notifications even when no browser tab is open.
 - **Safer data**: a verified snapshot before every upgrade, backups kept by day and month, and protection against other websites talking to the app.
 

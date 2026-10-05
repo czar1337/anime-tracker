@@ -20,12 +20,7 @@ import { ATMOSPHERE } from '../../config/tuning.js';
 const PARTICLES = ATMOSPHERE.particles;
 const LAYERS = ATMOSPHERE.layers;
 const EMBERS = ATMOSPHERE.embers;
-// Per depth layer (far, middle, near): size, speed, opacity and parallax.
-const DEPTH = [
-  { size: 0.6, speed: 0.55, alpha: 0.45, parallax: 6 },
-  { size: 1, speed: 0.8, alpha: 0.7, parallax: 14 },
-  { size: 1.8, speed: 1.15, alpha: 0.9, parallax: 30 },
-];
+const DEPTH = ATMOSPHERE.depth;
 const FPS_FLOOR = ATMOSPHERE.fpsFloor;
 const FPS_SAMPLE = ATMOSPHERE.fpsSample;
 const MIN_SCALE = ATMOSPHERE.minScale;
@@ -182,8 +177,8 @@ export function createParticleField(canvas) {
     frames = [];
     const fps = 1000 / avg;
     stats.fps = Math.round(fps);
-    if (fps < FPS_FLOOR && scale > MIN_SCALE) scale = Math.max(MIN_SCALE, scale * 0.75);
-    else if (fps > 58 && scale < 1) scale = Math.min(1, scale + 0.1);
+    if (fps < FPS_FLOOR && scale > MIN_SCALE) scale = Math.max(MIN_SCALE, scale * ATMOSPHERE.scaleDownStep);
+    else if (fps > ATMOSPHERE.fpsRecover && scale < 1) scale = Math.min(1, scale + ATMOSPHERE.scaleUpStep);
     stats.scale = Number(scale.toFixed(2));
     fill();
   }
@@ -286,7 +281,24 @@ export function createParticleField(canvas) {
     if (document.hidden) stopLoop();
     else if (ambient || sparks.length) run();
   };
+  // Moved to a screen with another pixel density (no resize event): the
+  // canvas follows, so it is never blurry or drawn too large.
+  let dprQuery = null;
+  const onDprChange = () => {
+    onResize();
+    watchDpr();
+  };
+  function watchDpr() {
+    dprQuery?.removeEventListener('change', onDprChange);
+    dprQuery = window.matchMedia?.(`(resolution: ${window.devicePixelRatio || 1}dppx)`) || null;
+    dprQuery?.addEventListener('change', onDprChange);
+  }
+  const themeSprites = () => {
+    emberSprite = sprite('ember', token('--warning', '#db8'), token('--glow', '#cde'));
+    sparkSprites = [token('--accent-lit', '#e88'), token('--warning', '#db8'), token('--glow', '#cde')].map((c) => sprite('spark', c, c));
+  };
   resize();
+  watchDpr();
   window.addEventListener('resize', onResize, { passive: true });
   window.addEventListener('pointermove', onPointer, { passive: true });
   window.addEventListener('scroll', onScroll, { passive: true });
@@ -299,10 +311,11 @@ export function createParticleField(canvas) {
       const changed = nextLevel !== level || nextKind !== kind;
       level = nextLevel;
       kind = nextKind;
+      // The sparks and embers take the theme's colours: redrawn on every
+      // configure (a theme change calls it too); four tiny canvases.
+      themeSprites();
       if (changed || !sprites.length) {
         sprites = paletteFor(kind);
-        emberSprite = sprite('ember', token('--warning', '#db8'), token('--glow', '#cde'));
-        sparkSprites = [token('--accent-lit', '#e88'), token('--warning', '#db8'), token('--glow', '#cde')].map((c) => sprite('spark', c, c));
         particles = [];
         embers = [];
         scale = 1;
@@ -321,8 +334,9 @@ export function createParticleField(canvas) {
     },
     // A spray of sparks from (x, y): small for an episode, more for a series.
     burst({ x, y, big = false }) {
-      if (!sparkSprites.length) sparkSprites = [token('--accent-lit', '#e88'), token('--warning', '#db8')].map((c) => sprite('spark', c, c));
-      const n = Math.round((big ? 60 : 22) * (level === 'insane' ? 1.5 : 1));
+      if (!sparkSprites.length) themeSprites();
+      const room = Math.max(0, ATMOSPHERE.maxSparks - sparks.length);
+      const n = Math.min(room, Math.round((big ? ATMOSPHERE.burst.big : ATMOSPHERE.burst.small) * (level === 'insane' ? ATMOSPHERE.burst.insaneFactor : 1)));
       for (let i = 0; i < n; i++) {
         const a = rand(0, Math.PI * 2);
         const v = rand(80, big ? 420 : 240);
@@ -338,6 +352,7 @@ export function createParticleField(canvas) {
       window.removeEventListener('pointermove', onPointer);
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('visibilitychange', onVisibility);
+      dprQuery?.removeEventListener('change', onDprChange);
     },
   };
 }

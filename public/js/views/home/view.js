@@ -88,12 +88,14 @@ function continueCardHtml(entry, { hero = false } = {}) {
 }
 
 function stat(value, label) {
-  return html`<span><b class="num stat-display" data-value="${value}">${value}</b><span class="stat-kicker">${label}</span></span>`;
+  return html`<span><b class="num stat-display" data-value="${value}" aria-label="${value}">${value}</b><span class="stat-kicker">${label}</span></span>`;
 }
 
 // "This year" counts up from zero the first time Home is shown in a session
-// (v3 run 2). The final text is the real number throughout for assistive
-// tech (aria-label); reduced motion and animation Off show it at once.
+// (v3 run 2). The real number is the aria-label throughout (in the
+// template, so a re-render keeps it); reduced motion and animation Off show
+// it at once. Each frame reads the target again: a re-render during the
+// count (a +1 on the rail) ends on the new number, not the old one.
 let countedUp = false;
 function countUp(container) {
   if (countedUp) return;
@@ -102,19 +104,18 @@ function countUp(container) {
   const duration = tokenMs('--dur-emph') * 2.2;
   if (!movementAllowed() || duration <= 0) return;
   for (const el of els) {
-    const final = el.dataset.value;
-    const target = Number(final);
-    if (!Number.isFinite(target) || target === 0) continue;
-    const decimals = (final.split('.')[1] || '').length;
-    el.setAttribute('aria-label', final);
+    const first = Number(el.dataset.value);
+    if (!Number.isFinite(first) || first === 0) continue;
+    const decimals = (el.dataset.value.split('.')[1] || '').length;
     const start = performance.now();
     const step = (now) => {
       if (!el.isConnected) return;
+      const final = el.dataset.value;
+      const target = Number(final);
       const t = Math.min(1, (now - start) / duration);
       const eased = 1 - (1 - t) ** 3;
-      el.textContent = t < 1 ? (target * eased).toFixed(decimals) : final;
+      el.textContent = t < 1 && Number.isFinite(target) ? (target * eased).toFixed(decimals) : final;
       if (t < 1) requestAnimationFrame(step);
-      else el.removeAttribute('aria-label');
     };
     el.textContent = (0).toFixed(decimals);
     requestAnimationFrame(step);
@@ -185,7 +186,7 @@ export function renderHome(container) {
           ? html`<ul class="up-next">${upNext.map((e) => {
               return html`<li class="up-next-row">
                 ${posterHtml({ url: coverSrc(e), title: title(e), size: 'xs', className: 'up-next-cover' })}
-                <span class="up-next-text"><button type="button" class="text-btn up-next-title" data-action="show-detail" data-detail-id="${e.anilistId}">${title(e)}</button><span class="meta-line">${[e.totalEpisodes ? `${e.totalEpisodes} ep` : null, e.year].filter(Boolean).join(' · ')}</span></span>
+                <span class="up-next-text"><button type="button" class="text-btn up-next-title" data-action="show-detail" data-detail-id="${e.anilistId}">${title(e)}</button><span class="meta-line">${[e.totalEpisodes ? copy('card.episodes', undefined, { n: e.totalEpisodes }) : null, e.year].filter(Boolean).join(' · ')}</span></span>
                 <button type="button" class="btn btn-ghost sm" data-action="home-start" data-id="${e.anilistId}" aria-label="${copy('home.startLabel', undefined, { title: title(e) })}">${copy('home.start')}</button>
               </li>`;
             })}</ul>`

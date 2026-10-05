@@ -17,5 +17,9 @@ module.exports = defineConfig({
   use: {
     headless: true,
     trace: CI ? 'on-first-retry' : 'off',
+    // The page never reaches the real AniList from a test (v3 run 2): its
+    // hosts do not resolve in the test browser. A test that wants AniList
+    // answers with page.route, which is served before any lookup.
+    launchOptions: { args: ['--host-resolver-rules=MAP anilist.co ~NOTFOUND, MAP *.anilist.co ~NOTFOUND'] },
   },
 });

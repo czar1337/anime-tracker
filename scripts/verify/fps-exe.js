@@ -7,7 +7,7 @@
 //   node scripts/verify/fps-exe.js <backup-folder> <out.json> [--seconds 6]
 
 const fs = require('node:fs');
-const { chromium } = require('playwright-core');
+const { chromium } = require('@playwright/test');
 const { startExe } = require('./exe-session.js');
 
 const [backupDir, outFile] = process.argv.slice(2);
