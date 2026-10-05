@@ -524,7 +524,9 @@ export function openTriage() {
   triage.session = newTriageSession();
   // Undo reaches back only within this Triage session.
   triage.history = [];
-  document.querySelectorAll('#triage-body .triage-stage > .leaving').forEach((n) => n.remove());
+  // A fresh stage on every open: the first card enters again, and a poster
+  // that failed last time is asked for again.
+  document.querySelector('#triage-body .triage-stage')?.replaceChildren();
   openOverlay('triage-overlay');
   if (!discoverState.result) rebuild().catch(() => {});
   renderTriageNow();
@@ -575,10 +577,24 @@ function springTriageBack(el) {
 
 // --- Triage answers ---------------------------------------------------------
 
+// An answer is recorded only for the card on screen: the live card for this
+// title, laid out, inside the window and past the first frames of its
+// entrance (v3 run 2; v3.0 recorded answers for cards nobody could see).
+const MIN_VISIBLE_OPACITY = 0.15;
+function triageCardShown(el, card) {
+  if (!el || !el.isConnected || el.classList.contains('leaving') || el.dataset.anilistId !== String(card.id)) return false;
+  if (!isDialogOpen('triage-overlay')) return false;
+  const r = el.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1 || r.bottom <= 0 || r.right <= 0 || r.top >= window.innerHeight || r.left >= window.innerWidth) return false;
+  const cs = getComputedStyle(el);
+  return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) >= MIN_VISIBLE_OPACITY;
+}
+
 function triageAnswer(answer, { score = null } = {}) {
   const card = currentTriageCard();
   if (!card || triagePhase(card) !== 'card') return;
   const el = liveStageNode(document.getElementById('triage-body'));
+  if (!triageCardShown(el, card)) return;
   if (el) {
     el.classList.remove('dragging');
     el.classList.add('leaving');
@@ -665,7 +681,12 @@ function triageFetchMore() {
   triage.exhausted = false;
   triage.extra += TRIAGE.growStep;
   triage.pool = null;
-  if (!triageQueue().length && triage.skipped.size) triage.skipped.clear();
+  if (!triageQueue().length && triage.skipped.size) {
+    // A skip is not an answer that should hide a title for good: they come
+    // back (they are in `seen` too, which every answer joins).
+    for (const id of triage.skipped) triage.seen.delete(id);
+    triage.skipped.clear();
+  }
   renderTriageNow();
 }
 
@@ -769,8 +790,9 @@ function bindTriage() {
     }
     renderNow();
   });
-  // W want, S seen it (then 1-9, 0 for 10, Enter for no rating), X not for
-  // me, → skip, Z undo. ← ↑ ↓ follow the drag: not for me, seen it, skip.
+  // The arrows are the drag directions: → want, ← not for me, ↑ seen it
+  // (then 1-9, 0 for 10, Enter for no rating), ↓ skip. W, S and X stay; Z
+  // undoes.
   document.addEventListener('keydown', (e) => {
     if (!triage.open || !isDialogOpen('triage-overlay') || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target.closest?.('input, textarea, select')) return;
@@ -795,7 +817,7 @@ function bindTriage() {
       w: () => triageAnswer('want'),
       x: () => triageAnswer('not-for-me'),
       arrowleft: () => triageAnswer('not-for-me'),
-      arrowright: () => triageAnswer('skip'),
+      arrowright: () => triageAnswer('want'),
       arrowdown: () => triageAnswer('skip'),
       z: () => triageUndo(),
       s: () => startTriageRating(),

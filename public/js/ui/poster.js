@@ -15,7 +15,9 @@
 // (core/reconcile.js) leaves a loaded image alone instead of resetting it.
 
 import { html, cls } from '../core/html.js';
+import { UI_TIMING } from '../../../config/tuning.js';
 
+const POSTER_RETRY_MS = UI_TIMING.posterRetryMs;
 const ANILIST_IMAGE = /^https:\/\/([a-z0-9-]+\.)*anilist\.co\//i;
 
 // The address the page loads a poster from: local files as they are, AniList
@@ -50,7 +52,18 @@ export function installPosterWiring() {
   }, true);
   document.addEventListener('error', (e) => {
     const img = e.target;
-    if (img instanceof HTMLImageElement && img.classList.contains('poster-img')) img.closest('.poster')?.classList.add('poster-failed');
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains('poster-img')) return;
+    // One retry through the cache a moment later: AniList's image host can
+    // refuse a request in a burst of many, and by then the server has usually
+    // cached the image itself. Only then the first-letter fallback stays.
+    if (img.dataset.retried !== '1' && img.src.includes('/api/poster?')) {
+      img.dataset.retried = '1';
+      setTimeout(() => {
+        if (img.isConnected) img.src = `${img.src}&retry=1`;
+      }, POSTER_RETRY_MS);
+      return;
+    }
+    img.closest('.poster')?.classList.add('poster-failed');
   }, true);
 }
 

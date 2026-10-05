@@ -349,6 +349,7 @@ export const UI_TIMING = {
   // v3 finish, Section 1.
   tooltipDelayMs: 450, // hover this long before a tooltip shows (keyboard focus shows it at once)
   undoToastMs: 6000, // how long a toast with Undo stays
+  posterRetryMs: 1500, // a poster that failed is tried once more after this
 };
 
 // v3 Phase 6: the Discover engine (docs/v3/25-09-2026-v3-discover-spec.md,

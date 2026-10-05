@@ -24,7 +24,7 @@ const http = require('node:http');
 const { migrateLegacyDataDir } = require('../datadir.js');
 const { migrate } = require('../migrations.js');
 const { acquireInstanceLock } = require('../instanceLock.js');
-const { PORT, IS_SEA, DATA_DIR, LEGACY_DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR, SCHEMA_VERSION } = require('./config.js');
+const { PORT, IS_SEA, DATA_DIR, LEGACY_DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR, SCHEMA_VERSION, APP_VERSION, BUILD_INFO } = require('./config.js');
 const Library = require('./storage/library.js');
 const { ensureCountersFile } = require('./storage/eventLog.js');
 const { createSnapshotNow, ensurePinnedSnapshot } = require('./storage/snapshots.fs.js');
@@ -34,6 +34,7 @@ const { createRequestHandler } = require('./http/router.js');
 const { startNotifier } = require('./services/notifier.js');
 const { startTray } = require('./services/tray.js');
 const { loadCopyRegistry } = require('./services/browserModules.js');
+const { onQuitRequested } = require('./services/lifecycle.js');
 
 // Best-effort: opens the user's default browser. Only used in SEA mode, where
 // the exe is the whole app. Detached and unref'd so it survives this process
@@ -101,6 +102,10 @@ const dataDirConflict = migrationResult.action === 'conflict' ? migrationResult 
 // move, so neither ever sees a folder this created). ANIME_TRACKER_LOG_FILE=1
 // does the same in development.
 if (IS_SEA || process.env.ANIME_TRACKER_LOG_FILE === '1') require('./services/fileLog.js').installFileLog(DATA_DIR);
+// v3 run 2: the one data folder this process reads and writes, in the log at
+// every start (and in Settings > Data), so a run on another folder is visible.
+const buildText = BUILD_INFO.builtAt ? `${BUILD_INFO.kind}, built ${BUILD_INFO.builtAt}${BUILD_INFO.commit ? ` from ${BUILD_INFO.commit}` : ''}` : BUILD_INFO.kind;
+console.log(`[startup] Anime Tracker ${APP_VERSION} (${buildText}) using data folder ${DATA_DIR}${process.env.ANIME_TRACKER_DATA_DIR ? ' (set by ANIME_TRACKER_DATA_DIR)' : ''}`);
 
 const dirsToEnsure = IS_SEA ? [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR] : [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR];
 for (const dir of dirsToEnsure) {
@@ -138,6 +143,10 @@ async function runPendingMigration() {
 // The port actually bound: PORT, or the free one the OS gave for PORT 0.
 let boundPort = PORT;
 const server = http.createServer(createRequestHandler({ port: () => boundPort, token: WRITE_TOKEN, getDataDirConflict: () => dataDirConflict }));
+onQuitRequested(() => {
+  server.close();
+  setTimeout(() => process.exit(0), 300);
+});
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -169,6 +178,10 @@ function listenOnIpv6Loopback() {
     else if (err.code !== 'EADDRNOTAVAIL' && err.code !== 'EAFNOSUPPORT') console.error('[server] IPv6 loopback listener failed:', err.message);
   });
   v6.listen(boundPort, '::1');
+}
+
+function requestQuitFromTray() {
+  require('./services/lifecycle.js').requestQuit('tray');
 }
 
 // Bound to loopback only — binding to all interfaces (Node's default) would let
@@ -232,10 +245,7 @@ function listenOnIpv6Loopback() {
                   // best effort
                 }
               },
-              quit: () => {
-                server.close();
-                setTimeout(() => process.exit(0), 300);
-              },
+              quit: () => requestQuitFromTray(),
             },
           })
         )

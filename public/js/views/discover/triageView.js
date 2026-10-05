@@ -13,7 +13,15 @@ import { formatEnumLabel } from '../shared/format.js';
 import { discoverCardTitle, reasonHtml, synopsisText, dismissReasons } from './view.js';
 import { posterHtml } from '../../ui/poster.js';
 
-export const TRIAGE_KEYS = { want: 'W', seen: 'S', notForMe: 'X', skip: '→', undo: 'Z' };
+// v3 run 2: the arrows are the drag directions (→ Want, ← Not for me, ↑ Seen
+// it, ↓ Skip); the letters stay. Each answer button shows both.
+export const TRIAGE_KEYS = {
+  want: [['→', 'ArrowRight'], ['W', 'W']],
+  seen: [['↑', 'ArrowUp'], ['S', 'S']],
+  notForMe: [['←', 'ArrowLeft'], ['X', 'X']],
+  skip: [['↓', 'ArrowDown']],
+  undo: [['Z', 'Z']],
+};
 
 // The parts the body is built from; laid down once per open.
 function ensureShell(container) {
@@ -108,8 +116,8 @@ function stageHtml(t) {
   return triageCardHtml(t.card, t);
 }
 
-const btn = (action, label, { cls = 'btn-ghost', key = '', disabled = false, extra = '' } = {}) =>
-  `<button type="button" class="btn ${cls}" data-action="${action}" ${disabled ? 'disabled' : ''} ${key ? `aria-keyshortcuts="${escapeHtml(key === '→' ? 'ArrowRight' : key)}"` : ''} ${extra}>${key ? `<kbd>${escapeHtml(key)}</kbd> ` : ''}${escapeHtml(label)}</button>`;
+const btn = (action, label, { cls = 'btn-ghost', key = null, disabled = false, extra = '' } = {}) =>
+  `<button type="button" class="btn ${cls}" data-action="${action}" ${disabled ? 'disabled' : ''} ${key ? `aria-keyshortcuts="${escapeHtml(key.map(([, k]) => k).join(' '))}"` : ''} ${extra}>${escapeHtml(label)}${key ? `<span class="triage-keys" aria-hidden="true">${key.map(([shown]) => `<kbd>${escapeHtml(shown)}</kbd>`).join('')}</span>` : ''}</button>`;
 
 function controlsHtml(t) {
   const off = t.phase !== 'card';

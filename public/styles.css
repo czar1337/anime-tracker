@@ -1288,7 +1288,8 @@ kbd {
 .triage-message-title { margin: 0; font: var(--t-body); font-weight: var(--w-med); color: var(--text); }
 .triage-answers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); margin-top: var(--sp-4); }
 .triage-answers .btn { justify-content: center; }
-.triage-answers kbd, .triage-foot kbd { font: var(--t-nano); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-right: var(--sp-1); opacity: .8; }
+.triage-keys { display: inline-flex; gap: 3px; margin-left: var(--sp-2); }
+.triage-answers kbd, .triage-foot kbd { font: var(--t-nano); min-width: 1.5em; text-align: center; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; opacity: .75; }
 .triage-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-3); }
 .triage-rate { margin-top: var(--sp-4); }
 .triage-rate-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-2) 0; }

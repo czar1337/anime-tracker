@@ -94,7 +94,7 @@ The user-facing version is in `CHANGELOG.md`, under "Unreleased".
 ## 6. Data backup
 
 Taken before any change, read-only through the running app:
-`C:\Users\cesar\Documents\anime-tracker-backups\2026-10-05-003238-before-v3-finish`
+`<backups folder>\2026-10-05-003238-before-v3-finish`
 
 It contains:
 - the export, library and events read from the running app;

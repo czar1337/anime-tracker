@@ -95,3 +95,7 @@
 .poster-sm { width: 56px; }
 .poster-md { width: 100%; }
 .poster-lg { width: 100%; border-radius: 0; }
+
+/* --- Settings info lines (version, data folder) --------------------------- */
+.settings-info { margin: 0; font: var(--t-meta); color: var(--dim); }
+.settings-path { font-family: var(--mono); overflow-wrap: anywhere; color: var(--text); }

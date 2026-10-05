@@ -20,6 +20,7 @@ import { openDialog, closeDialog } from './core/dialog.js';
 import { whenSettled } from './core/reconcile.js';
 import { syncShimmers } from './core/motion.js';
 import { installPosterWiring, installTooltips } from './ui/index.js';
+import { setAppInfo, buildText } from './views/settings/view.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 import { UI_TIMING } from '../../config/tuning.js';
@@ -276,7 +277,13 @@ function showBlockedScreen(err) {
 async function showVersionBanner() {
   try {
     const info = await Api.getVersionInfo();
-    document.getElementById('app-version').textContent = `v${info.current}`;
+    const versionEl = document.getElementById('app-version');
+    versionEl.textContent = `v${info.current}`;
+    // v3 run 2: the exact build, on hover and focus, and in Settings.
+    setAppInfo(info);
+    versionEl.dataset.tip = buildText(info);
+    versionEl.tabIndex = 0;
+    versionEl.setAttribute('aria-label', buildText(info));
     if (info.updateAvailable) {
       const banner = document.getElementById('update-banner');
       banner.textContent = `Version ${info.remote} available`;

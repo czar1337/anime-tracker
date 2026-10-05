@@ -36,6 +36,18 @@ async function openDiscover(page, server) {
   await page.waitForSelector('#discover-view .dc-portrait');
 }
 
+
+// The live Triage card, fully on screen (its entrance done): only then does
+// a key answer it (v3 run 2: answers count only for a card that is shown).
+async function triageShown(page) {
+  await expect
+    .poll(() => page.evaluate(() => {
+      const el = document.querySelector('#triage-body .triage-stage > .triage-card:not(.leaving):not(.triage-card-skeleton)');
+      return Boolean(el) && getComputedStyle(el).opacity === '1' && !el.getAnimations().some((a) => a.playState === 'running');
+    }), { timeout: 10000 })
+    .toBe(true);
+}
+
 const library = async (server) => (await (await fetch(`${server.url}/api/library`)).json());
 const entryOf = async (server, id) => (await library(server)).entries.find((e) => e.anilistId === id);
 const events = async (server) => (await (await fetch(`${server.url}/api/events`)).json()).events;
@@ -113,7 +125,7 @@ test('Not for me collapses the card, raises the Dismissed count, and Bring back 
   }
 });
 
-test('Triage: T opens it, W S X → Z answer and undo, and the counter grows', async ({ page }) => {
+test('Triage: T opens it, W S X ↓ Z answer and undo, and the counter grows', async ({ page }) => {
   const server = await start();
   try {
     await openDiscover(page, server);
@@ -121,20 +133,24 @@ test('Triage: T opens it, W S X → Z answer and undo, and the counter grows', a
     const cardId = async () => Number(await page.getAttribute('#triage-body .triage-card:not(.leaving)', 'data-anilist-id'));
     await expect(page.locator('#triage-body .triage-card:not(.leaving)')).toBeVisible();
     const first = await cardId();
+    await triageShown(page);
     await page.keyboard.press('w');
     await expect.poll(cardId).not.toBe(first);
     await expect(page.locator('.triage-counter')).toHaveText('1 / 20');
     const second = await cardId();
+    await triageShown(page);
     await page.keyboard.press('s');
     await expect(page.locator('.triage-rate')).toBeVisible();
     await page.keyboard.press('0'); // 10
     await expect.poll(cardId).not.toBe(second);
     const third = await cardId();
+    await triageShown(page);
     await page.keyboard.press('x');
     await expect.poll(cardId).not.toBe(third);
     await expect(page.locator('.triage-why-not')).toBeVisible();
     const fourth = await cardId();
-    await page.keyboard.press('ArrowRight');
+    await triageShown(page);
+    await page.keyboard.press('ArrowDown');
     await expect.poll(cardId).not.toBe(fourth);
     await expect(page.locator('.triage-counter')).toHaveText('4 / 20');
     await page.keyboard.press('z'); // the skip comes back
@@ -345,6 +361,7 @@ test('Triage Undo reaches back only within its own session, and a held key answe
     await openDiscover(page, server);
     await page.keyboard.press('t');
     const cardId = async () => Number(await page.getAttribute('#triage-body .triage-card:not(.leaving)', 'data-anilist-id'));
+    await triageShown(page);
     const first = await cardId();
     await page.keyboard.down('w'); // held: auto-repeat must not answer the next cards too
     await page.waitForTimeout(400);
@@ -353,6 +370,7 @@ test('Triage Undo reaches back only within its own session, and a held key answe
     await page.keyboard.press('z');
     await expect.poll(cardId).toBe(first);
     await expect.poll(async () => Boolean(await entryOf(server, first)), { timeout: 10000 }).toBe(false);
+    await triageShown(page);
     await page.keyboard.press('w');
     await expect.poll(cardId).not.toBe(first);
     await page.keyboard.press('Escape');

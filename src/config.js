@@ -82,6 +82,18 @@ function readAppVersion() {
 }
 const APP_VERSION = readAppVersion();
 
+// v3 run 2: which build this is. The exe carries build-info.json (written by
+// scripts/build-exe.js: version, build time, commit); a dev server says "dev".
+function readBuildInfo() {
+  if (!IS_SEA) return { kind: 'dev', builtAt: null, commit: null };
+  try {
+    return { kind: 'exe', ...JSON.parse(Buffer.from(sea.getRawAsset('build-info.json')).toString('utf8')) };
+  } catch {
+    return { kind: 'exe', builtAt: null, commit: null };
+  }
+}
+const BUILD_INFO = readBuildInfo();
+
 // Reads one of the app's own source files: from the SEA blob in the packaged
 // exe (asset key "public/js/x.js"), from disk otherwise.
 function readAppSource(relPath) {
@@ -116,6 +128,7 @@ module.exports = {
   EVENTS_REJECTED_FILE,
   SCHEMA_VERSION,
   APP_VERSION,
+  BUILD_INFO,
   RAW_VERSION_URL,
   RELEASES_URL,
   VERSION_CHECK_INTERVAL_MS,

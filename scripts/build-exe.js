@@ -2,9 +2,9 @@
 // Builds a single portable AnimeTracker.exe: the Node runtime + server.js +
 // every file under public/ (including the vendored OCR engine) embedded via
 // Node's Single Executable Applications (SEA) support. Run with:
-//   node scripts/build-exe.js [--out <folder>]
-// (--out: build somewhere other than dist/, e.g. while dist/AnimeTracker.exe
-// is running and cannot be overwritten)
+//   node scripts/build-exe.js [--force-close]
+// The result is always dist/AnimeTracker.exe; a running copy of it is asked
+// to quit first (see closeRunningCopy).
 // Requires Node >= 20 with SEA support and the pinned devDependencies esbuild,
 // postject and rcedit (v3 Phase 7: nothing is fetched with `npx -y` or
 // `@latest` at build time any more).
@@ -24,8 +24,7 @@ const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
-const outArg = process.argv.indexOf('--out');
-const OUT_DIR = outArg > 0 && process.argv[outArg + 1] ? path.resolve(process.argv[outArg + 1]) : path.join(ROOT, 'dist');
+const OUT_DIR = path.join(ROOT, 'dist');
 const CONFIG_PATH = path.join(OUT_DIR, 'sea-config.json');
 const BLOB_PATH = path.join(OUT_DIR, 'sea-prep.blob');
 const BUNDLED_MAIN_PATH = path.join(OUT_DIR, 'server.bundled.js');
@@ -33,6 +32,88 @@ const ICON_PATH = path.join(__dirname, 'icon', 'anime-tracker.ico');
 const SENTINEL_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8')).version;
 const EXE_PATH = path.join(OUT_DIR, 'AnimeTracker.exe');
+const BUILD_INFO_PATH = path.join(OUT_DIR, 'build-info.json');
+
+// v3 run 2: there is one exe, dist/AnimeTracker.exe, and a build always
+// replaces it. A copy of it that is still running holds the file open (the
+// copy step fails with EBUSY, and in run 1 the build quietly went elsewhere,
+// so the old exe kept running). So before building, a running copy of that
+// exe is asked to quit the way the tray's Quit does (POST /api/quit with the
+// page's own token); every write it makes is already on disk. If it cannot be
+// reached, the build stops and says what to do, unless --force-close is given
+// (then it is ended with taskkill, as Task Manager would).
+function runningCopies(exePath) {
+  if (process.platform !== 'win32') return [];
+  try {
+    const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Get-Process -Name AnimeTracker -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${exePath.replace(/'/g, "''")}' } | ForEach-Object { $_.Id }`], { encoding: 'utf8', windowsHide: true });
+    return out.split(/\s+/).filter(Boolean).map(Number);
+  } catch {
+    return [];
+  }
+}
+
+async function askToQuit(pid) {
+  for (const port of [Number(process.env.ANIME_TRACKER_PORT) || 4321]) {
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      const info = await (await fetch(`${base}/api/version`, { signal: AbortSignal.timeout(3000) })).json();
+      if (info.pid !== undefined && info.pid !== pid) continue;
+      const page = await (await fetch(`${base}/`, { signal: AbortSignal.timeout(3000) })).text();
+      const token = /name="anime-tracker-token" content="([^"]+)"/.exec(page)?.[1];
+      if (!token) continue;
+      const res = await fetch(`${base}/api/quit`, { method: 'POST', headers: { 'x-anime-tracker-token': token, Origin: `http://localhost:${port}` }, signal: AbortSignal.timeout(3000) });
+      if (res.ok) return true;
+    } catch {
+      // not this port, or an older build without /api/quit
+    }
+  }
+  return false;
+}
+
+async function waitForExit(pids, ms) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (!runningCopies(EXE_PATH).some((p) => pids.includes(p))) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
+async function closeRunningCopy() {
+  const pids = runningCopies(EXE_PATH);
+  if (!pids.length) return;
+  console.log(`${EXE_PATH} is running (pid ${pids.join(', ')}). Asking it to quit...`);
+  for (const pid of pids) await askToQuit(pid);
+  if (await waitForExit(pids, 15000)) {
+    console.log('  It quit.');
+    return;
+  }
+  if (process.argv.includes('--force-close')) {
+    for (const pid of pids) {
+      try {
+        execFileSync('taskkill.exe', ['/PID', String(pid), '/F'], { stdio: 'ignore', windowsHide: true });
+      } catch {
+        // already gone
+      }
+    }
+    if (await waitForExit(pids, 10000)) {
+      console.log('  Ended with taskkill (--force-close).');
+      return;
+    }
+  }
+  throw new Error(`Anime Tracker is still running from ${EXE_PATH} (pid ${pids.join(', ')}), so it cannot be replaced. Quit it from its tray icon (right-click, Quit) and build again, or run the build with --force-close.`);
+}
+
+function gitCommit() {
+  try {
+    const sha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
+    // Uncommitted changes are part of the build too: say so.
+    const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).trim() !== '';
+    return dirty ? `${sha}+changes` : sha;
+  } catch {
+    return null;
+  }
+}
 
 // Node's SEA main script can only require() built-in modules — a plain
 // require('./src/main.js') throws ERR_UNKNOWN_BUILTIN_MODULE once packaged,
@@ -136,6 +217,10 @@ async function main() {
     assets[rel] = file;
   }
   assets['version.json'] = path.join(ROOT, 'version.json');
+  // Which build this is, shown in Settings > Help and on the header's version.
+  const buildInfo = { version: APP_VERSION, builtAt: new Date().toISOString(), commit: gitCommit() };
+  fs.writeFileSync(BUILD_INFO_PATH, JSON.stringify(buildInfo, null, 2));
+  assets['build-info.json'] = BUILD_INFO_PATH;
 
   // config/tuning.js is the one browser-loaded module that lives outside
   // public/ (serveAppAsset() has a matching config/... asset-key branch in SEA
@@ -165,6 +250,7 @@ async function main() {
   console.log('Generating SEA blob...');
   execFileSync(process.execPath, ['--experimental-sea-config', CONFIG_PATH], { stdio: 'inherit' });
 
+  await closeRunningCopy();
   console.log('Copying node.exe...');
   fs.copyFileSync(process.execPath, EXE_PATH);
 
@@ -199,7 +285,7 @@ async function main() {
   if (readSubsystem(EXE_PATH) !== PE_SUBSYSTEM.GUI) throw new Error('The PE subsystem did not change');
 
   sizeReport(assets);
-  console.log(`\nDone: ${EXE_PATH} (version ${APP_VERSION})`);
+  console.log(`\nDone: ${EXE_PATH} (version ${APP_VERSION}, built ${buildInfo.builtAt}${buildInfo.commit ? ` from ${buildInfo.commit}` : ''})`);
   console.log('Copy this single file anywhere and double-click it to run Anime Tracker.');
   console.log('It runs without a console window: quit it from the tray icon. Its log is in the data folder, under logs/.');
   console.log('Your data lives in the OS app-data folder (e.g. %APPDATA%\\anime-tracker on Windows), not next to the exe.');
