@@ -23,7 +23,7 @@ function longShowFixture() {
   return file;
 }
 
-const COVER = "https://s4.anilist.co/cover.jpg'); background: red; x: url('y";
+const COVER = "https://s4.anilist.co/file/cover.jpg'); background: red; x: url('y";
 
 function mockDetail(page) {
   return page.route('**/graphql.anilist.co/**', (route) =>

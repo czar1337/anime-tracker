@@ -1,6 +1,6 @@
 // Tooltip (v3 finish, Section 1): one shared bubble for every element with a
 // data-tip. It shows after a short hover (UI_TIMING.tooltipDelayMs), at once
-// on keyboard focus, and hides on leave, blur, scroll, a click or Escape. It
+// on keyboard focus, and hides on leave, blur, a click or Escape (on a scroll it follows its element, or hides). It
 // sits above the element, or below when there is no room, and never leaves
 // the window. Inside an open dialog it is placed in that dialog, so it is not
 // hidden under the top layer.

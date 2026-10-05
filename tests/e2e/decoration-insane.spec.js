@@ -77,3 +77,31 @@ test('the season follows the date: spring, summer, autumn, winter', async ({ pag
     await server.stop();
   }
 });
+
+test('switching from Insane on dark to a light theme leaves the canvas empty, not frozen', async ({ page }) => {
+  const server = await startFixtureServer(FIXTURE);
+  try {
+    await open(page, server);
+    await page.evaluate(async () => {
+      (await import('/js/preferences.js')).Preferences.setDecoration('insane');
+      (await import('/js/atmosphere.js')).Atmosphere.resyncDensity();
+    });
+    await expect.poll(() => particles(page)).toBeGreaterThan(60);
+    const painted = () => page.evaluate(() => {
+      const c = document.querySelector('.atmo-canvas');
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 3; i < d.length; i += 16) if (d[i]) n++;
+      return n;
+    });
+    expect(await painted()).toBeGreaterThan(0);
+    await page.click('#settings-trigger');
+    await page.click('#settings-tab-appearance');
+    await page.click('[data-seg="appearance-mode"] [data-value="light"]');
+    await page.keyboard.press('Escape');
+    await expect.poll(() => particles(page)).toBe(0);
+    await expect.poll(painted).toBe(0);
+  } finally {
+    await server.stop();
+  }
+});

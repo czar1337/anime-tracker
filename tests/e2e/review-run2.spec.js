@@ -130,3 +130,22 @@ test('page shortcuts stay out of selects and open menus, and Space adds no episo
     await server.stop();
   }
 });
+
+test('Triage: ↑ then Enter records Seen it with no rating, never the first score', async ({ page }) => {
+  const server = await startDiscover();
+  try {
+    await openDiscover(page, server);
+    await page.keyboard.press('t');
+    const card = page.locator('#triage-overlay[open] .triage-stage > .triage-card:not(.leaving)');
+    await expect(card).toBeVisible();
+    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('#triage-overlay .triage-stage > .triage-card:not(.leaving)')).opacity) >= 0.9);
+    const id = Number(await card.getAttribute('data-anilist-id'));
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('#triage-body [data-action="triage-rate"][data-score=""]')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => (await library(server)).entries.find((e) => e.anilistId === id)?.listStatus).toBe('watched');
+    expect((await library(server)).entries.find((e) => e.anilistId === id).myScore ?? null).toBe(null);
+  } finally {
+    await server.stop();
+  }
+});

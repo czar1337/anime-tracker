@@ -524,11 +524,12 @@ function renderTriageNow() {
 
 // A control that had focus can be replaced (a rating given, the summary
 // shown): focus goes to what is there now, never to the page behind.
+const NO_RATING = '[data-action="triage-rate"][data-score=""]';
 function keepTriageFocus(container, phase) {
   const active = document.activeElement;
   // A card on its way out still holds focus until it is removed.
   if (!triage.open || (active && active !== document.body && active.isConnected && !active.closest('.leaving'))) return;
-  const target = (triage.rating && container.querySelector('[data-action="triage-rate"]'))
+  const target = (triage.rating && container.querySelector(NO_RATING))
     || (phase === 'card' && liveStageNode(container))
     || container.querySelector('.triage-controls .btn-primary')
     || container.querySelector('.triage-controls button:not([disabled])');
@@ -724,7 +725,8 @@ function startTriageRating() {
   if (triagePhase(currentTriageCard()) !== 'card') return;
   triage.rating = true;
   renderTriageNow();
-  document.querySelector('#triage-body [data-action="triage-rate"]')?.focus();
+  // Focus on "No rating": Enter then means what the hint says.
+  document.querySelector(`#triage-body ${NO_RATING}`)?.focus();
 }
 
 // "Fetch more": grow the pool again, and when it has nothing new, bring back

@@ -18,7 +18,8 @@ import { html, cls } from '../core/html.js';
 import { UI_TIMING } from '../../../config/tuning.js';
 
 const POSTER_RETRY_MS = UI_TIMING.posterRetryMs;
-const ANILIST_IMAGE = /^https:\/\/([a-z0-9-]+\.)*anilist\.co\//i;
+// AniList's image CDN: the same rule as the cache route (src/routes/posters.js).
+const ANILIST_IMAGE = /^https:\/\/s\d+\.anilist\.co\/file\//i;
 
 // The address the page loads a poster from: local files as they are, AniList
 // images through the cache, anything else untouched.

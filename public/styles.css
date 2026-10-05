@@ -1220,7 +1220,9 @@ kbd {
 /* Triage, "Swipe through": one large card at a time (views/discover/triageView.js).
    The stage holds the live card in flow; a card on its way out is .leaving,
    laid over it, and removed when its fly-out ends. */
-.overlay-panel.triage-panel { max-width: 820px; width: min(820px, calc(100vw - var(--sp-8))); }
+/* Taller than other dialogs may be: the card, the answers and Undo / Done
+   fit in one view on a 900px-high window instead of Undo being cut off. */
+.overlay-panel.triage-panel { max-width: 820px; width: min(820px, calc(100vw - var(--sp-8))); max-height: calc(100vh - var(--sp-8)); }
 .triage-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-1); padding-right: var(--sp-8); }
 .triage-head h2 { margin: 0; }
 .triage-progress { display: flex; align-items: center; gap: var(--sp-2); }

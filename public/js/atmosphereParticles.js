@@ -251,7 +251,14 @@ export function createParticleField(canvas) {
     stats.particles = particles.length + embers.length + sparks.length;
     canvas.dataset.particles = String(stats.particles);
     if (ambient || sparks.length) raf = requestAnimationFrame(frame);
-    else ctx.clearRect(0, 0, width, height);
+    else clearAll();
+  }
+
+  // The whole canvas, whatever transform the last particle left behind (a
+  // clear under that transform missed most of it and froze the last frame).
+  function clearAll() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
   function run() {
@@ -325,7 +332,7 @@ export function createParticleField(canvas) {
       if (ambient) run();
       else if (!sparks.length) {
         stopLoop();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clearAll();
         particles = [];
         embers = [];
         stats.particles = 0;

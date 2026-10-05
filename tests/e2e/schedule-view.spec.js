@@ -12,7 +12,7 @@ const EVIL = '<img src=x onerror="window.__pwned=1">';
 const UPCOMING = {
   id: 555002,
   title: { romaji: `${EVIL}Romaji`, english: `${EVIL}English`, native: null },
-  coverImage: { large: `https://s4.anilist.co/x.jpg" onerror="window.__pwned=2` },
+  coverImage: { large: `https://s4.anilist.co/file/x.jpg" onerror="window.__pwned=2` },
   format: 'TV',
   genres: [`${EVIL}Drama`],
   episodes: 12,
