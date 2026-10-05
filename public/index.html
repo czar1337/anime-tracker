@@ -466,6 +466,13 @@
   <!-- Confirm dialog: shared by every destructive action. design system §8:
        "confirm dialog for anything destructive that always names what is
        kept." Populated per-use by events.js's confirmDialog(). -->
+  <dialog id="whats-new-overlay" class="overlay" aria-label="What's new in v3">
+    <div class="overlay-panel whats-new-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <div id="whats-new-body"></div>
+    </div>
+  </dialog>
+
   <dialog id="confirm-overlay" class="overlay">
     <div class="overlay-panel dialog">
       <h4 id="confirm-title"></h4>

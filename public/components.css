@@ -176,3 +176,14 @@
 }
 .atmo-hoverglow.on { opacity: 1; }
 [data-decor="insane"] .card:hover, [data-decor="insane"] .discover-card:hover { box-shadow: var(--sh-3), 0 0 46px -14px color-mix(in srgb, var(--accent) 75%, transparent); }
+
+/* --- The ? overlay's keyboard list, by group (core/shortcuts.js) ---------- */
+.keys-group + .keys-group { margin-top: var(--sp-4); }
+.keys-heading { margin: 0 0 var(--sp-2); font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.keys kbd { white-space: nowrap; flex: none; }
+.schedule-tz { margin: calc(-1 * var(--sp-2)) 0 var(--sp-3); font: var(--t-nano); color: var(--faint); }
+.home-next-airing { color: var(--text); }
+/* Home's Continue watching: the meta line wraps as a whole, a badge never splits. */
+.continue-meta { flex-wrap: wrap; row-gap: 2px; }
+.continue-meta > * { white-space: nowrap; }
+.continue-meta .unseen-badge { padding: 1px var(--sp-2); font: var(--t-nano); font-weight: var(--w-strong); }

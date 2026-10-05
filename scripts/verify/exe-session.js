@@ -51,7 +51,7 @@ async function startExe({ backupDir, dataDir = null, corpus = true, mutate, env 
   const dir = dataDir || prepareDataDir(backupDir, { corpus, mutate });
   const port = await freePort();
   const child = spawn(EXE, [], {
-    env: { ...process.env, ANIME_TRACKER_DATA_DIR: dir, ANIME_TRACKER_PORT: String(port), ANIME_TRACKER_TEST_NO_BROWSER: '1', ANIME_TRACKER_TEST_NO_TRAY: '1', ...env },
+    env: { ...process.env, ANIME_TRACKER_DATA_DIR: dir, ANIME_TRACKER_PORT: String(port), ANIME_TRACKER_TEST_NO_BROWSER: '1', ANIME_TRACKER_TEST_NO_TRAY: '1', ANIME_TRACKER_QUIET_INTRO: '1', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });

@@ -300,6 +300,8 @@ export function defaultSettings() {
     motion: 'full',
     decoration: 'full',
     decorSeason: 'auto',
+    // v3 run 2: which "What's new" the user has seen ('' = none yet).
+    whatsNewSeen: '',
     appearanceNotice: null,
     // P3.1: uiFont/headingFont/numbersFont default to today's actual,
     // already-shipped typography (Schibsted Grotesk/Zen Old Mincho) —
@@ -405,6 +407,7 @@ export function ensureSettingsShape(preferences) {
   prefs.motion = MOTION_LEVELS.includes(prefs.motion) ? prefs.motion : defaults.motion;
   prefs.decoration = DECORATION_LEVELS.includes(prefs.decoration) ? prefs.decoration : defaults.decoration;
   prefs.decorSeason = DECOR_SEASONS.includes(prefs.decorSeason) ? prefs.decorSeason : defaults.decorSeason;
+  prefs.whatsNewSeen = typeof prefs.whatsNewSeen === 'string' ? prefs.whatsNewSeen : defaults.whatsNewSeen;
   prefs.appearanceNotice = sanitizeAppearanceNotice(prefs.appearanceNotice);
   prefs.uiFont = isValidFontId(prefs.uiFont) ? prefs.uiFont : defaults.uiFont;
   prefs.headingFont = isValidFontId(prefs.headingFont) ? prefs.headingFont : defaults.headingFont;

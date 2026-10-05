@@ -21,6 +21,7 @@ import { whenSettled } from './core/reconcile.js';
 import { syncShimmers } from './core/motion.js';
 import { installPosterWiring, installTooltips } from './ui/index.js';
 import { setAppInfo, buildText } from './views/settings/view.js';
+import { initWhatsNew, maybeShowWhatsNew } from './views/whatsNew.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 import { UI_TIMING } from '../../config/tuning.js';
@@ -287,6 +288,7 @@ async function showVersionBanner() {
     // Windows redirected the data folder (started from inside another app):
     // this is not the user's normal library, and the page must say so.
     if (info.dataDirRedirectedTo) Render.showError(copy('banner.dataFolderRedirected', undefined, { path: info.dataDirRedirectedTo }));
+    maybeShowWhatsNew(info);
     if (info.updateAvailable) {
       const banner = document.getElementById('update-banner');
       banner.textContent = `Version ${info.remote} available`;
@@ -500,6 +502,7 @@ async function boot() {
   Schedule.initSchedule({ persistFn: persist });
   Detail.initDetail();
   initPalette();
+  initWhatsNew({ persist });
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
   await initAccent(); // the hero's cover colour is known before its first paint
   // Performance marks for scripts/perf.js (the 2,000-entry render budget): from

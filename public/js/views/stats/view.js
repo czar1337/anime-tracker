@@ -11,6 +11,7 @@ import { html } from '../../core/html.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
 import { copy } from '../../copy.js';
 import { posterHtml } from '../../ui/poster.js';
+import { formatEnumLabel } from '../shared/format.js';
 import { coverSrc } from '../library/view.js';
 
 const LIST_META = {
@@ -87,7 +88,7 @@ export function renderStatsPage(container) {
 
   const formatCounts = {};
   for (const e of entries) if (e.format) formatCounts[e.format] = (formatCounts[e.format] || 0) + 1;
-  const formatData = Object.entries(formatCounts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
+  const formatData = Object.entries(formatCounts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label: formatEnumLabel(label) || label, value }));
 
   // Completed titles only (v3): a long Watchlist no longer dominates the chart.
   const genreData = Object.entries(libraryStats.genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([label, value]) => ({ label, value }));

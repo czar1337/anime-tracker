@@ -738,7 +738,14 @@ async function toggleScorerDebugPanel() {
   Render.renderScorerDebugPanel(body, rows);
 }
 
-function openHelp() {
+// ? opens it on the keyboard list (v3 run 2); the palette and Settings on
+// the basics.
+function openHelp({ tab = 'basics' } = {}) {
+  Render.setHelpTab(tab);
+  document.querySelectorAll('.help-tabs [data-help-tab]').forEach((t) => {
+    t.classList.toggle('on', t.dataset.helpTab === tab);
+    t.setAttribute('aria-selected', String(t.dataset.helpTab === tab));
+  });
   openOverlay('shortcuts-overlay');
   Render.renderHelpPanel(document.getElementById('help-body'));
 }
@@ -968,7 +975,8 @@ function focusAdjacentCard(delta) {
 // select mode · ctrl+z undo · ? help. All (except Escape, checked first)
 // are inactive while typing in a field, per that same section.
 function bindKeyboardShortcuts() {
-  registerCommand({ id: 'help.open', title: copy('command.help'), section: 'help', keywords: 'shortcuts keys questions faq', run: openHelp });
+  registerCommand({ id: 'help.open', title: copy('command.help'), section: 'help', keywords: 'shortcuts keys questions faq', run: () => openHelp() });
+  registerCommand({ id: 'help.keys', title: copy('command.shortcuts'), section: 'help', keywords: 'keyboard keys hotkeys ?', run: () => openHelp({ tab: 'keyboard' }) });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -1039,7 +1047,7 @@ function bindKeyboardShortcuts() {
 
     if (e.key === '?') {
       e.preventDefault();
-      openHelp();
+      openHelp({ tab: 'keyboard' });
       return;
     }
 

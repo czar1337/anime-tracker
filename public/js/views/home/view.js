@@ -22,6 +22,8 @@ import { coverSrc } from '../library/view.js';
 import { HOME } from '../../../../config/tuning.js';
 import { paintAccents } from '../../accent.js';
 import { posterHtml } from '../../ui/poster.js';
+import { timeZoneLabel, airingTime } from '../shared/format.js';
+import { movementAllowed, tokenMs } from '../../core/motion.js';
 
 const title = (entry) => titlesInOrder(entry, Store.state.preferences.titleLanguage)[0];
 
@@ -86,7 +88,51 @@ function continueCardHtml(entry, { hero = false } = {}) {
 }
 
 function stat(value, label) {
-  return html`<span><b class="num stat-display">${value}</b><span class="stat-kicker">${label}</span></span>`;
+  return html`<span><b class="num stat-display" data-value="${value}">${value}</b><span class="stat-kicker">${label}</span></span>`;
+}
+
+// "This year" counts up from zero the first time Home is shown in a session
+// (v3 run 2). The final text is the real number throughout for assistive
+// tech (aria-label); reduced motion and animation Off show it at once.
+let countedUp = false;
+function countUp(container) {
+  if (countedUp) return;
+  countedUp = true;
+  const els = [...container.querySelectorAll('.home-year .stat-display')];
+  const duration = tokenMs('--dur-emph') * 2.2;
+  if (!movementAllowed() || duration <= 0) return;
+  for (const el of els) {
+    const final = el.dataset.value;
+    const target = Number(final);
+    if (!Number.isFinite(target) || target === 0) continue;
+    const decimals = (final.split('.')[1] || '').length;
+    el.setAttribute('aria-label', final);
+    const start = performance.now();
+    const step = (now) => {
+      if (!el.isConnected) return;
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      el.textContent = t < 1 ? (target * eased).toFixed(decimals) : final;
+      if (t < 1) requestAnimationFrame(step);
+      else el.removeAttribute('aria-label');
+    };
+    el.textContent = (0).toFixed(decimals);
+    requestAnimationFrame(step);
+  }
+}
+
+// Nothing tonight: when the next episode of what you follow airs, and the
+// way to the Schedule.
+function nextAiringHtml() {
+  const days = Airing.getWeekSchedule().slice(1);
+  for (const day of days) {
+    const it = (day.items || []).find((x) => !x.alreadyAired);
+    if (it) {
+      const when = `${day.date.toLocaleDateString(undefined, { weekday: 'long' })} ${airingTime(it.airingAt)}`;
+      return html`<p class="card-meta home-next-airing">${copy('home.nextAiring', undefined, { title: it.title, episode: it.episode, when })}</p>`;
+    }
+  }
+  return '';
 }
 
 export function renderHome(container) {
@@ -126,11 +172,12 @@ export function renderHome(container) {
         ${tonight.length
           ? html`<ol class="tonight">${tonight.map(
               (it) => html`<li class="${cls('tonight-row', it.aired && 'aired')}"><button type="button" class="tonight-btn" data-action="show-detail" data-detail-id="${it.anilistId}">
-                <span class="num">${new Date(it.airingAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span class="num">${airingTime(it.airingAt)}</span>
                 <span>${it.title}<span class="meta-line">${copy('home.episodeOf', undefined, { episode: it.episode, total: it.totalEpisodes })}${it.aired ? html` · ${copy('home.aired')}` : ''}</span></span>
               </button></li>`
             )}</ol>`
-          : html`<p class="card-meta">${copy('home.tonightEmpty')}</p>`}
+          : html`<p class="card-meta">${copy('home.tonightEmpty')}</p>${nextAiringHtml()}<p class="card-meta"><button type="button" class="text-btn" data-command="go.schedule">${copy('home.openSchedule')}</button></p>`}
+        <p class="schedule-tz">${copy('schedule.timeZone', undefined, timeZoneLabel())}</p>
       </section>
       <section>
         <div class="disc-head"><h3>${copy('home.upNext')}</h3><span class="rule"></span></div>
@@ -154,4 +201,5 @@ export function renderHome(container) {
   // Morphed: a +1 on a rail card keeps its image and the rail's scroll.
   morphInto(container, markup);
   paintAccents(container);
+  countUp(container);
 }

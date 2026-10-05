@@ -33,6 +33,18 @@ export function formatEnumLabel(value) {
 // v3 Phase 1 item 13: AniList can return a title with no coverImage at all.
 // Design system §9: a missing cover is the first letter on a flat panel, never
 // an empty box, and never a TypeError that aborts the whole render.
+// v3 run 2: the time zone every airing time is shown in (the computer's own,
+// e.g. Europe/Stockholm), named with its short form (CEST).
+export function timeZoneLabel(date = new Date()) {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const short = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' }).formatToParts(date).find((p) => p.type === 'timeZoneName')?.value || '';
+  return { zone, short };
+}
+// "18:30" or "6:30 PM", as the computer's language writes times.
+export function airingTime(unixSeconds) {
+  return new Date(unixSeconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 // v3 run 2: the shared Poster (lazy, placeholder, fade-in, fallback, local
 // cache), filling whatever box the caller gives it.
 export function coverOrInitialHtml(url, title, { className = '', eager = false } = {}) {

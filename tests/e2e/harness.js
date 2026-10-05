@@ -109,6 +109,8 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
       ANIME_TRACKER_NOTIFY_LOG: path.join(dataDir, 'notifications.log'),
       // v3 finish: the poster cache never downloads from a test server.
       ANIME_TRACKER_POSTER_FETCH: 'off',
+      // ...and the one-time What's new dialog stays shut unless a test opens it.
+      ANIME_TRACKER_QUIET_INTRO: '1',
       ...(opts.env || {}),
       ANIME_TRACKER_PORT: String(fixedPort),
     },

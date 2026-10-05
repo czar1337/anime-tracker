@@ -28,6 +28,11 @@ import { handleSetStatus, recordProgressEvent } from '../library/actions.js';
 import { renderTriage, liveStageNode } from './triageView.js';
 import { settlePosters } from '../../ui/poster.js';
 import { toastWithUndo } from '../../ui/toast.js';
+import { keyMap } from '../../core/shortcuts.js';
+
+// From the one shortcut map (core/shortcuts.js), which the ? overlay lists.
+const CARD_KEYS = keyMap('discover', 'action');
+const TRIAGE_KEYMAP = keyMap('triage', 'answer');
 import { renderDiscoverPage, renderDismissedDrawer, FIND_LENGTHS, dismissReasons, dismissSkipLabel, discoverCardTitle } from './view.js';
 
 // Below this many corpus titles there is nothing worth ranking yet.
@@ -825,21 +830,12 @@ function bindTriage() {
       }
       return;
     }
-    const map = {
-      w: () => triageAnswer('want'),
-      x: () => triageAnswer('not-for-me'),
-      arrowleft: () => triageAnswer('not-for-me'),
-      arrowright: () => triageAnswer('want'),
-      arrowdown: () => triageAnswer('skip'),
-      z: () => triageUndo(),
-      s: () => startTriageRating(),
-      arrowup: () => startTriageRating(),
-    };
-    if (map[k]) {
+    const run = { want: () => triageAnswer('want'), 'not-for-me': () => triageAnswer('not-for-me'), skip: () => triageAnswer('skip'), seen: () => startTriageRating(), undo: () => triageUndo() }[TRIAGE_KEYMAP[k]];
+    if (run) {
       // A focused button keeps its own Enter/Space; letters and arrows answer.
       e.preventDefault();
       if (e.repeat) return;
-      map[k]();
+      run();
     }
   }, true);
 }
@@ -1165,7 +1161,7 @@ export function initDiscover({ persistFn } = {}) {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
     const el = e.target.closest?.('.discover-card');
     if (!el || e.target !== el) return;
-    const action = { w: 'discover-want', s: 'discover-seen', x: 'discover-not-for-me', m: 'discover-more' }[e.key.toLowerCase()];
+    const action = CARD_KEYS[e.key.toLowerCase()];
     const button = action && el.querySelector(`[data-action="${action}"]:not([disabled])`);
     if (!button) return;
     e.preventDefault();

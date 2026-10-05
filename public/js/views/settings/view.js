@@ -414,7 +414,7 @@ function dataHtml() {
 }
 
 function helpHtml() {
-  return `${rowHtml(copy('settings.help.heading'), copy('settings.help.description'), commandButton('help.open', 'command.help'))}
+  return `${rowHtml(copy('settings.help.heading'), copy('settings.help.description'), `<div class="row">${commandButton('help.open', 'command.help')}${commandButton('help.keys', 'command.shortcuts')}${commandButton('whatsnew.open', 'command.whatsNew')}</div>`)}
     ${rowHtml(copy('settings.version.heading'), copy('settings.version.description'), `<p class="settings-info" id="settings-build-info">${escapeHtml(buildText())}</p>`)}`;
 }
 

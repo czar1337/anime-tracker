@@ -26,6 +26,8 @@ module.exports = function register({ route, prefix }) {
       dataDirRedirectedTo: getRedirectedDataDir(),
       exePath: IS_SEA ? process.execPath : null,
       pid: process.pid,
+      // Tests and verification runs: the What's new dialog never opens by itself.
+      quietIntro: process.env.ANIME_TRACKER_QUIET_INTRO === '1',
     });
     return;
   });
