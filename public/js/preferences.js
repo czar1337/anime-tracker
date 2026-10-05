@@ -29,6 +29,7 @@ import {
   DENSITIES,
   MOTION_LEVELS,
   DECORATION_LEVELS,
+  DECOR_SEASONS,
 } from './settingsSchema.js';
 
 export { ORIGINAL_TITLES_MODES };
@@ -42,6 +43,7 @@ const KEYS = {
   density: 'anime-tracker-density',
   motion: 'anime-tracker-motion',
   decoration: 'anime-tracker-decoration',
+  decorSeason: 'anime-tracker-decor-season',
 };
 
 // Set once per browser profile, the first time reconcileFirstBoot() runs.
@@ -102,8 +104,8 @@ function setMotion(level) {
 
 // Decoration drives the atmosphere layer (atmosphere.js): data-decor for
 // on/half/off, and the amount of falling leaves and feathers.
-const DECOR_FOR_LEVEL = { full: 'on', low: 'half', off: 'off' };
-const DECORATION_STEP_FOR_LEVEL = { full: 5, low: 2, off: 2 };
+const DECOR_FOR_LEVEL = { insane: 'insane', full: 'on', low: 'half', off: 'off' };
+const DECORATION_STEP_FOR_LEVEL = { insane: 10, full: 5, low: 2, off: 2 };
 const getDecoration = () => readEnum(KEYS.decoration, DECORATION_LEVELS, 'full');
 function setDecoration(level) {
   if (!DECORATION_LEVELS.includes(level)) return;
@@ -111,6 +113,11 @@ function setDecoration(level) {
   localStorage.setItem(KEYS.decor, DECOR_FOR_LEVEL[level]);
   localStorage.setItem(KEYS.decorationStep, String(DECORATION_STEP_FOR_LEVEL[level]));
   localStorage.setItem(KEYS.decoration, level);
+}
+const getDecorSeason = () => readEnum(KEYS.decorSeason, DECOR_SEASONS, 'auto');
+function setDecorSeason(season) {
+  if (!DECOR_SEASONS.includes(season)) return;
+  localStorage.setItem(KEYS.decorSeason, season);
 }
 // atmosphere.js's leaf count and feather interval, on its own 1-10 scale.
 function getDecorationStep() {
@@ -146,6 +153,7 @@ const COSMETIC_SETTERS = {
   density: setDensity,
   motion: setMotion,
   decoration: setDecoration,
+  decorSeason: setDecorSeason,
 };
 
 // Library wins: applies every cosmetic value the (already-defaulted) library
@@ -212,6 +220,8 @@ export const Preferences = {
   getDecoration,
   setDecoration,
   getDecorationStep,
+  getDecorSeason,
+  setDecorSeason,
   initReducedMotionWatch,
   syncFromLibrary,
   reconcileFirstBoot,

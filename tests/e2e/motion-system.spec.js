@@ -68,7 +68,8 @@ test('the app\'s own Motion: Reduced behaves like the OS setting', async ({ page
     expect(d.animation).toBeLessThanOrEqual(120);
     expect(await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--move-scale').trim())).toBe('0');
     // The decoration layer turns off, as under the OS setting.
-    await expect.poll(() => page.evaluate(() => document.querySelectorAll('.atmo-leaf').length)).toBe(0);
+    // (v3 run 2: the particles are a canvas; it reports how many it draws.)
+    await expect.poll(() => page.evaluate(() => document.querySelectorAll('.atmo-leaf').length + Number(document.querySelector('.atmo-canvas')?.dataset.particles || 0))).toBe(0);
   } finally {
     await server.stop();
   }

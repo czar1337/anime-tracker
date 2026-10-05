@@ -213,6 +213,9 @@ export function handleIncrement(card, id) {
     playCompletion(id, liveCard, entry);
     return;
   }
+  // v3 run 2: a small burst of sparks from the card (Decoration, not Off).
+  const from = (liveCard || document.querySelector(`[data-continue-id="${id}"]`))?.getBoundingClientRect();
+  if (from) Atmosphere.burst({ from });
   Render.showToast(copy('toast.episodeWatched', undefined, { title: displayTitle(entry), episode: before + 1 }), {
     actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,

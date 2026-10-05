@@ -416,6 +416,17 @@ export const DISCOVER = {
   evalHitRateFloor: 0.1, // the CI floor on the committed synthetic fixture
 };
 
+// The atmosphere's particles (v3 run 2, Section 5; public/js/atmosphereParticles.js).
+export const ATMOSPHERE = {
+  particles: { low: 7, full: 16, insane: 110 }, // the most on screen at once
+  layers: { low: 1, full: 2, insane: 3 }, // depth layers (far, middle, near)
+  embers: { low: 0, full: 0, insane: 26 }, // rising sparks
+  fpsFloor: 50, // an average below this cuts particles
+  fpsSample: 90, // frames per measurement
+  minScale: 0.35, // never cut below this share of the budget
+  maxDpr: 1.5, // the canvas never draws at more device pixels than this
+};
+
 // The local poster cache (v3 finish, Section 1; src/routes/posters.js). Class B:
 // the oldest posters go first once either cap is passed.
 export const POSTER_CACHE = {

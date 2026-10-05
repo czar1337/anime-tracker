@@ -55,7 +55,9 @@ export const TEXT_SIZES = [1, 2, 3, 4, 5];
 export const DEFAULT_TEXT_SIZE = 3;
 export const DENSITIES = ['compact', 'comfortable'];
 export const MOTION_LEVELS = ['full', 'reduced', 'off'];
-export const DECORATION_LEVELS = ['off', 'low', 'full'];
+export const DECORATION_LEVELS = ['off', 'low', 'full', 'insane'];
+// v3 run 2: the season the particles follow; auto picks it from the date.
+export const DECOR_SEASONS = ['auto', 'spring', 'summer', 'autumn', 'winter'];
 export function isValidHexColor(value) {
   return typeof value === 'string' && HEX_COLOR_RE.test(value);
 }
@@ -297,6 +299,7 @@ export function defaultSettings() {
     density: 'comfortable',
     motion: 'full',
     decoration: 'full',
+    decorSeason: 'auto',
     appearanceNotice: null,
     // P3.1: uiFont/headingFont/numbersFont default to today's actual,
     // already-shipped typography (Schibsted Grotesk/Zen Old Mincho) —
@@ -401,6 +404,7 @@ export function ensureSettingsShape(preferences) {
   prefs.density = DENSITIES.includes(prefs.density) ? prefs.density : defaults.density;
   prefs.motion = MOTION_LEVELS.includes(prefs.motion) ? prefs.motion : defaults.motion;
   prefs.decoration = DECORATION_LEVELS.includes(prefs.decoration) ? prefs.decoration : defaults.decoration;
+  prefs.decorSeason = DECOR_SEASONS.includes(prefs.decorSeason) ? prefs.decorSeason : defaults.decorSeason;
   prefs.appearanceNotice = sanitizeAppearanceNotice(prefs.appearanceNotice);
   prefs.uiFont = isValidFontId(prefs.uiFont) ? prefs.uiFont : defaults.uiFont;
   prefs.headingFont = isValidFontId(prefs.headingFont) ? prefs.headingFont : defaults.headingFont;

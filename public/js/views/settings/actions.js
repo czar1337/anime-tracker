@@ -76,6 +76,10 @@ const SETTING_APPLIERS = {
     Preferences.setDecoration(v);
     Atmosphere.resyncDensity();
   },
+  decorSeason: (v) => {
+    Preferences.setDecorSeason(v);
+    Atmosphere.resyncDensity();
+  },
   originalTitles: (v) => {
     Preferences.setOriginalTitlesMode(v);
     Detail.refreshDetailIfOpen(Number(document.getElementById('detail-content').dataset.anilistId));

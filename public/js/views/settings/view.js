@@ -220,7 +220,15 @@ function appearanceHtml(prefs) {
       ['off', copy('settings.decoration.off')],
       ['low', copy('settings.decoration.low')],
       ['full', copy('settings.decoration.full')],
-    ], prefs.decoration))}`;
+      ['insane', copy('settings.decoration.insane')],
+    ], prefs.decoration))}
+    ${rowHtml(copy('settings.season.heading'), copy('settings.season.description'), segHtml('decorSeason', copy('settings.season.heading'), [
+      ['auto', copy('settings.season.auto')],
+      ['spring', copy('settings.season.spring')],
+      ['summer', copy('settings.season.summer')],
+      ['autumn', copy('settings.season.autumn')],
+      ['winter', copy('settings.season.winter')],
+    ], prefs.decorSeason || 'auto'))}`;
 }
 
 // ------------------------------------------------------------------- Library

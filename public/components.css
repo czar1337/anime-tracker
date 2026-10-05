@@ -138,3 +138,41 @@
   .discover-find .sel { width: 100%; }
   .find-completed { grid-column: 1 / -1; }
 }
+
+/* --- Atmosphere (v3 run 2): the particle canvas, and Insane's aurora, light
+   sweep and hover glow. Loops read --dur-loop, which is 0 under reduced
+   motion and with animation Off, so they stand still then. ---------------- */
+.atmo-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+[data-decor="half"] .atmo-canvas { opacity: .6; }
+.atmo-aurora, .atmo-sweep, .atmo-hoverglow { display: none; }
+[data-decor="insane"] .atmo-moon { opacity: .26; }
+[data-decor="insane"] .atmo-aurora { display: block; position: absolute; left: -10%; right: -10%; top: -20%; height: 80vh; opacity: .8; mix-blend-mode: screen; }
+[data-scheme="light"][data-decor="insane"] .atmo-aurora { mix-blend-mode: multiply; opacity: .35; }
+[data-scheme="light"][data-decor="insane"] .atmo-sweep { opacity: .6; }
+.atmo-aurora i { position: absolute; width: 62vw; height: 42vh; border-radius: 50%; filter: blur(52px); animation: auroraDrift calc(var(--dur-loop) * 28) var(--ease-standard) infinite alternate; }
+.atmo-aurora i:nth-child(1) { left: 4%; top: 0; background: color-mix(in srgb, var(--support) 55%, transparent); }
+.atmo-aurora i:nth-child(2) { right: 0; top: 10%; background: color-mix(in srgb, var(--accent) 34%, transparent); animation-delay: calc(var(--dur-loop) * -12); }
+@keyframes auroraDrift {
+  from { transform: translate3d(-6vw, 0, 0) scale(1); opacity: .5; }
+  to { transform: translate3d(8vw, 5vh, 0) scale(1.18); opacity: .95; }
+}
+[data-decor="insane"] .atmo-sweep {
+  display: block; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 42%, color-mix(in srgb, var(--glow) 10%, transparent) 50%, transparent 58%);
+  transform: translateX(-100%); opacity: 0;
+  animation: lightSweep calc(var(--dur-loop) * 17) linear infinite;
+}
+@keyframes lightSweep {
+  0% { transform: translateX(-100%); opacity: 0; }
+  8% { opacity: 1; }
+  40% { transform: translateX(100%); opacity: 0; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+[data-decor="insane"] .atmo-hoverglow {
+  display: block; position: absolute; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 20%, transparent), transparent);
+  transform: translate(var(--hx, -9999px), var(--hy, -9999px)); opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-enter);
+}
+.atmo-hoverglow.on { opacity: 1; }
+[data-decor="insane"] .card:hover, [data-decor="insane"] .discover-card:hover { box-shadow: var(--sh-3), 0 0 46px -14px color-mix(in srgb, var(--accent) 75%, transparent); }
