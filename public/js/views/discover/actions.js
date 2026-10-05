@@ -345,13 +345,13 @@ async function collapse(el) {
 
 // "Want to watch": the cover flies to the Library tab, then the card goes.
 async function flyToLibrary(el) {
-  const img = el?.querySelector('.discover-card-cover, .dc-hero-banner');
+  const img = el?.querySelector('.discover-card-cover, .dc-hero-banner .poster');
   const target = document.getElementById('tab-library');
   const duration = tokenMs('--dur-base') * 1.4;
   if (!img || !target || !movementAllowed() || duration <= 0) return;
   const from = img.getBoundingClientRect();
   const to = target.getBoundingClientRect();
-  const ghost = img.cloneNode();
+  const ghost = img.cloneNode(true);
   Object.assign(ghost.style, { position: 'fixed', left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px`, margin: 0, zIndex: 50, pointerEvents: 'none', borderRadius: '8px', objectFit: 'cover' });
   document.body.appendChild(ghost);
   const dx = to.left + to.width / 2 - (from.left + from.width / 2);

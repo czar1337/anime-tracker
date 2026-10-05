@@ -10,6 +10,7 @@ import { HISTORY } from '../../../../config/tuning.js';
 import { html } from '../../core/html.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
 import { copy } from '../../copy.js';
+import { posterHtml } from '../../ui/poster.js';
 import { coverSrc } from '../library/view.js';
 
 const LIST_META = {
@@ -38,7 +39,7 @@ function miniListHtml(entries) {
     (e, i) => html`
     <div class="stat-mini-row">
       <span class="stat-mini-rank">${i + 1}</span>
-      <img class="stat-mini-cover" src="${coverSrc(e)}" alt="" loading="lazy">
+      ${posterHtml({ url: coverSrc(e), title: e.titleEnglish || e.titleRomaji, size: 'xs', className: 'stat-mini-cover' })}
       <div class="stat-mini-info">
         <div class="stat-mini-title">${e.titleEnglish || e.titleRomaji}</div>
         <div class="card-meta">${e.myScore != null ? `★ ${e.myScore}` : ''} ${e.episodesWatched ? `· ${e.episodesWatched} ep` : ''}</div>

@@ -94,7 +94,6 @@ function scheduleCardHtml(item, index = 0) {
   return html`
     <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelay(index)}">
       <div class="card-cover-wrap">
-        <div class="skeleton"></div>
         ${coverOrInitialHtml(m.coverImage?.large, m.title?.english || m.title?.romaji)}
         ${m.format ? html`<span class="card-format-badge">${m.format}</span>` : ''}
       </div>

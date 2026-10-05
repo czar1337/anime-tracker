@@ -17,7 +17,7 @@ import { morphInto } from '../../core/reconcile.js';
 import { staggerDelay, formatEnumLabel, infoHintHtml } from '../shared/format.js';
 import { shelfSkeletonHtml } from '../shared/skeleton.js';
 import { formatEpisodeCountdown } from '../../airingLogic.js';
-import { posterSrc } from '../../ui/poster.js';
+import { posterSrc, posterHtml } from '../../ui/poster.js';
 
 // "Not for me" reasons (shown in its menu, in Triage and in the Dismissed drawer).
 const DISMISS_REASON_COPY_KEYS = {
@@ -120,10 +120,7 @@ function cardActionsHtml(title, id) {
 }
 
 function coverHtml(entry, title) {
-  const url = entry.coverLarge || entry.coverMedium;
-  return url
-    ? `<img class="discover-card-cover" src="${escapeHtml(posterSrc(url))}" alt="" loading="lazy" decoding="async" width="230" height="345">`
-    : `<span class="discover-card-initial" aria-hidden="true">${escapeHtml((title || '?').trim().charAt(0))}</span>`;
+  return String(posterHtml({ url: entry.coverLarge || entry.coverMedium, title, size: 'fill', className: 'discover-card-cover' }));
 }
 
 // A portrait 2:3 card: cover, reason as the headline, title, meta, up to
@@ -152,7 +149,7 @@ function heroSlideHtml(card, index) {
   const banner = c.bannerImage || c.coverLarge || c.coverMedium;
   return `
     <article class="discover-card dc-hero" role="listitem" data-key="hero-${card.id}" data-rail-id="top-picks" data-anilist-id="${card.id}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
-      ${banner ? `<img class="dc-hero-banner" src="${escapeHtml(posterSrc(banner))}" alt="" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async">` : ''}
+      <div class="dc-hero-banner">${posterHtml({ url: banner, title: title.primary, size: 'fill', eager: index === 0 })}</div>
       <div class="dc-hero-body">
         <p class="why">${reasonHtml(card.reason)}</p>
         <h3 data-action="show-detail" data-detail-id="${card.id}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h3>
@@ -530,7 +527,7 @@ export function renderDismissedDrawer(container, { items, reasonOf, titleOf }) {
       const reason = dismissReasonLabel(reasonOf(it.anilistId));
       return `
       <div class="import-row dismissed-row" data-anilist-id="${it.anilistId}">
-        ${it.coverImage ? `<img class="screenshot-row-cover" src="${escapeHtml(posterSrc(it.coverImage))}" alt="">` : ''}
+        ${posterHtml({ url: it.coverImage, title: it.title || titleOf(it.anilistId) || '', size: 'xs', className: 'screenshot-row-cover' })}
         <span class="import-title">${escapeHtml(it.title || titleOf(it.anilistId) || copy('dismissed.untitled', undefined, { id: it.anilistId }))}${reason ? `<span class="dismissed-reason">${escapeHtml(reason)}</span>` : ''}</span>
         <button class="btn btn-quiet sm" data-action="undo-dismiss">${escapeHtml(copy('dismissed.bringBack'))}</button>
       </div>`;

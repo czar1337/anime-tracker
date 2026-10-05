@@ -2,6 +2,7 @@
 // render.js).
 
 import { html } from '../../core/html.js';
+import { posterHtml } from '../../ui/poster.js';
 
 // Entrance-animation delay for a list item, as a CSS value: 30ms per item
 // (--stagger), capped at 8 items, and scaled by the animation setting so Off
@@ -32,10 +33,10 @@ export function formatEnumLabel(value) {
 // v3 Phase 1 item 13: AniList can return a title with no coverImage at all.
 // Design system §9: a missing cover is the first letter on a flat panel, never
 // an empty box, and never a TypeError that aborts the whole render.
-export function coverOrInitialHtml(url, title) {
-  if (url) return html`<img src="${url}" alt="" loading="lazy">`;
-  const initial = (String(title || '').trim()[0] || '?').toUpperCase();
-  return html`<span class="cover-initial" aria-hidden="true">${initial}</span>`;
+// v3 run 2: the shared Poster (lazy, placeholder, fade-in, fallback, local
+// cache), filling whatever box the caller gives it.
+export function coverOrInitialHtml(url, title, { className = '', eager = false } = {}) {
+  return posterHtml({ url, title, size: 'fill', className, eager });
 }
 
 // A small always-visible "?" badge with a tooltip bubble shown on hover OR

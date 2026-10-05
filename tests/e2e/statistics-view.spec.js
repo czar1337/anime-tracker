@@ -43,7 +43,7 @@ test('Statistics shows the library numbers, escapes titles, and opens the share 
     await expect(view.locator('.stat').first().locator('.stat-value')).toHaveText('2');
     await expect(view.locator('.stat-mini-title').first()).toHaveText(EVIL);
     expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
-    expect(await view.locator('.stat-mini-list img:not(.stat-mini-cover)').count()).toBe(0);
+    expect(await view.locator('.stat-mini-list img:not(.poster-img)').count()).toBe(0);
 
     await view.locator('#stats-share-trigger').click();
     await expect(page.locator('#stats-share-overlay')).toBeVisible();

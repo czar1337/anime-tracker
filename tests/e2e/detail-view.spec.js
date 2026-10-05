@@ -53,11 +53,11 @@ test('jump to episode records the progress as an event, and the cover URL cannot
     const dialog = page.locator('#detail-overlay');
     await expect(dialog.locator('.detail-title')).toHaveText('Attack on Titan');
 
-    const style = await dialog.locator('.detail-cover').getAttribute('style');
+    // v3 run 2: the cover is a Poster: the hostile URL is one escaped
+    // parameter of an <img> src, never CSS, so it cannot set a background.
+    const src = await dialog.locator('.detail-cover img').getAttribute('src');
+    expect(src).toBe(`/api/poster?u=${encodeURIComponent(COVER)}`);
     const bg = await dialog.locator('.detail-cover').evaluate((el) => getComputedStyle(el).backgroundColor);
-    // Whitespace-insensitive: the shared-cover transition sets a name through
-    // el.style, which re-serializes the attribute ("background-image: url(").
-    expect(style.replace(/\s+/g, '').startsWith('background-image:url("')).toBe(true);
     expect(bg).not.toBe('rgb(255, 0, 0)');
 
     // An action inside the overlay re-renders it in place: focus stays on the

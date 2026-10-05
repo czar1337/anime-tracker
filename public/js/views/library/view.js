@@ -17,6 +17,7 @@ import { staggerDelay } from '../shared/format.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
 import { expandedGroups, selectedIds, completingIds, isSelectMode, groupKey } from './model.js';
 import { defaultSettings } from '../../settingsSchema.js';
+import { posterHtml } from '../../ui/poster.js';
 
 export const QUICK_MOVE_LISTS = [
   { key: 'watching', label: 'Watching', short: 'Watch' },
@@ -254,7 +255,7 @@ function emptyStateFor(list) {
       ? html`<ul class="empty-start" aria-label="${copy('empty.watching.fromWatchlist')}">${queued.map((e) => {
           const src = coverSrc(e);
           return html`<li class="empty-start-item">
-            <span class="empty-start-cover">${src ? html`<img src="${src}" alt="" loading="lazy">` : html`<span class="cover-initial" aria-hidden="true">${(displayTitle(e) || '?').trim().charAt(0).toUpperCase()}</span>`}</span>
+            <span class="empty-start-cover">${posterHtml({ url: src, title: displayTitle(e), size: 'fill' })}</span>
             <span class="empty-start-title">${displayTitle(e)}</span>
             <button type="button" class="btn btn-ghost sm" data-action="empty-start" data-id="${e.anilistId}" aria-label="${copy('home.startLabel', undefined, { title: displayTitle(e) })}">${copy('home.start')}</button>
           </li>`;
