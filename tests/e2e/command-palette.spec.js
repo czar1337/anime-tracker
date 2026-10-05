@@ -83,7 +83,7 @@ test('"mark entry c" + Enter marks that series\' next episode watched', async ({
     await expect(label).toHaveText('Ep 3 / ?');
     await page.keyboard.press('Control+k');
     await query(page, 'mark entry c');
-    await expect(options(page).first()).toHaveText('Mark Entry C · episode 4 watched');
+    await expect(options(page).first()).toHaveText(/^\+1 episode on Entry C \(episode 4\)/);
     await page.keyboard.press('Enter');
     await expect(page.locator('#palette-overlay')).toBeHidden();
     await expect(label).toHaveText('Ep 4 / ?');

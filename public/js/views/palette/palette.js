@@ -1,21 +1,27 @@
 // The command palette (v3 Phase 4, Ctrl/Cmd+K): one input over the library
-// (open a series, mark its next episode, move it), every app command (go to a
-// section, export, settings, "Theme: …", pick for me), AniList search with
-// "Add to Watchlist", and recently used items. Fuzzy matching (fuzzy.js),
-// full keyboard control, and the ARIA combobox pattern: the input owns
-// aria-activedescendant, the results are a listbox of options.
+// (open a series, +1 episode, move it), every app command (go to a section,
+// export, settings, "Theme: …", toggle theme, decoration level, Run Triage,
+// pick for me), AniList search with "Add to Watchlist", recently used items
+// and recent searches. Fuzzy matching (fuzzy.js), full keyboard control, and
+// the ARIA combobox pattern: the input owns aria-activedescendant, the
+// results are a listbox of options. v3 run 2: every series row carries its
+// poster and where you are in it ("Ep 9/13"); AniList rows their year and
+// format. Library rows are instant; AniList is asked after a pause.
 
 import { Store } from '../../state.js';
 import { Api } from '../../api.js';
 import { copy } from '../../copy.js';
 import { fuzzyRank } from '../../fuzzy.js';
 import { titlesInOrder } from '../../titles.js';
-import { html } from '../../core/html.js';
+import { html, raw } from '../../core/html.js';
 import { openDialog, closeDialog, isDialogOpen } from '../../core/dialog.js';
 import { listCommands, registerCommand, runCommand, runCommandObject } from '../../core/commands.js';
 import { PALETTE } from '../../../../config/tuning.js';
+import { posterHtml } from '../../ui/poster.js';
+import { coverSrc } from '../library/view.js';
 
 const RECENT_KEY = 'anime-tracker-palette-recent';
+const RECENT_QUERIES_KEY = 'anime-tracker-palette-queries';
 // Matches scoring under this share of the best one are dropped (fuzzy.js).
 const MIN_RATIO = PALETTE.minMatchRatio;
 const LIST_LABEL_KEYS = { watching: 'list.watching', watchlist: 'list.watchlist', watched: 'list.watched', dropped: 'list.dropped', paused: 'list.paused' };
@@ -45,6 +51,37 @@ function remember(entry) {
   }
 }
 
+// The searches that led somewhere, newest first (per browser, like the above).
+function readRecentQueries() {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_QUERIES_KEY) || '[]');
+    return Array.isArray(list) ? list.filter((q) => typeof q === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function rememberQuery(query) {
+  const q = query.trim();
+  if (q.length < 2) return;
+  try {
+    const next = [q, ...readRecentQueries().filter((r) => r.toLowerCase() !== q.toLowerCase())].slice(0, PALETTE.recentQueriesMax);
+    localStorage.setItem(RECENT_QUERIES_KEY, JSON.stringify(next));
+  } catch {
+    /* no storage */
+  }
+}
+
+// Where a series stands, for its row: "Ep 9/13 · Watching", "★ 8 · Completed".
+function progressHint(entry) {
+  const list = listLabel(entry.listStatus);
+  const total = entry.totalEpisodes;
+  if (entry.listStatus === 'watched') return entry.myScore != null ? copy('palette.hintScored', undefined, { score: entry.myScore, list }) : list;
+  if (entry.listStatus === 'watchlist') return [total ? copy('card.episodes', undefined, { n: total }) : null, entry.year, list].filter(Boolean).join(' · ');
+  return copy('palette.hintProgress', undefined, { n: entry.episodesWatched, total: total || '?', list });
+}
+
+const posterOf = (entry) => ({ url: coverSrc(entry), title: displayTitle(entry) });
+
 function displayTitle(entry) {
   return titlesInOrder(entry, Store.state.preferences.titleLanguage)[0];
 }
@@ -53,7 +90,7 @@ const namesOf = (entry) => [displayTitle(entry), entry.titleRomaji, entry.titleE
 
 function openRow(entry) {
   const id = entry.anilistId;
-  return { group: 'library', key: `open:${id}`, recent: { type: 'series', key: String(id) }, text: copy('palette.open', undefined, { title: displayTitle(entry) }), hint: listLabel(entry.listStatus), run: () => runCommand('series.open', id) };
+  return { group: 'library', key: `open:${id}`, recent: { type: 'series', key: String(id) }, text: copy('palette.open', undefined, { title: displayTitle(entry) }), hint: progressHint(entry), poster: posterOf(entry), run: () => runCommand('series.open', id) };
 }
 
 function markRow(entry) {
@@ -61,7 +98,8 @@ function markRow(entry) {
   if (entry.listStatus !== 'watching' || (total && entry.episodesWatched >= total)) return null;
   const id = entry.anilistId;
   const text = copy('palette.markNext', undefined, { title: displayTitle(entry), episode: entry.episodesWatched + 1 });
-  return { group: 'library', key: `mark:${id}`, text, action: true, run: () => runCommand('series.increment', id) };
+  const hint = copy('palette.hintNext', undefined, { from: entry.episodesWatched, to: entry.episodesWatched + 1, total: total || '?' });
+  return { group: 'library', key: `mark:${id}`, text, hint, poster: posterOf(entry), action: true, run: () => runCommand('series.increment', id) };
 }
 
 function moveRows(entry) {
@@ -70,6 +108,7 @@ function moveRows(entry) {
     group: 'library',
     key: `move:${id}:${list}`,
     text: copy('palette.moveTo', undefined, { title: displayTitle(entry), list: listLabel(list) }),
+    poster: posterOf(entry),
     action: true,
     run: () => runCommand('series.move', { id, list }),
   }));
@@ -96,7 +135,9 @@ function libraryRows(series, verb) {
       if (i < 2) rows.push(...moveRows(entry));
     } else {
       rows.push(openRow(entry));
-      if (i === 0 && !verb) {
+      // "+1 episode on …" right under the series it is for, for the first
+      // few matches that are being watched.
+      if (i < PALETTE.markRowsMax && !verb) {
         const mark = markRow(entry);
         if (mark) rows.push(mark);
       }
@@ -129,7 +170,8 @@ function rowsFor(query) {
       })
       .filter(Boolean)
       .map((r) => ({ ...r, group: 'recent' }));
-    return [...recent, ...commands.filter((c) => !recent.some((r) => r.key === c.key))];
+    const searches = readRecentQueries().map((q) => ({ group: 'searches', key: `query:${q}`, text: q, search: q, run: () => {} }));
+    return [...recent, ...searches, ...commands.filter((c) => !recent.some((r) => r.key === c.key))];
   }
   // Series (by title) and commands are scored on one scale; anything far below
   // the best match of either kind is scattered letters, not a match.
@@ -143,10 +185,13 @@ function rowsFor(query) {
   return [...library, ...matchedCommands].slice(0, PALETTE.maxResults);
 }
 
-const GROUP_ORDER = ['recent', 'library', 'commands', 'anilist'];
+const GROUP_ORDER = ['recent', 'searches', 'library', 'commands', 'anilist'];
+
+const SEARCH_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="8"/></svg>';
 
 function optionHtml(row, index) {
-  return html`<div class="palette-option" role="option" id="palette-opt-${index}" data-index="${index}" aria-selected="${index === active}"><span class="palette-option-text">${row.text}</span>${row.hint ? html`<span class="palette-option-hint">${row.hint}</span>` : ''}</div>`;
+  const lead = row.poster ? posterHtml({ url: row.poster.url, title: row.poster.title, size: 'xs', className: 'palette-poster' }) : row.search ? html`<span class="palette-icon">${raw(SEARCH_SVG)}</span>` : '';
+  return html`<div class="${row.poster ? 'palette-option has-poster' : 'palette-option'}" role="option" id="palette-opt-${index}" data-index="${index}" aria-selected="${index === active}">${lead}<span class="palette-option-text">${row.text}</span>${row.hint ? html`<span class="palette-option-hint">${row.hint}</span>` : ''}</div>`;
 }
 
 function render() {
@@ -200,7 +245,8 @@ function searchAniList(query, myGeneration) {
           group: 'anilist',
           key: `anilist:${m.id}`,
           text: copy('palette.add', undefined, { title: m.title.english || m.title.romaji }),
-          hint: [m.seasonYear, m.format].filter(Boolean).join(' · '),
+          hint: [m.seasonYear, m.format, m.episodes ? copy('card.episodes', undefined, { n: m.episodes }) : null].filter(Boolean).join(' · '),
+          poster: { url: m.coverImage?.large || m.coverImage?.medium, title: m.title.english || m.title.romaji },
           run: () => runCommand('anilist.add', { media: m, list: 'watchlist' }),
         }));
       items = [...items.filter((r) => r.group !== 'anilist'), ...rows, searchRow];
@@ -227,7 +273,15 @@ function update() {
 function runActive() {
   const row = items[active];
   if (!row) return;
+  // A recent search fills the field and searches again; nothing closes.
+  if (row.search) {
+    const input = document.getElementById('palette-input');
+    input.value = row.search;
+    update();
+    return;
+  }
   if (row.recent) remember(row.recent);
+  rememberQuery(document.getElementById('palette-input').value);
   // Close first: the action may open a dialog of its own.
   closeDialog('palette-overlay');
   row.run();

@@ -325,6 +325,8 @@ export const HOME = {
 
 // The command palette (v3 Phase 4, public/js/views/palette/).
 export const PALETTE = {
+  recentQueriesMax: 5, // recent searches shown when the field is empty (v3 run 2)
+  markRowsMax: 3, // "+1 episode on …" rows, for the first matches being watched
   maxResults: 14, // library and command rows shown for a query
   recentMax: 6, // recently used series and commands kept (per browser)
   anilistMinChars: 3, // AniList is searched from this many typed characters

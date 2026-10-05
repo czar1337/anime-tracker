@@ -113,3 +113,11 @@
 /* The detail drawer without an AniList banner: a calm wash of the accent,
    never the cover blurred. */
 .detail-banner-img.no-banner { background: radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%), var(--card); }
+
+/* --- Command palette rows (v3 run 2): a poster or an icon, the text, the hint. */
+.palette-option.has-poster { padding-block: 6px; }
+.palette-option .palette-poster { width: 28px; border-radius: var(--radius-xs); box-shadow: var(--sh-1); }
+.palette-icon { display: inline-grid; place-items: center; width: 28px; color: var(--faint); flex: none; }
+.palette-option-hint { font-variant-numeric: tabular-nums; }
+.palette-option-text { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .palette-option-hint { white-space: normal; text-align: right; max-width: 40%; } }
