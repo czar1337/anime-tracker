@@ -71,13 +71,34 @@ export function hideTooltip() {
   if (tip) tip.hidden = true;
 }
 
+// v3 run 2: every icon-only control in the app gets the tooltip, not only
+// those marked with data-tip: a button, link, tab or radio whose visible text
+// is at most a symbol ("×", "+1") shows its aria-label. A native title on
+// such a control becomes the tooltip (and stops showing the browser's own).
+const CONTROL = 'button, a[href], [role="button"], [role="tab"], [role="radio"], [role="menuitem"], summary';
+function iconOnly(el) {
+  // No word in it: an icon, a symbol (×) or a count (+1).
+  return !/[\p{L}\p{N}]{2,}/u.test(el.textContent || '');
+}
+export function tipTarget(node) {
+  const marked = node?.closest?.('[data-tip]');
+  if (marked) return marked;
+  const control = node?.closest?.(CONTROL);
+  if (!control || !iconOnly(control)) return null;
+  if (control.hasAttribute('title')) {
+    if (!control.getAttribute('aria-label')) control.setAttribute('aria-label', control.getAttribute('title'));
+    control.removeAttribute('title');
+  }
+  return control.getAttribute('aria-label') ? control : null;
+}
+
 let installed = false;
 export function installTooltips() {
   if (installed) return;
   installed = true;
   document.addEventListener('pointerover', (e) => {
     if (e.pointerType === 'touch') return;
-    const el = e.target.closest?.('[data-tip]');
+    const el = tipTarget(e.target);
     if (!el || el === current) return;
     hideTooltip();
     timer = setTimeout(() => show(el), UI_TIMING.tooltipDelayMs);
@@ -86,11 +107,11 @@ export function installTooltips() {
     if (current && !current.isConnected) hideTooltip();
   }, { passive: true });
   document.addEventListener('pointerout', (e) => {
-    const el = e.target.closest?.('[data-tip]');
+    const el = tipTarget(e.target);
     if (el && !el.contains(e.relatedTarget)) hideTooltip();
   });
   document.addEventListener('focusin', (e) => {
-    const el = e.target.closest?.('[data-tip]');
+    const el = tipTarget(e.target);
     if (el && el.matches(':focus-visible')) {
       clearTimeout(timer);
       show(el);

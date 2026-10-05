@@ -30,7 +30,8 @@ async function posterAudit(page) {
     const loose = [...document.querySelectorAll('img')].filter((img) => visible(img) && !img.closest('.poster') && !img.closest('.cover-media') && !img.closest('.detail-trailer') && !/\.svg|icon/.test(img.src)).map((img) => img.className || img.src.slice(0, 60));
     const pending = [...document.querySelectorAll('.poster')].filter((p) => visible(p) && !p.classList.contains('poster-loaded') && !p.classList.contains('poster-failed') && !p.classList.contains('poster-empty')).length;
     const covers = [...document.querySelectorAll('.cover-media')].filter((c) => visible(c) && !c.querySelector('img.loaded') && !c.classList.contains('cover-failed')).length;
-    return { loose, pending, coversPending: covers };
+    const untipped = [...document.querySelectorAll('button, a[href], [role="button"], [role="tab"], [role="radio"]')].filter((el) => visible(el) && !/[\p{L}\p{N}]{2,}/u.test(el.textContent || '') && !(el.dataset.tip || el.getAttribute('aria-label') || el.getAttribute('title'))).map((el) => el.outerHTML.slice(0, 80));
+    return { loose, pending, coversPending: covers, untipped };
   });
 }
 
@@ -69,7 +70,7 @@ const SCREENS = [
           await page.waitForTimeout(1500);
           const audit = await posterAudit(page);
           await page.screenshot({ path: path.join(outDir, `${prefix}-${screen.id}-${width}.png`) });
-          report.push(`${width} ${screen.id}: loose imgs ${audit.loose.length}${audit.loose.length ? ` ${JSON.stringify(audit.loose.slice(0, 3))}` : ''}, posters pending ${audit.pending}, library covers pending ${audit.coversPending}`);
+          report.push(`${width} ${screen.id}: loose imgs ${audit.loose.length}${audit.loose.length ? ` ${JSON.stringify(audit.loose.slice(0, 3))}` : ''}, posters pending ${audit.pending}, library covers pending ${audit.coversPending}, icon-only without tooltip ${audit.untipped.length}${audit.untipped.length ? ` ${JSON.stringify(audit.untipped.slice(0, 3))}` : ''}`);
           if (screen.close) {
             await page.keyboard.press('Escape');
             await page.waitForTimeout(300);

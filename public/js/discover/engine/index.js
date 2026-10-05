@@ -356,6 +356,12 @@ export function buildDiscover(input) {
     return Explain.qualityReason(genreOf(c.entry));
   }
 
+  // Computed once per card: the chip labels and the same features with kinds.
+  function whyOf(vector, entry) {
+    const why = Explain.whyFeaturesFor(vector, taste.positive, entry);
+    return { chips: why.map((f) => f.label), why };
+  }
+
   function card(c, reason) {
     return {
       id: c.id,
@@ -365,7 +371,7 @@ export function buildDiscover(input) {
       parts: c.parts,
       bayes: c.bayes,
       reason,
-      chips: Explain.chipsFor(vec(c.id), taste.positive, c.entry),
+      ...whyOf(vec(c.id), c.entry),
       franchiseSize: index.members(c.key).filter((id) => corpusById[String(id)]).length,
     };
   }

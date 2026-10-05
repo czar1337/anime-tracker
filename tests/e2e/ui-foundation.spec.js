@@ -57,11 +57,12 @@ test('an icon button shows the shared tooltip on hover and on keyboard focus, an
   try {
     await openDiscover(page, server);
     const icon = page.locator('#discover-view .shelf .dc-portrait [data-action="discover-seen"]').first();
-    const label = await icon.getAttribute('aria-label');
+    // v3 run 2: the name and its key; the aria-label keeps the title.
+    expect(await icon.getAttribute('aria-label')).toMatch(/^Seen it/);
     await icon.hover();
     const tip = page.locator('.ui-tooltip');
     await expect(tip).toBeVisible();
-    await expect(tip).toHaveText(label);
+    await expect(tip).toHaveText('Seen it (S)');
     await page.mouse.move(0, 0);
     await expect(tip).toBeHidden();
     await icon.focus();

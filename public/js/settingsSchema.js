@@ -261,6 +261,9 @@ export function defaultSettings() {
       includeTags: [],
       excludeTags: [],
       maxLengthMinutes: null,
+      // v3 run 2: Discover's Find bar.
+      genres: [],
+      season: '',
       enforcePrerequisiteChain: true,
       hideDismissed: true,
     },

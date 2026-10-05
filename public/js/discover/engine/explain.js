@@ -47,9 +47,15 @@ export function reasonFeatures(candidateVector, otherVector, entry, max = 3) {
 
 // The chips line: up to 3 features this title shares with your profile.
 export function chipsFor(candidateVector, profileVector, entry, max = 3) {
+  return whyFeaturesFor(candidateVector, profileVector, entry, max).map((f) => f.label);
+}
+
+// The same features with their kind (studio, genre, tag, creator), for the
+// "why this pick" chips (v3 run 2), which word each kind its own way.
+export function whyFeaturesFor(candidateVector, profileVector, entry, max = 3) {
   return overlappingFeatures(candidateVector, profileVector)
     .slice(0, max)
-    .map((f) => featureLabel(f, entry));
+    .map((f) => ({ block: f.block, name: f.name, label: featureLabel(f, entry) }));
 }
 
 export function collabReason(anchor, titleOf, { inRail = false, seed = false } = {}) {

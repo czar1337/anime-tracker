@@ -121,3 +121,20 @@
 .palette-option-hint { font-variant-numeric: tabular-nums; }
 .palette-option-text { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .palette-option-hint { white-space: normal; text-align: right; max-width: 40%; } }
+
+/* --- Discover (v3 run 2): why chips and the Find bar ---------------------- */
+.dc-why { list-style: none; margin: var(--sp-1) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.dc-why-chip {
+  font: var(--t-nano); padding: 2px var(--sp-2); border-radius: var(--radius-pill);
+  color: var(--accent-lit); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  max-width: 100%; overflow-wrap: anywhere;
+}
+.discover-find { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-4); }
+.discover-find .sel { min-width: 0; }
+.find-field { display: inline-flex; }
+.find-completed { white-space: nowrap; }
+@media (max-width: 760px) {
+  .discover-find { display: grid; grid-template-columns: 1fr 1fr; }
+  .discover-find .sel { width: 100%; }
+  .find-completed { grid-column: 1 / -1; }
+}

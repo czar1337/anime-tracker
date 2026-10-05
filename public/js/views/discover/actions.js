@@ -27,7 +27,8 @@ import { Detail } from '../detail/actions.js';
 import { handleSetStatus, recordProgressEvent } from '../library/actions.js';
 import { renderTriage, liveStageNode } from './triageView.js';
 import { settlePosters } from '../../ui/poster.js';
-import { renderDiscoverPage, renderDismissedDrawer, dismissReasons, dismissSkipLabel, discoverCardTitle } from './view.js';
+import { toastWithUndo } from '../../ui/toast.js';
+import { renderDiscoverPage, renderDismissedDrawer, FIND_LENGTHS, dismissReasons, dismissSkipLabel, discoverCardTitle } from './view.js';
 
 // Below this many corpus titles there is nothing worth ranking yet.
 const MIN_CORPUS_FOR_RAILS = 30;
@@ -625,6 +626,24 @@ function triageAnswer(answer, { score = null } = {}) {
   flyTriageOut(el, answer);
 }
 
+// An entry an answer created goes again only while it is exactly as the
+// answer left it; its progress and score are written back out of the log
+// (the log is append-only). Returns false when it was changed since.
+function takeBackCreated(id, created) {
+  const entry = Store.getEntry(id);
+  if (!entry) return true;
+  if (!created || entry.updatedAt !== created.updatedAt) return false;
+  if (created.episodesWatched) recordProgressEvent(entry, created.episodesWatched, 0, 'backfill');
+  if (typeof created.myScore === 'number') EventLog.recordForEntry('score_set', id, { from: created.myScore, to: null }, { source: 'discover' });
+  Store.removeEntry(id);
+  Render.renderTabCounts();
+  return true;
+}
+const createdSnapshot = (id) => {
+  const e = Store.getEntry(id);
+  return e ? { updatedAt: e.updatedAt, episodesWatched: e.episodesWatched, myScore: e.myScore } : null;
+};
+
 // Z: the last answer of this Triage session is taken back. An entry it
 // created goes only while it is exactly as the answer left it, and its
 // progress and score are written back out of the log (the log itself is
@@ -637,14 +656,7 @@ function triageUndo() {
   triage.skipped.delete(last.id);
   if (last.answer === 'want' || last.answer === 'seen-it') {
     const entry = Store.getEntry(last.id);
-    if (entry && last.created && entry.updatedAt === last.created.updatedAt) {
-      if (last.created.episodesWatched) recordProgressEvent(entry, last.created.episodesWatched, 0, 'backfill');
-      if (typeof last.created.myScore === 'number') EventLog.recordForEntry('score_set', last.id, { from: last.created.myScore, to: null }, { source: 'discover' });
-      Store.removeEntry(last.id);
-      Render.renderTabCounts();
-    } else if (entry) {
-      Render.showToast(copy('triage.undoKept', undefined, { title: titleOf(entry) }));
-    }
+    if (entry && !(last.created && takeBackCreated(last.id, last.created))) Render.showToast(copy('triage.undoKept', undefined, { title: titleOf(entry) }));
   } else if (last.answer === 'not-for-me') {
     bringBack(last.id);
   }
@@ -909,7 +921,8 @@ function clearFilterChip(key) {
   const pairs = { year: ['yearMin', 'yearMax'], episodes: ['episodeMin', 'episodeMax'], score: ['scoreMin', 'scoreMax'], members: ['memberMin', 'memberMax'] };
   if (key === '__clear_all') Store.setPreference(['discoverFilters'], defaultSettings().discoverFilters);
   else if (pairs[key]) for (const f of pairs[key]) filters[f] = null;
-  else if (['studio', 'source', 'staffQuery', 'format', 'airingStatus'].includes(key)) filters[key] = '';
+  else if (['studio', 'source', 'staffQuery', 'format', 'airingStatus', 'season'].includes(key)) filters[key] = '';
+  else if (key.startsWith('genre:')) filters.genres = (filters.genres || []).filter((g) => g !== key.slice('genre:'.length));
   else if (key === 'maxLength') filters.maxLengthMinutes = null;
   else if (key === 'hideDismissed') filters.hideDismissed = true;
   else if (key.startsWith('includeTag:')) filters.includeTags = filters.includeTags.filter((t) => t !== key.slice('includeTag:'.length));
@@ -934,21 +947,50 @@ export function initDiscover({ persistFn } = {}) {
     target?.focus({ preventScroll: true });
   };
 
+  // Every answer animates the card out and says what it did, with Undo
+  // (v3 run 2). Undo puts the title back where it was and redraws the rails.
+  const undoDone = (kept, title = '') => {
+    if (kept === false) Render.showToast(copy('triage.undoKept', undefined, { title }));
+    persist();
+    recompute();
+  };
   const onWant = async (card, ctx, el, listStatus = 'watchlist') => {
     if (Store.getEntry(card.id)) return;
     await flyToLibrary(el);
     await collapse(el);
-    if (want(card, ctx, listStatus)) Render.showToast(copy('discover.addedTo', undefined, { title: titleOf(card.entry), list: listLabel(listStatus) }));
+    if (want(card, ctx, listStatus)) {
+      const created = createdSnapshot(card.id);
+      toastWithUndo(copy('discover.addedTo', undefined, { title: titleOf(card.entry), list: listLabel(listStatus) }), () => undoDone(takeBackCreated(card.id, created), titleOf(card.entry)));
+    }
     renderKeepingPlace(el);
   };
   const onSeen = async (card, ctx, el, score) => {
+    const before = Store.getEntry(card.id) ? { listStatus: Store.getEntry(card.id).listStatus, myScore: Store.getEntry(card.id).myScore ?? null } : null;
     await collapse(el);
-    if (seenIt(card, ctx, score)) Render.showToast(typeof score === 'number' ? copy('discover.seenToastScored', undefined, { title: titleOf(card.entry), score }) : copy('discover.seenToast', undefined, { title: titleOf(card.entry) }));
+    if (seenIt(card, ctx, score)) {
+      const created = before ? null : createdSnapshot(card.id);
+      const text = typeof score === 'number' ? copy('discover.seenToastScored', undefined, { title: titleOf(card.entry), score }) : copy('discover.seenToast', undefined, { title: titleOf(card.entry) });
+      toastWithUndo(text, () => {
+        if (!before) return undoDone(takeBackCreated(card.id, created), titleOf(card.entry));
+        // It was already on a list: it goes back there, with its old score.
+        handleSetStatus(card.id, before.listStatus);
+        const now = Store.getEntry(card.id);
+        if (now && (now.myScore ?? null) !== before.myScore) {
+          EventLog.recordForEntry('score_set', card.id, { from: now.myScore ?? null, to: before.myScore }, { source: 'discover' });
+          Store.updateEntry(card.id, { myScore: before.myScore });
+        }
+        undoDone(true);
+      });
+    }
     renderKeepingPlace(el);
   };
   const onNotForMe = async (card, ctx, el, reason) => {
     await collapse(el);
     notForMe(card, ctx, reason);
+    toastWithUndo(copy('discover.dismissedUndo', undefined, { title: titleOf(card.entry) }), () => {
+      bringBack(card.id);
+      undoDone(true);
+    });
     renderKeepingPlace(el);
   };
 
@@ -978,11 +1020,30 @@ export function initDiscover({ persistFn } = {}) {
         { label: copy('discover.details'), run: () => Detail.showDetail(card.id) },
         { label: copy('discover.moreLikeThis'), run: () => openMoreLikeThis(card.id) },
         { separator: true },
-        { label: copy('discover.hideFranchise'), run: async () => { await collapse(el); hideFranchise(card, ctx); renderKeepingPlace(el); } },
+        { label: copy('discover.hideFranchise'), run: async () => { await collapse(el); hideFranchise(card, ctx); toastWithUndo(copy('discover.dismissedUndo', undefined, { title: titleOf(card.entry) }), () => { bringBack(card.id); undoDone(true); }); renderKeepingPlace(el); } },
       ],
     });
 
   const onChange = (e) => {
+    const find = e.target.dataset?.find;
+    if (find) {
+      const f = { ...Store.state.preferences.discoverFilters };
+      const v = e.target.value;
+      if (find === 'genre') f.genres = v ? [v] : [];
+      else if (find === 'season') f.season = v;
+      else if (find === 'year') {
+        f.yearMin = v ? Number(v) : null;
+        f.yearMax = v ? Number(v) : null;
+      } else if (find === 'format') f.format = v;
+      else if (find === 'length') [f.episodeMin, f.episodeMax] = v ? FIND_LENGTHS[v] : [null, null];
+      else if (find === 'completed') f.airingStatus = e.target.checked ? 'FINISHED' : '';
+      Store.setPreference(['discoverFilters'], f);
+      persist();
+      recompute();
+      // The bar is redrawn: keep the control that was used in focus.
+      container.querySelector(`[data-find="${find}"]`)?.focus({ preventScroll: true });
+      return;
+    }
     if (e.target.id === 'discover-hide-owned-toggle') {
       Store.setPreference(['discoverHideOwned'], e.target.checked);
       persist();
@@ -1098,6 +1159,19 @@ export function initDiscover({ persistFn } = {}) {
   container.addEventListener('click', onClick);
   tune.addEventListener('click', onClick);
   bindRailKeys(container);
+  // The card's answers from the keyboard, as their tooltips say: W want to
+  // watch, S seen it, X not for me, M more (v3 run 2).
+  container.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const el = e.target.closest?.('.discover-card');
+    if (!el || e.target !== el) return;
+    const action = { w: 'discover-want', s: 'discover-seen', x: 'discover-not-for-me', m: 'discover-more' }[e.key.toLowerCase()];
+    const button = action && el.querySelector(`[data-action="${action}"]:not([disabled])`);
+    if (!button) return;
+    e.preventDefault();
+    e.stopPropagation(); // not the page's own S (select mode)
+    button.click();
+  });
   bindTriage();
 
   document.getElementById('dismissed-content').addEventListener('click', (e) => {
