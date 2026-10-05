@@ -284,6 +284,9 @@ async function showVersionBanner() {
     versionEl.dataset.tip = buildText(info);
     versionEl.tabIndex = 0;
     versionEl.setAttribute('aria-label', buildText(info));
+    // Windows redirected the data folder (started from inside another app):
+    // this is not the user's normal library, and the page must say so.
+    if (info.dataDirRedirectedTo) Render.showError(copy('banner.dataFolderRedirected', undefined, { path: info.dataDirRedirectedTo }));
     if (info.updateAvailable) {
       const banner = document.getElementById('update-banner');
       banner.textContent = `Version ${info.remote} available`;

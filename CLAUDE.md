@@ -94,9 +94,17 @@ Never extract or print credentials. Releases are built by CI from a tag the user
 - Any new Class A store or field extends export, snapshot, checksum and restore in the
   same change, with a round-trip test (v2 spec rules 3 and 3a).
 - Tests never touch the real data directory; they use `ANIME_TRACKER_DATA_DIR`.
-- `.claude/launch.json` starts the dev server on the real data folder: never use it to
+- `.claude/launch.json` starts the dev server on the default data folder: never use it to
   verify changes. Use the e2e harness or `scripts/capture-evidence.js` (temp fixtures),
   or a copy of the real folder in a scratch directory.
+- The Claude desktop app is a packaged (MSIX) app: processes started from it see
+  `%APPDATA%` virtualized, so `%APPDATA%\anime-tracker` there is the package's own old
+  copy (`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\anime-tracker`), not the
+  user's library. Read the real data through the running app's API (port 4321), and run
+  the exe for checks with `ANIME_TRACKER_DATA_DIR` on a copy (`scripts/verify/`). The app
+  detects the redirect at startup and says so (`src/services/dataDirCheck.js`).
+- Build with `node scripts/build-exe.js`: it always writes `dist/AnimeTracker.exe` and
+  first asks a running copy to quit (`--force-close` if it has no `/api/quit`).
 - Invariants that no refactor may break:
   - `library.json` is written only as tmp, fsync, rename; never while corrupt or too
     new; never replaced by an empty library while backups or snapshots exist.

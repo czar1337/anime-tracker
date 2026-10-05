@@ -28,7 +28,10 @@ The lasting rules of Anime Tracker, as v3.0 left them. The program history lives
 ## Data
 
 Everything lives in the data folder (`%APPDATA%\anime-tracker` on Windows, or
-`ANIME_TRACKER_DATA_DIR`). Three classes:
+`ANIME_TRACKER_DATA_DIR`). Every start logs which one, Settings > Data shows it, and a
+folder that Windows redirects (a process started from inside a packaged app sees
+`%APPDATA%` virtualized) is detected and named in a banner (`src/services/dataDirCheck.js`).
+Three classes:
 
 | Class | What | Rules |
 | --- | --- | --- |

@@ -106,6 +106,10 @@ if (IS_SEA || process.env.ANIME_TRACKER_LOG_FILE === '1') require('./services/fi
 // every start (and in Settings > Data), so a run on another folder is visible.
 const buildText = BUILD_INFO.builtAt ? `${BUILD_INFO.kind}, built ${BUILD_INFO.builtAt}${BUILD_INFO.commit ? ` from ${BUILD_INFO.commit}` : ''}` : BUILD_INFO.kind;
 console.log(`[startup] Anime Tracker ${APP_VERSION} (${buildText}) using data folder ${DATA_DIR}${process.env.ANIME_TRACKER_DATA_DIR ? ' (set by ANIME_TRACKER_DATA_DIR)' : ''}`);
+const redirectedTo = require('./services/dataDirCheck.js').checkDataDirOnce(DATA_DIR);
+if (redirectedTo) {
+  console.error(`[startup] WARNING: Windows redirects this process's data folder to ${redirectedTo} (it was started from inside a packaged app). This is NOT the library that Anime Tracker uses when started normally.`);
+}
 
 const dirsToEnsure = IS_SEA ? [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR] : [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR];
 for (const dir of dirsToEnsure) {

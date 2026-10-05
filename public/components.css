@@ -99,3 +99,4 @@
 /* --- Settings info lines (version, data folder) --------------------------- */
 .settings-info { margin: 0; font: var(--t-meta); color: var(--dim); }
 .settings-path { font-family: var(--mono); overflow-wrap: anywhere; color: var(--text); }
+.settings-warning { color: var(--warning); margin-top: var(--sp-2); }

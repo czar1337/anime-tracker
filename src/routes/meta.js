@@ -6,6 +6,7 @@
 
 const { APP_VERSION, RELEASES_URL, BUILD_INFO, DATA_DIR, IS_SEA } = require('../config.js');
 const { requestQuit } = require('../services/lifecycle.js');
+const { getRedirectedDataDir } = require('../services/dataDirCheck.js');
 const { sendJson } = require('../http/middleware.js');
 const { compareSemver, getVersionCheckState } = require('../services/updateCheck.js');
 
@@ -21,6 +22,8 @@ module.exports = function register({ route, prefix }) {
       // (Help, Data) and read by build-exe.js before it replaces the exe.
       build: BUILD_INFO,
       dataDir: DATA_DIR,
+      // Set when Windows redirects the data folder (src/services/dataDirCheck.js).
+      dataDirRedirectedTo: getRedirectedDataDir(),
       exePath: IS_SEA ? process.execPath : null,
       pid: process.pid,
     });

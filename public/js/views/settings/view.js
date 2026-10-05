@@ -393,7 +393,7 @@ function importsHtml() {
 
 function dataHtml() {
   return `
-    ${rowHtml(copy('settings.dataFolder.heading'), copy('settings.dataFolder.description'), `<p class="settings-info settings-path" id="settings-data-folder">${escapeHtml(appInfo?.dataDir || '')}</p>`)}
+    ${rowHtml(copy('settings.dataFolder.heading'), copy('settings.dataFolder.description'), `<p class="settings-info settings-path" id="settings-data-folder">${escapeHtml(appInfo?.dataDir || '')}</p>${appInfo?.dataDirRedirectedTo ? `<p class="settings-info settings-warning" role="alert">${escapeHtml(copy('settings.dataFolder.redirected', undefined, { path: appInfo.dataDirRedirectedTo }))}</p>` : ''}`)}
     ${rowHtml(copy('settings.backup.heading'), copy('settings.backup.description'), `<div class="row">${commandButton('backup.open', 'command.backup')}${commandButton('import.open', 'command.import')}</div>`)}
     ${rowHtml(copy('settings.imports.heading'), copy('settings.imports.description'), importsHtml())}
     ${rowHtml(copy('dataSafety.heading'), copy('dataSafety.description'), `
