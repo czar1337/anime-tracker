@@ -20,14 +20,10 @@ test('screenshot OCR still works under the CSP', async ({ page }) => {
     });
     await page.goto(server.url);
     await page.waitForSelector('.card');
+    // v3 Phase 7: the app's own worker setup (screenshotImport.js), so the one
+    // shipped core and its path are what this test runs.
     const text = await page.evaluate(async () => {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = '/vendor/tesseract/tesseract.min.js';
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
+      const { getOcrWorker } = await import('/js/screenshotImport.js');
       const canvas = document.createElement('canvas');
       canvas.width = 600;
       canvas.height = 120;
@@ -37,13 +33,8 @@ test('screenshot OCR still works under the CSP', async ({ page }) => {
       ctx.fillStyle = '#000';
       ctx.font = '48px sans-serif';
       ctx.fillText('MUSHISHI', 40, 80);
-      const worker = await window.Tesseract.createWorker('eng', 1, {
-        workerPath: '/vendor/tesseract/worker.min.js',
-        corePath: '/vendor/tesseract/core/',
-        langPath: '/vendor/tesseract/lang/',
-      });
+      const worker = await getOcrWorker();
       const result = await worker.recognize(canvas);
-      await worker.terminate();
       return result.data.text;
     });
     expect(text.toUpperCase()).toContain('MUSHISHI');

@@ -6,7 +6,7 @@ import { html, cls, raw } from '../../core/html.js';
 import { emptyStateHtml } from '../shared/emptyState.js';
 import { copy } from '../../copy.js';
 import { titleBlockHtml } from '../library/view.js';
-import { staggerDelay, relativeAgeText, formatEnumLabel, coverOrInitialHtml } from '../shared/format.js';
+import { staggerDelay, relativeAgeText, formatEnumLabel, coverOrInitialHtml, timeZoneLabel, airingTime } from '../shared/format.js';
 import { shelfSkeletonHtml } from '../shared/skeleton.js';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -78,7 +78,7 @@ function weekStripHtml(week) {
               <button class="${cls('schedule-item', it.alreadyAired && 'already-aired', it.list !== 'watching' && 'waiting')}" data-action="show-detail" data-detail-id="${it.anilistId}" title="${it.title} — episode ${it.episode}${it.alreadyAired ? ', already aired' : ''}">
                 <span class="schedule-item-title">${it.title}</span>
                 <span class="schedule-item-ep">${it.alreadyAired ? 'Already aired' : `Ep ${it.episode}`}</span>
-                ${!it.alreadyAired && html`<span class="schedule-item-when"><time datetime="${new Date(it.airingAt * 1000).toISOString()}">${new Date(it.airingAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>${countdownText(it.airingAt) && html` · ${countdownText(it.airingAt)}`}</span>`}
+                ${!it.alreadyAired && html`<span class="schedule-item-when"><time datetime="${new Date(it.airingAt * 1000).toISOString()}">${airingTime(it.airingAt)}</time>${countdownText(it.airingAt) && html` · ${countdownText(it.airingAt)}`}</span>`}
                 ${it.list && it.list !== 'watching' && html`<span class="schedule-item-tag">${it.episode === 1 ? copy('schedule.premiere') : copy(`list.${it.list}`)}</span>`}
               </button>`
                 )
@@ -94,7 +94,6 @@ function scheduleCardHtml(item, index = 0) {
   return html`
     <article class="discover-card" data-anilist-id="${m.id}" style="animation-delay:${staggerDelay(index)}">
       <div class="card-cover-wrap">
-        <div class="skeleton"></div>
         ${coverOrInitialHtml(m.coverImage?.large, m.title?.english || m.title?.romaji)}
         ${m.format ? html`<span class="card-format-badge">${m.format}</span>` : ''}
       </div>
@@ -169,6 +168,7 @@ export function renderSchedulePage(container, viewState) {
     ${banner}
     <div class="schedule-section">
       <h3>This week</h3>
+      <p class="schedule-tz">${copy('schedule.timeZone', undefined, timeZoneLabel())}</p>
       ${weekStripHtml(week)}
     </div>
     ${seasonChartHtml(viewState.season)}

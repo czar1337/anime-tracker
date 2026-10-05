@@ -1,5 +1,5 @@
 'use strict';
-// Domain module for P1.7's custom lists and tags (docs/v2-spec.md's
+// Domain module for P1.7's custom lists and tags (docs/archive/v2/v2-spec.md's
 // "Lists, collections, tags, achievement hook"). Pure, DOM-free — same
 // "loadable from Node via a plain dynamic import()" shape as eventTypes.js /
 // eventCounters.js, so it is unit-testable without a browser and, if a later
@@ -10,7 +10,7 @@
 // lists and collections were two structures. Nothing later in the spec ever
 // reads a separate "collection" — P6.2 only ever enriches "lists" (ordering,
 // icons) — so this substep builds ONE unified concept, custom lists, per an
-// explicit product-decision check with the user. See docs/v2-progress.md's
+// explicit product-decision check with the user. See docs/archive/v2/v2-progress.md's
 // P1.7 entry for the full reasoning.
 //
 // Both the tag registry (state.tags) and the list registry (state.customLists)

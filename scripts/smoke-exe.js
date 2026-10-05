@@ -15,7 +15,7 @@ const { spawn } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8')).version;
-const exe = process.argv[2] || path.join(ROOT, 'dist', `AnimeTracker-${version}.exe`);
+const exe = process.argv[2] || path.join(ROOT, 'dist', 'AnimeTracker.exe');
 
 function freePort() {
   return new Promise((resolve) => {
@@ -79,6 +79,11 @@ async function waitFor(url, ms) {
     // v3 Phase 6: the Discover taste fold is another embedded data: URL module.
     const taste = await (await fetch(`http://localhost:${port}/api/taste-profile`)).json().catch(() => ({}));
     check('taste cache folds the event log (Discover fold module loads)', taste.version === 2 && Boolean(taste.folded));
+    // v3 Phase 7 (D1): a GUI program (no console window), logging to the data folder.
+    const { readSubsystem, PE_SUBSYSTEM } = require('./build-exe.js');
+    check('no console window (Windows GUI subsystem)', readSubsystem(exe) === PE_SUBSYSTEM.GUI);
+    const logFile = path.join(dataDir, 'logs', 'anime-tracker.log');
+    check('log written to the data folder', fs.existsSync(logFile) && fs.readFileSync(logFile, 'utf8').includes('Anime Tracker running at'));
     const snaps = await (await fetch(`http://localhost:${port}/api/snapshots`)).json();
     check('pinned snapshot created and verified', snaps.snapshots?.some((s) => s.pinned && s.verified));
   } catch (err) {

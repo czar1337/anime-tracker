@@ -1,5 +1,5 @@
 'use strict';
-// The Class B store registry and eviction planner (docs/v2-spec.md's
+// The Class B store registry and eviction planner (docs/archive/v2/v2-spec.md's
 // "Storage classes and data safety", rule 4: "Eviction only ever touches
 // Class B, in this order... Class A and Class C are never evicted and never
 // pruned by a quota handler"). Same registry-as-data pattern as
@@ -7,10 +7,10 @@
 // ever return ids present in `registry`, so "never selects library.json or
 // snapshots/" is structural, not just a convention callers have to remember.
 //
-// Order matches docs/v2-spec.md's Tuning-table-adjacent rule 4 text ("shelf
+// Order matches docs/archive/v2/v2-spec.md's Tuning-table-adjacent rule 4 text ("shelf
 // caches, then API response cache, then the taste profile, then the airing
 // store, then the corpus...") mapped onto this app's real files, per
-// docs/v2-plan.md's P1.2 entry: recommendations cache, then airing cache,
+// docs/archive/v2/v2-plan.md's P1.2 entry: recommendations cache, then airing cache,
 // then upcoming cache, then (once it exists) the corpus cache. P1.2 already
 // put airing ahead of upcoming for its own unstated reason, predating this
 // comment's visibility into why — P5A.2 doesn't relitigate that pre-existing
@@ -64,7 +64,7 @@ function planEviction(registry, deficitBytes, currentSizes) {
 }
 
 // P5A.1's own trim rule ("corpus trimmed by lowest member count down to a
-// library-only floor" — docs/v2-spec.md rule 4): sorts every corpus entry
+// library-only floor" — docs/archive/v2/v2-spec.md rule 4): sorts every corpus entry
 // NOT in `libraryIds` by ascending `popularity` (AniList's closest analogue
 // to "member count" — there is no field literally called "members", per
 // P0.2's discovery finding) and selects just enough of them, lowest first,

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generates public/js/fontManifest.js by inspecting the real font files in
-// public/fonts/ — never from memory, per docs/v2-spec.md's P3.1 section.
+// public/fonts/ — never from memory, per docs/archive/v2/v2-spec.md's P3.1 section.
 // Reads each font's actual OS/2.usWeightClass (static weights) or fvar
 // variation axes (variable fonts), plus a Japanese-glyph-coverage probe
 // (hiragana/katakana/a common kanji codepoint), and writes them keyed by

@@ -14,7 +14,7 @@ import { EventLog, computeLocalDay } from '../../eventLog.js';
 import { TasteProfile } from '../../tasteProfile.js';
 import { buildDiscover } from '../../discover/engine/index.js';
 import { adventurousnessLevelFrom, ADVENTUROUSNESS_LEVELS } from '../../discover/railIds.js';
-import { DISCOVER, RECOMMENDATIONS, TIME_SEMANTICS } from '../../../../config/tuning.js';
+import { DISCOVER, RECOMMENDATIONS, TIME_SEMANTICS, TRIAGE } from '../../../../config/tuning.js';
 import { openOverlay } from '../../events.js';
 import { defaultSettings } from '../../settingsSchema.js';
 import { FeedbackLoop } from '../../feedbackLoop.js';
@@ -24,8 +24,16 @@ import { openMenu } from '../../core/menu.js';
 import { tokenMs, tokenEase, movementAllowed } from '../../core/motion.js';
 import { isDialogOpen, closeAllDialogs } from '../../core/dialog.js';
 import { Detail } from '../detail/actions.js';
-import { handleSetStatus, recordProgressEvent } from '../library/actions.js';
-import { renderDiscoverPage, renderTriage, renderDismissedDrawer, dismissReasons, dismissSkipLabel, discoverCardTitle } from './view.js';
+import { moveQuietly, recordProgressEvent } from '../library/actions.js';
+import { renderTriage, liveStageNode } from './triageView.js';
+import { settlePosters } from '../../ui/poster.js';
+import { toastWithUndo } from '../../ui/toast.js';
+import { keyMap } from '../../core/shortcuts.js';
+
+// From the one shortcut map (core/shortcuts.js), which the ? overlay lists.
+const CARD_KEYS = keyMap('discover', 'action');
+const TRIAGE_KEYMAP = keyMap('triage', 'answer');
+import { renderDiscoverPage, renderDismissedDrawer, FIND_LENGTHS, dismissReasons, dismissSkipLabel, discoverCardTitle } from './view.js';
 
 // Below this many corpus titles there is nothing worth ranking yet.
 const MIN_CORPUS_FOR_RAILS = 30;
@@ -128,6 +136,7 @@ function compute() {
   const out = buildDiscover(engineInput());
   engineCache = out.cache;
   discoverState.result = out;
+  triage.pool = null;
   discoverState.moreLikeThis = discoverState.seedId != null ? buildDiscover(engineInput({ seedId: discoverState.seedId })).moreLikeThis : null;
   discoverState.status = 'ready';
   discoverState.generatedAt = new Date().toISOString();
@@ -179,9 +188,15 @@ function rebuild({ freshTaste = false } = {}) {
 function recompute() {
   if (!discoverState.corpusEntries) return rebuild();
   performance.mark('discover:answer-start');
-  compute();
-  renderNow();
+  // While Triage is open only its queue is redrawn; the page catches up
+  // when it closes. With Top picks grown for the session, the queue comes
+  // from its own build, so the page's build waits too.
+  if (triage.open && triage.extra > 0 && discoverState.result) {
+    triage.pool = null;
+    triage.pageStale = true;
+  } else compute();
   if (triage.open) renderTriageNow();
+  else renderNow();
   performance.measure('discover:answer', 'discover:answer-start');
   return Promise.resolve();
 }
@@ -281,25 +296,40 @@ function want(card, ctx, listStatus = 'watchlist') {
 
 // A title already on your Watchlist or Paused (shown with "hide owned" off)
 // moves to Watched the library's own way, with the score set alongside.
+// Returns the undo of both (the whole move, progress and watch record
+// included, then the score), or null when there was nothing to move.
 function markOwnedSeen(card, score) {
   const entry = Store.getEntry(card.id);
-  if (!entry || entry.listStatus === 'watched') return false;
-  handleSetStatus(card.id, 'watched');
+  if (!entry || entry.listStatus === 'watched') return null;
+  const undoMove = moveQuietly(card.id, 'watched');
+  if (!undoMove) return null;
+  let scoreBefore;
   if (typeof score === 'number' && Store.getEntry(card.id)?.myScore !== score) {
-    const before = Store.getEntry(card.id).myScore ?? null;
+    scoreBefore = Store.getEntry(card.id).myScore ?? null;
     Store.updateEntry(card.id, { myScore: score });
-    EventLog.recordForEntry('score_set', card.id, { from: before, to: score }, { source: 'discover' });
+    EventLog.recordForEntry('score_set', card.id, { from: scoreBefore, to: score }, { source: 'discover' });
   }
-  return true;
+  return () => {
+    // The score goes back only if it is still the one this answer set.
+    if (scoreBefore !== undefined && Store.getEntry(card.id)?.myScore === score) {
+      EventLog.recordForEntry('score_set', card.id, { from: score, to: scoreBefore }, { source: 'discover' });
+      Store.updateEntry(card.id, { myScore: scoreBefore });
+    }
+    undoMove();
+  };
 }
 
+// Truthy when it answered: for a title that was already in a list, the
+// function that takes the move back; otherwise true.
 function seenIt(card, ctx, score) {
+  let undo = true;
   if (Store.getEntry(card.id)) {
-    if (!markOwnedSeen(card, score)) return false;
+    undo = markOwnedSeen(card, score);
+    if (!undo) return false;
   } else if (!addToLibrary(card, 'watched', { railId: ctx.railId, score })) return false;
   EventLog.recordForEntry('recommendation_seen_it', card.id, { shelfId: ctx.railId, meta: { score: typeof score === 'number' ? score : null } }, { source: 'discover' });
   persist();
-  return true;
+  return undo;
 }
 
 function notForMe(card, ctx, reason) {
@@ -336,13 +366,13 @@ async function collapse(el) {
 
 // "Want to watch": the cover flies to the Library tab, then the card goes.
 async function flyToLibrary(el) {
-  const img = el?.querySelector('.discover-card-cover, .dc-hero-banner');
+  const img = el?.querySelector('.discover-card-cover, .dc-hero-banner .poster');
   const target = document.getElementById('tab-library');
   const duration = tokenMs('--dur-base') * 1.4;
   if (!img || !target || !movementAllowed() || duration <= 0) return;
   const from = img.getBoundingClientRect();
   const to = target.getBoundingClientRect();
-  const ghost = img.cloneNode();
+  const ghost = img.cloneNode(true);
   Object.assign(ghost.style, { position: 'fixed', left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px`, margin: 0, zIndex: 50, pointerEvents: 'none', borderRadius: '8px', objectFit: 'cover' });
   document.body.appendChild(ghost);
   const dx = to.left + to.width / 2 - (from.left + from.width / 2);
@@ -355,27 +385,74 @@ async function flyToLibrary(el) {
 
 // --- Triage -----------------------------------------------------------------
 
-const triage = { open: false, busy: false, answered: 0, rating: false, skipped: new Set(), seen: new Set(), history: [], detail: new Map(), lastDismissed: null, lastDetailAt: 0 };
-// Triage loads one detail (synopsis, banner, trailer) per card shown, never
-// faster than this, well inside AniList's limit.
-const TRIAGE_DETAIL_PACE_MS = 3000;
+const triage = {
+  open: false,
+  rating: false,
+  skipped: new Set(),
+  seen: new Set(),
+  history: [],
+  detail: new Map(),
+  lastDismissed: null,
+  lastDetailAt: 0,
+  session: null,
+  extra: 0, // how far Top picks are grown for the queue
+  pool: null, // the grown build, dropped on every compute()
+  pageStale: false, // answers since the page's own build (it rebuilds on close)
+  exhausted: false, // growing found nothing new
+  front: null, // an undone card goes back to the front
+  enterFrom: null, // ...and flies back in from where it left
+};
+
+function newTriageSession() {
+  return { goal: TRIAGE.sessionGoal, answered: 0, added: 0, seen: 0, dismissed: 0 };
+}
+triage.session = newTriageSession();
+
+// The page's own build, or one with Top picks grown for a long session.
+function triagePoolResult() {
+  const r = discoverState.result;
+  if (!r || !triage.extra || !discoverState.corpusEntries) return r;
+  if (!triage.pool) {
+    const steps = [...(discoverState.expanded || []), ['top-picks', DISCOVER.topPicksSize + triage.extra]];
+    triage.pool = buildDiscover(engineInput({ expanded: steps }));
+  }
+  return triage.pool;
+}
 
 // The queue is the page itself, in rail order: Top picks first. Owned
 // franchises (Continue) and unreleased titles cannot be answered.
+let lastQueue = { key: null, out: [] };
 function triageQueue() {
-  const r = discoverState.result;
+  const r = triagePoolResult();
   if (!r) return [];
+  const key = [Store.revision, triage.seen.size, triage.skipped.size, triage.front];
+  if (lastQueue.r === r && lastQueue.key.every((k, i) => k === key[i])) return lastQueue.out;
   const out = [];
   const ids = new Set();
+  const dismissed = new Set(Store.getDismissedIds());
   const push = (c) => {
-    if (ids.has(c.id) || triage.skipped.has(c.id) || triage.seen.has(c.id) || Store.getEntry(c.id)) return;
+    if (ids.has(c.id) || triage.skipped.has(c.id) || triage.seen.has(c.id) || Store.getEntry(c.id) || dismissed.has(c.id)) return;
     if (c.entry.status !== 'RELEASING' && c.entry.status !== 'FINISHED') return;
     ids.add(c.id);
     out.push(c);
   };
   r.topPicks.forEach(push);
   for (const rail of r.rails) if (rail.id !== 'continue-franchise' && rail.id !== 'coming-soon') rail.cards.forEach(push);
+  const i = triage.front == null ? -1 : out.findIndex((c) => c.id === triage.front);
+  if (i > 0) out.unshift(...out.splice(i, 1));
+  lastQueue = { r, key, out };
   return out;
+}
+
+// Before the queue runs dry, Top picks grow; when growing adds nothing, the
+// queue is exhausted until "Fetch more".
+function ensureTriageQueue() {
+  if (!discoverState.result || triage.exhausted) return;
+  const before = triageQueue().length;
+  if (before >= TRIAGE.lowWater) return;
+  triage.extra += TRIAGE.growStep;
+  triage.pool = null;
+  if (triageQueue().length <= before) triage.exhausted = true;
 }
 
 function currentTriageCard() {
@@ -384,7 +461,7 @@ function currentTriageCard() {
 
 function loadTriageDetail(card) {
   if (!card || triage.detail.has(card.id)) return;
-  const wait = triage.lastDetailAt + TRIAGE_DETAIL_PACE_MS - Date.now();
+  const wait = triage.lastDetailAt + TRIAGE.detailPaceMs - Date.now();
   if (wait > 0) {
     clearTimeout(loadTriageDetail.timer);
     loadTriageDetail.timer = setTimeout(() => {
@@ -402,93 +479,234 @@ function loadTriageDetail(card) {
     });
 }
 
+function triagePhase(card) {
+  if (triage.session.answered >= triage.session.goal) return 'summary';
+  if (!discoverState.result) {
+    if (discoverState.status === 'error') return 'error';
+    if (discoverState.status === 'degraded') return 'degraded';
+    return 'loading';
+  }
+  return card ? 'card' : 'empty';
+}
+
+// A rated title a card's reason leans on, for "Similar to X, which you rated 9".
+function triageAnchorOf(id) {
+  const e = Store.getEntry(id);
+  return e ? { title: titleOf(e), score: typeof e.myScore === 'number' ? e.myScore : null } : null;
+}
+
 function renderTriageNow() {
+  const container = document.getElementById('triage-body');
+  if (!container) return;
+  ensureTriageQueue();
   const card = currentTriageCard();
-  loadTriageDetail(card);
-  renderTriage(document.getElementById('triage-body'), {
+  const phase = triagePhase(card);
+  if (phase === 'card') loadTriageDetail(card);
+  else triage.rating = false;
+  const fresh = renderTriage(container, {
+    phase,
     card,
-    answered: triage.answered,
+    session: triage.session,
     rating: triage.rating,
     detail: card ? triage.detail.get(card.id) : null,
+    anchorOf: triageAnchorOf,
     lastDismissed: triage.lastDismissed,
     canUndo: triage.history.length > 0,
+    canFetchMore: !triage.exhausted || triage.skipped.size > 0,
   });
+  if (fresh) {
+    settlePosters(fresh);
+    playTriageEnter(fresh, triage.enterFrom);
+  }
+  triage.enterFrom = null;
+  keepTriageFocus(container, phase);
+}
+
+// A control that had focus can be replaced (a rating given, the summary
+// shown): focus goes to what is there now, never to the page behind.
+const NO_RATING = '[data-action="triage-rate"][data-score=""]';
+function keepTriageFocus(container, phase) {
+  const active = document.activeElement;
+  // A card on its way out still holds focus until it is removed.
+  if (!triage.open || (active && active !== document.body && active.isConnected && !active.closest('.leaving'))) return;
+  const target = (triage.rating && container.querySelector(NO_RATING))
+    || (phase === 'card' && liveStageNode(container))
+    || container.querySelector('.triage-controls .btn-primary')
+    || container.querySelector('.triage-controls button:not([disabled])');
+  target?.focus({ preventScroll: true });
 }
 
 export function openTriage() {
   triage.open = true;
   triage.rating = false;
   triage.lastDismissed = null;
+  triage.exhausted = false;
+  triage.front = null;
+  triage.extra = 0;
+  triage.pool = null;
+  triage.session = newTriageSession();
   // Undo reaches back only within this Triage session.
   triage.history = [];
+  // A new session starts from Discover as it is now: what was answered is
+  // owned or dismissed there (and comes back if restored), and skips get
+  // another chance.
+  triage.seen.clear();
+  triage.skipped.clear();
+  // A synopsis that failed is asked for again; the cache stays small.
+  for (const [id, media] of triage.detail) if (media == null) triage.detail.delete(id);
+  if (triage.detail.size > TRIAGE.detailCacheMax) triage.detail.clear();
+  // A fresh stage on every open: the first card enters again, and a poster
+  // that failed last time is asked for again.
+  document.querySelector('#triage-body .triage-stage')?.replaceChildren();
   openOverlay('triage-overlay');
   if (!discoverState.result) rebuild().catch(() => {});
   renderTriageNow();
 }
 
-// The card slides out the way it was answered; reduced motion only fades.
-async function slideOut(answer) {
-  const el = document.querySelector('#triage-body .triage-card');
-  const duration = tokenMs('--dur-base') * 0.8;
-  if (!el || duration <= 0) return;
-  const move = { want: 'translateX(40%) rotate(4deg)', seen: 'translateY(-30%)', 'not-for-me': 'translateX(-40%) rotate(-4deg)', skip: 'translateY(30%)' }[answer];
-  await el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: movementAllowed() ? move : 'none' }], { duration, easing: tokenEase('--ease-exit'), fill: 'forwards' }).finished.catch(() => {});
+// --- Triage motion ----------------------------------------------------------
+
+// Where each answer sends the card: right Want, left Not for me, up Seen it,
+// down Skip. The same directions a drag answers in.
+const TRIAGE_FLY = { want: [1, 0], 'not-for-me': [-1, 0], 'seen-it': [0, -1], skip: [0, 1] };
+
+// No fill: when the entrance ends (or is cut short) the card is simply at
+// rest, whatever happens to the node afterwards.
+function playTriageEnter(el, from) {
+  const duration = tokenMs('--dur-base');
+  if (duration <= 0 || !el.isConnected) return;
+  const move = movementAllowed();
+  const dir = from && TRIAGE_FLY[from];
+  const start = !move ? 'none' : dir ? `translate(${dir[0] * 60}%, ${dir[1] * 60}%) rotate(${dir[0] * 10}deg)` : 'translateY(12px) scale(.97)';
+  el.animate([{ opacity: 0, transform: start }, { opacity: 1, transform: 'none' }], { duration: dir ? duration * 1.2 : duration, easing: tokenEase(dir ? '--ease-spring' : '--ease-enter') });
 }
 
-async function triageAnswer(answer, { score = null } = {}) {
-  // One answer at a time: a held key or a double click answers once.
-  if (triage.busy) return;
-  const card = currentTriageCard();
-  if (!card) return;
-  triage.busy = true;
-  try {
-    await slideOut(answer);
-  } finally {
-    triage.busy = false;
+// The answered card leaves the stage's live slot first (renderTriage never
+// touches a .leaving node), flies off from wherever the drag left it, and is
+// removed. The next card is already in place beneath it.
+function flyTriageOut(el, answer) {
+  if (!el) return Promise.resolve();
+  const duration = tokenMs('--dur-base');
+  if (duration <= 0) {
+    el.remove();
+    return Promise.resolve();
   }
-  const ctx = { railId: 'triage', position: triage.answered };
+  const from = getComputedStyle(el).transform;
+  const [dx, dy] = TRIAGE_FLY[answer] || [0, 1];
+  const to = movementAllowed() ? `translate(${dx * el.offsetWidth * 1.15}px, ${dy * el.offsetHeight * 0.8}px) rotate(${dx * 16}deg)` : from;
+  const anim = el.animate([{ opacity: 1, transform: from }, { opacity: 0, transform: to }], { duration, easing: tokenEase('--ease-exit'), fill: 'forwards' });
+  return anim.finished.catch(() => {}).then(() => el.remove());
+}
+
+function springTriageBack(el) {
+  const from = getComputedStyle(el).transform;
+  el.style.removeProperty('transform');
+  el.style.removeProperty('--swipe-p');
+  delete el.dataset.swipe;
+  const duration = tokenMs('--dur-base');
+  if (duration > 0 && from && from !== 'none') el.animate([{ transform: from }, { transform: 'none' }], { duration, easing: tokenEase('--ease-spring') });
+}
+
+// --- Triage answers ---------------------------------------------------------
+
+// An answer is recorded only for the card on screen: the live card for this
+// title, laid out, inside the window and past the first frames of its
+// entrance (v3 run 2; v3.0 recorded answers for cards nobody could see).
+const MIN_VISIBLE_OPACITY = TRIAGE.minVisibleOpacity;
+function triageCardShown(el, card) {
+  if (!el || !el.isConnected || el.classList.contains('leaving') || el.dataset.anilistId !== String(card.id)) return false;
+  if (!isDialogOpen('triage-overlay')) return false;
+  const r = el.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1 || r.bottom <= 0 || r.right <= 0 || r.top >= window.innerHeight || r.left >= window.innerWidth) return false;
+  const cs = getComputedStyle(el);
+  return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) >= MIN_VISIBLE_OPACITY;
+}
+
+function triageAnswer(answer, { score = null } = {}) {
+  const card = currentTriageCard();
+  if (!card || triagePhase(card) !== 'card') return;
+  const el = liveStageNode(document.getElementById('triage-body'));
+  if (!triageCardShown(el, card)) return;
+  if (el) {
+    el.classList.remove('dragging');
+    el.classList.add('leaving');
+  }
+  const ctx = { railId: 'triage', position: triage.session.answered };
   const owned = Boolean(Store.getEntry(card.id));
-  if (answer === 'want') want(card, ctx);
-  else if (answer === 'seen-it') seenIt(card, ctx, score);
-  else if (answer === 'not-for-me') notForMe(card, ctx, null);
-  else triage.skipped.add(card.id);
+  let counted = null;
+  let undoOwned = null;
+  if (answer === 'want') counted = want(card, ctx) ? 'added' : null;
+  else if (answer === 'seen-it') {
+    const result = seenIt(card, ctx, score);
+    counted = result ? 'seen' : null;
+    if (typeof result === 'function') undoOwned = result;
+  }
+  else if (answer === 'not-for-me') {
+    notForMe(card, ctx, null);
+    counted = 'dismissed';
+  } else triage.skipped.add(card.id);
   triage.seen.add(card.id);
+  if (triage.front === card.id) triage.front = null;
   EventLog.recordForEntry('discover_triage_answered', card.id, { meta: { answer, ...(answer === 'seen-it' ? { score } : {}) } }, { source: 'discover' });
   // What Undo may take back: an entry this answer created, as it was then.
-  const created = !owned && (answer === 'want' || answer === 'seen-it') ? Store.getEntry(card.id) : null;
-  triage.history.push({ id: card.id, answer, created: created ? { updatedAt: created.updatedAt, episodesWatched: created.episodesWatched, myScore: created.myScore } : null });
-  triage.answered += 1;
+  const created = !owned && (answer === 'want' || answer === 'seen-it') ? createdSnapshot(card.id) : null;
+  triage.history.push({ id: card.id, answer, counted, created, undoOwned });
+  triage.session.answered += 1;
+  if (counted) triage.session[counted] += 1;
   triage.rating = false;
   triage.lastDismissed = answer === 'not-for-me' ? { id: card.id, title: titleOf(card.entry), reason: null } : null;
   TasteProfile.completeColdStart();
   recompute();
+  // The next card is already in place: keys and clicks answer it at once,
+  // while this one finishes flying.
+  flyTriageOut(el, answer);
 }
+
+// An entry an answer created goes again only while the user has not changed
+// it since; its progress and score are written back out of the log (the log
+// is append-only). Returns false when it was changed since. Only the fields a
+// person edits count: the cover arriving a second later (coverFile, which
+// also moves updatedAt) does not block Undo.
+const USER_FIELDS = ['listStatus', 'episodesWatched', 'myScore', 'notes', 'tagIds', 'customListIds', 'rewatchCount', 'startedAt', 'completedAt'];
+const userFingerprint = (e) => JSON.stringify(USER_FIELDS.map((k) => e[k] ?? null));
+function takeBackCreated(id, created) {
+  const entry = Store.getEntry(id);
+  if (!entry) return true;
+  if (!created || userFingerprint(entry) !== created.fingerprint) return false;
+  if (created.episodesWatched) recordProgressEvent(entry, created.episodesWatched, 0, 'backfill');
+  if (typeof created.myScore === 'number') EventLog.recordForEntry('score_set', id, { from: created.myScore, to: null }, { source: 'discover' });
+  Store.removeEntry(id);
+  Render.renderTabCounts();
+  return true;
+}
+const createdSnapshot = (id) => {
+  const e = Store.getEntry(id);
+  return e ? { fingerprint: userFingerprint(e), episodesWatched: e.episodesWatched, myScore: e.myScore } : null;
+};
 
 // Z: the last answer of this Triage session is taken back. An entry it
 // created goes only while it is exactly as the answer left it, and its
 // progress and score are written back out of the log (the log itself is
 // append-only); an entry edited since stays. A dismissal is brought back.
+// The card flies back in from the side it left by.
 function triageUndo() {
-  if (triage.busy) return;
   const last = triage.history.pop();
   if (!last) return;
   triage.seen.delete(last.id);
   triage.skipped.delete(last.id);
-  if (last.answer === 'want' || last.answer === 'seen-it') {
+  if (last.undoOwned) {
+    last.undoOwned();
+  } else if (last.answer === 'want' || last.answer === 'seen-it') {
     const entry = Store.getEntry(last.id);
-    if (entry && last.created && entry.updatedAt === last.created.updatedAt) {
-      if (last.created.episodesWatched) recordProgressEvent(entry, last.created.episodesWatched, 0, 'backfill');
-      if (typeof last.created.myScore === 'number') EventLog.recordForEntry('score_set', last.id, { from: last.created.myScore, to: null }, { source: 'discover' });
-      Store.removeEntry(last.id);
-      Render.renderTabCounts();
-    } else if (entry) {
-      Render.showToast(copy('triage.undoKept', undefined, { title: titleOf(entry) }));
-    }
+    if (entry && !(last.created && takeBackCreated(last.id, last.created))) Render.showToast(copy('triage.undoKept', undefined, { title: titleOf(entry) }));
   } else if (last.answer === 'not-for-me') {
     bringBack(last.id);
   }
-  triage.answered = Math.max(0, triage.answered - 1);
+  triage.session.answered = Math.max(0, triage.session.answered - 1);
+  if (last.counted) triage.session[last.counted] = Math.max(0, triage.session[last.counted] - 1);
   triage.lastDismissed = null;
+  triage.rating = false;
+  triage.front = last.id;
+  triage.enterFrom = last.answer;
   persist();
   recompute();
 }
@@ -503,18 +721,98 @@ function triageReason(reason) {
   recompute();
 }
 
+function startTriageRating() {
+  if (triagePhase(currentTriageCard()) !== 'card') return;
+  triage.rating = true;
+  renderTriageNow();
+  // Focus on "No rating": Enter then means what the hint says.
+  document.querySelector(`#triage-body ${NO_RATING}`)?.focus();
+}
+
+// "Fetch more": grow the pool again, and when it has nothing new, bring back
+// the titles skipped earlier.
+function triageFetchMore() {
+  triage.exhausted = false;
+  triage.extra += TRIAGE.growStep;
+  triage.pool = null;
+  if (!triageQueue().length && triage.skipped.size) {
+    // A skip is not an answer that should hide a title for good: they come
+    // back (they are in `seen` too, which every answer joins).
+    for (const id of triage.skipped) triage.seen.delete(id);
+    triage.skipped.clear();
+  }
+  renderTriageNow();
+}
+
+// Drag the card: right Want, left Not for me, up Seen it (then the rating),
+// down Skip. A short drag springs back. Mouse, pen and touch alike.
+function swipeDirection(dx, dy) {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  if (ax < 1 && ay < 1) return null;
+  return ax >= ay ? (dx > 0 ? 'want' : 'not-for-me') : dy < 0 ? 'seen-it' : 'skip';
+}
+
+function bindTriageSwipe(stage) {
+  let drag = null;
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || triage.rating) return;
+    const el = e.target.closest('.triage-card:not(.leaving):not(.triage-card-skeleton)');
+    if (!el || e.target.closest('a, button')) return;
+    drag = { el, id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), dx: 0, dy: 0, moved: false };
+    el.setPointerCapture?.(e.pointerId);
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    drag.dx = e.clientX - drag.x0;
+    drag.dy = e.clientY - drag.y0;
+    if (!drag.moved && Math.hypot(drag.dx, drag.dy) < 6) return;
+    drag.moved = true;
+    const { el, dx, dy } = drag;
+    el.classList.add('dragging');
+    el.style.transform = movementAllowed() ? `translate(${dx}px, ${dy}px) rotate(${(dx / 22).toFixed(2)}deg)` : 'none';
+    const dir = swipeDirection(dx, dy);
+    el.dataset.swipe = dir || '';
+    el.style.setProperty('--swipe-p', Math.min(1, Math.max(Math.abs(dx), Math.abs(dy)) / TRIAGE.swipeDistancePx).toFixed(3));
+  });
+  const end = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { el, dx, dy, moved, t0 } = drag;
+    drag = null;
+    // A background rebuild can swap the card while it is held: a drag only
+    // ever answers the card it started on.
+    if (!el.isConnected || el !== liveStageNode(document.getElementById('triage-body'))) {
+      el.classList.remove('dragging');
+      return;
+    }
+    const dist = Math.max(Math.abs(dx), Math.abs(dy));
+    const speed = dist / Math.max(1, performance.now() - t0);
+    const answer = moved && e.type === 'pointerup' && (dist >= TRIAGE.swipeDistancePx || (dist >= TRIAGE.swipeFlickPx && speed >= TRIAGE.swipeFlickSpeed)) ? swipeDirection(dx, dy) : null;
+    if (!answer || answer === 'seen-it') {
+      el.classList.remove('dragging');
+      springTriageBack(el);
+      if (answer === 'seen-it') startTriageRating();
+      else renderTriageNow();
+      return;
+    }
+    triageAnswer(answer);
+  };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+}
+
 function bindTriage() {
   const body = document.getElementById('triage-body');
   body.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
-    if (!el) return;
+    if (!el || el.disabled) return;
     const a = el.dataset.action;
+    // A double click is one answer, not two (the second click would land on
+    // the next card's button, which is the same node).
+    if (e.detail > 1 && /^triage-(want|seen|not-for-me|skip)$/.test(a)) return;
     if (a === 'triage-want') triageAnswer('want');
-    else if (a === 'triage-seen') {
-      triage.rating = true;
-      renderTriageNow();
-      body.querySelector('[data-action="triage-rate"]')?.focus();
-    } else if (a === 'triage-rate') triageAnswer('seen-it', { score: el.dataset.score ? Number(el.dataset.score) : null });
+    else if (a === 'triage-seen') startTriageRating();
+    else if (a === 'triage-rate') triageAnswer('seen-it', { score: el.dataset.score ? Number(el.dataset.score) : null });
     else if (a === 'triage-rate-cancel') {
       triage.rating = false;
       renderTriageNow();
@@ -522,15 +820,33 @@ function bindTriage() {
     else if (a === 'triage-skip') triageAnswer('skip');
     else if (a === 'triage-undo') triageUndo();
     else if (a === 'triage-reason') triageReason(el.dataset.reason);
-    else if (a === 'triage-done') closeAllDialogs();
+    else if (a === 'triage-retry') rebuild({ freshTaste: true }).catch(() => {});
+    else if (a === 'triage-fetch-more') triageFetchMore();
+    else if (a === 'triage-keep-going') {
+      triage.session.goal += TRIAGE.sessionGoal;
+      renderTriageNow();
+    } else if (a === 'triage-done') closeAllDialogs();
   });
+  // The stage is laid down on the first render; the drag listens on the body
+  // and finds it then.
+  renderTriage(body, { phase: 'loading', session: triage.session, canUndo: false });
+  bindTriageSwipe(body.querySelector('.triage-stage'));
   document.getElementById('triage-overlay').addEventListener('close', () => {
     triage.open = false;
     triage.rating = false;
+    body.querySelectorAll('.triage-stage > .leaving').forEach((n) => n.remove());
+    const s = triage.session;
+    // A session closed before its summary still says what it did.
+    if (s.answered > 0 && s.answered < s.goal) Render.showToast(copy('triage.summaryToast', undefined, { n: s.answered, added: s.added }));
+    if (triage.pageStale) {
+      triage.pageStale = false;
+      if (discoverState.corpusEntries) compute();
+    }
     renderNow();
   });
-  // W want, S seen it (then 1-9, 0 for 10, Enter for no rating), X not for
-  // me, → skip, Z undo.
+  // The arrows are the drag directions: → want, ← not for me, ↑ seen it
+  // (then 1-9, 0 for 10, Enter for no rating), ↓ skip. W, S and X stay; Z
+  // undoes.
   document.addEventListener('keydown', (e) => {
     if (!triage.open || !isDialogOpen('triage-overlay') || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target.closest?.('input, textarea, select')) return;
@@ -541,6 +857,8 @@ function bindTriage() {
         if (e.repeat) return;
         triageAnswer('seen-it', { score: k === '0' ? 10 : Number(k) });
       } else if (k === 'enter') {
+        // A focused button (a score, Cancel) keeps its own Enter.
+        if (e.target.closest?.('button')) return;
         e.preventDefault();
         triageAnswer('seen-it', { score: null });
       } else if (k === 'escape') {
@@ -551,11 +869,12 @@ function bindTriage() {
       }
       return;
     }
-    const map = { w: () => triageAnswer('want'), x: () => triageAnswer('not-for-me'), arrowright: () => triageAnswer('skip'), z: () => triageUndo(), s: () => { triage.rating = true; renderTriageNow(); } };
-    if (map[k]) {
+    const run = { want: () => triageAnswer('want'), 'not-for-me': () => triageAnswer('not-for-me'), skip: () => triageAnswer('skip'), seen: () => startTriageRating(), undo: () => triageUndo() }[TRIAGE_KEYMAP[k]];
+    if (run) {
+      // A focused button keeps its own Enter/Space; letters and arrows answer.
       e.preventDefault();
       if (e.repeat) return;
-      map[k]();
+      run();
     }
   }, true);
 }
@@ -637,7 +956,8 @@ function clearFilterChip(key) {
   const pairs = { year: ['yearMin', 'yearMax'], episodes: ['episodeMin', 'episodeMax'], score: ['scoreMin', 'scoreMax'], members: ['memberMin', 'memberMax'] };
   if (key === '__clear_all') Store.setPreference(['discoverFilters'], defaultSettings().discoverFilters);
   else if (pairs[key]) for (const f of pairs[key]) filters[f] = null;
-  else if (['studio', 'source', 'staffQuery', 'format', 'airingStatus'].includes(key)) filters[key] = '';
+  else if (['studio', 'source', 'staffQuery', 'format', 'airingStatus', 'season'].includes(key)) filters[key] = '';
+  else if (key.startsWith('genre:')) filters.genres = (filters.genres || []).filter((g) => g !== key.slice('genre:'.length));
   else if (key === 'maxLength') filters.maxLengthMinutes = null;
   else if (key === 'hideDismissed') filters.hideDismissed = true;
   else if (key.startsWith('includeTag:')) filters.includeTags = filters.includeTags.filter((t) => t !== key.slice('includeTag:'.length));
@@ -662,21 +982,48 @@ export function initDiscover({ persistFn } = {}) {
     target?.focus({ preventScroll: true });
   };
 
+  // Every answer animates the card out and says what it did, with Undo
+  // (v3 run 2). Undo puts the title back where it was and redraws the rails.
+  const undoDone = (kept, title = '') => {
+    if (kept === false) Render.showToast(copy('triage.undoKept', undefined, { title }));
+    persist();
+    recompute();
+  };
   const onWant = async (card, ctx, el, listStatus = 'watchlist') => {
     if (Store.getEntry(card.id)) return;
     await flyToLibrary(el);
     await collapse(el);
-    if (want(card, ctx, listStatus)) Render.showToast(copy('discover.addedTo', undefined, { title: titleOf(card.entry), list: listLabel(listStatus) }));
+    if (want(card, ctx, listStatus)) {
+      const created = createdSnapshot(card.id);
+      toastWithUndo(copy('discover.addedTo', undefined, { title: titleOf(card.entry), list: listLabel(listStatus) }), () => undoDone(takeBackCreated(card.id, created), titleOf(card.entry)));
+    }
     renderKeepingPlace(el);
   };
   const onSeen = async (card, ctx, el, score) => {
     await collapse(el);
-    if (seenIt(card, ctx, score)) Render.showToast(typeof score === 'number' ? copy('discover.seenToastScored', undefined, { title: titleOf(card.entry), score }) : copy('discover.seenToast', undefined, { title: titleOf(card.entry) }));
+    const result = seenIt(card, ctx, score);
+    if (result) {
+      const created = typeof result === 'function' ? null : createdSnapshot(card.id);
+      const text = typeof score === 'number' ? copy('discover.seenToastScored', undefined, { title: titleOf(card.entry), score }) : copy('discover.seenToast', undefined, { title: titleOf(card.entry) });
+      toastWithUndo(text, () => {
+        if (typeof result === 'function') {
+          // It was already on a list: the whole move goes back (list,
+          // progress, the watch record), and its old score.
+          result();
+          return undoDone(true);
+        }
+        undoDone(takeBackCreated(card.id, created), titleOf(card.entry));
+      });
+    }
     renderKeepingPlace(el);
   };
   const onNotForMe = async (card, ctx, el, reason) => {
     await collapse(el);
     notForMe(card, ctx, reason);
+    toastWithUndo(copy('discover.dismissedUndo', undefined, { title: titleOf(card.entry) }), () => {
+      bringBack(card.id);
+      undoDone(true);
+    });
     renderKeepingPlace(el);
   };
 
@@ -706,11 +1053,31 @@ export function initDiscover({ persistFn } = {}) {
         { label: copy('discover.details'), run: () => Detail.showDetail(card.id) },
         { label: copy('discover.moreLikeThis'), run: () => openMoreLikeThis(card.id) },
         { separator: true },
-        { label: copy('discover.hideFranchise'), run: async () => { await collapse(el); hideFranchise(card, ctx); renderKeepingPlace(el); } },
+        { label: copy('discover.hideFranchise'), run: async () => { await collapse(el); hideFranchise(card, ctx); toastWithUndo(copy('discover.dismissedUndo', undefined, { title: titleOf(card.entry) }), () => { bringBack(card.id); undoDone(true); }); renderKeepingPlace(el); } },
       ],
     });
 
   const onChange = (e) => {
+    const find = e.target.dataset?.find;
+    if (find) {
+      const f = { ...Store.state.preferences.discoverFilters };
+      const v = e.target.value;
+      if (find === 'genre') f.genres = v ? [v] : [];
+      else if (find === 'season') f.season = v;
+      else if (find === 'year') {
+        if (v === 'range') return; // the panel's range, shown as it is
+        f.yearMin = v ? Number(v) : null;
+        f.yearMax = v ? Number(v) : null;
+      } else if (find === 'format') f.format = v;
+      else if (find === 'length') [f.episodeMin, f.episodeMax] = v ? FIND_LENGTHS[v] : [null, null];
+      else if (find === 'completed') f.airingStatus = e.target.checked ? 'FINISHED' : '';
+      Store.setPreference(['discoverFilters'], f);
+      persist();
+      recompute();
+      // The bar is redrawn: keep the control that was used in focus.
+      container.querySelector(`[data-find="${find}"]`)?.focus({ preventScroll: true });
+      return;
+    }
     if (e.target.id === 'discover-hide-owned-toggle') {
       Store.setPreference(['discoverHideOwned'], e.target.checked);
       persist();
@@ -826,6 +1193,19 @@ export function initDiscover({ persistFn } = {}) {
   container.addEventListener('click', onClick);
   tune.addEventListener('click', onClick);
   bindRailKeys(container);
+  // The card's answers from the keyboard, as their tooltips say: W want to
+  // watch, S seen it, X not for me, M more (v3 run 2).
+  container.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const el = e.target.closest?.('.discover-card');
+    if (!el || e.target !== el) return;
+    const action = CARD_KEYS[e.key.toLowerCase()];
+    const button = action && el.querySelector(`[data-action="${action}"]:not([disabled])`);
+    if (!button) return;
+    e.preventDefault();
+    e.stopPropagation(); // not the page's own S (select mode)
+    button.click();
+  });
   bindTriage();
 
   document.getElementById('dismissed-content').addEventListener('click', (e) => {

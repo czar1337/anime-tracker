@@ -50,7 +50,7 @@ test('ctrl+z still triggers a genuine pending Undo, not an unrelated conflict to
     await page.waitForSelector(`.card[data-id="${ANILIST_ID}"]`);
 
     const progressLabel = page.locator(`.card[data-id="${ANILIST_ID}"] [data-action="edit-episode"]`);
-    await expect(progressLabel).toHaveText('5/12');
+    await expect(progressLabel).toHaveText('Ep 5 / 12');
 
     // Real UI action: increment progress. Saves successfully (nothing has
     // raced it yet) and shows a real "Episode 6" toast with an Undo action.
@@ -59,7 +59,7 @@ test('ctrl+z still triggers a genuine pending Undo, not an unrelated conflict to
     );
     await page.click(`.card[data-id="${ANILIST_ID}"] [data-action="increment"]`);
     expect((await firstSaveResponse).status()).toBe(200);
-    await expect(progressLabel).toHaveText('6/12');
+    await expect(progressLabel).toHaveText('Ep 6 / 12');
 
     const undoButton = page.getByRole('button', { name: 'Undo' });
     await undoButton.waitFor({ state: 'visible' });
@@ -106,7 +106,7 @@ test('ctrl+z still triggers a genuine pending Undo, not an unrelated conflict to
     // The real Undo must have fired (reverting the increment to 5/12), not
     // Reload (which would leave progress at 6/12 — the server's actual
     // current state, since only the increment's own save ever succeeded).
-    await expect(progressLabel).toHaveText('5/12');
+    await expect(progressLabel).toHaveText('Ep 5 / 12');
   } finally {
     await server.stop();
   }

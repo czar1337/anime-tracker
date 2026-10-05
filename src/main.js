@@ -24,7 +24,7 @@ const http = require('node:http');
 const { migrateLegacyDataDir } = require('../datadir.js');
 const { migrate } = require('../migrations.js');
 const { acquireInstanceLock } = require('../instanceLock.js');
-const { PORT, IS_SEA, DATA_DIR, LEGACY_DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR, SCHEMA_VERSION } = require('./config.js');
+const { PORT, IS_SEA, DATA_DIR, LEGACY_DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR, SCHEMA_VERSION, APP_VERSION, BUILD_INFO } = require('./config.js');
 const Library = require('./storage/library.js');
 const { ensureCountersFile } = require('./storage/eventLog.js');
 const { createSnapshotNow, ensurePinnedSnapshot } = require('./storage/snapshots.fs.js');
@@ -34,6 +34,7 @@ const { createRequestHandler } = require('./http/router.js');
 const { startNotifier } = require('./services/notifier.js');
 const { startTray } = require('./services/tray.js');
 const { loadCopyRegistry } = require('./services/browserModules.js');
+const { onQuitRequested } = require('./services/lifecycle.js');
 
 // Best-effort: opens the user's default browser. Only used in SEA mode, where
 // the exe is the whole app. Detached and unref'd so it survives this process
@@ -96,6 +97,20 @@ if (migrationResult.action === 'migrated') {
 // must not do.
 const dataDirConflict = migrationResult.action === 'conflict' ? migrationResult : null;
 
+// The packaged exe has no console window (v3 Phase 7, D1): from here on its log
+// also goes to DATA_DIR/logs/ (after the instance lock and the legacy-folder
+// move, so neither ever sees a folder this created). ANIME_TRACKER_LOG_FILE=1
+// does the same in development.
+if (IS_SEA || process.env.ANIME_TRACKER_LOG_FILE === '1') require('./services/fileLog.js').installFileLog(DATA_DIR);
+// v3 run 2: the one data folder this process reads and writes, in the log at
+// every start (and in Settings > Data), so a run on another folder is visible.
+const buildText = BUILD_INFO.builtAt ? `${BUILD_INFO.kind}, built ${BUILD_INFO.builtAt}${BUILD_INFO.commit ? ` from ${BUILD_INFO.commit}` : ''}` : BUILD_INFO.kind;
+console.log(`[startup] Anime Tracker ${APP_VERSION} (${buildText}) using data folder ${DATA_DIR}${process.env.ANIME_TRACKER_DATA_DIR ? ' (set by ANIME_TRACKER_DATA_DIR)' : ''}`);
+const redirectedTo = require('./services/dataDirCheck.js').checkDataDirOnce(DATA_DIR);
+if (redirectedTo) {
+  console.error(`[startup] WARNING: Windows redirects this process's data folder to ${redirectedTo} (it was started from inside a packaged app). This is NOT the library that Anime Tracker uses when started normally.`);
+}
+
 const dirsToEnsure = IS_SEA ? [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR] : [DATA_DIR, COVERS_DIR, BACKUPS_DIR, SNAPSHOTS_DIR, PUBLIC_DIR];
 for (const dir of dirsToEnsure) {
   fs.mkdirSync(dir, { recursive: true });
@@ -129,7 +144,20 @@ async function runPendingMigration() {
   }
 }
 
-const server = http.createServer(createRequestHandler({ port: PORT, token: WRITE_TOKEN, getDataDirConflict: () => dataDirConflict }));
+// The port actually bound: PORT, or the free one the OS gave for PORT 0.
+let boundPort = PORT;
+const server = http.createServer(createRequestHandler({ port: () => boundPort, token: WRITE_TOKEN, getDataDirConflict: () => dataDirConflict }));
+// Quit (tray or POST /api/quit): stop taking requests, let a write that is
+// already in its critical section finish, then exit.
+onQuitRequested(async () => {
+  server.close();
+  try {
+    await Library.libraryWriteLock.run(() => {}, { timeoutMs: 15000 });
+  } catch {
+    // a write that hangs for 15 s is not waited for
+  }
+  setTimeout(() => process.exit(0), 300);
+});
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -157,10 +185,14 @@ server.on('error', (err) => {
 function listenOnIpv6Loopback() {
   const v6 = http.createServer((req, res) => server.emit('request', req, res));
   v6.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') console.error(`[server] [::1]:${PORT} is taken by another program; "localhost" may reach it instead of this app. Use http://127.0.0.1:${PORT}.`);
+    if (err.code === 'EADDRINUSE') console.error(`[server] [::1]:${boundPort} is taken by another program; "localhost" may reach it instead of this app. Use http://127.0.0.1:${boundPort}.`);
     else if (err.code !== 'EADDRNOTAVAIL' && err.code !== 'EAFNOSUPPORT') console.error('[server] IPv6 loopback listener failed:', err.message);
   });
-  v6.listen(PORT, '::1');
+  v6.listen(boundPort, '::1');
+}
+
+function requestQuitFromTray() {
+  require('./services/lifecycle.js').requestQuit('tray');
 }
 
 // Bound to loopback only — binding to all interfaces (Node's default) would let
@@ -198,24 +230,27 @@ function listenOnIpv6Loopback() {
   }
   // 7. Listen.
   server.listen(PORT, '127.0.0.1', () => {
+    boundPort = server.address().port;
     listenOnIpv6Loopback();
-    console.log(`Anime Tracker running at http://localhost:${PORT}`);
+    console.log(`Anime Tracker running at http://localhost:${boundPort}`);
     if (Library.getLibraryState().corrupt) {
       console.log('WARNING: library.json is corrupt. Open the app to restore from a backup.');
     }
     if (IS_SEA) {
-      openBrowser(`http://localhost:${PORT}`);
+      openBrowser(`http://localhost:${boundPort}`);
     }
     // v3 Phase 5: episode notifications while no tab is open (opt-in, see
     // services/notifier.js), and in the packaged Windows app the tray icon.
     startNotifier().catch((err) => console.error(`[notifier] Could not start: ${err.message}`));
+    // The poster cache back inside its caps after the last session.
+    require('./routes/posters.js').trimPosterCache().catch(() => {});
     if (IS_SEA) {
       loadCopyRegistry()
         .then((copy) =>
           startTray({
             labels: { title: copy('tray.title'), open: copy('tray.open'), folder: copy('tray.folder'), quit: copy('tray.quit') },
             on: {
-              open: () => openBrowser(`http://localhost:${PORT}`),
+              open: () => openBrowser(`http://localhost:${boundPort}`),
               folder: () => {
                 try {
                   require('node:child_process').spawn('explorer.exe', [DATA_DIR], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
@@ -223,10 +258,7 @@ function listenOnIpv6Loopback() {
                   // best effort
                 }
               },
-              quit: () => {
-                server.close();
-                setTimeout(() => process.exit(0), 300);
-              },
+              quit: () => requestQuitFromTray(),
             },
           })
         )

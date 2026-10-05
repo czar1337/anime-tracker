@@ -171,7 +171,7 @@ test('a shelf card with a real coverMedium renders an actual cover image, not th
     const card = page.locator('.discover-card[data-anilist-id="9101"]');
     await expect(card).toBeVisible();
     // A rail card shows it as its cover, a Top picks hero slide as its banner.
-    const img = card.locator('img.discover-card-cover, img.dc-hero-banner');
+    const img = card.locator('.discover-card-cover img, .dc-hero-banner img');
     await expect(img).toHaveAttribute('src', 'https://example.test/cover-medium.jpg');
 
     // A card whose corpus entry predates this field still renders the old
@@ -179,6 +179,8 @@ test('a shelf card with a real coverMedium renders an actual cover image, not th
     const noCoverCard = page.locator('.discover-card[data-anilist-id="9109"]');
     await expect(noCoverCard).toBeVisible();
     await expect(noCoverCard.locator('img')).toHaveCount(0);
+    // v3 run 2: the Poster's first-letter placeholder.
+    await expect(noCoverCard.locator('.poster.poster-empty').first()).toHaveAttribute('data-initial', 'N');
   } finally {
     await server.stop();
   }

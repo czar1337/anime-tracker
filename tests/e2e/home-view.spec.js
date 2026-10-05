@@ -20,25 +20,27 @@ function fixture() {
   return file;
 }
 
-test('the hero cover URL cannot break out of url(), and a +1 keeps the hero nodes', async ({ page }) => {
+test('a hostile cover path stays an attribute value, and a +1 on the Home hero card keeps its poster node', async ({ page }) => {
   const server = await startFixtureServer(fixture());
   try {
     await page.goto(server.url);
-    const hero = page.locator('#watching-hero .hero');
-    await expect(hero).toBeVisible();
-    const bg = hero.locator('.bg');
-    expect(await bg.getAttribute('style')).toMatch(/^background-image:url\("/);
-    expect(await bg.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe('rgb(255, 0, 0)');
-
-    const before = await bg.elementHandle();
-    await hero.locator('[data-hero-id]').click();
-    await expect(hero.locator('.n')).toContainText('Episode 6 of 12');
-    expect(await before.evaluate((el) => el.isConnected)).toBe(true);
+    // v3 finish: the Library opens on the grid, with no hero above it.
+    await page.waitForSelector('#grid > .card');
+    await expect(page.locator('#watching-hero')).toHaveCount(0);
 
     await page.click('#brand-home');
-    // v3 Phase 4: Home is a Continue watching rail whose first card is the hero.
-    await expect(page.locator('#home-view .continue-card.is-hero .continue-title')).toHaveText('Attack on Titan');
+    const hero = page.locator('#home-view .continue-card.is-hero');
+    await expect(hero.locator('.continue-title')).toHaveText('Attack on Titan');
     await expect(page.locator('#home-view .continue-card')).toHaveCount(1);
+    const img = hero.locator('.continue-poster img');
+    expect(await img.getAttribute('src')).toBe("/data/covers/x');background-color:red;x:url('y.jpg");
+    expect(await hero.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe('rgb(255, 0, 0)');
+    expect(await hero.locator('.continue-bg').getAttribute('style')).toBeFalsy();
+
+    const before = await hero.locator('.continue-poster').elementHandle();
+    await hero.locator('.continue-plus').click();
+    await expect(hero.locator('.continue-meta')).toContainText('Episode 7 next');
+    expect(await before.evaluate((el) => el.isConnected)).toBe(true);
   } finally {
     await server.stop();
   }

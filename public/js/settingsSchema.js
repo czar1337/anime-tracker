@@ -1,5 +1,5 @@
 'use strict';
-// The single typed settings object (docs/v2-spec.md's P1.3: "A single typed
+// The single typed settings object (docs/archive/v2/v2-spec.md's P1.3: "A single typed
 // settings object with a version number, a defaults map and a migration
 // chain") — the canonical source for every preferences field's valid values
 // and defaults, both the pre-existing ones (sort/filters/activeTab/...) and
@@ -55,13 +55,20 @@ export const TEXT_SIZES = [1, 2, 3, 4, 5];
 export const DEFAULT_TEXT_SIZE = 3;
 export const DENSITIES = ['compact', 'comfortable'];
 export const MOTION_LEVELS = ['full', 'reduced', 'off'];
-export const DECORATION_LEVELS = ['off', 'low', 'full'];
+export const DECORATION_LEVELS = ['off', 'low', 'full', 'insane'];
+// v3 run 2: the season the particles follow; auto picks it from the date.
+export const DECOR_SEASONS = ['auto', 'spring', 'summer', 'autumn', 'winter'];
 export function isValidHexColor(value) {
   return typeof value === 'string' && HEX_COLOR_RE.test(value);
 }
 
-export const LIBRARY_LAYOUTS = ['grid', 'list'];
-export const SAVED_VIEW_LISTS = ['watching', 'watchlist', 'watched', 'dropped', 'paused'];
+// v3 finish: 'compact' is the denser cover grid; 'list' the real list view.
+export const LIBRARY_LAYOUTS = ['grid', 'compact', 'list'];
+// The Library's tabs: the five lists plus two views over them, 'new' (Watching
+// with aired episodes not marked yet) and 'all'. Each tab keeps its own
+// filters and sort. Order is the tab order.
+export const LIBRARY_TABS = ['watching', 'new', 'watchlist', 'watched', 'paused', 'dropped', 'all'];
+export const SAVED_VIEW_LISTS = LIBRARY_TABS;
 export const SAVED_VIEWS_MAX = 20;
 export const SAVED_VIEW_NAME_MAX = 40;
 
@@ -212,8 +219,8 @@ export function defaultSettings() {
     // (see sortLogic.js's isNoopSort), so sortDir.discover's value is a
     // placeholder; kept 'desc' for consistency with the four lists' own
     // unchanged defaults below.
-    sort: { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'dateAdded', discover: 'recommended' },
-    sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc', paused: 'desc', discover: 'desc' },
+    sort: { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'dateAdded', discover: 'recommended', new: 'unseenEpisodes', all: 'lastUpdated' },
+    sortDir: { watching: 'desc', watchlist: 'desc', watched: 'desc', dropped: 'desc', paused: 'desc', discover: 'desc', new: 'desc', all: 'desc' },
     filters: {
       // P4.1: airingStatus is new (AniList's own status enum, or '' for
       // "any") — a filter dimension distinct from the four tabs (which
@@ -224,6 +231,8 @@ export function defaultSettings() {
       watched: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
       dropped: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
       paused: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
+      new: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
+      all: { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' },
     },
     activeTab: 'watching',
     // v3 Phase 4: the library's layout (covers, or the compact list for large
@@ -254,6 +263,9 @@ export function defaultSettings() {
       includeTags: [],
       excludeTags: [],
       maxLengthMinutes: null,
+      // v3 run 2: Discover's Find bar.
+      genres: [],
+      season: '',
       enforcePrerequisiteChain: true,
       hideDismissed: true,
     },
@@ -287,6 +299,9 @@ export function defaultSettings() {
     density: 'comfortable',
     motion: 'full',
     decoration: 'full',
+    decorSeason: 'auto',
+    // v3 run 2: which "What's new" the user has seen ('' = none yet).
+    whatsNewSeen: '',
     appearanceNotice: null,
     // P3.1: uiFont/headingFont/numbersFont default to today's actual,
     // already-shipped typography (Schibsted Grotesk/Zen Old Mincho) —
@@ -351,7 +366,7 @@ export function ensureSettingsShape(preferences) {
   prefs.sort = { ...defaults.sort, ...prefs.sort };
   prefs.sortDir = { ...defaults.sortDir, ...prefs.sortDir };
   prefs.filters = prefs.filters || {};
-  for (const list of LISTS) {
+  for (const list of LIBRARY_TABS) {
     prefs.filters[list] = { ...defaults.filters[list], ...(prefs.filters[list] || {}) };
   }
   prefs.activeTab = prefs.activeTab || defaults.activeTab;
@@ -391,6 +406,8 @@ export function ensureSettingsShape(preferences) {
   prefs.density = DENSITIES.includes(prefs.density) ? prefs.density : defaults.density;
   prefs.motion = MOTION_LEVELS.includes(prefs.motion) ? prefs.motion : defaults.motion;
   prefs.decoration = DECORATION_LEVELS.includes(prefs.decoration) ? prefs.decoration : defaults.decoration;
+  prefs.decorSeason = DECOR_SEASONS.includes(prefs.decorSeason) ? prefs.decorSeason : defaults.decorSeason;
+  prefs.whatsNewSeen = typeof prefs.whatsNewSeen === 'string' ? prefs.whatsNewSeen : defaults.whatsNewSeen;
   prefs.appearanceNotice = sanitizeAppearanceNotice(prefs.appearanceNotice);
   prefs.uiFont = isValidFontId(prefs.uiFont) ? prefs.uiFont : defaults.uiFont;
   prefs.headingFont = isValidFontId(prefs.headingFont) ? prefs.headingFont : defaults.headingFont;

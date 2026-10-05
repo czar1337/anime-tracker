@@ -34,7 +34,7 @@ test('a background refresh does not destroy an episode number being typed, and r
     await expect.poll(async () => (await (await fetch(`${server.url}/api/library`)).json()).entries.find((e) => e.anilistId === ID).episodesWatched).toBe(10);
     // The deferred refresh ran once focus left.
     await expect(page.locator(`.card[data-id="${ID}"] .card-title`)).toHaveText('Renamed While Typing');
-    await expect(page.locator(`.card[data-id="${ID}"] .progress-label`)).toHaveText('10/12');
+    await expect(page.locator(`.card[data-id="${ID}"] .progress-label`)).toHaveText('Ep 10 / 12');
   } finally {
     await server.stop();
   }

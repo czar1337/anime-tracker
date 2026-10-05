@@ -7,7 +7,7 @@
 // this array and a copyRegistry.js entry for its name.
 //
 // Field coverage backing these definitions: P0.3 measured tags at 100%
-// non-empty across a 1,500-title popular sample (docs/v2-discovery.md),
+// non-empty across a 1,500-title popular sample (docs/archive/v2/v2-discovery.md),
 // so every mood below is free to use genre AND theme-tag signals, not
 // genres alone — the spec's own fallback instruction ("if P0.2 found tag
 // coverage insufficient, define them over genres and themes") does not

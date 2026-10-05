@@ -31,7 +31,7 @@ test('a +1 is live, a bulk move is bulk, and the episodes a bulk move fills in a
     const secondId = await second.getAttribute('data-id');
     await second.locator('input[data-action="toggle-select"]').click();
     await page.click('#bulk-action-bar [data-action="bulk-move"][data-status="watched"]');
-    await page.getByRole('button', { name: 'Move to watched' }).click();
+    await page.getByRole('button', { name: 'Move to Completed' }).click();
     await expect.poll(async () => (await events(server)).some((e) => e.type === 'status_changed' && e.animeId === secondId)).toBe(true);
     const mine = (await events(server)).filter((e) => e.animeId === secondId);
     expect(mine.find((e) => e.type === 'status_changed').meta.source).toBe('bulk');

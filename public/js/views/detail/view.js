@@ -20,6 +20,7 @@ import { formatEnumLabel } from '../shared/format.js';
 import { morphInto } from '../../core/reconcile.js';
 import { detailState } from './model.js';
 import { detailSkeletonHtml } from '../shared/skeleton.js';
+import { posterHtml } from '../../ui/poster.js';
 import { noteAniListColor, knownColor, colorFor, applyAccent } from '../../accent.js';
 
 // design/HANDOVER.md §14 "More than 50 episodes": squares up to 50; past that,
@@ -295,12 +296,12 @@ export function renderDetailOverlay(container, state) {
   const listLabel = local ? QUICK_MOVE_LISTS.find((l) => l.key === local.listStatus)?.label || local.listStatus : null;
 
   // v3 Phase 4: a right-side drawer. The banner is AniList's bannerImage, or
-  // the cover blurred; never a small cover blown up.
+  // (v3 run 2) a calm wash of the accent; never a blurred or blown-up cover.
   const markup = html`
     <header class="detail-banner">
-      <div class="${cls('detail-banner-img', !m.bannerImage && 'from-cover')}" style="background-image:${cssUrl(m.bannerImage || cover)}" aria-hidden="true"></div>
+      <div class="${cls('detail-banner-img', !m.bannerImage && 'no-banner')}" style="${m.bannerImage ? html`background-image:${cssUrl(m.bannerImage)}` : ''}" aria-hidden="true"></div>
       <div class="detail-head">
-        <div class="detail-cover" style="background-image:${cssUrl(cover)}"></div>
+        <div class="detail-cover">${posterHtml({ url: cover, title: primary, size: 'fill', eager: true })}</div>
         <div class="detail-head-text">
           <h2 class="detail-title">${primary}</h2>
           ${secondary && html`<div class="card-title-sub detail-title-sub">${secondary}</div>`}

@@ -3,6 +3,38 @@
 Resume state for the v3.0 program. Plan: `docs/v3-plan.md`. Brief: `docs/v3/25-09-2026-v3-brief.md`.
 On "resume": read this table, then `git log --oneline -20`, then continue the active phase.
 
+## Release: 3.0.0 is merged and tagged locally, waiting for you (2026-10-05)
+
+v3 is finished. Run 2 (`v3/9-run2`) did brief Sections A–D, 3–6, a full self-review and
+the release; its report is `docs/v3-run2-report.md` (run 1: `docs/v3-finish-report.md`).
+`v3/9-run2` (which contains Phase 7 and run 1) is merged into local `main` with
+`--no-ff`, and the merge commit is tagged `v3.0.0`. **Nothing is pushed.**
+
+- The exe: `dist\AnimeTracker.exe` (the only one), built from the tagged commit. Hover
+  the version in the header, or open Settings > Help > Version: "3.0.0, built …".
+- Checks on the final code: unit 607/607, e2e 322 passed (1 skipped), perf budgets
+  pass, `eval:discover --assert` passes; in the built exe: smoke 13/13, Triage 3 runs in
+  a row plus the end of the queue, final smoke 39/39, migration of a copy of the
+  335-entry library 12/12, 60 fps on every decoration level.
+
+**Your steps, after testing** (from the repository folder):
+
+1. Push `main` and the run branch:
+   ```bash
+   git push origin main v3/9-run2
+   ```
+2. Release: pushing the tag starts CI, which checks the version, builds and smoke-tests
+   the exe, and publishes the GitHub release with the CHANGELOG `3.0.0` notes:
+   ```bash
+   git push origin v3.0.0
+   ```
+3. Optional, as before: tag the v2 process history (`git tag archive/v2-process def0336`)
+   and archive merged branches (deleting branches is on my never-run list).
+
+**Known issues** are in `docs/v3-run2-report.md` §8 (the exe is not code-signed, so
+SmartScreen may warn on first run; two old v2 snapshots in the data folder do not
+verify and are left as they are).
+
 ## Status
 
 | Phase | Branch | Status | Next step |
@@ -14,7 +46,9 @@ On "resume": read this table, then `git log --oneline -20`, then continue the ac
 | 4 Flow and screens | `v3/4-flow-screens` | done | — |
 | 5 Features | `v3/5-features` | done | — |
 | 6 Discover rebuild | `v3/6-discover` | done | — |
-| 7 Tooling, cleanup, release | `v3/7-release` | in progress | Next: read the Phase 7 brief, plan tooling and cleanup |
+| 7 Tooling, cleanup, release | `v3/7-release` | done | Merged into `main` with run 2 |
+| 8 Finish run 1 (brief Sections 0–2) | `v3/8-finish` | done | Report: `docs/v3-finish-report.md` |
+| 9 Finish run 2 (A–D, 3–6, review, release) | `v3/9-run2` | done, tagged `v3.0.0` locally | Yours: push `main` and the tag (see above). Report: `docs/v3-run2-report.md` |
 
 ## Baseline (v2.3.0, `86b4f9c`, measured 2026-09-25)
 
@@ -378,6 +412,36 @@ side stories, and the eval itself).
   legacy shelf id map now has a test and the v2 numeric `adventurousness` provenance
   field is kept as is).
 - **Deferred:** nothing.
+
+## Checkpoint 7 (2026-10-04)
+
+- **Changed:** `tests/run-all.js` split into 37 node:test files (603 unit tests with the
+  existing ones, fixed clocks, mocked lock timers; the old file archived); the e2e
+  harness binds free ports (`ANIME_TRACKER_PORT=0`) and the suite runs on 3 workers
+  (287 in 2.5 min, 7.0 before), 2 in CI with one retry and a trace; CI
+  (`.github/workflows/ci.yml`): unit tests on Ubuntu and Windows, e2e, the Discover
+  eval, generated-files check, and the tag release with `GITHUB_TOKEN`; pinned
+  postject and rcedit; `version.json` as the one version source; the exe named
+  `AnimeTracker.exe`, with a size report and no console window (D1, logs in
+  `DATA_DIR/logs/`); one Tesseract core (7.8 MB lighter); v2 docs, design explorations
+  and retired fixtures moved to `docs/archive/` and `archive/` with `git mv`;
+  `docs/architecture.md`; CLAUDE.md, README and CHANGELOG `3.0.0`; version 3.0.0.
+- **Release sweep:** unit 603/603; e2e 287 passed, 1 skipped; CI green on GitHub
+  (Ubuntu and Windows unit, Ubuntu e2e, generated files); `npm run perf` p95: library
+  148 ms (200), snapshot + verify 102 ms (10,000), warm Discover 168 ms (400, zero
+  AniList requests), Triage answer 40 ms (150), engine build 33 ms (60); every screen at
+  1440/390, motion and reduced, both themes, no errors (`evidence/7/`); release dry run
+  with restore round trip on a fresh copy of the real library
+  (`evidence/7/release-dryrun.json`); exe built and smoke-tested, 13/13.
+- **Independent review:** no HIGH. 3 MEDIUM fixed (a mock-timer rewrite had weakened
+  the FIFO lock test; D1's "no console window" was missing; the progress and release
+  summary were not written yet). 7 LOW fixed (release-notes heading match, CI tag
+  handling and persisted credentials, a no-op assertion, three specs on random fixed
+  ports, architecture.md's outbound calls, the OCR test not running the app's worker,
+  stale references); the `src/lib/` move is recorded as deferred.
+- **Not done here, by the rules:** the `archive/v2-process` tag, the `v3.0.0` tag and
+  release, branch deletion, and the merge of this phase into `main` (see the release
+  summary at the top).
 
 ## Evidence index
 

@@ -1,0 +1,16 @@
+{
+ "schemaVersion": 17,
+ "entries": 222,
+ "rated": 161,
+ "events": 16,
+ "counters": 6388,
+ "adventurousnessLevel": "off",
+ "pinned": [
+  "pre-migration-14-to-17"
+ ],
+ "snapshotTaken": "yes",
+ "restoreVerified": true,
+ "libraryIdenticalAfterRestore": true,
+ "eventsIdenticalAfterRestore": true,
+ "countersAfter": 6388
+}

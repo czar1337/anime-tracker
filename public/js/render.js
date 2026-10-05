@@ -10,7 +10,7 @@ import { tokenMs } from './core/motion.js';
 import * as LibraryModel from './views/library/model.js';
 import * as LibraryView from './views/library/view.js';
 import { renderStatsPage } from './views/stats/view.js';
-import { renderHome, renderWatchingHero } from './views/home/view.js';
+import { renderHome } from './views/home/view.js';
 import {
   renderPickForMePanel,
   discoverActiveFilterChips,
@@ -78,13 +78,10 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// v3 finish: the Watching hero is Home's (its Continue watching card); the
+// Library opens straight on the grid.
 function renderGrid(list) {
   renderBulkActionBar(list);
-  // The hero only belongs on Watching — explicitly hidden otherwise rather
-  // than just "not re-rendered", since #watching-hero lives inside
-  // #list-view (shared by all four list tabs, not swapped per tab).
-  if (list === 'watching') renderWatchingHero();
-  else document.getElementById('watching-hero').hidden = true;
   return LibraryView.renderGrid(list, grid, emptyState);
 }
 
@@ -106,9 +103,12 @@ function setCountWithPop(el, value, { onlyPopIfNonZero = false } = {}) {
 
 function renderTabCounts() {
   const counts = Store.getCounts();
-  for (const list of Store.LISTS) {
+  for (const list of Store.TABS) {
     const el = document.querySelector(`.tab-count[data-count="${list}"]`);
-    if (el) setCountWithPop(el, counts[list]);
+    if (el) {
+      setCountWithPop(el, counts[list]);
+      el.classList.toggle('is-zero', !counts[list]);
+    }
   }
   // Distinct from the neutral total count above: how many Watching series
   // have aired episodes I haven't marked watched yet — not the same number.
@@ -121,6 +121,7 @@ function renderTabCounts() {
     setCountWithPop(unseenBadge, seriesCount, { onlyPopIfNonZero: true });
     unseenBadge.hidden = seriesCount === 0;
     unseenBadge.setAttribute('aria-label', copy('nav.unseenBadge', undefined, { n: seriesCount }));
+    unseenBadge.dataset.tip = copy('nav.unseenBadge', undefined, { n: seriesCount });
   }
   const bell = document.getElementById('notifications-trigger');
   if (bell) bell.hidden = seriesCount === 0;
@@ -173,17 +174,34 @@ function activeFilterChips(list) {
 
 // The result count is always visible, filtered or not — an empty list with
 // a hidden filter is the easiest way to think your data is gone (design/
-// moonlit-shrine-design-system.md §8).
+// moonlit-shrine-design-system.md §8). v3 finish: each active filter is a
+// chip with its own ×, and the count says "5 of 14 series" only while
+// something is filtered ("14 series" otherwise), counted the same way as
+// the tab's own count.
 function renderActiveFilterChips(list) {
-  const totalCount = Store.getEntriesByList(list).length;
+  const totalCount = Store.getEntriesForTab(list).length;
   const filteredCount = Store.getGroupedFilteredSorted(list).reduce((s, g) => s + g.length, 0);
   const chips = activeFilterChips(list);
+  const filtered = chips.length > 0;
+  activeFilterChipsEl.classList.toggle('has-chips', filtered);
   activeFilterChipsEl.innerHTML = `
-    ${chips.length ? `<span class="lbl">Filtering by</span>` : ''}
-    ${chips.map((c) => `<button class="chip on" data-chip="${escapeHtml(c.key)}">${escapeHtml(c.label)}</button>`).join('')}
-    ${chips.length ? `<button class="clear" data-chip="__clear_all">Clear all</button>` : ''}
-    <span class="num result-count">${filteredCount} of ${totalCount} series</span>
+    ${chips.map((c) => `<span class="chip-remove">${escapeHtml(c.label)}<button type="button" class="chip-remove-x" data-chip="${escapeHtml(c.key)}" aria-label="${escapeHtml(copy('library.removeFilter', undefined, { label: c.label }))}" data-tip="${escapeHtml(copy('library.removeFilter', undefined, { label: c.label }))}">×</button></span>`).join('')}
+    ${chips.length > 1 ? `<button type="button" class="text-btn clear" data-chip="__clear_all">${escapeHtml(copy('library.clearFilters'))}</button>` : ''}
+    <span class="num result-count">${escapeHtml(filtered ? copy('library.resultFiltered', undefined, { n: filteredCount, total: totalCount }) : copy('library.resultAll', undefined, { n: totalCount }))}</span>
   `;
+  // The Filters button carries how many filters are on (the search text is
+  // its own field, so it does not count).
+  const n = chips.filter((c) => c.key !== 'title').length;
+  const countEl = document.getElementById('filters-count');
+  if (countEl) {
+    countEl.textContent = String(n);
+    countEl.hidden = n === 0;
+  }
+  const toggle = document.getElementById('filters-toggle');
+  if (toggle) {
+    toggle.classList.toggle('has-filters', n > 0);
+    toggle.setAttribute('aria-label', n ? copy('library.filtersOn', undefined, { n }) : copy('library.filters'));
+  }
 }
 
 // Only the ten most common genre chips are shown at rest — the rest sit
@@ -193,7 +211,7 @@ function renderActiveFilterChips(list) {
 // if that pushes it past ten.
 function topGenresByFrequency(list, n) {
   const counts = {};
-  for (const e of Store.getEntriesByList(list)) {
+  for (const e of Store.getEntriesForTab(list)) {
     for (const g of e.genres || []) counts[g] = (counts[g] || 0) + 1;
   }
   return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([g]) => g).slice(0, n);
@@ -202,7 +220,7 @@ function topGenresByFrequency(list, n) {
 let genresExpanded = false;
 
 function genreChipHtml(g, active) {
-  return `<button class="chip ${active ? 'on' : ''}" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</button>`;
+  return `<button type="button" class="chip ${active ? 'on' : ''}" data-genre="${escapeHtml(g)}" aria-pressed="${active}">${escapeHtml(g)}</button>`;
 }
 
 function renderGenreFilter(list) {
@@ -213,10 +231,11 @@ function renderGenreFilter(list) {
   const visible = allGenresList.filter((g) => frequent.has(g));
   const overflow = allGenresList.filter((g) => !frequent.has(g));
 
+  // v3 finish: the genres live in the Filters panel, which has room for all
+  // of them; the most common come first.
   genreFilterEl.innerHTML = `
     ${visible.map((g) => genreChipHtml(g, filters.genres.includes(g))).join('')}
-    ${genresExpanded ? overflow.map((g) => genreChipHtml(g, filters.genres.includes(g))).join('') : ''}
-    ${overflow.length ? `<button class="sel" id="genre-overflow-toggle">${genresExpanded ? 'Show less' : 'All genres'} <span style="color:var(--faint)">${overflow.length}</span></button>` : ''}
+    ${overflow.map((g) => genreChipHtml(g, filters.genres.includes(g))).join('')}
   `;
 }
 
@@ -251,7 +270,7 @@ function renderFilterBar(list) {
 
   const currentSort = Store.state.preferences.sort[list];
   const currentDir = Store.state.preferences.sortDir[list];
-  sortSelectEl.innerHTML = sortOptionsHtml(currentSort, { includeListOnly: true, includeWatchingOnly: list === 'watching' });
+  sortSelectEl.innerHTML = sortOptionsHtml(currentSort, { includeListOnly: true, includeWatchingOnly: list === 'watching' || list === 'new' || list === 'all' });
   const dirLabel = sortDirLabel(currentSort, currentDir);
   // A small icon flips vertically to show direction (kept as a quick visual
   // cue), but the readable text next to it is what actually satisfies "keep
@@ -263,7 +282,7 @@ function renderFilterBar(list) {
     sortDirBtn.classList.toggle('is-asc', currentDir === 'asc');
     sortDirBtn.querySelector('.sort-dir-label').textContent = dirLabel;
     sortDirBtn.setAttribute('aria-label', dirLabel);
-    sortDirBtn.title = dirLabel;
+    sortDirBtn.dataset.tip = copy('library.reverseOrder', undefined, { label: dirLabel });
   }
 
   renderActiveFilterChips(list);
@@ -323,7 +342,7 @@ function renderBulkActionBar(list) {
 function bulkMoreMenuHtml(list) {
   const tags = Store.getTags();
   const lists = Store.getCustomLists();
-  const showProgress = list === 'watching';
+  const showProgress = list === 'watching' || list === 'new';
 
   const scoreDots = Array.from({ length: 10 }, (_, i) => i + 1)
     .map((i) => `<button class="score-dot" data-action="bulk-set-score" data-score="${i}" title="${i}" aria-label="Score ${i}">${i}</button>`)
@@ -405,7 +424,7 @@ function renderBulkMoreMenu(container, list) {
 function renderAiringStatus(list) {
   const el = document.getElementById('airing-status');
   if (!el) return;
-  if (list !== 'watching') {
+  if (list !== 'watching' && list !== 'new') {
     el.hidden = true;
     return;
   }
@@ -451,7 +470,7 @@ function renderSearchResults(container, results, ownedIds, { replaceMode = false
             : `
               <button class="btn btn-primary sm rip-host" data-add-status="watchlist">Add</button>
               <button class="btn btn-quiet sm" data-add-status="watching">Watching</button>
-              <button class="btn btn-quiet sm" data-add-status="watched">Watched</button>
+              <button class="btn btn-quiet sm" data-add-status="watched">Completed</button>
             `}
         </div>
       </div>`;
@@ -523,7 +542,7 @@ function formatRelativeIsoTime(iso) {
 }
 
 // P1.1's verified Class C snapshots — a separate list from renderBackupList's
-// automatic backups above (different mechanism, see docs/v2-plan.md). Restore
+// automatic backups above (different mechanism, see docs/archive/v2/v2-plan.md). Restore
 // is disabled for any snapshot whose `verified` flag came back false from
 // GET /api/snapshots: the UI must never offer to restore from something the
 // server itself couldn't re-verify.

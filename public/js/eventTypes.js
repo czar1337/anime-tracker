@@ -1,5 +1,5 @@
 'use strict';
-// The event DOMAIN module (docs/v2-spec.md's P1.5): the closed event-type
+// The event DOMAIN module (docs/archive/v2/v2-spec.md's P1.5): the closed event-type
 // union, the event schema version, and the small set of naming/identity
 // conventions every reader and writer of the log has to agree on.
 //

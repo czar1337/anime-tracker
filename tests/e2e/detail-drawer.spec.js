@@ -52,13 +52,15 @@ test('a right-side drawer about 520px wide, full height, with the sections in or
   }
 });
 
-test('no banner on AniList: the header uses the cover blurred, never a small cover blown up sharp', async ({ page }) => {
+test('no banner on AniList: the header is a calm colour wash, never the cover blurred or blown up; the cover is a Poster', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await open(page, server.url);
     const banner = page.locator('.detail-banner-img');
-    await expect(banner).toHaveClass(/from-cover/);
-    expect(await banner.evaluate((el) => getComputedStyle(el).filter)).toMatch(/blur/);
+    await expect(banner).toHaveClass(/no-banner/);
+    expect(await banner.evaluate((el) => getComputedStyle(el).filter)).toBe('none');
+    expect(await banner.getAttribute('style')).toBeFalsy();
+    await expect(page.locator('.detail-cover .poster')).toHaveCount(1);
   } finally {
     await server.stop();
   }
@@ -69,7 +71,8 @@ test('with a banner, the banner is used as is', async ({ page }) => {
   try {
     await open(page, server.url, { bannerImage: '/favicon.ico' });
     const banner = page.locator('.detail-banner-img');
-    await expect(banner).not.toHaveClass(/from-cover/);
+    await expect(banner).not.toHaveClass(/no-banner/);
+    expect(await banner.getAttribute('style')).toContain('favicon.ico');
     expect(await banner.evaluate((el) => getComputedStyle(el).filter)).toBe('none');
   } finally {
     await server.stop();

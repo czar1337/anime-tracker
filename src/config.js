@@ -14,7 +14,9 @@ const ROOT = path.join(__dirname, '..');
 
 // Test/harness override only (P0.4): lets a test server run on a free port
 // alongside a real running instance without EADDRINUSE. Unset in normal use.
-const PORT = Number(process.env.ANIME_TRACKER_PORT) || 4321;
+// ANIME_TRACKER_PORT=0 binds a free port (the test harness reads it back from
+// the "running at" line); unset or invalid means the usual 4321.
+const PORT = process.env.ANIME_TRACKER_PORT === '0' ? 0 : Number(process.env.ANIME_TRACKER_PORT) || 4321;
 // When packaged as a single-file .exe (see scripts/build-exe.js), the app's
 // own static assets (public/) live embedded inside the executable and are
 // read via node:sea instead of the filesystem.
@@ -33,6 +35,9 @@ const CONFIG_DIR = path.join(ROOT, 'config');
 const DATA_DIR = resolveDataDir();
 const LEGACY_DATA_DIR = path.join(APP_ROOT, 'data');
 const COVERS_DIR = path.join(DATA_DIR, 'covers');
+// v3 finish: AniList posters seen in Discover and Triage (Class B, capped;
+// src/routes/posters.js).
+const POSTER_CACHE_DIR = path.join(DATA_DIR, 'poster-cache');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 const SNAPSHOTS_DIR = resolveSnapshotsDir(DATA_DIR);
 const LIBRARY_FILE = path.join(DATA_DIR, 'library.json');
@@ -77,6 +82,18 @@ function readAppVersion() {
 }
 const APP_VERSION = readAppVersion();
 
+// v3 run 2: which build this is. The exe carries build-info.json (written by
+// scripts/build-exe.js: version, build time, commit); a dev server says "dev".
+function readBuildInfo() {
+  if (!IS_SEA) return { kind: 'dev', builtAt: null, commit: null };
+  try {
+    return { kind: 'exe', ...JSON.parse(Buffer.from(sea.getRawAsset('build-info.json')).toString('utf8')) };
+  } catch {
+    return { kind: 'exe', builtAt: null, commit: null };
+  }
+}
+const BUILD_INFO = readBuildInfo();
+
 // Reads one of the app's own source files: from the SEA blob in the packaged
 // exe (asset key "public/js/x.js"), from disk otherwise.
 function readAppSource(relPath) {
@@ -95,6 +112,7 @@ module.exports = {
   ANILIST_GRAPHQL_URL,
   LEGACY_DATA_DIR,
   COVERS_DIR,
+  POSTER_CACHE_DIR,
   BACKUPS_DIR,
   SNAPSHOTS_DIR,
   LIBRARY_FILE,
@@ -110,6 +128,7 @@ module.exports = {
   EVENTS_REJECTED_FILE,
   SCHEMA_VERSION,
   APP_VERSION,
+  BUILD_INFO,
   RAW_VERSION_URL,
   RELEASES_URL,
   VERSION_CHECK_INTERVAL_MS,

@@ -55,16 +55,19 @@ test('the hero is the series watched most recently, not the one closest to finis
   }
 });
 
-test('rail cards use the banner when there is one, the cover blurred otherwise, and show the next episode and a large +1', async ({ page }) => {
+test('rail cards show a sharp poster, the banner only when there is one (never a blurred cover), the next episode and a large +1', async ({ page }) => {
   const server = await startFixtureServer(fixture());
   try {
     await openHome(page, server, { 2: { status: 'RELEASING', episodes: 24, nextAiringEpisode: null, bannerImage: '/favicon.ico' } });
     const withBanner = page.locator('.continue-card:has-text("Just Watched") .continue-bg');
-    await expect(withBanner).not.toHaveClass(/from-cover/);
     expect(await withBanner.getAttribute('style')).toContain('favicon.ico');
-    const fallback = page.locator('.continue-card:has-text("Almost Done") .continue-bg');
-    await expect(fallback).toHaveClass(/from-cover/);
-    expect(await fallback.evaluate((el) => getComputedStyle(el).filter)).toMatch(/blur/);
+    const fallback = page.locator('.continue-card:has-text("Almost Done")');
+    await expect(fallback).toHaveClass(/no-banner/);
+    expect(await fallback.locator('.continue-bg').getAttribute('style')).toBeFalsy();
+    for (const card of await page.locator('.continue-card').all()) {
+      expect(await card.locator('.continue-bg').evaluate((el) => getComputedStyle(el).filter)).not.toMatch(/blur/);
+      await expect(card.locator('.continue-poster')).toHaveCount(1);
+    }
     await expect(page.locator('.continue-card:has-text("Just Watched")')).toContainText('Episode 3 next');
     const plus = page.locator('.continue-card:has-text("Just Watched") .continue-plus');
     await expect(plus).toHaveAttribute('aria-label', 'Mark Just Watched episode 3 watched');

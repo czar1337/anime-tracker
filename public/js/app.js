@@ -19,6 +19,9 @@ import { EventHistory } from './eventHistory.js';
 import { openDialog, closeDialog } from './core/dialog.js';
 import { whenSettled } from './core/reconcile.js';
 import { syncShimmers } from './core/motion.js';
+import { installPosterWiring, installTooltips } from './ui/index.js';
+import { setAppInfo, buildText } from './views/settings/view.js';
+import { initWhatsNew, maybeShowWhatsNew } from './views/whatsNew.js';
 import { copy, setCopyTier } from './copy.js';
 import { hasDiscoverFilterParams, parseFilterQueryParams } from './discoverFiltersExport.js';
 import { UI_TIMING } from '../../config/tuning.js';
@@ -275,7 +278,17 @@ function showBlockedScreen(err) {
 async function showVersionBanner() {
   try {
     const info = await Api.getVersionInfo();
-    document.getElementById('app-version').textContent = `v${info.current}`;
+    const versionEl = document.getElementById('app-version');
+    versionEl.textContent = `v${info.current}`;
+    // v3 run 2: the exact build, on hover and focus, and in Settings.
+    setAppInfo(info);
+    versionEl.dataset.tip = buildText(info);
+    versionEl.tabIndex = 0;
+    versionEl.setAttribute('aria-label', buildText(info));
+    // Windows redirected the data folder (started from inside another app):
+    // this is not the user's normal library, and the page must say so.
+    if (info.dataDirRedirectedTo) Render.showError(copy('banner.dataFolderRedirected', undefined, { path: info.dataDirRedirectedTo }));
+    maybeShowWhatsNew(info);
     if (info.updateAvailable) {
       const banner = document.getElementById('update-banner');
       banner.textContent = `Version ${info.remote} available`;
@@ -416,6 +429,8 @@ function initEventFlushLifecycle() {
 
 async function boot() {
   syncShimmers(); // before the library arrives: the boot skeleton is already sweeping
+  installPosterWiring();
+  installTooltips();
   let loaded;
   try {
     loaded = await loadLibraryOrRetry();
@@ -487,6 +502,7 @@ async function boot() {
   Schedule.initSchedule({ persistFn: persist });
   Detail.initDetail();
   initPalette();
+  initWhatsNew({ persist });
   await Airing.initAiring(); // loaded before the first paint so cached badges show immediately, not one frame late
   await initAccent(); // the hero's cover colour is known before its first paint
   // Performance marks for scripts/perf.js (the 2,000-entry render budget): from

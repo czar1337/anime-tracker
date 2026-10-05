@@ -89,11 +89,18 @@ test('the airing-status filter narrows results and shows a removable chip', asyn
     await page.goto(server.url);
     await page.waitForSelector('.card, .empty');
 
+    // v3 finish: the filter is in the Filters panel; the chip has its own ×.
+    await page.click('#filters-toggle');
     await page.selectOption('#airing-status-filter', 'RELEASING');
     await expect.poll(() => cardOrder(page)).toEqual(['203']);
-    await expect(page.locator('[data-chip="airingStatus"]')).toHaveText('Status: Releasing');
+    await expect(page.locator('#filters-count')).toHaveText('1');
+    const chip = page.locator('#active-filter-chips .chip-remove', { has: page.locator('[data-chip="airingStatus"]') });
+    await expect(chip).toContainText('Status: Releasing');
+    await expect(page.locator('#active-filter-chips .result-count')).toHaveText('1 of 3 series');
 
     await page.click('[data-chip="airingStatus"]');
+    await expect(page.locator('#filters-count')).toBeHidden();
+    await expect(page.locator('#active-filter-chips .result-count')).toHaveText('3 series');
     await expect.poll(() => cardOrder(page)).toHaveLength(3);
   } finally {
     await server.stop();

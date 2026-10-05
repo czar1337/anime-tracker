@@ -112,6 +112,27 @@
   /* rhythm */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
   --sp-6:24px; --sp-8:32px; --sp-12:48px; --sp-16:64px;
+
+  /* Layers (v3 finish, Section 1). One scale for everything that stacks, so a
+     tooltip never hides under a menu and a toast never under a drawer. Native
+     <dialog> sits in the top layer above all of these. */
+  --z-raised: 2;       /* a card lifted over its neighbours, a badge on a cover */
+  --z-sticky: 30;      /* sticky bars: the header, a filter row */
+  --z-dropdown: 40;    /* menus, popovers, the filter panel, the mobile tab bar */
+  --z-atmosphere: 90;  /* the decoration layer, over the page: never takes a pointer */
+  --z-overlay: 100;    /* drawers and modals with their scrim */
+  --z-toast: 200;
+  --z-tooltip: 300;
+
+  /* Focus (v3 finish, Section 1): one visible ring for every control. */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--accent-lit);
+
+  /* Control sizes: an icon button and the minimum hit area. */
+  --control-h: 36px;
+  --control-h-sm: 28px;
+  --hit-min: 40px;
 }
 
 @supports (animation-timing-function: linear(0, 1)) {

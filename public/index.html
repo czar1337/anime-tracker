@@ -21,6 +21,8 @@
      relies on for every other font here. -->
 <link rel="stylesheet" href="/fonts/noto-sans-jp.css">
 <link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/components.css">
+<link rel="stylesheet" href="/library.css">
 <script src="/js/prepaint.js"></script>
 </head>
 <body>
@@ -85,14 +87,15 @@
     <div class="library-head">
       <div class="lists-seg" role="tablist" aria-label="Library lists">
         <button class="list-seg" id="list-tab-watching" data-list="watching" role="tab" aria-selected="true" aria-controls="grid" tabindex="0">Watching <b class="tab-count" data-count="watching">0</b></button>
+        <button class="list-seg" id="list-tab-new" data-list="new" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">New episodes <b class="tab-count" data-count="new">0</b></button>
         <button class="list-seg" id="list-tab-watchlist" data-list="watchlist" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Watchlist <b class="tab-count" data-count="watchlist">0</b></button>
-        <button class="list-seg" id="list-tab-watched" data-list="watched" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Watched <b class="tab-count" data-count="watched">0</b></button>
+        <button class="list-seg" id="list-tab-watched" data-list="watched" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Completed <b class="tab-count" data-count="watched">0</b></button>
+        <button class="list-seg" id="list-tab-paused" data-list="paused" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">On hold <b class="tab-count" data-count="paused">0</b></button>
         <button class="list-seg" id="list-tab-dropped" data-list="dropped" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Dropped <b class="tab-count" data-count="dropped">0</b></button>
-        <button class="list-seg" id="list-tab-paused" data-list="paused" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">Paused <b class="tab-count" data-count="paused">0</b></button>
+        <button class="list-seg" id="list-tab-all" data-list="all" role="tab" aria-selected="false" aria-controls="grid" tabindex="-1">All <b class="tab-count" data-count="all">0</b></button>
       </div>
       <div id="saved-views" class="saved-views"></div>
     </div>
-    <div id="watching-hero" hidden></div>
     <div class="list-toolbar">
       <div id="stats-header" class="stats-header" hidden></div>
       <div id="airing-status" class="airing-status" hidden></div>
@@ -100,47 +103,54 @@
       <div class="filter-bar">
         <div class="line1">
           <div class="field search-filter-row">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="text" id="title-filter" class="title-filter-input" placeholder="Filter by title or note" aria-label="Filter by title or notes">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="title-filter" class="title-filter-input" placeholder="Search this list" aria-label="Search this list by title, notes, studio or tag">
             <kbd>/</kbd>
           </div>
-          <select id="sort-select" class="sel" aria-label="Sort by"></select>
-          <button id="sort-dir" class="icn small sort-dir-btn" title="Reverse order" aria-label="Reverse order">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/></svg>
-            <span class="sort-dir-label"></span>
-          </button>
-          <button id="select-mode-toggle" class="icn small" title="Select several" aria-label="Select several" aria-pressed="false">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg>
+          <div class="sort-group">
+            <select id="sort-select" class="sel" aria-label="Sort by"></select>
+            <button id="sort-dir" class="icn small sort-dir-btn" aria-label="Reverse order" data-tip="Reverse order">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/></svg>
+              <span class="sort-dir-label"></span>
+            </button>
+          </div>
+          <button type="button" id="filters-toggle" class="btn btn-secondary filters-toggle" aria-expanded="false" aria-controls="filters-panel"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg><span>Filters</span><span id="filters-count" class="count-badge accent" hidden>0</span></button>
+          <button id="select-mode-toggle" class="icn small" aria-label="Select several" data-tip="Select several (S)" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
           </button>
           <div class="layout-toggle" role="radiogroup" aria-label="Layout">
-            <button type="button" class="icn small" role="radio" data-layout="grid" aria-checked="true" aria-label="Covers" title="Covers"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="4" width="6.5" height="9" rx="1"/><rect x="13.5" y="4" width="6.5" height="9" rx="1"/><path d="M4 17h6.5M13.5 17h6.5M4 20h4M13.5 20h4"/></svg></button>
-            <button type="button" class="icn small" role="radio" data-layout="list" aria-checked="false" aria-label="Compact list" title="Compact list" tabindex="-1"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="5" width="3" height="4" rx=".5"/><rect x="4" y="15" width="3" height="4" rx=".5"/><path d="M10 7h10M10 17h10"/></svg></button>
+            <button type="button" class="icn small" role="radio" data-layout="grid" aria-checked="true" aria-label="Comfortable grid" data-tip="Comfortable grid"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="4" width="6.5" height="9" rx="1"/><rect x="13.5" y="4" width="6.5" height="9" rx="1"/><path d="M4 17h6.5M13.5 17h6.5M4 20h4M13.5 20h4"/></svg></button>
+            <button type="button" class="icn small" role="radio" data-layout="compact" aria-checked="false" aria-label="Compact grid" data-tip="Compact grid" tabindex="-1"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3.5" y="4" width="4.5" height="6.5" rx=".8"/><rect x="9.75" y="4" width="4.5" height="6.5" rx=".8"/><rect x="16" y="4" width="4.5" height="6.5" rx=".8"/><rect x="3.5" y="13.5" width="4.5" height="6.5" rx=".8"/><rect x="9.75" y="13.5" width="4.5" height="6.5" rx=".8"/><rect x="16" y="13.5" width="4.5" height="6.5" rx=".8"/></svg></button>
+            <button type="button" class="icn small" role="radio" data-layout="list" aria-checked="false" aria-label="List" data-tip="List" tabindex="-1"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="5" width="3" height="4" rx=".5"/><rect x="4" y="15" width="3" height="4" rx=".5"/><path d="M10 7h10M10 17h10"/></svg></button>
           </div>
         </div>
-        <div class="line2">
-          <div class="filter-group" id="genre-filter"></div>
-          <select id="format-filter" class="sel" aria-label="Filter by format">
-            <option value="">All formats</option>
-          </select>
-          <select id="studio-filter" class="sel" aria-label="Filter by studio">
-            <option value="">All studios</option>
-          </select>
-          <select id="airing-status-filter" class="sel" aria-label="Filter by airing status">
-            <option value="">Any status</option>
-          </select>
-          <select id="myscore-filter" class="sel" aria-label="Filter by my rating">
-            <option value="">Any rating</option>
-            <option value="9">9+</option>
-            <option value="8">8+</option>
-            <option value="7">7+</option>
-            <option value="6">6+</option>
-            <option value="5">5+</option>
-            <option value="4">4+</option>
-            <option value="3">3+</option>
-            <option value="2">2+</option>
-            <option value="1">1+</option>
-          </select>
-          <label class="togg" id="unrated-toggle-label"><input type="checkbox" id="unrated-only"><b>✓</b>Unrated only</label>
+        <div id="filters-panel" class="filters-panel" role="region" aria-label="Filters" hidden>
+          <div class="filters-section">
+            <h3 class="filters-heading">Genres</h3>
+            <div class="filter-group" id="genre-filter"></div>
+          </div>
+          <div class="filters-grid">
+            <label class="filter-field"><span>Format</span><select id="format-filter" class="sel"><option value="">All formats</option></select></label>
+            <label class="filter-field"><span>Studio</span><select id="studio-filter" class="sel"><option value="">All studios</option></select></label>
+            <label class="filter-field"><span>Airing</span><select id="airing-status-filter" class="sel"><option value="">Any status</option></select></label>
+            <label class="filter-field"><span>My rating</span><select id="myscore-filter" class="sel">
+              <option value="">Any rating</option>
+              <option value="9">9+</option>
+              <option value="8">8+</option>
+              <option value="7">7+</option>
+              <option value="6">6+</option>
+              <option value="5">5+</option>
+              <option value="4">4+</option>
+              <option value="3">3+</option>
+              <option value="2">2+</option>
+              <option value="1">1+</option>
+            </select></label>
+            <label class="togg filter-unrated" id="unrated-toggle-label"><input type="checkbox" id="unrated-only"><b>✓</b>Unrated only</label>
+          </div>
+          <div class="filters-foot">
+            <button type="button" class="btn btn-quiet sm" data-action="filters-clear">Clear filters</button>
+            <button type="button" class="btn btn-primary sm" data-action="filters-done">Done</button>
+          </div>
         </div>
       </div>
       <div id="active-filter-chips" class="active-filter-chips"></div>
@@ -456,6 +466,13 @@
   <!-- Confirm dialog: shared by every destructive action. design system §8:
        "confirm dialog for anything destructive that always names what is
        kept." Populated per-use by events.js's confirmDialog(). -->
+  <dialog id="whats-new-overlay" class="overlay" aria-label="What's new in v3">
+    <div class="overlay-panel whats-new-panel">
+      <button class="overlay-close" data-action="close-overlay" aria-label="Close">×</button>
+      <div id="whats-new-body"></div>
+    </div>
+  </dialog>
+
   <dialog id="confirm-overlay" class="overlay">
     <div class="overlay-panel dialog">
       <h4 id="confirm-title"></h4>

@@ -50,7 +50,10 @@ test('the countdown badge shows "Next episode in Xd Yh" for a genuinely future a
     // 3d Xh where X is 3 or 4 depending on the few ms of test execution
     // time between computing `future` above and the page actually
     // rendering — assert the days component exactly and the hours loosely.
-    await expect(badge).toHaveText(/Next episode in 3d [34]h/);
+    // v3 finish: short on the card ("Ep 5 in 3d 4h", on a line of its own),
+    // the full sentence in its label and tooltip.
+    await expect(badge).toHaveText(/^Ep 5 in 3d [34]h$/);
+    await expect(badge).toHaveAttribute('aria-label', /Next episode in 3d [34]h/);
   } finally {
     await server.stop();
   }

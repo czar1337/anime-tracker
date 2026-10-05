@@ -1,6 +1,6 @@
 // Pure unseen-episode computation — no DOM, no fetch, no Store — so it can
 // be exercised directly both from airing.js (browser) and from
-// tests/run-all.js (Node, via dynamic import()).
+// the unit tests (tests/unit/) (Node, via dynamic import()).
 
 // cacheEntry: { status, episodes, nextAiringEpisode: { episode } | null } |
 // undefined. Returns 0 (never negative) whenever the data needed for a

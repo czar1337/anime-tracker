@@ -15,6 +15,7 @@ import { TasteProfile } from './tasteProfile.js';
 import { defaultSettings } from './settingsSchema.js';
 import { buildFilterQueryParams } from './discoverFiltersExport.js';
 import { openDialog, closeAllDialogs, isAnyDialogOpen, isDialogOpen, openDialogs, initDialogs, keepAboveDialogs } from './core/dialog.js';
+import { isMenuOpen } from './core/menu.js';
 import { trapTab, bindRovingTablist, selectTab } from './core/focus.js';
 import { initLiveRegions } from './core/announce.js';
 import { registerCommand, runCommand, bindCommandButtons } from './core/commands.js';
@@ -59,7 +60,7 @@ function restoreCopyFor(result) {
 
 
 let activeList = 'watching';
-let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.LISTS
+let currentView = 'watching'; // 'home', 'stats', 'discover', or one of Store.TABS (the Library's tabs)
 let persist = () => {};
 let searchDebounceTimer = null;
 let replaceTargetId = null; // set while the search overlay is being used to fix a wrong match
@@ -160,9 +161,14 @@ function setCurrentView(next) {
   resetDwell();
 }
 
+// A select counts too: its letters jump to an option.
 function isTypingTarget(el) {
-  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  return Boolean(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable));
 }
+
+// Space, + and - step episodes only where the card offers +1: a series on
+// Watching (the All tab shows every list).
+const stepsEpisodes = (id) => Store.getEntry(id)?.listStatus === 'watching';
 
 // design/moonlit-shrine-design-system.md §13: "All overlays trap focus,
 // restore it on close, and close on esc." Overlays are native modal dialogs
@@ -282,7 +288,7 @@ function playViewEnter(el) {
 // v3 Phase 4: five sections in the header (Home · Library · Schedule ·
 // Discover · Stats); the four lists are a segmented control inside Library.
 function sectionOf(view) {
-  return Store.LISTS.includes(view) ? 'library' : view;
+  return Store.TABS.includes(view) ? 'library' : view;
 }
 
 // Marks `view` selected in both tablists (aria-selected plus the roving
@@ -290,7 +296,7 @@ function sectionOf(view) {
 function markSelected(view) {
   const section = sectionOf(view);
   selectTab(document.querySelectorAll('#section-tabs .tab'), (t) => t.dataset.tab === section);
-  if (Store.LISTS.includes(view)) {
+  if (Store.TABS.includes(view)) {
     selectTab(document.querySelectorAll('.list-seg'), (s) => s.dataset.list === view);
     // On a phone the five lists can overflow their row, which scrolls: keep
     // the selected one in sight.
@@ -321,7 +327,8 @@ function updateTabPill() {
 // of travel through the tab order plus a crossfade (styles.css,
 // :active-view-transition-type(tab)). Without View Transitions, or when the
 // view does not change, the view's own fade plays instead.
-const VIEW_ORDER = ['home', 'watching', 'watchlist', 'watched', 'dropped', 'paused', 'schedule', 'discover', 'stats'];
+// The Library's tabs in the order they are shown, new and all included.
+const VIEW_ORDER = ['home', ...Store.TABS, 'schedule', 'discover', 'stats'];
 let navigationToken = 0;
 function switchView(next, update, viewEl) {
   const from = VIEW_ORDER.indexOf(currentView);
@@ -738,7 +745,14 @@ async function toggleScorerDebugPanel() {
   Render.renderScorerDebugPanel(body, rows);
 }
 
-function openHelp() {
+// ? opens it on the keyboard list (v3 run 2); the palette and Settings on
+// the basics.
+function openHelp({ tab = 'basics' } = {}) {
+  Render.setHelpTab(tab);
+  document.querySelectorAll('.help-tabs [data-help-tab]').forEach((t) => {
+    t.classList.toggle('on', t.dataset.helpTab === tab);
+    t.setAttribute('aria-selected', String(t.dataset.helpTab === tab));
+  });
   openOverlay('shortcuts-overlay');
   Render.renderHelpPanel(document.getElementById('help-body'));
 }
@@ -829,7 +843,9 @@ function bindDiscoverFiltersOverlay() {
       return;
     }
     if (e.target.closest('#discover-filters-apply')) {
-      Store.setPreference(['discoverFilters'], readDiscoverFiltersFromPanelDom());
+      // The panel's fields over the current filters: the Find bar's genres
+      // and season are not in the panel and stay as they were.
+      Store.setPreference(['discoverFilters'], { ...Store.state.preferences.discoverFilters, ...readDiscoverFiltersFromPanelDom() });
       persist();
       closeAllOverlays();
       Discover.rebuildShelvesNow().catch(() => {});
@@ -843,7 +859,7 @@ function bindDiscoverFiltersOverlay() {
       return;
     }
     if (e.target.closest('#discover-filters-copy-link')) {
-      const params = buildFilterQueryParams(readDiscoverFiltersFromPanelDom());
+      const params = buildFilterQueryParams({ ...Store.state.preferences.discoverFilters, ...readDiscoverFiltersFromPanelDom() });
       const query = params.toString();
       const url = query ? `${location.origin}${location.pathname}?${query}` : `${location.origin}${location.pathname}`;
       navigator.clipboard.writeText(url).then(
@@ -917,10 +933,45 @@ function bindPickForMeOverlay() {
 // strip — whatever #grid/the page currently has). No wraparound: k at the
 // first card or j at the last just stays put, matching the "move between
 // cards" wording rather than a carousel.
+// v3 finish: the arrow keys move between the Library's cards the way they
+// sit on screen: left and right along the row (or the list), up and down to
+// the card above or below.
+function focusCardInDirection(key) {
+  const current = document.activeElement?.closest?.('#grid .card');
+  if (!current) return false;
+  const cards = [...document.querySelectorAll('#grid .card')].filter((c) => c.offsetParent !== null);
+  const i = cards.indexOf(current);
+  if (i < 0) return false;
+  let next = null;
+  if (key === 'ArrowLeft') next = cards[i - 1];
+  else if (key === 'ArrowRight') next = cards[i + 1];
+  else {
+    const r = current.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const down = key === 'ArrowDown';
+    let best = Infinity;
+    for (const c of cards) {
+      const b = c.getBoundingClientRect();
+      const dy = down ? b.top - r.bottom : r.top - b.bottom;
+      if (dy < -2) continue;
+      const score = dy * 4 + Math.abs(b.left + b.width / 2 - cx);
+      if (c !== current && score < best) {
+        best = score;
+        next = c;
+      }
+    }
+  }
+  if (!next) return true;
+  next.focus({ preventScroll: true });
+  next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  return true;
+}
+
 function focusAdjacentCard(delta) {
   // P5B.5: extended to Discover's own card type so j/k also rove there —
   // reuses this existing roving-focus shortcut instead of a parallel one.
-  const cards = Array.from(document.querySelectorAll('.card, .discover-card'));
+  // Only cards on screen: not the hidden view, not a collapsed franchise group.
+  const cards = Array.from(document.querySelectorAll('.card, .discover-card')).filter((c) => c.offsetParent !== null);
   if (cards.length === 0) return;
   const current = document.activeElement.closest && document.activeElement.closest('.card, .discover-card');
   const currentIndex = current ? cards.indexOf(current) : -1;
@@ -934,7 +985,8 @@ function focusAdjacentCard(delta) {
 // select mode · ctrl+z undo · ? help. All (except Escape, checked first)
 // are inactive while typing in a field, per that same section.
 function bindKeyboardShortcuts() {
-  registerCommand({ id: 'help.open', title: copy('command.help'), section: 'help', keywords: 'shortcuts keys questions faq', run: openHelp });
+  registerCommand({ id: 'help.open', title: copy('command.help'), section: 'help', keywords: 'shortcuts keys questions faq', run: () => openHelp() });
+  registerCommand({ id: 'help.keys', title: copy('command.shortcuts'), section: 'help', keywords: 'keyboard keys hotkeys ?', run: () => openHelp({ tab: 'keyboard' }) });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -965,6 +1017,8 @@ function bindKeyboardShortcuts() {
     if (isAnyDialogOpen() && !(e.key === 'd' && isDialogOpen('scorer-debug-overlay'))) return;
 
     if (isTypingTarget(e.target)) return;
+    // An open card menu has the keys (its own arrows, Enter, Escape).
+    if (isMenuOpen()) return;
 
     if (e.ctrlKey && e.key.toLowerCase() === 'z') {
       e.preventDefault();
@@ -977,7 +1031,7 @@ function bindKeyboardShortcuts() {
     // four list tabs (Discover/Schedule/Home/Stats have no selection UI at
     // all), so it's a no-op elsewhere rather than hijacking native
     // select-all on those pages.
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && Store.LISTS.includes(currentView)) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && Store.TABS.includes(currentView)) {
       e.preventDefault();
       Render.selectAllVisible(activeList);
       refreshGridOnly();
@@ -988,7 +1042,7 @@ function bindKeyboardShortcuts() {
     if (e.key === '/') {
       e.preventDefault();
       // The list view appears inside a View Transition, a frame later.
-      const shown = Store.LISTS.includes(currentView) ? null : showListView(activeList);
+      const shown = Store.TABS.includes(currentView) ? null : showListView(activeList);
       Promise.resolve(shown?.updateCallbackDone).catch(() => {}).then(() => document.getElementById('title-filter').focus());
       return;
     }
@@ -1005,11 +1059,11 @@ function bindKeyboardShortcuts() {
 
     if (e.key === '?') {
       e.preventDefault();
-      openHelp();
+      openHelp({ tab: 'keyboard' });
       return;
     }
 
-    if (e.key === 's') {
+    if (e.key === 's' && Store.TABS.includes(currentView)) {
       Render.toggleSelectMode();
       refreshGridOnly();
       return;
@@ -1037,10 +1091,16 @@ function bindKeyboardShortcuts() {
       return;
     }
 
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey && document.activeElement.matches('#grid .card')) {
+      e.preventDefault();
+      focusCardInDirection(e.key);
+      return;
+    }
+
     if (e.key === ' ' && document.activeElement.matches('.card')) {
       e.preventDefault();
       const card = document.activeElement;
-      handleIncrement(card, Number(card.dataset.id));
+      if (stepsEpisodes(Number(card.dataset.id))) handleIncrement(card, Number(card.dataset.id));
       return;
     }
 
@@ -1057,6 +1117,7 @@ function bindKeyboardShortcuts() {
     const card = e.target.closest && e.target.closest('.card');
     if (!card) return;
     const id = Number(card.dataset.id);
+    if (!stepsEpisodes(id)) return;
     if (e.key === '+' || e.key === '=') handleIncrement(card, id);
     else if (e.key === '-') handleDecrement(id);
   });
@@ -1098,7 +1159,7 @@ function showView(view) {
   else if (view === 'discover') showDiscoverView();
   else if (view === 'schedule') showScheduleView();
   else if (view === 'library') showListView(activeList);
-  else if (Store.LISTS.includes(view)) showListView(view);
+  else if (Store.TABS.includes(view)) showListView(view);
 }
 
 function bindTabs() {
@@ -1118,7 +1179,7 @@ function bindTabs() {
   for (const key of ['home', 'library', 'schedule', 'discover', 'stats']) {
     registerCommand({ id: `go.${key}`, title: copy('command.goTo', undefined, { place: place(key) }), section: 'navigate', run: () => showView(key) });
   }
-  for (const list of Store.LISTS) {
+  for (const list of Store.TABS) {
     registerCommand({ id: `go.${list}`, title: copy('command.goTo', undefined, { place: copy(`list.${list}`) }), section: 'navigate', run: () => showView(list) });
   }
 }
@@ -1305,6 +1366,17 @@ function bindCoverImageLoad() {
       img.classList.add('loaded');
       const skeleton = img.previousElementSibling;
       if (skeleton?.classList.contains('skeleton')) skeleton.remove();
+    },
+    true
+  );
+  // v3 finish: a cover that cannot load leaves the title's first letter, not
+  // an endless shimmer.
+  document.addEventListener(
+    'error',
+    (e) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement) || !img.closest('.card-cover-wrap')) return;
+      img.closest('.cover-media')?.classList.add('cover-failed');
     },
     true
   );

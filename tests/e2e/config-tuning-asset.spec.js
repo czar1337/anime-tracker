@@ -1,6 +1,6 @@
 'use strict';
 // P1.4's static-serving proof: config/tuning.js is the one browser-loaded
-// module that lives outside public/ (docs/v2-plan.md's file list), so
+// module that lives outside public/ (docs/archive/v2/v2-plan.md's file list), so
 // server.js needed a small extension (a second bounded static root,
 // CONFIG_DIR, alongside the existing PUBLIC_DIR) for a browser module's
 // `import ... from '../../config/tuning.js'` to actually resolve over HTTP.

@@ -19,7 +19,7 @@ import { copy, setCopyTier } from '../../copy.js';
 import { LISTS_AND_TAGS, UI_TIMING } from '../../../../config/tuning.js';
 import { registerCommand, registerCommandProvider } from '../../core/commands.js';
 import { revertImport } from '../../importCore.js';
-import { NOTIFICATION_LISTS } from '../../settingsSchema.js';
+import { NOTIFICATION_LISTS, DECORATION_LEVELS } from '../../settingsSchema.js';
 import { bindRovingTablist } from '../../core/focus.js';
 import {
   renderSettingsPanel,
@@ -74,6 +74,10 @@ const SETTING_APPLIERS = {
   motion: (v) => Preferences.setMotion(v),
   decoration: (v) => {
     Preferences.setDecoration(v);
+    Atmosphere.resyncDensity();
+  },
+  decorSeason: (v) => {
+    Preferences.setDecorSeason(v);
     Atmosphere.resyncDensity();
   },
   originalTitles: (v) => {
@@ -133,6 +137,26 @@ export function bindSettingsActions(context) {
   }
   registerCommand({ id: 'settings.open', title: copy('command.settings'), section: 'settings', keywords: 'preferences options appearance', run: () => openSettings() });
   registerCommand({ id: 'theme.open', title: copy('command.theme'), section: 'settings', keywords: 'colour color appearance dark light', run: () => openSettings('appearance') });
+  // v3 run 2: light and dark in one step, and the decoration level, from the
+  // palette.
+  registerCommand({
+    id: 'theme.toggle',
+    title: copy('command.toggleTheme'),
+    section: 'settings',
+    keywords: 'dark light mode switch theme',
+    run: () => {
+      const light = getComputedStyle(document.documentElement).colorScheme === 'light';
+      commitAppearance({ ...appearance(), mode: light ? 'dark' : 'light' });
+    },
+  });
+  registerCommandProvider(() =>
+    DECORATION_LEVELS.map((level) => ({
+      title: copy('command.decoration', undefined, { level: copy(`settings.decoration.${level}`) }),
+      section: 'settings',
+      keywords: 'decoration particles leaves feathers atmosphere effects',
+      run: () => commitSetting('decoration', level),
+    }))
+  );
   // "Theme: …" in the palette: a light theme goes in the light slot, a dark
   // one in the dark slot, and the mode follows unless it tracks the system.
   registerCommandProvider(() =>

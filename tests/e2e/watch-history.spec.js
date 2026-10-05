@@ -113,12 +113,12 @@ test('the start date, a history note and removing a record (with Undo) are saved
   }
 });
 
-test('a series can be moved to Paused and shows in the Paused list', async ({ page }) => {
+test('a series can be moved to On hold (paused) and shows in that list', async ({ page }) => {
   const server = await startFixtureServer(FIXTURE);
   try {
     await open(page, server);
     await page.locator(`.card[data-id="${ID}"]`).click({ button: 'right' });
-    await page.getByRole('menuitem', { name: /Paused/ }).click();
+    await page.getByRole('menuitem', { name: /On hold/ }).click();
     await expect.poll(async () => (await lib(server)).entries[0].listStatus).toBe('paused');
     await page.click('[data-list="paused"]');
     await expect(page.locator(`#grid .card[data-id="${ID}"]`)).toBeVisible();

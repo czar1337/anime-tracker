@@ -91,7 +91,7 @@ not SQLite, not a remote backend.**
   `getLibrary()` (`api.js:7`, `GET /api/library`), `saveLibrary()`
   (`api.js:32`, `PUT /api/library`), `listBackups()`/`restoreBackup()`
   (`api.js:48-62`), plus the cache and cover endpoints (`api.js:64-121`).
-- **Measured on the real machine** (`C:\Users\cesar\AppData\Roaming\anime-tracker\`):
+- **Measured on the real machine** (`%APPDATA%\anime-tracker\`):
 
   ```
   total       47M

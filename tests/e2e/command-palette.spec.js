@@ -80,13 +80,13 @@ test('"mark entry c" + Enter marks that series\' next episode watched', async ({
   try {
     await open(page, server.url);
     const label = page.locator('#grid > .card[data-id="403"] .progress-label');
-    await expect(label).toHaveText('3');
+    await expect(label).toHaveText('Ep 3 / ?');
     await page.keyboard.press('Control+k');
     await query(page, 'mark entry c');
-    await expect(options(page).first()).toHaveText('Mark Entry C · episode 4 watched');
+    await expect(options(page).first()).toHaveText(/^\+1 episode on Entry C \(episode 4\)/);
     await page.keyboard.press('Enter');
     await expect(page.locator('#palette-overlay')).toBeHidden();
-    await expect(label).toHaveText('4');
+    await expect(label).toHaveText('Ep 4 / ?');
     await expect(page.locator('.toast', { hasText: 'Entry C · episode 4 marked watched' })).toBeVisible();
   } finally {
     await server.stop();
@@ -103,7 +103,7 @@ test('a title alone offers Open first; "move" offers the other lists; fuzzy lett
     await query(page, 'move entry d');
     // A verb acts on the library only: no AniList rows.
     await page.waitForTimeout(600);
-    await expect(options(page)).toHaveText(['Move Entry D to Watchlist', 'Move Entry D to Watched', 'Move Entry D to Dropped', 'Move Entry D to Paused']);
+    await expect(options(page)).toHaveText(['Move Entry D to Watchlist', 'Move Entry D to Completed', 'Move Entry D to Dropped', 'Move Entry D to On hold']);
     await page.keyboard.press('Enter');
     await expect(page.locator('#grid > .card[data-id="404"]')).toHaveCount(0);
     await page.click('[data-list="watchlist"]');

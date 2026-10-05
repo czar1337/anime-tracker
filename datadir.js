@@ -166,7 +166,7 @@ function removeIfEmpty(dir) {
   }
 }
 
-// Class C snapshots (docs/v2-spec.md's "Storage classes and data safety", P1.1)
+// Class C snapshots (docs/archive/v2/v2-spec.md's "Storage classes and data safety", P1.1)
 // live in their own directory alongside the existing covers/backups, resolved
 // here so the join is unit-testable without a server.
 function resolveSnapshotsDir(dataDir) {

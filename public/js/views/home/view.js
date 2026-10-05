@@ -1,11 +1,13 @@
-// Home, "Tonight at the shrine" (v3 Phase 4), and the Watching hero. Templates
+// Home, "Tonight at the shrine" (v3 Phase 4). v3 finish: the Watching hero left
+// the Library; its place is the first Continue watching card here. Templates
 // are html``; every background image goes through cssUrl(), which fixes v2's
 // unescaped url('...').
 //
-// Home: a "Continue watching" rail of landscape cards (AniList's banner, or
-// the cover blurred; never a small cover blown up), whose first card is the
-// hero; a clickable "Airing tonight" timeline; "Up next from your Watchlist"
-// with Start buttons; and three numbers for this year.
+// Home: a "Continue watching" rail of landscape cards (the sharp poster, on
+// AniList's banner when there is one, else on a calm wash of the cover's own
+// colour; v3 finish: no more blurred cover), whose first card is the hero;
+// a clickable "Airing tonight" timeline; "Up next from your Watchlist" with
+// Start buttons; and three numbers for this year.
 
 import { Store } from '../../state.js';
 import { Airing } from '../../airing.js';
@@ -19,6 +21,9 @@ import { morphInto } from '../../core/reconcile.js';
 import { coverSrc } from '../library/view.js';
 import { HOME } from '../../../../config/tuning.js';
 import { paintAccents } from '../../accent.js';
+import { posterHtml } from '../../ui/poster.js';
+import { timeZoneLabel, airingTime } from '../shared/format.js';
+import { movementAllowed, tokenMs } from '../../core/motion.js';
 
 const title = (entry) => titlesInOrder(entry, Store.state.preferences.titleLanguage)[0];
 
@@ -59,81 +64,76 @@ export function heroPick() {
   return { entry: watching[0], mode: 'calm' };
 }
 
-// The image for a wide header: AniList's banner when the airing refresh has
-// it, else the cover blurred (the .from-cover class). A small cover is never
-// stretched sharp across a wide box.
-function wideImage(entry) {
-  const banner = Airing.getBanner(entry.anilistId);
-  const src = banner || coverSrc(entry);
-  return { src, blurred: !banner };
-}
-
-// The same "Progress" string in both modes (design §12 core strings).
-function heroProgressLine(entry) {
-  const total = entry.totalEpisodes;
-  if (!total) return `${entry.episodesWatched} watched · no total known`;
-  const left = total - entry.episodesWatched;
-  return `Episode ${entry.episodesWatched} of ${total} watched${left > 0 ? ` · ${left} to go` : ''}`;
-}
-
-export function heroHtml(pick, { tall = false } = {}) {
-  if (!pick) return '';
-  const { entry, mode } = pick;
-  const { src, blurred } = wideImage(entry);
-  const total = entry.totalEpisodes;
-  const nextEp = entry.episodesWatched + 1;
-  const canMarkNext = !total || nextEp <= total;
-  const metaBits = [entry.genres?.[0], entry.format, entry.year].filter(Boolean);
-  return html`
-    <div class="${cls('hero', mode === 'calm' && 'calm', tall && 'tall')}" data-accent-id="${entry.anilistId}">
-      <div class="${cls('bg', blurred && 'from-cover')}" style="${src ? html`background-image:${cssUrl(src)}` : ''}"></div>
-      <div class="in">
-        <div class="kick"><i></i>${mode === 'new' ? copy('home.kickNew') : copy('home.kickCalm')}</div>
-        <h2 data-action="show-detail" data-detail-id="${entry.anilistId}">${title(entry)}</h2>
-        ${metaBits.length ? html`<div class="sub">${metaBits.join(' · ')}</div>` : ''}
-        ${total ? html`<div class="track"><i style="--p:${Math.min(1, entry.episodesWatched / total)}"></i></div>` : ''}
-        <div class="n">${heroProgressLine(entry)}</div>
-        <div class="row">
-          ${canMarkNext && html`<button class="btn btn-primary rip-host" data-action="increment" data-hero-id="${entry.anilistId}">Mark episode ${nextEp} watched</button>`}
-          <button class="btn btn-ghost" data-action="show-detail" data-detail-id="${entry.anilistId}">Open series</button>
-        </div>
-      </div>
-    </div>`;
-}
-
-// Above the filter bar on the Watching list (design §5). Morphed rather than
-// replaced, so a +1 on the featured series does not reload its image.
-export function renderWatchingHero() {
-  const el = document.getElementById('watching-hero');
-  if (!el) return;
-  const pick = heroPick();
-  el.hidden = !pick;
-  if (pick) {
-    morphInto(el, heroHtml(pick, { tall: true }));
-    paintAccents(el);
-  }
-}
-
-// One card of the Continue watching rail: the image, the title, the next
-// episode, the unseen count and a large +1.
+// One card of the Continue watching rail: the sharp poster, the title (two
+// lines, never cut to one), the next episode, a progress bar, the unseen
+// count and a large +1. The banner is used only when AniList has one; a
+// cover is never blurred into a backdrop.
 function continueCardHtml(entry, { hero = false } = {}) {
-  const { src, blurred } = wideImage(entry);
+  const banner = Airing.getBanner(entry.anilistId);
   const next = entry.episodesWatched + 1;
   const unseen = Airing.getUnseenCount(entry.anilistId);
   const name = title(entry);
-  return html`<article class="${cls('continue-card', hero && 'is-hero')}" role="listitem" data-continue-id="${entry.anilistId}" ${hero ? html`data-accent-id="${entry.anilistId}"` : ''}>
-      <div class="${cls('continue-bg', blurred && 'from-cover')}" style="${src ? html`background-image:${cssUrl(src)}` : ''}" aria-hidden="true"></div>
+  const total = entry.totalEpisodes;
+  return html`<article class="${cls('continue-card', hero && 'is-hero', !banner && 'no-banner')}" role="listitem" data-continue-id="${entry.anilistId}" ${hero ? html`data-accent-id="${entry.anilistId}"` : ''}>
+      <div class="continue-bg" style="${banner ? html`background-image:${cssUrl(banner)}` : ''}" aria-hidden="true"></div>
+      ${posterHtml({ url: coverSrc(entry), title: name, size: hero ? 'md' : 'sm', eager: true, className: 'continue-poster' })}
       <div class="continue-in">
         ${hero && html`<div class="kick"><i></i>${unseen > 0 ? copy('home.kickNew') : copy('home.kickCalm')}</div>`}
         <h3 class="continue-title" data-action="show-detail" data-detail-id="${entry.anilistId}" title="${name}">${name}</h3>
         <div class="continue-meta"><span>${copy('home.nextEpisode', undefined, { episode: next })}</span>${unseen > 0 && html`<span class="unseen-badge">${copy('home.newCount', undefined, { n: unseen })}</span>`}</div>
+        ${total ? html`<div class="continue-track" aria-hidden="true"><i style="--p:${Math.min(1, entry.episodesWatched / total)}"></i></div>` : ''}
       </div>
       <button class="continue-plus" data-action="increment" data-hero-id="${entry.anilistId}" aria-label="${copy('home.plusOne', undefined, { title: name, episode: next })}" title="${copy('home.plusOne', undefined, { title: name, episode: next })}">+1</button>
     </article>`;
 }
 
 function stat(value, label) {
-  return html`<span><b class="num stat-display">${value}</b><span class="stat-kicker">${label}</span></span>`;
+  return html`<span><b class="num stat-display" data-value="${value}" aria-label="${value}">${value}</b><span class="stat-kicker">${label}</span></span>`;
+}
+
+// "This year" counts up from zero the first time Home is shown in a session
+// (v3 run 2). The real number is the aria-label throughout (in the
+// template, so a re-render keeps it); reduced motion and animation Off show
+// it at once. Each frame reads the target again: a re-render during the
+// count (a +1 on the rail) ends on the new number, not the old one.
+let countedUp = false;
+function countUp(container) {
+  if (countedUp) return;
+  countedUp = true;
+  const els = [...container.querySelectorAll('.home-year .stat-display')];
+  const duration = tokenMs('--dur-emph') * 2.2;
+  if (!movementAllowed() || duration <= 0) return;
+  for (const el of els) {
+    const first = Number(el.dataset.value);
+    if (!Number.isFinite(first) || first === 0) continue;
+    const decimals = (el.dataset.value.split('.')[1] || '').length;
+    const start = performance.now();
+    const step = (now) => {
+      if (!el.isConnected) return;
+      const final = el.dataset.value;
+      const target = Number(final);
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      el.textContent = t < 1 && Number.isFinite(target) ? (target * eased).toFixed(decimals) : final;
+      if (t < 1) requestAnimationFrame(step);
+    };
+    el.textContent = (0).toFixed(decimals);
+    requestAnimationFrame(step);
+  }
+}
+
+// Nothing tonight: when the next episode of what you follow airs, and the
+// way to the Schedule.
+function nextAiringHtml() {
+  const days = Airing.getWeekSchedule().slice(1);
+  for (const day of days) {
+    const it = (day.items || []).find((x) => !x.alreadyAired);
+    if (it) {
+      const when = `${day.date.toLocaleDateString(undefined, { weekday: 'long' })} ${airingTime(it.airingAt)}`;
+      return html`<p class="card-meta home-next-airing">${copy('home.nextAiring', undefined, { title: it.title, episode: it.episode, when })}</p>`;
+    }
+  }
+  return '';
 }
 
 export function renderHome(container) {
@@ -173,20 +173,20 @@ export function renderHome(container) {
         ${tonight.length
           ? html`<ol class="tonight">${tonight.map(
               (it) => html`<li class="${cls('tonight-row', it.aired && 'aired')}"><button type="button" class="tonight-btn" data-action="show-detail" data-detail-id="${it.anilistId}">
-                <span class="num">${new Date(it.airingAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span class="num">${airingTime(it.airingAt)}</span>
                 <span>${it.title}<span class="meta-line">${copy('home.episodeOf', undefined, { episode: it.episode, total: it.totalEpisodes })}${it.aired ? html` · ${copy('home.aired')}` : ''}</span></span>
               </button></li>`
             )}</ol>`
-          : html`<p class="card-meta">${copy('home.tonightEmpty')}</p>`}
+          : html`<p class="card-meta">${copy('home.tonightEmpty')}</p>${nextAiringHtml()}<p class="card-meta"><button type="button" class="text-btn" data-command="go.schedule">${copy('home.openSchedule')}</button></p>`}
+        <p class="schedule-tz">${copy('schedule.timeZone', undefined, timeZoneLabel())}</p>
       </section>
       <section>
         <div class="disc-head"><h3>${copy('home.upNext')}</h3><span class="rule"></span></div>
         ${upNext.length
           ? html`<ul class="up-next">${upNext.map((e) => {
-              const src = coverSrc(e);
               return html`<li class="up-next-row">
-                <span class="up-next-cover" style="${src ? html`background-image:${cssUrl(src)}` : ''}" aria-hidden="true"></span>
-                <span class="up-next-text"><button type="button" class="text-btn up-next-title" data-action="show-detail" data-detail-id="${e.anilistId}">${title(e)}</button><span class="meta-line">${[e.totalEpisodes ? `${e.totalEpisodes} ep` : null, e.year].filter(Boolean).join(' · ')}</span></span>
+                ${posterHtml({ url: coverSrc(e), title: title(e), size: 'xs', className: 'up-next-cover' })}
+                <span class="up-next-text"><button type="button" class="text-btn up-next-title" data-action="show-detail" data-detail-id="${e.anilistId}">${title(e)}</button><span class="meta-line">${[e.totalEpisodes ? copy('card.episodes', undefined, { n: e.totalEpisodes }) : null, e.year].filter(Boolean).join(' · ')}</span></span>
                 <button type="button" class="btn btn-ghost sm" data-action="home-start" data-id="${e.anilistId}" aria-label="${copy('home.startLabel', undefined, { title: title(e) })}">${copy('home.start')}</button>
               </li>`;
             })}</ul>`
@@ -202,4 +202,5 @@ export function renderHome(container) {
   // Morphed: a +1 on a rail card keeps its image and the rail's scroll.
   morphInto(container, markup);
   paintAccents(container);
+  countUp(container);
 }

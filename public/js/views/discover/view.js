@@ -17,6 +17,7 @@ import { morphInto } from '../../core/reconcile.js';
 import { staggerDelay, formatEnumLabel, infoHintHtml } from '../shared/format.js';
 import { shelfSkeletonHtml } from '../shared/skeleton.js';
 import { formatEpisodeCountdown } from '../../airingLogic.js';
+import { posterSrc, posterHtml } from '../../ui/poster.js';
 
 // "Not for me" reasons (shown in its menu, in Triage and in the Dismissed drawer).
 const DISMISS_REASON_COPY_KEYS = {
@@ -52,7 +53,7 @@ export function discoverCardTitle(c) {
 
 // The reason line, with its anchor (the rated title it names) in the accent
 // colour. The engine says which title that is; nothing is guessed from text.
-function reasonHtml(reason) {
+export function reasonHtml(reason) {
   if (!reason?.text) return '';
   const anchor = reason.anchorTitle;
   if (!anchor || !reason.text.includes(anchor)) return escapeHtml(reason.text);
@@ -93,8 +94,8 @@ const ICON = {
   triage: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6"/></svg>',
 };
 
-function iconButton(action, icon, label, extra = '') {
-  return `<button class="icn dc-icon" data-action="${action}" aria-label="${escapeHtml(label)}" data-tip="${escapeHtml(label)}" ${extra}>${icon}</button>`;
+function iconButton(action, icon, label, extra = '', tip = label, key = '') {
+  return `<button class="icn dc-icon" data-action="${action}" aria-label="${escapeHtml(label)}" data-tip="${escapeHtml(tip)}" ${key ? `aria-keyshortcuts="${key}"` : ''} ${extra}>${icon}</button>`;
 }
 
 const LIST_KEYS = { watchlist: 'list.watchlist', paused: 'list.paused', watching: 'list.watching', watched: 'list.watched', dropped: 'list.dropped' };
@@ -106,39 +107,68 @@ function cardActionsHtml(title, id) {
   const owned = Store.getEntry(id);
   const want = owned
     ? `<button class="btn btn-ghost sm dc-want" disabled>${escapeHtml(copy('discover.onList', undefined, { list: copy(LIST_KEYS[owned.listStatus] || 'list.watchlist') }))}</button>`
-    : `<button class="btn btn-primary sm rip-host dc-want" data-action="discover-want">${escapeHtml(copy('discover.want'))}</button>`;
+    : `<button class="btn btn-primary sm rip-host dc-want" data-action="discover-want" data-tip="${escapeHtml(copy('discover.tipWant'))}" aria-keyshortcuts="W">${escapeHtml(copy('discover.want'))}</button>`;
   return `
     <div class="acts">
       ${want}
       <span class="dc-icons">
-        ${iconButton('discover-seen', ICON.seen, copy('discover.seenItLabel', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"')}
-        ${iconButton('discover-not-for-me', ICON.notForMe, copy('discover.notForMeLabel', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"')}
-        ${iconButton('discover-more', ICON.more, copy('discover.moreActions', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"')}
+        ${iconButton('discover-seen', ICON.seen, copy('discover.seenItLabel', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"', copy('discover.tipSeen'), 'S')}
+        ${iconButton('discover-not-for-me', ICON.notForMe, copy('discover.notForMeLabel', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"', copy('discover.tipNotForMe'), 'X')}
+        ${iconButton('discover-more', ICON.more, copy('discover.moreActions', undefined, { title }), 'aria-haspopup="menu" aria-expanded="false"', copy('discover.tipMore'), 'M')}
       </span>
     </div>`;
 }
 
 function coverHtml(entry, title) {
-  const url = entry.coverLarge || entry.coverMedium;
-  return url
-    ? `<img class="discover-card-cover" src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" width="230" height="345">`
-    : `<span class="discover-card-initial" aria-hidden="true">${escapeHtml((title || '?').trim().charAt(0))}</span>`;
+  return String(posterHtml({ url: entry.coverLarge || entry.coverMedium, title, size: 'fill', className: 'discover-card-cover' }));
 }
 
-// A portrait 2:3 card: cover, reason as the headline, title, meta, up to
-// three feature chips, then the answers.
+// "Why this pick" (v3 run 2): up to three chips naming what the pick rests
+// on: the title you rated it against ("Because you rated Frieren 10"), a
+// studio ("Studio MAPPA"), the shared genres ("Fantasy + Adventure"), a
+// creator or a tag. A pick with none of these says it is top rated.
+export function whyChipsHtml(card) {
+  const chips = [];
+  const anchorId = card.reason?.anchorId;
+  const anchor = anchorId != null ? Store.getEntry(anchorId) : null;
+  // Named already in the reason line ("Fans of X … you gave it 9"): not again.
+  if (anchor && !card.reason?.anchorTitle) {
+    const title = discoverCardTitle(anchor).primary;
+    chips.push(typeof anchor.myScore === 'number' ? copy('discover.whyRated', undefined, { title, score: anchor.myScore }) : copy('discover.whyLiked', undefined, { title }));
+  }
+  const why = card.why || [];
+  const genres = why.filter((f) => f.block === 'genre').map((f) => f.name);
+  for (const f of why) {
+    if (chips.length >= 3) break;
+    if (f.block === 'genre') continue;
+    chips.push(f.block === 'studio' ? copy('discover.whyStudio', undefined, { name: f.name }) : f.label);
+  }
+  if (genres.length && chips.length < 3) chips.push(copy('discover.whyGenres', undefined, { names: genres.slice(0, 2) }));
+  if (!chips.length && card.reason?.kind === 'quality') chips.push(copy('discover.whyTopRated'));
+  if (!chips.length) return '';
+  return `<ul class="dc-why" aria-label="${escapeHtml(copy('discover.whyRegion'))}">${chips.slice(0, 3).map((c) => `<li class="dc-why-chip">${escapeHtml(c)}</li>`).join('')}</ul>`;
+}
+
+// Every card says why it is there: the engine's reason, or (for the rare pick
+// it has none for) a plain one from the genre.
+function reasonLineHtml(card) {
+  if (card.reason?.text) return reasonHtml(card.reason);
+  return escapeHtml(copy('discover.reasonFallback', undefined, { genre: card.entry?.genres?.[0] || '' }));
+}
+
+// A portrait 2:3 card: cover, reason as the headline, title, meta, the why
+// chips, then the answers.
 function cardHtml(railId, card, index = 0) {
   const c = card.entry;
   const title = discoverCardTitle(c);
-  const chips = (card.chips || []).slice(0, 3);
   return `
     <article class="discover-card dc-portrait" role="listitem" data-key="card-${escapeHtml(railId)}-${card.id}" data-rail-id="${escapeHtml(railId)}" data-anilist-id="${card.id}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
       <div class="cov">${coverHtml(c, title.primary)}</div>
       <div class="dc-body">
-        <p class="why">${reasonHtml(card.reason)}</p>
+        <p class="why">${reasonLineHtml(card)}</p>
         <h4 data-action="show-detail" data-detail-id="${card.id}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h4>
         <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
-        ${chips.length ? `<div class="dc-chips">${chips.map((ch) => `<span class="dc-chip">${escapeHtml(ch)}</span>`).join('')}</div>` : ''}
+        ${whyChipsHtml(card)}
         ${cardActionsHtml(title.primary, card.id)}
       </div>
     </article>`;
@@ -151,11 +181,12 @@ function heroSlideHtml(card, index) {
   const banner = c.bannerImage || c.coverLarge || c.coverMedium;
   return `
     <article class="discover-card dc-hero" role="listitem" data-key="hero-${card.id}" data-rail-id="top-picks" data-anilist-id="${card.id}" tabindex="0" style="animation-delay:${staggerDelay(index)}">
-      ${banner ? `<img class="dc-hero-banner" src="${escapeHtml(banner)}" alt="" loading="${index === 0 ? 'eager' : 'lazy'}" decoding="async">` : ''}
+      <div class="dc-hero-banner">${posterHtml({ url: banner, title: title.primary, size: 'fill', eager: index === 0 })}</div>
       <div class="dc-hero-body">
-        <p class="why">${reasonHtml(card.reason)}</p>
+        <p class="why">${reasonLineHtml(card)}</p>
         <h3 data-action="show-detail" data-detail-id="${card.id}" ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h3>
         <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
+        ${whyChipsHtml(card)}
         ${cardActionsHtml(title.primary, card.id)}
       </div>
     </article>`;
@@ -293,6 +324,8 @@ export function discoverActiveFilterChips(filters) {
   if (f.staffQuery) chips.push({ key: 'staffQuery', label: `Staff: "${f.staffQuery}"` });
   if (f.format) chips.push({ key: 'format', label: `Format: ${formatEnumLabel(f.format)}` });
   if (f.airingStatus) chips.push({ key: 'airingStatus', label: `Status: ${formatEnumLabel(f.airingStatus)}` });
+  for (const g of f.genres || []) chips.push({ key: `genre:${g}`, label: copy('discover.chipGenre', undefined, { name: g }) });
+  if (f.season) chips.push({ key: 'season', label: copy('discover.chipSeason', undefined, { name: copy(`season.${f.season}`) }) });
   for (const t of f.includeTags || []) chips.push({ key: `includeTag:${t}`, label: `Tag: ${t}` });
   for (const t of f.excludeTags || []) chips.push({ key: `excludeTag:${t}`, label: `Not: ${t}` });
   if (f.maxLengthMinutes != null) chips.push({ key: 'maxLength', label: `Max length: ${(f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '')}h` });
@@ -432,16 +465,59 @@ function matchesSearch(card, q) {
   return [c.titleEnglish, c.titleRomaji, c.titleNative].some((t) => t && t.toLowerCase().includes(q));
 }
 
-function headHtml({ activeMood, discoverFilters, search, dismissedCount }) {
+// The Find bar (v3 run 2): the filters that matter for finding something new,
+// always in view and applied at once. The rest stay under Tune > Filters.
+const SEASONS = ['WINTER', 'SPRING', 'SUMMER', 'FALL'];
+const LENGTHS = { short: [null, 13], standard: [14, 26], long: [27, null] };
+export function lengthOf(f) {
+  return Object.keys(LENGTHS).find((k) => LENGTHS[k][0] === (f.episodeMin ?? null) && LENGTHS[k][1] === (f.episodeMax ?? null)) || '';
+}
+export const FIND_LENGTHS = LENGTHS;
+function findBarHtml(f, corpusEntries) {
+  const genres = corpusGenres(corpusEntries);
+  const formats = corpusFieldValues(corpusEntries, 'format');
+  const thisYear = new Date().getFullYear() + 1;
+  const years = Array.from({ length: thisYear - 1979 }, (_, i) => thisYear - i);
+  const single = f.yearMin != null && f.yearMin === f.yearMax && years.includes(f.yearMin);
+  // A range from the Filters panel (or a year before the list starts) shows
+  // as itself, so the bar never claims "any year" while one is set.
+  const hasRange = !single && (f.yearMin != null || f.yearMax != null);
+  const rangeLabel = f.yearMin === f.yearMax ? String(f.yearMin) : `${f.yearMin ?? ''}–${f.yearMax ?? ''}`;
+  const year = single ? f.yearMin : hasRange ? 'range' : '';
+  const opt = (value, label, current) => `<option value="${escapeHtml(String(value))}" ${String(value) === String(current ?? '') ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+  const sel = (id, label, options) => `<label class="find-field"><span class="sr-only">${escapeHtml(label)}</span><select class="sel" data-find="${id}" aria-label="${escapeHtml(label)}">${options}</select></label>`;
+  return `
+    <div class="discover-find" role="group" aria-label="${escapeHtml(copy('discover.findLabel'))}">
+      ${sel('genre', copy('discover.findGenre'), opt('', copy('discover.findGenre'), '') + genres.map((g) => opt(g, g, (f.genres || [])[0])).join(''))}
+      ${sel('season', copy('discover.findSeason'), opt('', copy('discover.findSeason'), '') + SEASONS.map((s) => opt(s, copy(`season.${s}`), f.season)).join(''))}
+      ${sel('year', copy('discover.findYear'), opt('', copy('discover.findYear'), year) + (hasRange ? opt('range', rangeLabel, year) : '') + years.map((y) => opt(y, String(y), year)).join(''))}
+      ${sel('format', copy('discover.findFormat'), opt('', copy('discover.findFormat'), '') + formats.map((x) => opt(x, formatEnumLabel(x), f.format)).join(''))}
+      ${sel('length', copy('discover.findLength'), opt('', copy('discover.findLength'), '') + Object.keys(LENGTHS).map((k) => opt(k, copy(`discover.length${k[0].toUpperCase()}${k.slice(1)}`), lengthOf(f))).join(''))}
+      <label class="togg find-completed${f.airingStatus === 'FINISHED' ? ' on' : ''}"><input type="checkbox" data-find="completed" ${f.airingStatus === 'FINISHED' ? 'checked' : ''}><b>✓</b>${escapeHtml(copy('discover.onlyCompleted'))}</label>
+    </div>`;
+}
+
+function corpusGenres(corpusEntries) {
+  const d = derivedFor(corpusEntries);
+  if (!d.fields.has('__genres')) {
+    const set = new Set();
+    for (const c of Object.values(corpusEntries || {})) for (const g of c.genres || []) set.add(g);
+    d.fields.set('__genres', [...set].sort());
+  }
+  return d.fields.get('__genres');
+}
+
+function headHtml({ activeMood, discoverFilters, search, dismissedCount, corpusEntries }) {
   return `
     <div class="discover-head">
       <h2 class="discover-title">${escapeHtml(copy('nav.discover'))}</h2>
       <button class="btn btn-ghost sm tune-btn" popovertarget="discover-tune" aria-haspopup="dialog">${escapeHtml(copy('discover.tune'))}${activeMood ? ` · ${escapeHtml(copy(activeMood.copyKey))}` : ''}</button>
       <label class="discover-search">${ICON.search}<input type="search" id="discover-search" value="${escapeHtml(search)}" placeholder="${escapeHtml(copy('discover.searchPlaceholder'))}" aria-label="${escapeHtml(copy('discover.searchLabel'))}" autocomplete="off"></label>
       <span class="discover-head-spacer"></span>
-      <button class="btn btn-ghost sm" data-action="discover-triage" aria-keyshortcuts="T" title="${escapeHtml(copy('discover.triageHint'))}">${ICON.triage}<span>${escapeHtml(copy('discover.triage'))}</span></button>
+      <button class="btn btn-ghost sm" data-action="discover-triage" aria-keyshortcuts="T" data-tip="${escapeHtml(copy('discover.triageHint'))}">${ICON.triage}<span>${escapeHtml(copy('discover.triage'))}</span></button>
       ${dismissedCount ? `<button class="text-btn" id="dismissed-trigger">${escapeHtml(copy('discover.dismissed', undefined, { n: dismissedCount }))}</button>` : ''}
     </div>
+    ${corpusEntries ? findBarHtml(discoverFilters || {}, corpusEntries) : ''}
     ${discoverFilterChipsRowHtml(discoverFilters)}`;
 }
 
@@ -458,7 +534,7 @@ export function renderDiscoverPage(container, viewState) {
   const { status, result = null, corpusStatus = null, activeMoodId = null, discoverFilters = {}, search = '', moreLikeThis = null, ratedCount = 0 } = viewState;
   renderDiscoverTune(viewState);
   const activeMood = activeMoodId ? MOOD_REGISTRY.find((m) => m.id === activeMoodId) : null;
-  const head = headHtml({ activeMood, discoverFilters, search, dismissedCount: Store.getDismissedItems().length });
+  const head = headHtml({ activeMood, discoverFilters, search, dismissedCount: Store.getDismissedItems().length, corpusEntries: viewState.corpusEntries });
   const q = search.trim().toLowerCase();
 
   if (status === 'degraded') {
@@ -517,58 +593,6 @@ export function synopsisText(description, max = 600) {
   return { text, spoilersHidden };
 }
 
-const KEY_HINTS = { want: 'W', seen: 'S', notForMe: 'X', skip: '→', undo: 'Z' };
-
-// Triage (spec 7): one large card at a time. `t` is actions.js's triage
-// state: { card, answered, rating, detail, lastDismissed, canUndo }.
-export function renderTriage(container, t) {
-  if (!container) return;
-  const counter = t.answered ? copy('triage.counter', undefined, { n: t.answered }) : copy('triage.intro');
-  const head = `<div class="triage-head"><h2 id="triage-title">${escapeHtml(copy('discover.triage'))}</h2><p class="triage-counter" aria-live="polite">${escapeHtml(counter)}</p></div>`;
-  if (!t.card) {
-    morphInto(container, `${head}<p class="card-meta">${escapeHtml(copy('triage.empty'))}</p><div class="row triage-done-row"><button class="btn btn-primary sm" data-action="triage-done">${escapeHtml(copy('triage.done'))}</button></div>`);
-    return;
-  }
-  const card = t.card;
-  const c = card.entry;
-  const title = discoverCardTitle(c);
-  const banner = t.detail?.bannerImage || c.bannerImage || c.coverLarge || c.coverMedium;
-  const syn = synopsisText(t.detail?.description);
-  const trailer = t.detail?.trailer?.site === 'youtube' && t.detail.trailer.id ? { href: `https://www.youtube.com/watch?v=${encodeURIComponent(t.detail.trailer.id)}`, thumb: t.detail.trailer.thumbnail } : null;
-  const chips = (card.chips || []).slice(0, 3);
-  const answers = t.rating
-    ? `<div class="triage-rate" role="group" aria-label="${escapeHtml(copy('triage.rateLabel', undefined, { title: title.primary }))}">
-        <p class="card-meta">${escapeHtml(copy('triage.rateHint'))}</p>
-        <div class="triage-rate-row">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<button class="btn btn-ghost sm" data-action="triage-rate" data-score="${n}">${n}</button>`).join('')}</div>
-        <div class="row"><button class="btn btn-quiet sm" data-action="triage-rate" data-score="">${escapeHtml(copy('discover.noRating'))}</button><button class="btn btn-quiet sm" data-action="triage-rate-cancel">${escapeHtml(copy('triage.cancel'))}</button></div>
-      </div>`
-    : `<div class="triage-answers">
-        <button class="btn btn-primary rip-host" data-action="triage-want"><kbd>${KEY_HINTS.want}</kbd> ${escapeHtml(copy('discover.want'))}</button>
-        <button class="btn btn-ghost" data-action="triage-seen"><kbd>${KEY_HINTS.seen}</kbd> ${escapeHtml(copy('discover.seenIt'))}</button>
-        <button class="btn btn-ghost" data-action="triage-not-for-me"><kbd>${KEY_HINTS.notForMe}</kbd> ${escapeHtml(copy('discover.notForMe'))}</button>
-        <button class="btn btn-quiet" data-action="triage-skip"><kbd>${KEY_HINTS.skip}</kbd> ${escapeHtml(copy('triage.skip'))}</button>
-        <button class="btn btn-quiet" data-action="triage-undo" ${t.canUndo ? '' : 'disabled'}><kbd>${KEY_HINTS.undo}</kbd> ${escapeHtml(copy('triage.undo'))}</button>
-      </div>`;
-  const whyNot = t.lastDismissed
-    ? `<div class="triage-why-not"><span class="card-meta">${escapeHtml(copy('triage.whyNot', undefined, { title: t.lastDismissed.title }))}</span>${dismissReasons().map((r) => `<button class="chip${t.lastDismissed.reason === r.id ? ' on' : ''}" data-action="triage-reason" data-reason="${r.id}">${escapeHtml(r.label)}</button>`).join('')}</div>`
-    : '';
-  morphInto(container, `${head}
-    <article class="triage-card" data-key="triage-${card.id}" data-anilist-id="${card.id}">
-      <div class="triage-banner">${banner ? `<img src="${escapeHtml(banner)}" alt="" decoding="async">` : ''}</div>
-      <div class="triage-info">
-        <p class="why">${reasonHtml(card.reason)}</p>
-        <h3 ${title.alt ? `title="${escapeHtml(title.alt)}"` : ''}>${title.html}</h3>
-        <div class="m">${cardMetaBits(card).map(escapeHtml).join(' · ')}</div>
-        ${chips.length ? `<div class="dc-chips">${chips.map((ch) => `<span class="dc-chip">${escapeHtml(ch)}</span>`).join('')}</div>` : ''}
-        <p class="triage-synopsis">${t.detail === undefined ? escapeHtml(copy('triage.loadingSynopsis')) : escapeHtml(syn.text || copy('triage.noSynopsis'))}</p>
-        ${syn.spoilersHidden ? `<p class="card-meta">${escapeHtml(copy('triage.spoilersHidden'))}</p>` : ''}
-        ${trailer ? `<a class="triage-trailer" href="${escapeHtml(trailer.href)}" target="_blank" rel="noopener noreferrer">${trailer.thumb ? `<img src="${escapeHtml(trailer.thumb)}" alt="" loading="lazy">` : ''}<span>${escapeHtml(copy('triage.trailer'))}</span></a>` : ''}
-      </div>
-    </article>
-    ${answers}
-    ${whyNot}`);
-}
-
 // The Dismissed drawer: each title with its reason, "Bring back" and "Clear all".
 export function renderDismissedDrawer(container, { items, reasonOf, titleOf }) {
   if (!container) return;
@@ -581,7 +605,7 @@ export function renderDismissedDrawer(container, { items, reasonOf, titleOf }) {
       const reason = dismissReasonLabel(reasonOf(it.anilistId));
       return `
       <div class="import-row dismissed-row" data-anilist-id="${it.anilistId}">
-        ${it.coverImage ? `<img class="screenshot-row-cover" src="${escapeHtml(it.coverImage)}" alt="">` : ''}
+        ${posterHtml({ url: it.coverImage, title: it.title || titleOf(it.anilistId) || '', size: 'xs', className: 'screenshot-row-cover' })}
         <span class="import-title">${escapeHtml(it.title || titleOf(it.anilistId) || copy('dismissed.untitled', undefined, { id: it.anilistId }))}${reason ? `<span class="dismissed-reason">${escapeHtml(reason)}</span>` : ''}</span>
         <button class="btn btn-quiet sm" data-action="undo-dismiss">${escapeHtml(copy('dismissed.bringBack'))}</button>
       </div>`;

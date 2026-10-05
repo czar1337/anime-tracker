@@ -12,7 +12,7 @@ const EVIL = '<img src=x onerror="window.__pwned=1">';
 const UPCOMING = {
   id: 555002,
   title: { romaji: `${EVIL}Romaji`, english: `${EVIL}English`, native: null },
-  coverImage: { large: `https://s4.anilist.co/x.jpg" onerror="window.__pwned=2` },
+  coverImage: { large: `https://s4.anilist.co/file/x.jpg" onerror="window.__pwned=2` },
   format: 'TV',
   genres: [`${EVIL}Drama`],
   episodes: 12,
@@ -42,7 +42,8 @@ test('Schedule renders upcoming titles as text, never as markup', async ({ page 
     await expect(card.locator('.card-title')).toContainText('<img');
     await expect(card.locator('.card-meta')).toContainText('<img');
     expect(await card.locator('img').count()).toBe(1); // the cover itself, nothing injected
-    expect(await card.locator('img').getAttribute('src')).toBe(UPCOMING.coverImage.large);
+    // v3 run 2: through the poster cache, the URL as one escaped parameter.
+    expect(await card.locator('img').getAttribute('src')).toBe(`/api/poster?u=${encodeURIComponent(UPCOMING.coverImage.large)}`);
     await page.waitForTimeout(300);
     expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
     await expect(page.locator('#schedule-view h3').first()).toHaveText('This week');

@@ -3,15 +3,33 @@
 Project instructions for Claude Code in the Anime Tracker repository.
 The v2 version of this file is kept at `docs/archive/v2/CLAUDE-v2.md`.
 
-## Current program: v3.0
+## Where things are
 
-Brief: `docs/v3/25-09-2026-v3-brief.md`. Discover spec: `docs/v3/25-09-2026-v3-discover-spec.md`.
-Plan, decisions and acceptance criteria: `docs/v3-plan.md`.
-**Resume state: `docs/v3-progress.md`.** Its status table says which phase is active and
-what is left. On "resume", read that table first, then `git log --oneline -20`, and
-continue. Trust git over the table if they disagree, and fix the table.
+- **How the app is built and the rules that last:** `docs/architecture.md` (storage
+  classes, data-safety invariants, code rules, budgets, tests and release). Read it
+  before changing storage, events, migrations or Discover.
+- **The v3.0 program** (finished up to its release checkpoint): brief
+  `docs/v3/25-09-2026-v3-brief.md`, Discover spec `docs/v3/25-09-2026-v3-discover-spec.md`,
+  plan and every autonomous decision `docs/v3-plan.md`, evidence and the release
+  summary `docs/v3-progress.md`.
+- **Resume state: `docs/v3-progress.md`.** Its status table says which phase is active and
+  what is left. On "resume", read that table first, then `git log --oneline -20`, and
+  continue. Trust git over the table if they disagree, and fix the table.
+- The v2 docs are frozen history in `docs/archive/v2/`. Never edit them. Retired code
+  and specs live in `archive/` (the v2 Discover engine there is still the
+  `eval:discover` baseline).
 
-The v2 docs (`docs/v2-*.md`) are frozen history. Never edit `docs/v2-spec.md`.
+## Commands
+
+- `npm test`: CSS token check and every `node:test` file in `tests/unit/`.
+- `npx playwright test`: end-to-end tests (each test file gets its own server, data
+  folder and free port; 3 workers locally).
+- `npm run perf`: the performance budgets. `npm run eval:discover`: the Discover
+  evaluation (`-- --data <copy of a data folder>` for a real library, `--grid` to tune).
+- `node scripts/build-exe.js` then `node scripts/smoke-exe.js`: the Windows exe.
+- CI (`.github/workflows/ci.yml`) runs unit tests on Ubuntu and Windows, e2e on
+  Ubuntu, the eval and the generated-files check; a `v*` tag builds and publishes the
+  release with the workflow's own token.
 
 ## Process
 
@@ -24,7 +42,8 @@ The v2 docs (`docs/v2-*.md`) are frozen history. Never edit `docs/v2-spec.md`.
   unrelated changes.
 - "Done" for a phase: unit and e2e tests pass; new behaviour has tests; perf budgets are
   measured with `npm run perf`; checked in the browser at 1440px and 390px with reduced
-  motion on and off; a CHANGELOG entry; evidence in `docs/v3-progress.md`.
+  motion on and off (`node scripts/capture-evidence.js <phase>`, never against the real
+  data folder); a CHANGELOG entry; evidence in `docs/v3-progress.md`.
 - Checkpoint at the end of every phase: full suites, acceptance list item by item, a
   fresh subagent reviews the phase diff against the brief, fixes applied, a checkpoint
   entry written, then merge, push and continue.
@@ -75,6 +94,17 @@ Never extract or print credentials. Releases are built by CI from a tag the user
 - Any new Class A store or field extends export, snapshot, checksum and restore in the
   same change, with a round-trip test (v2 spec rules 3 and 3a).
 - Tests never touch the real data directory; they use `ANIME_TRACKER_DATA_DIR`.
+- `.claude/launch.json` starts the dev server on the default data folder: never use it to
+  verify changes. Use the e2e harness or `scripts/capture-evidence.js` (temp fixtures),
+  or a copy of the real folder in a scratch directory.
+- The Claude desktop app is a packaged (MSIX) app: processes started from it see
+  `%APPDATA%` virtualized, so `%APPDATA%\anime-tracker` there is the package's own old
+  copy (`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\anime-tracker`), not the
+  user's library. Read the real data through the running app's API (port 4321), and run
+  the exe for checks with `ANIME_TRACKER_DATA_DIR` on a copy (`scripts/verify/`). The app
+  detects the redirect at startup and says so (`src/services/dataDirCheck.js`).
+- Build with `node scripts/build-exe.js`: it always writes `dist/AnimeTracker.exe` and
+  first asks a running copy to quit (`--force-close` if it has no `/api/quit`).
 - Invariants that no refactor may break:
   - `library.json` is written only as tmp, fsync, rename; never while corrupt or too
     new; never replaced by an empty library while backups or snapshots exist.
@@ -96,3 +126,7 @@ Never extract or print credentials. Releases are built by CI from a tag the user
   affect copy only, never logic and never IDs (tiers themselves are out of v3.0).
 - Adjustable thresholds live in `config/tuning.js`. Schema versions, store names, event
   type strings, stable IDs and protocol constants live in their own domain modules.
+- The version lives in `version.json`; `package.json` must match
+  (`scripts/check-version.js`).
+- A Discover weight or rule change is measured with `npm run eval:discover` before and
+  after; sanity checks must stay at zero.

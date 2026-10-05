@@ -1,6 +1,6 @@
 'use strict';
 // P1.2's required eviction test: "a test asserting Class A is untouched under
-// quota pressure" (docs/v2-spec.md's P1.2 section), plus rule 5's "never
+// quota pressure" (docs/archive/v2/v2-spec.md's P1.2 section), plus rule 5's "never
 // silently drop a write" for the unsatisfiable case. classBEviction.js's own
 // unit tests already prove the planner is structurally confined to
 // CLASS_B_STORES; this proves the real server-side wiring — actual files on

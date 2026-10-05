@@ -41,7 +41,7 @@ test('a Coming soon title without a cover renders its initial and the rest of th
     await page.click('[data-tab="schedule"]');
     const card = page.locator(`[data-anilist-id="${NO_COVER.id}"]`);
     await expect(card).toBeVisible();
-    await expect(card.locator('.cover-initial')).toHaveText('N');
+    await expect(card.locator('.poster.poster-empty')).toHaveAttribute('data-initial', 'N');
     expect(errors).toEqual([]);
   } finally {
     await server.stop();
@@ -62,7 +62,7 @@ test('a search result without a cover renders its initial', async ({ page }) => 
     await page.fill('#search-input', 'nocover');
     const result = page.locator(`.search-result[data-anilist-id="${NO_COVER.id}"]`);
     await expect(result).toBeVisible();
-    await expect(result.locator('.cover-initial')).toHaveText('N');
+    await expect(result.locator('.poster.poster-empty')).toHaveAttribute('data-initial', 'N');
     expect(errors).toEqual([]);
   } finally {
     await server.stop();

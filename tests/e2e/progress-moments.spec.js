@@ -52,7 +52,7 @@ test('+1: the button springs back, the bar grows from the old value, the digit s
         plusAnimation: card.querySelector('.plus').getAnimations().map((a) => a.animationName),
       };
     });
-    expect(seen.label).toBe('6/12'); // the ghost digit is CSS content, not text
+    expect(seen.label).toBe('Ep 6 / 12'); // the ghost digit is CSS content, not text
     expect(seen.barTransition).toBe(true);
     expect(seen.scale).toBeGreaterThan(5 / 12 - 0.02);
     expect(seen.ghost).toBe('5');
@@ -108,7 +108,7 @@ test('the last episode: finished bar with a sweep, a feather from the card, then
 
     await expect(page.locator('#grid > .card[data-id="401"]')).toHaveCount(0);
     const toast = page.locator('.toast', { hasText: 'finished' });
-    await expect(toast).toContainText('Entry A · finished, moved to Watched');
+    await expect(toast).toContainText('Entry A · finished, moved to Completed');
     await toast.getByRole('button', { name: 'Rate it 8' }).click();
     await expect(toast.getByRole('button', { name: 'Rate it 8' })).toHaveAttribute('aria-pressed', 'true');
     await expect(toast).toBeVisible(); // rating keeps the toast up
@@ -120,7 +120,7 @@ test('the last episode: finished bar with a sweep, a feather from the card, then
     await toast.getByRole('button', { name: 'Undo' }).click();
     await page.click('[data-tab="library"]');
     await page.click('[data-list="watching"]');
-    await expect(page.locator('#grid > .card[data-id="401"] .progress-label')).toHaveText('11/12');
+    await expect(page.locator('#grid > .card[data-id="401"] .progress-label')).toHaveText('Ep 11 / 12');
     // The log records the undo as real transitions: back to watching, 12 -> 11.
     await expect
       .poll(async () => {
@@ -145,15 +145,15 @@ test('ctrl+z during the completion moment undoes that series, not the toast befo
     // finishing press showed nothing yet.
     await page.locator('#grid > .card[data-id="404"]').hover();
     await page.locator('#grid > .card[data-id="404"] [data-action="increment"]').click();
-    await expect(page.locator('#grid > .card[data-id="404"] .progress-label')).toHaveText('1/10');
+    await expect(page.locator('#grid > .card[data-id="404"] .progress-label')).toHaveText('Ep 1 / 10');
     await page.locator('#grid > .card[data-id="401"]').hover();
     await page.evaluate(() => {
       document.querySelector('#grid > .card[data-id="401"] [data-action="increment"]').click();
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
     });
     await page.waitForTimeout(1200); // past the moment: nothing may move
-    await expect(page.locator('#grid > .card[data-id="401"] .progress-label')).toHaveText('11/12');
-    await expect(page.locator('#grid > .card[data-id="404"] .progress-label')).toHaveText('1/10');
+    await expect(page.locator('#grid > .card[data-id="401"] .progress-label')).toHaveText('Ep 11 / 12');
+    await expect(page.locator('#grid > .card[data-id="404"] .progress-label')).toHaveText('Ep 1 / 10');
     const lib = await (await fetch(`${server.url}/api/library`)).json();
     expect(lib.entries.find((e) => e.anilistId === 401).listStatus).toBe('watching');
   } finally {

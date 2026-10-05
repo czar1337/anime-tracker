@@ -4,7 +4,7 @@
 
 import { displayTitle } from './titles.js';
 import { createRevisionStore, memoize } from './core/store.js';
-import { defaultSettings, ensureSettingsShape } from './settingsSchema.js';
+import { defaultSettings, ensureSettingsShape, LIBRARY_TABS } from './settingsSchema.js';
 import { createTagId, createListId, normalizeName, isDuplicateTagName, DEFAULT_TAG_COLOR_ID } from './listsAndTags.js';
 import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partitionAiringLast, compareValues } from './sortLogic.js';
 
@@ -12,7 +12,7 @@ import { dateSortValue, computeProgressPercent, computeEpisodesRemaining, partit
 const LISTS = ['watching', 'watchlist', 'watched', 'dropped', 'paused'];
 
 // P1.3: defaults/repair moved to settingsSchema.js (the single typed settings
-// object docs/v2-spec.md's P1.3 asks for) — this module is now a thin
+// object docs/archive/v2/v2-spec.md's P1.3 asks for) — this module is now a thin
 // consumer, same call sites as before.
 const DEFAULT_PREFERENCES = defaultSettings;
 
@@ -32,7 +32,7 @@ const state = {
 };
 
 // Tracks the server's ETag for whatever library content this Store currently
-// reflects (P1.2's concurrency reframe, docs/v2-plan.md/docs/v2-spec.md rule
+// reflects (P1.2's concurrency reframe, docs/archive/v2/v2-plan.md/docs/archive/v2/v2-spec.md rule
 // 6). Used as the If-Match header on the next save so a stale write (this
 // tab holding an older copy than what's actually on disk, e.g. because
 // another tab saved in the meantime) is rejected by the server instead of
@@ -55,7 +55,7 @@ function reindex() {
 const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dismissedItems', 'tags', 'customLists', 'watchHistory', 'imports'];
 
 // Everything the server sent that this build doesn't model, kept so toJSON()
-// can hand it back untouched (docs/v2-spec.md rule 13, "forward
+// can hand it back untouched (docs/archive/v2/v2-spec.md rule 13, "forward
 // compatibility": every reader tolerates a schema version higher than it
 // knows — "preserve unknown fields, default missing ones, and refuse to write
 // rather than downgrading data").
@@ -67,7 +67,7 @@ const KNOWN_TOP_LEVEL_FIELDS = ['schemaVersion', 'entries', 'preferences', 'dism
 // settingsSchema.js's ensureSettingsShape() already honours this rule one
 // level down, inside `preferences`; this closes the same hole at the top
 // level. Found by an independent design review during P1.5's planning, before
-// any new top-level field existed to lose. See docs/v2-progress.md's P1.5
+// any new top-level field existed to lose. See docs/archive/v2/v2-progress.md's P1.5
 // entry.
 let unknownTopLevelFields = {};
 
@@ -151,11 +151,22 @@ function getEntriesByList(list) {
   return state.entries.filter((e) => e.listStatus === list);
 }
 
+// What a Library tab shows: one list, or one of the two views over them
+// (v3 finish): 'new' is Watching with aired episodes not marked yet (the
+// same rule as the Library tab's badge), 'all' is everything.
+function getEntriesForTab(tab) {
+  if (tab === 'all') return state.entries.slice();
+  if (tab === 'new') return state.entries.filter((e) => e.listStatus === 'watching' && unseenLookup && unseenLookup(e.anilistId) > 0);
+  return getEntriesByList(tab);
+}
+
 function getCounts() {
   const counts = Object.fromEntries(LISTS.map((l) => [l, 0]));
   for (const e of state.entries) {
     if (counts[e.listStatus] !== undefined) counts[e.listStatus] += 1;
   }
+  counts.new = getEntriesForTab('new').length;
+  counts.all = state.entries.length;
   return counts;
 }
 
@@ -730,11 +741,11 @@ function groupSortValue(group, sortKey) {
 // "Recommended" there, nothing to substitute). Resolved BEFORE any sorting
 // happens, so groupSortValue/compareValues never actually see the literal
 // key 'recommended' for a list.
-const LIST_RECOMMENDED_KEY = { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'lastUpdated' };
+const LIST_RECOMMENDED_KEY = { watching: 'dateAdded', watchlist: 'dateAdded', watched: 'completedAt', dropped: 'lastUpdated', paused: 'lastUpdated', new: 'unseenEpisodes', all: 'lastUpdated' };
 
 // Free-text title filter is intentionally NOT persisted (like a Ctrl-F, not
 // a lasting preference) — kept as simple in-memory state per list.
-const titleFilters = Object.fromEntries(LISTS.map((l) => [l, '']));
+const titleFilters = Object.fromEntries(LIBRARY_TABS.map((l) => [l, '']));
 function setTitleFilter(list, text) {
   titleFilters[list] = text;
   touch();
@@ -762,7 +773,7 @@ function computeGroupedFilteredSorted(list) {
   const sortKey = rawSortKey === 'recommended' ? LIST_RECOMMENDED_KEY[list] || 'dateAdded' : rawSortKey;
   const sortDir = state.preferences.sortDir[list];
 
-  let groups = buildGroups(getEntriesByList(list));
+  let groups = buildGroups(getEntriesForTab(list));
 
   // P4.1: search now also matches tag names and studio, not just title/
   // notes — a tag id only means something once resolved to its name, so
@@ -860,6 +871,7 @@ function allAiringStatuses() {
 
 export const Store = {
   LISTS,
+  TABS: LIBRARY_TABS,
   state,
   get revision() {
     return core.revision;
@@ -874,6 +886,7 @@ export const Store = {
   getEntries,
   getEntry,
   getEntriesByList,
+  getEntriesForTab,
   getCounts,
   addEntry,
   updateEntry,

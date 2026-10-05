@@ -227,6 +227,12 @@ async function measureDiscoverLoadOnce(corpusSize) {
     await page.route('**/graphql.anilist.co/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{"Media":null}}' }));
     await page.keyboard.press('t');
     await page.waitForSelector('#triage-overlay[open] .triage-card', { timeout: 5000 });
+    // An answer counts only for a card on screen (v3 run 2): wait for its
+    // entrance to show it, as a person would.
+    await page.waitForFunction(() => {
+      const card = document.querySelector('#triage-overlay[open] .triage-stage > .triage-card:not(.leaving)');
+      return card && Number(getComputedStyle(card).opacity) >= 0.9;
+    }, null, { timeout: 5000 });
     await page.keyboard.press('w');
     await page.waitForFunction(() => performance.getEntriesByName('discover:answer').length, null, { timeout: 5000 });
     const triage = await page.evaluate(() => Math.round(performance.getEntriesByName('discover:answer')[0].duration));

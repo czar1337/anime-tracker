@@ -22,6 +22,22 @@ import { morphInto } from '../../core/reconcile.js';
 import { NOTIFICATION_LISTS } from '../../settingsSchema.js';
 
 export const SETTINGS_SECTIONS = ['appearance', 'library', 'recommendations', 'notifications', 'data', 'help'];
+
+// v3 run 2: /api/version's answer (version, build, data folder), set by app.js
+// at boot; null until it arrives.
+let appInfo = null;
+export function setAppInfo(info) {
+  appInfo = info;
+}
+// "Anime Tracker 3.0.0, built 5 Oct 2026, 10:12 (abc1234)".
+export function buildText(info = appInfo) {
+  if (!info) return '';
+  const b = info.build || {};
+  if (b.kind === 'dev') return copy('settings.version.dev', undefined, { version: info.current });
+  if (!b.builtAt) return copy('settings.version.unknown', undefined, { version: info.current });
+  const when = new Date(b.builtAt).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return copy('settings.version.exe', undefined, { version: info.current, builtAt: when, commit: b.commit });
+}
 let activeSection = 'appearance';
 
 export function getSettingsSection() {
@@ -204,7 +220,15 @@ function appearanceHtml(prefs) {
       ['off', copy('settings.decoration.off')],
       ['low', copy('settings.decoration.low')],
       ['full', copy('settings.decoration.full')],
-    ], prefs.decoration))}`;
+      ['insane', copy('settings.decoration.insane')],
+    ], prefs.decoration))}
+    ${rowHtml(copy('settings.season.heading'), copy('settings.season.description'), segHtml('decorSeason', copy('settings.season.heading'), [
+      ['auto', copy('settings.season.auto')],
+      ['spring', copy('settings.season.spring')],
+      ['summer', copy('settings.season.summer')],
+      ['autumn', copy('settings.season.autumn')],
+      ['winter', copy('settings.season.winter')],
+    ], prefs.decorSeason || 'auto'))}`;
 }
 
 // ------------------------------------------------------------------- Library
@@ -377,6 +401,7 @@ function importsHtml() {
 
 function dataHtml() {
   return `
+    ${rowHtml(copy('settings.dataFolder.heading'), copy('settings.dataFolder.description'), `<p class="settings-info settings-path" id="settings-data-folder">${escapeHtml(appInfo?.dataDir || '')}</p>${appInfo?.dataDirRedirectedTo ? `<p class="settings-info settings-warning" role="alert">${escapeHtml(copy('settings.dataFolder.redirected', undefined, { path: appInfo.dataDirRedirectedTo }))}</p>` : ''}`)}
     ${rowHtml(copy('settings.backup.heading'), copy('settings.backup.description'), `<div class="row">${commandButton('backup.open', 'command.backup')}${commandButton('import.open', 'command.import')}</div>`)}
     ${rowHtml(copy('settings.imports.heading'), copy('settings.imports.description'), importsHtml())}
     ${rowHtml(copy('dataSafety.heading'), copy('dataSafety.description'), `
@@ -389,7 +414,8 @@ function dataHtml() {
 }
 
 function helpHtml() {
-  return rowHtml(copy('settings.help.heading'), copy('settings.help.description'), commandButton('help.open', 'command.help'));
+  return `${rowHtml(copy('settings.help.heading'), copy('settings.help.description'), `<div class="row">${commandButton('help.open', 'command.help')}${commandButton('help.keys', 'command.shortcuts')}${commandButton('whatsnew.open', 'command.whatsNew')}</div>`)}
+    ${rowHtml(copy('settings.version.heading'), copy('settings.version.description'), `<p class="settings-info" id="settings-build-info">${escapeHtml(buildText())}</p>`)}`;
 }
 
 const SECTION_RENDERERS = {

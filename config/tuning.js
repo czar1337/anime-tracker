@@ -1,5 +1,5 @@
 'use strict';
-// The central tuning config (docs/v2-spec.md's "Where constants live" rule
+// The central tuning config (docs/archive/v2/v2-spec.md's "Where constants live" rule
 // and P1.4 section): every ADJUSTABLE PRODUCT/TUNING VALUE from the spec's
 // Tuning table, transcribed here, verbatim, once. No substep after this one
 // may introduce an adjustable threshold outside this file — a schema
@@ -10,7 +10,7 @@
 // dynamic import() from Node (same "pure, testable without a browser"
 // pattern as public/js/settingsSchema.js/exportRegistry.js) and served to
 // the browser from the new top-level config/ static root server.js adds
-// alongside the existing public/ one (see docs/v2-progress.md's P1.4 entry
+// alongside the existing public/ one (see docs/archive/v2/v2-progress.md's P1.4 entry
 // for why this needed a small server-side extension rather than living
 // under public/js/ like every other browser-loaded module).
 //
@@ -22,7 +22,7 @@
 // (achievements).
 
 // Canonical internal score scale (spec: "1 to 10, one decimal allowed").
-// docs/v2-plan.md's P0.1 finding: real stored scores are integer-only today
+// docs/archive/v2/v2-plan.md's P0.1 finding: real stored scores are integer-only today
 // — nothing to migrate on the scale question itself, per the spec's own
 // "do not migrate stored scores to change scale" rule. This describes the
 // scale user-facing sliders/inputs should offer, not a retroactive rewrite.
@@ -92,7 +92,7 @@ export const TIME_SEMANTICS = {
 // than a generic catch-all. Every one of AniList's 19 real genre values.
 // Confirmed with the user as a reasonable, easily-revisable placeholder —
 // nothing consumes this yet (P5A.1, the first real consumer, is blocked on
-// the AniList ToS question per docs/v2-progress.md's standing decisions).
+// the AniList ToS question per docs/archive/v2/v2-progress.md's standing decisions).
 // Recalibrating this later is a config edit, never a data migration: the
 // resolved "primary genre" is never itself stored on an entry.
 const PRIMARY_GENRE_PRIORITY = [
@@ -123,7 +123,7 @@ export const RECOMMENDATIONS = {
   primaryGenrePriority: PRIMARY_GENRE_PRIORITY,
   genreDiversityCapRatio: 0.35,
   randomnessSeedSource: 'localDay',
-  // User-confirmed at the P0.4 approval gate (docs/v2-progress.md's
+  // User-confirmed at the P0.4 approval gate (docs/archive/v2/v2-progress.md's
   // "Standing decisions"), after P0.3's feasibility measurement.
   corpusTargetSize: 3000,
   rateLimitSafetyMargin: 0.7,
@@ -325,11 +325,14 @@ export const HOME = {
 
 // The command palette (v3 Phase 4, public/js/views/palette/).
 export const PALETTE = {
+  recentQueriesMax: 5, // recent searches shown when the field is empty (v3 run 2)
+  markRowsMax: 3, // "+1 episode on …" rows, for the first matches being watched
   maxResults: 14, // library and command rows shown for a query
   recentMax: 6, // recently used series and commands kept (per browser)
   anilistMinChars: 3, // AniList is searched from this many typed characters
   anilistDebounceMs: 350,
   anilistResults: 5,
+  pageStep: 5, // rows PageUp and PageDown move
   minMatchRatio: 0.15, // a fuzzy match must cover at least this share of the name
 };
 
@@ -346,6 +349,10 @@ export const UI_TIMING = {
   appearanceNoticeToastMs: 12000, // the one-time D2 "your look was updated" toast
   accentSaveDebounceMs: 1500, // learned cover colours are saved in batches
   menuCloseScrollPx: 48, // a popup menu closes once the page scrolls this far
+  // v3 finish, Section 1.
+  tooltipDelayMs: 450, // hover this long before a tooltip shows (keyboard focus shows it at once)
+  undoToastMs: 6000, // how long a toast with Undo stays
+  posterRetryMs: 1500, // a poster that failed is tried once more after this
 };
 
 // v3 Phase 6: the Discover engine (docs/v3/25-09-2026-v3-discover-spec.md,
@@ -408,4 +415,46 @@ export const DISCOVER = {
   evalTopN: 20,
   evalCoverageDays: 7,
   evalHitRateFloor: 0.1, // the CI floor on the committed synthetic fixture
+};
+
+// The atmosphere's particles (v3 run 2, Section 5; public/js/atmosphereParticles.js).
+export const ATMOSPHERE = {
+  particles: { low: 7, full: 16, insane: 110 }, // the most on screen at once
+  layers: { low: 1, full: 2, insane: 3 }, // depth layers (far, middle, near)
+  embers: { low: 0, full: 0, insane: 26 }, // rising sparks
+  fpsFloor: 50, // an average below this cuts particles
+  fpsSample: 90, // frames per measurement
+  minScale: 0.35, // never cut below this share of the budget
+  maxDpr: 1.5, // the canvas never draws at more device pixels than this
+  fpsRecover: 55, // an average above this gives some of the budget back
+  scaleDownStep: 0.75, // a slow sample multiplies the budget by this
+  scaleUpStep: 0.1, // a fast sample adds this share back
+  // Per depth layer (far, middle, near): size, speed, opacity and parallax (px).
+  depth: [
+    { size: 0.6, speed: 0.55, alpha: 0.45, parallax: 6 },
+    { size: 1, speed: 0.8, alpha: 0.7, parallax: 14 },
+    { size: 1.8, speed: 1.15, alpha: 0.9, parallax: 30 },
+  ],
+  burst: { small: 22, big: 60, insaneFactor: 1.5 }, // sparks per burst
+  maxSparks: 300, // bursts in a row (holding +) never pile up past this
+};
+
+// The local poster cache (v3 finish, Section 1; src/routes/posters.js). Class B:
+// the oldest posters go first once either cap is passed.
+export const POSTER_CACHE = {
+  maxFiles: 4000,
+  maxBytes: 200 * 1024 * 1024,
+};
+
+// Triage, "Swipe through" (v3 finish, Section 0).
+export const TRIAGE = {
+  sessionGoal: 20, // cards per session before the summary; "Keep going" adds another round
+  growStep: 40, // Top picks grow by this many when the queue runs low or on "Fetch more"
+  lowWater: 3, // the queue grows before it gets this short
+  detailPaceMs: 3000, // at most one synopsis request per this many ms, well inside AniList's limit
+  swipeDistancePx: 110, // a drag this far answers
+  swipeFlickPx: 40, // a fast flick this far answers too
+  swipeFlickSpeed: 0.6, // px per ms
+  detailCacheMax: 200, // synopses kept for the page; cleared past this on open
+  minVisibleOpacity: 0.15, // an answer counts only while its card is at least this opaque
 };

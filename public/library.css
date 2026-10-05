@@ -1,0 +1,136 @@
+/* The Library (v3 finish, Section 2). Loaded after styles.css and
+   components.css; overrides the older Library rules there.
+   Layout: the seven tabs, one toolbar row (search, sort, Filters, select,
+   layout), the Filters panel when open, the active filters as removable
+   chips with the result count, then the grid. */
+
+/* --- Head: tabs and saved views ------------------------------------------ */
+.library-head { gap: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3); }
+.library-head .lists-seg { flex: 0 1 auto; }
+.list-seg .tab-count.is-zero { opacity: .55; }
+.list-seg[data-list="new"] .tab-count:not(.is-zero) {
+  color: var(--accent-contrast); background: var(--accent-fill);
+  border-radius: var(--radius-pill); padding: 0 .5em; min-width: 1.5em; text-align: center;
+}
+.saved-views:empty { display: none; }
+
+/* --- Toolbar ---------------------------------------------------------------- */
+.list-toolbar { gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.filter-bar { gap: var(--sp-3); }
+.filter-bar .line1 { gap: var(--sp-2); flex-wrap: nowrap; }
+.filter-bar .search-filter-row { flex: 1 1 auto; min-width: 0; padding-block: 7px; }
+.sort-group { display: inline-flex; gap: var(--sp-1); align-items: center; flex-shrink: 0; }
+.sort-group .sel { max-width: 220px; }
+.filters-toggle { flex-shrink: 0; padding: 8px var(--sp-3); }
+.filters-toggle[aria-expanded="true"], .filters-toggle.has-filters { border-color: var(--accent); color: var(--accent-lit); }
+.filters-toggle[aria-expanded="true"] { background: var(--accent-soft); }
+@media (max-width: 760px) {
+  .filter-bar .line1 { flex-wrap: wrap; }
+  .filter-bar .search-filter-row { flex-basis: 100%; }
+  .sort-group { flex: 1 1 auto; min-width: 0; }
+  .sort-group .sel { max-width: none; flex: 1 1 auto; min-width: 0; }
+  .icn.sort-dir-btn .sort-dir-label { display: none; }
+  .icn.sort-dir-btn { padding: 0; width: 31px; justify-content: center; }
+}
+
+/* --- Filters panel -------------------------------------------------------- */
+.filters-panel {
+  display: grid; gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-lit); border-radius: var(--radius-lg);
+  background: var(--bg-elevated); box-shadow: var(--sh-2);
+  animation: filtersIn var(--dur-base) var(--ease-enter);
+}
+.filters-panel[hidden] { display: none; }
+@keyframes filtersIn { from { opacity: 0; transform: translateY(calc(-4px * var(--move-scale))); } }
+.filters-heading { margin: 0 0 var(--sp-2); font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.filters-panel .filter-group { gap: var(--sp-2); }
+.filters-panel .chip.on::after { content: none; }
+.filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--sp-3); align-items: end; }
+.filter-field { display: grid; gap: var(--sp-1); font: var(--t-nano); letter-spacing: var(--tr-nano); text-transform: uppercase; color: var(--faint); }
+.filter-field .sel { width: 100%; font: var(--t-meta); text-transform: none; letter-spacing: normal; }
+.filter-unrated { align-self: end; justify-self: start; }
+.filters-foot { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+
+/* --- Active filters ---------------------------------------------------------- */
+.active-filter-chips { min-height: 0; gap: var(--sp-2); }
+.active-filter-chips .chip-remove { font: var(--t-meta); }
+
+/* --- Cards ------------------------------------------------------------------- */
+/* Titles on up to two lines (the full one in the tooltip), the same height on
+   every card so rows stay even. */
+.card .card-title, .franchise-card .card-title {
+  margin: 0;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  white-space: normal; overflow: hidden; overflow-wrap: anywhere;
+  min-height: calc(2 * 1.3em);
+  line-height: 1.3;
+  font: var(--t-card); font-weight: var(--w-strong);
+}
+.card .card-meta { flex-wrap: wrap; white-space: normal; overflow: visible; row-gap: 2px; }
+.card .card-meta .progress-label { font-variant-numeric: tabular-nums; color: var(--text); }
+.progress-label .ep-slot { position: relative; display: inline-block; }
+.progress-label .ep-slot .ep-old { left: 0; top: 0; }
+.card .progress-track { height: 3px; }
+.progress-track.unknown-total { background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 10px); }
+.card-airing { display: flex; }
+.card-airing .countdown-badge { white-space: normal; font: var(--t-nano); font-weight: var(--w-strong); padding: 2px var(--sp-2); }
+.card-list-score, .card-airing .new-inline { display: none; }
+/* "18 new": its own pill on the cover, never next to the progress numbers. */
+.new-pill {
+  position: absolute; z-index: var(--z-raised); top: var(--sp-2); right: var(--sp-2);
+  padding: 2px var(--sp-2); border: 0; border-radius: var(--radius-pill);
+  background: var(--accent-fill); color: var(--accent-contrast);
+  font: var(--t-micro); font-weight: var(--w-strong); font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.card .dot { display: none; }
+.card-toolbar { gap: var(--sp-1); }
+
+/* A cover that failed (or never existed): the title's first letter. */
+.cover-media.cover-failed .skeleton, .cover-media.cover-failed img { display: none; }
+.cover-media.cover-failed::before {
+  content: attr(data-initial); position: absolute; inset: 0; display: grid; place-items: center;
+  font: var(--t-display-s); color: var(--faint);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--text) 7%, var(--bg-elevated)), var(--card));
+}
+
+/* --- Compact grid ------------------------------------------------------------ */
+.card-grid.compact-layout { grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-width, 170px) * var(--text-scale) * .72), 1fr)); gap: var(--sp-3); }
+.card-grid.compact-layout .card .card-body { padding: var(--sp-2); gap: 2px; }
+.card-grid.compact-layout .card .card-title { font: var(--t-meta); font-weight: var(--w-strong); }
+.card-grid.compact-layout .card .card-meta { font: var(--t-nano); }
+.card-grid.compact-layout .card-format-badge { display: none; }
+.card-grid.compact-layout .tb-btn { width: 28px; height: 28px; }
+.card-grid.compact-layout .plus { height: 28px; }
+
+/* --- List view ----------------------------------------------------------------
+   One row per series: thumbnail, title with its progress, the bar, the next
+   airing, your score, and the actions (+1 first) always shown at the end. */
+.card-grid.list-layout { gap: 2px; }
+.card-grid.list-layout > .card { border-radius: var(--radius-sm); }
+.card-grid.list-layout > .card .card-cover-wrap { width: 40px; margin: var(--sp-2) 0 var(--sp-2) var(--sp-2); }
+.card-grid.list-layout .new-pill { display: none; }
+.card-grid.list-layout > .card .card-body {
+  display: grid; align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 160px) minmax(0, 150px) 52px;
+  grid-template-areas: "title bar airing score" "meta bar airing score";
+  column-gap: var(--sp-4); row-gap: 0;
+  padding: var(--sp-2) 190px var(--sp-2) var(--sp-3);
+}
+.card-grid.list-layout > .card .card-title-block { grid-area: title; }
+.card-grid.list-layout > .card .card-title { min-height: 0; -webkit-line-clamp: 1; line-clamp: 1; }
+.card-grid.list-layout > .card .card-meta { grid-area: meta; }
+.card-grid.list-layout > .card .card-meta .card-score { display: none; }
+.card-grid.list-layout > .card .progress-track { grid-area: bar; width: auto; margin: 0; }
+.card-grid.list-layout > .card .card-airing { grid-area: airing; }
+.card-grid.list-layout > .card .card-list-score { grid-area: score; display: block; font: var(--t-meta); color: var(--warning); text-align: right; font-variant-numeric: tabular-nums; }
+.card-grid.list-layout > .card .new-inline { display: inline; color: var(--accent-lit); font: var(--t-meta); font-weight: var(--w-strong); }
+@media (max-width: 760px) {
+  .card-grid.list-layout > .card .card-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "meta" "bar"; padding-right: 150px; row-gap: 2px; }
+  .card-grid.list-layout > .card .card-airing, .card-grid.list-layout > .card .card-list-score { display: none; }
+  .card-grid.list-layout > .card .card-airing:has(.new-inline) { display: flex; }
+  .card-grid.list-layout > .card .card-body { grid-template-areas: "title" "meta" "bar" "airing"; }
+  .card-grid.list-layout > .card .card-toolbar .tb-btn[data-action="card-status-menu"] { display: none; }
+  .card-grid.list-layout > .card .card-title { -webkit-line-clamp: 2; line-clamp: 2; }
+}

@@ -20,6 +20,7 @@ import { titlesInOrder } from '../../titles.js';
 import { tokenMs, motionAllowed } from '../../core/motion.js';
 import { completingIds } from './model.js';
 import { openMenu, isMenuOpen } from '../../core/menu.js';
+import { isAnyDialogOpen } from '../../core/dialog.js';
 import { exitTowardsOnNextRender, QUICK_MOVE_LISTS, renderSavedViews, setSavedViewFormOpen, renderLayoutToggle } from './view.js';
 import { bindRovingTablist } from '../../core/focus.js';
 import { runCommand, registerCommand } from '../../core/commands.js';
@@ -120,13 +121,14 @@ function playIncrement(card, before) {
   if (btn) restartClass(btn, 'pulse');
   const label = card.querySelector('.progress-label');
   if (!label?.querySelector('.ep-now') || !motionAllowed()) return;
-  label.querySelector('.ep-old')?.remove();
+  const slot = label.querySelector('.ep-slot') || label;
+  slot.querySelector('.ep-old')?.remove();
   const old = document.createElement('span');
   old.className = 'ep-old';
   old.setAttribute('aria-hidden', 'true');
   old.dataset.n = String(before);
   old.addEventListener('animationend', () => old.remove());
-  label.append(old);
+  slot.append(old);
   restartClass(label, 'ep-swap');
 }
 
@@ -211,6 +213,9 @@ export function handleIncrement(card, id) {
     playCompletion(id, liveCard, entry);
     return;
   }
+  // v3 run 2: a small burst of sparks from the card (Decoration, not Off).
+  const from = (liveCard || document.querySelector(`[data-continue-id="${id}"]`))?.getBoundingClientRect();
+  if (from) Atmosphere.burst({ from });
   Render.showToast(copy('toast.episodeWatched', undefined, { title: displayTitle(entry), episode: before + 1 }), {
     actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
@@ -433,6 +438,22 @@ export function handleSetStatus(id, newStatus) {
       refreshAfterMove(id);
     },
   });
+}
+
+// The same move without its own toast, for a caller that shows one (Discover's
+// "Seen it" on a title already in a list). Returns its undo, which reverts the
+// whole move (status, fast-forwarded progress, the watch record), or null.
+export function moveQuietly(id, newStatus) {
+  if (newStatus === 'watched' && Store.getEntry(id)?.listStatus !== 'watched') {
+    Atmosphere.rewardFeather({ from: cardOnScreen(id)?.getBoundingClientRect() });
+  }
+  const revert = moveToStatus(id, newStatus);
+  if (!revert) return null;
+  refreshAfterMove(id);
+  return () => {
+    revert();
+    refreshAfterMove(id);
+  };
 }
 
 // v3 Phase 5: "Watch again". A Watched series goes back to Watching from
@@ -947,6 +968,7 @@ export function bindGridEvents() {
       return;
     }
     else if (action === 'increment') handleIncrement(card, id);
+    else if (action === 'card-open') Detail.showDetail(id, { origin: card });
     else if (action === 'edit-episode') handleEditEpisode(card, id);
     else if (action === 'card-menu' || action === 'card-status-menu') {
       openCardMenu(card, { anchor: actionEl, statusOnly: action === 'card-status-menu' });
@@ -981,10 +1003,11 @@ export function bindBulkActionBar() {
     if (moveBtn) {
       const status = moveBtn.dataset.status;
       const count = Render.getSelectedIds().length;
+      const listName = copy(`list.${status}`);
       confirmDialog({
-        title: `Move ${count} series to ${status}?`,
-        body: 'Watched episodes and scores are kept.',
-        confirmLabel: `Move to ${status}`,
+        title: copy('bulk.moveTitle', undefined, { n: count, list: listName }),
+        body: copy('bulk.moveBody'),
+        confirmLabel: copy('bulk.moveConfirm', undefined, { list: listName }),
         onConfirm: () => handleBulkMove(status),
       });
       return;
@@ -1270,6 +1293,7 @@ export function bindFilterBar() {
 
   bindLayoutToggle();
   bindSavedViews();
+  bindFiltersPanel();
 
   // The filter-empty state's "Clear filters", also in the palette.
   registerCommand({
@@ -1288,7 +1312,50 @@ export function bindFilterBar() {
   });
 }
 
-// Covers or the compact list (v3 Phase 4): a radiogroup with arrow keys.
+// v3 finish: one "Filters" button opens the panel with every filter (genres,
+// format, studio, airing, rating, unrated); search and sort stay in the bar.
+// The panel is part of the page, not a dialog: the grid updates behind it as
+// filters change, and Done, the button again or Escape closes it.
+export function setFiltersPanelOpen(open, { focus = true } = {}) {
+  const panel = document.getElementById('filters-panel');
+  const toggle = document.getElementById('filters-toggle');
+  if (!panel || !toggle) return;
+  panel.hidden = !open;
+  toggle.setAttribute('aria-expanded', String(open));
+  if (!focus) return;
+  if (open) panel.querySelector('button, select, input')?.focus();
+  else toggle.focus();
+}
+
+function bindFiltersPanel() {
+  const panel = document.getElementById('filters-panel');
+  const toggle = document.getElementById('filters-toggle');
+  toggle.addEventListener('click', () => setFiltersPanelOpen(panel.hidden));
+  panel.addEventListener('click', (e) => {
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    if (action === 'filters-done') setFiltersPanelOpen(false);
+    else if (action === 'filters-clear') {
+      Store.setPreference(['filters', activeList()], { genres: [], format: '', studio: '', myScoreMin: null, unratedOnly: false, airingStatus: '' });
+      Render.renderAll(activeList());
+      persist();
+    }
+  });
+  panel.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation(); // not the page's Escape (leave select mode)
+    setFiltersPanelOpen(false);
+  });
+  // Escape anywhere on the page closes an open panel too (focus may have
+  // moved to the grid), unless a dialog is up: that Escape is the dialog's.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || panel.hidden || isAnyDialogOpen() || e.defaultPrevented) return;
+    setFiltersPanelOpen(false, { focus: panel.contains(document.activeElement) || document.activeElement === document.body });
+  });
+}
+
+// Comfortable covers, compact covers or the list (v3 Phase 4; compact in
+// the v3 finish): a radiogroup with arrow keys.
 function bindLayoutToggle() {
   const toggle = document.querySelector('.layout-toggle');
   toggle.addEventListener('click', (e) => {

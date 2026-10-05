@@ -5,7 +5,7 @@
 // survive the P1.3 upgrade with zero visible change, AND get promoted into
 // the now-Class-A `preferences` so it's finally backed up/exported/
 // snapshotted. This is the scenario the design review specifically caught a
-// bug in (see docs/v2-progress.md's P1.3 entry, "one-time marker" decision)
+// bug in (see docs/archive/v2/v2-progress.md's P1.3 entry, "one-time marker" decision)
 // and is why reconcileFirstBoot() exists instead of a data-shape heuristic.
 //
 // P6.1 restructures the stored field from a flat `colorTheme` string into

@@ -62,7 +62,7 @@ function serveStatic(req, res, rootDir, urlPath, extraHeaders = {}) {
 const NO_CACHE_HEADERS = { 'Cache-Control': 'no-store' };
 
 // P1.4: config/tuning.js is the one browser-loaded module that lives
-// outside public/ (docs/v2-plan.md's file list puts it at the repo's
+// outside public/ (docs/archive/v2/v2-plan.md's file list puts it at the repo's
 // top-level config/, not public/js/, since it's meant as the single shared
 // tuning source rather than a frontend-only module). Requests under
 // /config/ resolve against CONFIG_DIR (dev) / a config/... asset key (SEA)

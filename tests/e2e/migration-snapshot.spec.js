@@ -46,7 +46,7 @@ test('if the pre-migration snapshot cannot be verified, nothing is migrated and 
       env: {
         ...process.env,
         ANIME_TRACKER_DATA_DIR: dataDir,
-        ANIME_TRACKER_PORT: String(41000 + Math.floor(Math.random() * 4000)),
+        ANIME_TRACKER_PORT: '0', // it refuses to start; never a port another test could hold
         ANIME_TRACKER_TEST_CORRUPT_SNAPSHOT_AFTER_WRITE: 'pinned',
       },
       stdio: ['ignore', 'pipe', 'pipe'],

@@ -69,7 +69,7 @@ module.exports = function register({ route, prefix }) {
       return;
     }
     // Required, not optional: a P1.2 contract change to this endpoint (see
-    // docs/v2-progress.md's P1.2 section for why this is safe to require
+    // docs/archive/v2/v2-progress.md's P1.2 section for why this is safe to require
     // rather than additive). Checked before the lock — this alone can't
     // race anything, since it doesn't depend on any shared state.
     const ifMatch = req.headers['if-match'];

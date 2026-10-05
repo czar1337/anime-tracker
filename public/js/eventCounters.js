@@ -1,5 +1,5 @@
 'use strict';
-// Lifetime counters (docs/v2-spec.md's P1.5: "maintain running lifetime
+// Lifetime counters (docs/archive/v2/v2-spec.md's P1.5: "maintain running lifetime
 // counters in Class A ... so lifetime achievements and retroactive evaluation
 // are cheap and correct without scanning the whole log").
 //

@@ -2,7 +2,7 @@
 // Boots a real `node server.js` instance against a disposable temp data
 // directory, for Playwright tests and the perf script. Never touches the
 // user's real app-data folder — the live store stays read-only, per rule 9
-// in docs/v2-spec.md's "Storage classes and data safety": a fixture is
+// in docs/archive/v2/v2-spec.md's "Storage classes and data safety": a fixture is
 // copied into a fresh temp directory and the server is pointed at that copy
 // via ANIME_TRACKER_DATA_DIR, never at the real one.
 
@@ -93,12 +93,16 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
   if (fixtureLibraryPath && !reusingDataDir) {
     fs.copyFileSync(fixtureLibraryPath, path.join(dataDir, 'library.json'));
   }
+  // The update check counts as just done, so a test server never asks
+  // GitHub (a test that needs it writes its own file first).
+  const updateCheck = path.join(dataDir, 'update-check.json');
+  if (!fs.existsSync(updateCheck)) fs.writeFileSync(updateCheck, JSON.stringify({ lastCheckedAt: Date.now(), remoteVersion: null }));
 
-  // Ephemeral-range random port. Tests run with Playwright's workers:1
-  // (see playwright.config.js) so collisions are not expected in practice,
-  // but a real EADDRINUSE would surface as waitForServer() timing out.
-  // A test that restarts a server on the same port passes it in opts.env.
-  const testPort = Number(opts.env?.ANIME_TRACKER_PORT) || 41000 + Math.floor(Math.random() * 4000);
+  // v3 Phase 7: port 0 lets the OS pick a free port, which the server prints
+  // ("running at http://localhost:<port>") and this reads back, so parallel
+  // workers never collide. A test that restarts a server on the same port
+  // passes a fixed one in opts.env.
+  const fixedPort = Number(opts.env?.ANIME_TRACKER_PORT) || 0;
   const child = spawn(process.execPath, [SERVER_PATH], {
     env: {
       ...process.env,
@@ -107,8 +111,12 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
       // shows a real Windows toast from a test server (a test can override).
       ANIME_TRACKER_ANILIST_URL: 'http://127.0.0.1:9',
       ANIME_TRACKER_NOTIFY_LOG: path.join(dataDir, 'notifications.log'),
+      // v3 finish: the poster cache never downloads from a test server.
+      ANIME_TRACKER_POSTER_FETCH: 'off',
+      // ...and the one-time What's new dialog stays shut unless a test opens it.
+      ANIME_TRACKER_QUIET_INTRO: '1',
       ...(opts.env || {}),
-      ANIME_TRACKER_PORT: String(testPort),
+      ANIME_TRACKER_PORT: String(fixedPort),
     },
     stdio: 'pipe',
   });
@@ -129,9 +137,16 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
 
   const startupErrors = [];
   child.stderr.on('data', (chunk) => startupErrors.push(chunk.toString()));
-  // stdout is piped but nothing reads it; drain it so a chatty server can never
-  // block on a full pipe buffer.
-  child.stdout.resume();
+  // stdout is read (never left to fill its pipe and block the server) only
+  // for the line that names the bound port; everything else is dropped.
+  let stdoutTail = '';
+  const portFromStdout = new Promise((resolve) => {
+    child.stdout.on('data', (chunk) => {
+      stdoutTail = (stdoutTail + chunk.toString()).slice(-4000);
+      const m = stdoutTail.match(/running at http:\/\/localhost:(\d+)/);
+      if (m) resolve(Number(m[1]));
+    });
+  });
 
   // Idempotent and bounded: safe to call more than once (a second call
   // just re-resolves the same in-flight/completed cleanup), and never
@@ -175,9 +190,19 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
     return stopPromise;
   }
 
-  const url = `http://localhost:${testPort}`;
+  let url;
   let token;
   try {
+    const port = fixedPort || (await Promise.race([
+      portFromStdout,
+      exitPromise.then(() => {
+        throw new Error('Server exited before listening.');
+      }),
+      delay(15000).then(() => {
+        throw new Error('Server did not report its port within 15s.');
+      }),
+    ]));
+    url = `http://localhost:${port}`;
     await waitForServer(url);
     token = await learnWriteToken(url);
   } catch (err) {
@@ -203,12 +228,18 @@ async function startProcessExpectingExit(fixtureLibraryPath, envOverrides = {}, 
   if (fixtureLibraryPath) {
     fs.copyFileSync(fixtureLibraryPath, path.join(dataDir, 'library.json'));
   }
-  const testPort = 41000 + Math.floor(Math.random() * 4000);
+  // Port 0: such a process is expected never to listen, and must not take a
+  // port a parallel worker could be using if it does.
   const child = spawn(process.execPath, [SERVER_PATH], {
     env: {
       ...process.env,
       ANIME_TRACKER_DATA_DIR: dataDir,
-      ANIME_TRACKER_PORT: String(testPort),
+      ANIME_TRACKER_PORT: '0',
+      // The same no-network switches as startFixtureServer.
+      ANIME_TRACKER_ANILIST_URL: 'http://127.0.0.1:9',
+      ANIME_TRACKER_NOTIFY_LOG: path.join(dataDir, 'notifications.log'),
+      ANIME_TRACKER_POSTER_FETCH: 'off',
+      ANIME_TRACKER_QUIET_INTRO: '1',
       ...envOverrides,
     },
     stdio: 'pipe',

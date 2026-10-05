@@ -27,7 +27,10 @@ async function getWorker(onProgress) {
   await loadTesseractScript();
   worker = await window.Tesseract.createWorker('eng', 1, {
     workerPath: '/vendor/tesseract/worker.min.js',
-    corePath: '/vendor/tesseract/core/',
+    // v3 Phase 7: one core only, the SIMD build every current browser runs
+    // (the plain and relaxed-SIMD variants are archived), which keeps about
+    // 7.8 MB out of the exe.
+    corePath: '/vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
     langPath: '/vendor/tesseract/lang/',
     gzip: true,
     logger: (m) => onProgress?.(m),
@@ -93,7 +96,7 @@ function reviewRowHtml(result, idx, included) {
       <span class="conf ${media ? confidenceClass(result.confidence) : 'lo'}">${media ? `${Math.round(result.confidence * 100)}%` : '—'}</span>
       <span>
         ${media
-          ? `<select class="filter-select screenshot-status-select" data-idx="${idx}"><option value="watchlist" selected>Watchlist</option><option value="watching">Watching</option><option value="watched">Watched</option><option value="dropped">Dropped</option></select>`
+          ? `<select class="filter-select screenshot-status-select" data-idx="${idx}"><option value="watchlist" selected>Watchlist</option><option value="watching">Watching</option><option value="watched">Completed</option><option value="dropped">Dropped</option></select>`
           : `<button class="fix" data-action="manual-match" data-idx="${idx}">Search</button>`}
       </span>
     </div>
@@ -101,6 +104,9 @@ function reviewRowHtml(result, idx, included) {
 }
 
 const SCREENSHOT_STEP_LABELS = ['Paste or upload', 'Check matches'];
+
+// The OCR worker exactly as the import uses it (the CSP e2e test runs it).
+export { getWorker as getOcrWorker };
 
 export function initScreenshotImport() {
   const overlay = document.getElementById('screenshot-overlay');

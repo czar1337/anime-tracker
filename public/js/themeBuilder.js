@@ -43,7 +43,7 @@ function ratio(a, b) {
 // Nudges a colour's lightness, one step at a time, until it clears `target`
 // against `bg` — this is the "one-click fix contrast" mechanism the spec
 // asks for, already exposed as a guarantee every buildPalette() output
-// gets, rather than a separate manual action (see docs/v2-progress.md's
+// gets, rather than a separate manual action (see docs/archive/v2/v2-progress.md's
 // P6.1 entry for why: nothing this module produces can fail contrast in
 // the first place, so there is nothing left for a user-facing "fix" button
 // to do).

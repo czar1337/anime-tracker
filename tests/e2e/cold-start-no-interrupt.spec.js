@@ -42,8 +42,9 @@ test('a library with few ratings is offered Triage as a toast, never a dialog ov
     await offer.click();
     await expect(page.locator('#triage-overlay')).toBeVisible();
     await expect(page.locator('#discover-view')).toBeVisible();
-    await expect(page.locator('#triage-body .triage-card')).toBeVisible();
-    await page.keyboard.press('ArrowRight'); // a skip is an answer too
+    await expect(page.locator('#triage-body .triage-card:not(.triage-card-skeleton):not(.leaving)')).toBeVisible({ timeout: 15000 }); // past the loading card
+    await page.waitForTimeout(400); // past the card's entrance
+    await page.keyboard.press('ArrowDown'); // a skip is an answer too
     await expect.poll(async () => typeof (await library(server)).preferences.coldStartCompletedAt, { timeout: 10000 }).toBe('string');
   } finally {
     await server.stop();

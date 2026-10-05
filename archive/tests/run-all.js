@@ -1,4 +1,6 @@
 'use strict';
+// Archived in v3 Phase 7: split into tests/unit/*.suite.test.mjs (one file per
+// module, run by `npm test` with node:test). Kept for history only.
 // Zero-dependency test suite — plain node:assert, run with `node tests/run-all.js`.
 // Never touches the real app data directory or the project's own data/ folder:
 // filesystem tests operate exclusively on temp copies of tests/fixtures/.

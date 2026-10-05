@@ -18,6 +18,25 @@
 
 import { Preferences } from './preferences.js';
 import { reducedMotion as reducedMotionSetting } from './core/motion.js';
+import { createParticleField } from './atmosphereParticles.js';
+
+// v3 run 2: the leaves became a canvas particle field (atmosphereParticles.js)
+// with a kind per season, depth layers and, on Insane, parallax, embers, an
+// aurora, a slow light sweep and a glow under the hovered card. Feathers stay
+// as they were. The gates below are unchanged: Off, reduced motion, the
+// animation setting at Off and light themes stop everything that falls.
+
+// Northern-hemisphere seasons from the month, unless Settings picks one.
+const SEASON_KIND = { spring: 'petal', summer: 'firefly', autumn: 'leaf', winter: 'snow' };
+export function seasonFor(date = new Date()) {
+  const m = date.getMonth();
+  return m >= 2 && m <= 4 ? 'spring' : m >= 5 && m <= 7 ? 'summer' : m >= 8 && m <= 10 ? 'autumn' : 'winter';
+}
+function activeSeason() {
+  const chosen = Preferences.getDecorSeason();
+  return chosen && chosen !== 'auto' ? chosen : seasonFor();
+}
+let field = null;
 
 let container = null;
 let leavesEl = null;
@@ -85,20 +104,20 @@ function rand(min, max) {
   return min + Math.random() * (max - min);
 }
 
+function configureField() {
+  if (!field) return;
+  const level = Preferences.getDecoration();
+  const season = activeSeason();
+  document.documentElement.dataset.season = season;
+  // For the light-theme versions of Insane's aurora and glow (atmosphere CSS).
+  document.documentElement.dataset.scheme = isLightTheme() ? 'light' : 'dark';
+  field.configure({ level, kind: SEASON_KIND[season], falling: decorativeLayerAllowed() });
+}
+
+// The canvas field replaced v2's DOM leaves: this only clears any left from
+// an older page state.
 function buildLeaves() {
   leavesEl.innerHTML = '';
-  for (let i = 0; i < densityConfig().leaves; i++) {
-    const leaf = document.createElement('span');
-    leaf.className = 'atmo-leaf';
-    leaf.style.setProperty('--leaf-x', `${rand(2, 96)}vw`);
-    leaf.style.setProperty('--leaf-dx', `${rand(-16, 16)}vw`);
-    leaf.style.setProperty('--leaf-rot', `${rand(180, 560)}deg`);
-    leaf.style.setProperty('--leaf-op', rand(0.26, 0.4).toFixed(2));
-    const dur = rand(19, 27);
-    leaf.style.setProperty('--leaf-dur', `${dur.toFixed(1)}s`);
-    leaf.style.animationDelay = `${(-rand(0, dur)).toFixed(1)}s`; // staggers them so all 5 don't fall in sync
-    leavesEl.appendChild(leaf);
-  }
 }
 
 function removeFeather(el) {
@@ -144,7 +163,6 @@ function stopAmbientFeathers() {
 // changes or the OS-level reduced-motion preference flips.
 function sync() {
   if (decorativeLayerAllowed()) {
-    if (!leavesEl.hasChildNodes()) buildLeaves();
     if (!ambientTimer) startAmbientFeathers();
   } else {
     leavesEl.innerHTML = '';
@@ -152,6 +170,7 @@ function sync() {
     activeFeather = null;
     stopAmbientFeathers();
   }
+  configureField();
 }
 
 export function initAtmosphere() {
@@ -160,8 +179,12 @@ export function initAtmosphere() {
   container.setAttribute('aria-hidden', 'true');
   container.innerHTML = `
     <div class="atmo-moon"></div>
+    <div class="atmo-aurora"><i></i><i></i></div>
+    <div class="atmo-sweep"></div>
     <div class="atmo-vignette"></div>
     <div class="atmo-canopy"><i></i><i></i><i></i><i></i></div>
+    <div class="atmo-hoverglow"></div>
+    <canvas class="atmo-canvas"></canvas>
     <div class="atmo-leaves"></div>
     <div class="atmo-feathers"></div>
   `;
@@ -169,6 +192,8 @@ export function initAtmosphere() {
   canopyEl = container.querySelector('.atmo-canopy');
   leavesEl = container.querySelector('.atmo-leaves');
   feathersEl = container.querySelector('.atmo-feathers');
+  field = createParticleField(container.querySelector('.atmo-canvas'));
+  bindHoverGlow();
 
   sync();
 
@@ -185,15 +210,47 @@ export function initAtmosphere() {
 // optional) is the card it falls from; without one it falls from the top.
 export function rewardFeather({ from } = {}) {
   if (decorativeLayerAllowed()) spawnFeather({ reward: true, from });
+  burst({ from, big: true });
+}
+
+// A short spray of sparks from a card: an episode marked (small), a series
+// finished (big). Not falling ambience, so light themes get it too; Off,
+// reduced motion and the animation setting at Off do not.
+export function burst({ from, big = false } = {}) {
+  if (!field || !from || document.documentElement.dataset.decor === 'off' || reducedMotion() || motionOff()) return;
+  field.burst({ x: from.left + from.width / 2, y: from.top + Math.min(from.height / 2, 120), big });
+}
+
+// Insane: a soft glow under the card the pointer is on.
+function bindHoverGlow() {
+  const glow = container.querySelector('.atmo-hoverglow');
+  document.addEventListener('pointerover', (e) => {
+    if (document.documentElement.dataset.decor !== 'insane') return;
+    const card = e.target.closest?.('.card, .discover-card, .continue-card, .triage-card');
+    if (!card) {
+      glow.classList.remove('on');
+      return;
+    }
+    const r = card.getBoundingClientRect();
+    glow.style.setProperty('--hx', `${Math.round(r.left + r.width / 2)}px`);
+    glow.style.setProperty('--hy', `${Math.round(r.top + r.height / 2)}px`);
+    glow.classList.add('on');
+  }, { passive: true });
+}
+
+// For the fps measurement (scripts/verify/fps-exe.js) and tests.
+export function atmosphereStats() {
+  return field ? field.stats() : null;
 }
 
 // Called from Settings when the decoration amount changes — density isn't
 // a data-attribute (nothing in CSS needs it), so there's no MutationObserver
 // to catch this automatically the way theme/decor-level changes are.
 export function resyncDensity() {
+  configureField();
   if (!decorativeLayerAllowed()) return;
-  buildLeaves();
   startAmbientFeathers();
 }
 
-export const Atmosphere = { initAtmosphere, rewardFeather, resyncDensity };
+export const Atmosphere = { initAtmosphere, rewardFeather, resyncDensity, burst, atmosphereStats, seasonFor };
+if (typeof window !== 'undefined') window.__atmosphere = { stats: atmosphereStats };
