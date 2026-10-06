@@ -111,8 +111,16 @@ jobs:
       - name: Release notes from CHANGELOG.md
         shell: bash
         run: node scripts/release-notes.js "$TAG" > release-notes.md
+      # A release published by hand for this tag (with the tested local exe and
+      # docs/release-notes-<version>.md) is kept as it is: this job then only
+      # proves that the tagged commit builds and passes the smoke test.
       - name: Create the GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$TAG" dist/AnimeTracker.exe --title "Anime Tracker $TAG" --notes-file release-notes.md --verify-tag
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "A release for $TAG already exists; leaving it as it is."
+            exit 0
+          fi
+          gh release create "$TAG" dist/AnimeTracker.exe --title "Anime Tracker $TAG" --notes-file release-notes.md --verify-tag

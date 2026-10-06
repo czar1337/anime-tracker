@@ -51,8 +51,8 @@ Proving it in the real exe found three more problems:
   36 skips, then the empty state, and Fetch more brought a title back.
 - **Evidence.**
   - Screenshots after cards 1, 2, 10 and 20 of each run, the poster fallback and the
-    end of the queue: `docs/v3-run2/final/`.
-  - Log: `docs/v3-run2/final/triage-exe-log.txt`.
+    end of the queue: taken on a copy of the real library, so they are not in the public repository (the release run repeats the checks on demo data: `docs/v3-release/`).
+  - Log: kept private for the same reason.
   - e2e tests cover 20 answers by keyboard, drags, Keep going, "no corpus" and
     ↑ + Enter.
 
@@ -76,7 +76,7 @@ checks ran the exe on copies, with `ANIME_TRACKER_DATA_DIR`. The verify scripts 
 refuse a live data folder.
 
 **Migration test** in the exe, on a copy of your schema-14 library (335 entries, 359
-events): 12/12 (`docs/v3-run2/final/migration-exe.json`).
+events): 12/12 (the result file named local paths, so it is not in the repository).
 - It migrates to 17 and keeps every user field.
 - The result is identical to the real migration of 5 Oct 00:09.
 - A verified, pinned snapshot is taken first.
@@ -143,7 +143,7 @@ The user-facing version is `CHANGELOG.md`, `## 3.0.0`, "Highlights".
 
 Measured in the built exe (`scripts/verify/fps-exe.js`). Each level ran 6 s on a dark
 theme in Chromium with the GPU on, with the pointer moving and the page scrolling.
-Results are in `docs/v3-run2/final/fps-exe.json`.
+The release run measures again on demo data (`docs/v3-release/`).
 
 | Level | 1440×900 | 390×844 | p95 frame | frames > 33 ms | particles |
 |---|---|---|---|---|---|
