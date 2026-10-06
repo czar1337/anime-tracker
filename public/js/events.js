@@ -226,7 +226,7 @@ function resetSearchState() {
   replaceTargetId = null;
   searchGeneration += 1; // any in-flight search response becomes stale and gets ignored
   const input = document.getElementById('search-input');
-  if (input) input.placeholder = 'Search anime on AniList…';
+  if (input) input.placeholder = copy('search.placeholder');
 }
 
 function openOverlay(id) {
@@ -425,7 +425,7 @@ function handleFixMatch(id) {
   openOverlay('search-overlay');
   replaceTargetId = id;
   const input = document.getElementById('search-input');
-  input.placeholder = 'Search for the correct match…';
+  input.placeholder = copy('search.fixMatchPlaceholder');
   input.value = entry.titleRomaji;
   input.focus();
   input.select();
@@ -436,7 +436,7 @@ function handleFixMatch(id) {
 async function applyReplaceMatch(oldId, media) {
   const existing = Store.getEntry(media.id);
   if (existing && existing.anilistId !== oldId) {
-    Render.showToast('That title is already in your library.');
+    Render.showToast(copy('toast.alreadyInLibrary'));
     return;
   }
   const oldTitle = Store.getEntry(oldId)?.titleRomaji;
@@ -446,14 +446,14 @@ async function applyReplaceMatch(oldId, media) {
   closeAllOverlays();
   refreshView();
   persist();
-  Render.showToast(`Fixed match: "${oldTitle}" → "${media.title.romaji}"`);
+  Render.showToast(copy('toast.fixedMatch', undefined, { oldTitle, newTitle: media.title.romaji }));
   try {
     const file = await Api.downloadCover(media.id, Api.bestCoverUrl(media));
     Store.updateEntry(media.id, { coverFile: file });
     refreshView();
     persist();
   } catch (err) {
-    Render.showToast(`Cover download failed for "${media.title.romaji}"`);
+    Render.showToast(copy('toast.coverFailed', undefined, { title: media.title.romaji }));
   }
 }
 
@@ -491,8 +491,8 @@ async function runSearch(query) {
   } catch (err) {
     if (myGeneration !== searchGeneration) return;
     const reason = err instanceof Api.RateLimitError
-      ? `Rate limited — try again in ${err.retryAfterSeconds}s.`
-      : `${err.message}. Search needs an internet connection.`;
+      ? copy('search.rateLimited', undefined, { seconds: err.retryAfterSeconds })
+      : copy('search.failedOffline', undefined, { message: err.message });
     Render.renderSearchEmpty(resultsEl, query, reason);
   }
 }
@@ -534,7 +534,7 @@ async function addFromSearchResult(anilistId, listStatus) {
   // to already be the one you're adding into.
   refreshView();
   persist();
-  Render.showToast(`Added "${media.title.romaji}" to ${listStatus}`);
+  Render.showToast(copy('toast.addedTo', undefined, { title: media.title.romaji, list: copy(`list.${listStatus}`) }));
 
   try {
     const file = await Api.downloadCover(media.id, Api.bestCoverUrl(media));
@@ -542,7 +542,7 @@ async function addFromSearchResult(anilistId, listStatus) {
     refreshView();
     persist();
   } catch (err) {
-    Render.showToast(`Cover download failed for "${media.title.romaji}" (will retry next launch)`);
+    Render.showToast(copy('toast.coverFailedRetry', undefined, { title: media.title.romaji }));
   }
 }
 
@@ -601,7 +601,7 @@ function bindBackupOverlay() {
       try {
         await refreshBackupList();
       } catch (err) {
-        Render.showToast(`Could not load backups: ${err.message}`);
+        Render.showToast(copy('error.loadBackups', undefined, { message: err.message }));
       }
     },
   });
@@ -634,9 +634,9 @@ function bindBackupOverlay() {
     const file = e.target.closest('[data-restore]')?.dataset.restore;
     if (!file) return;
     confirmDialog({
-      title: `Restore "${file}"?`,
-      body: 'Replaces your current library with this backup. Your current library is not itself deleted — it stays in the backups list.',
-      confirmLabel: 'Restore this backup',
+      title: copy('restore.dialog.title', undefined, { file }),
+      body: copy('backup.restoreDialog.body'),
+      confirmLabel: copy('backup.restoreDialog.confirm'),
       onConfirm: async () => {
         try {
           await Api.restoreBackup(file);
@@ -649,9 +649,9 @@ function bindBackupOverlay() {
           Preferences.syncFromLibrary(data.preferences);
           setCopyTier(data.preferences.contentTier);
           refreshView();
-          Render.showToast('Restored from backup.');
+          Render.showToast(copy('backup.restored'));
         } catch (err) {
-          Render.showToast(`Restore failed: ${err.message}`);
+          Render.showToast(copy('restore.failed', undefined, { message: err.message }));
         }
       },
     });
@@ -669,13 +669,13 @@ function renderNotificationsStatus() {
 
   if (!Notifications.isSupported()) {
     checkbox.disabled = true;
-    statusEl.textContent = 'Your browser does not support notifications.';
+    statusEl.textContent = copy('notify.unsupported');
     return;
   }
   const permission = Notifications.getPermission();
   if (permission === 'denied') {
     checkbox.disabled = true;
-    statusEl.textContent = 'Notifications are blocked for this site in your browser settings — allow them there to use this feature.';
+    statusEl.textContent = copy('notify.blocked');
   } else {
     checkbox.disabled = false;
     statusEl.textContent = '';
@@ -863,8 +863,8 @@ function bindDiscoverFiltersOverlay() {
       const query = params.toString();
       const url = query ? `${location.origin}${location.pathname}?${query}` : `${location.origin}${location.pathname}`;
       navigator.clipboard.writeText(url).then(
-        () => Render.showToast('Filter link copied.'),
-        () => Render.showToast('Could not copy the link.')
+        () => Render.showToast(copy('toast.filterLinkCopied')),
+        () => Render.showToast(copy('toast.filterLinkCopyFailed'))
       );
     }
   });

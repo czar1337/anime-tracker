@@ -316,8 +316,8 @@ export function handleSetScore(id, score) {
   refreshView();
   Detail.refreshDetailIfOpen(id);
   persist();
-  Render.showToast(newScore == null ? 'Score cleared' : `Score set to ${newScore}`, {
-    actionLabel: 'Undo',
+  Render.showToast(newScore == null ? copy('toast.scoreCleared') : copy('toast.scoreSet', undefined, { score: newScore }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -488,9 +488,9 @@ export function confirmDrop(id) {
   const entry = Store.getEntry(id);
   if (!entry) return;
   confirmDialog({
-    title: `Drop ${entry.titleRomaji}?`,
-    body: 'Moves to Dropped. Watched episodes and your score are kept.',
-    confirmLabel: 'Drop the series',
+    title: copy('dialog.drop.title', undefined, { title: entry.titleRomaji }),
+    body: copy('dialog.drop.body'),
+    confirmLabel: copy('dialog.drop.confirm'),
     onConfirm: () => handleSetStatus(id, 'dropped'),
   });
 }
@@ -499,9 +499,9 @@ function confirmDelete(id) {
   const entry = Store.getEntry(id);
   if (!entry) return;
   confirmDialog({
-    title: `Remove ${entry.titleRomaji}?`,
-    body: 'This can be undone right after, but not once you close or reload the tab.',
-    confirmLabel: 'Remove from library',
+    title: copy('dialog.remove.title', undefined, { title: entry.titleRomaji }),
+    body: copy('dialog.undoUntilReload'),
+    confirmLabel: copy('menu.remove'),
     onConfirm: () => handleDelete(id),
   });
 }
@@ -532,8 +532,8 @@ function handleBulkMove(newStatus) {
   refreshView();
   Render.renderTabCounts();
   persist();
-  Render.showToast(`Moved ${changes.length} to ${newStatus}`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.moved', undefined, { n: changes.length, list: copy(`list.${newStatus}`) }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -558,8 +558,8 @@ function handleBulkDelete() {
   refreshView();
   Render.renderTabCounts();
   persist();
-  Render.showToast(`Removed ${removed.length} titles`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.removed', undefined, { n: removed.length }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -586,8 +586,8 @@ function handleBulkSetScore(score) {
   Render.clearSelection();
   refreshView();
   persist();
-  Render.showToast(`Score set to ${score} for ${changes.length} items`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.scoreSet', undefined, { score, n: changes.length }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -616,8 +616,8 @@ function handleBulkClearScore() {
   Render.clearSelection();
   refreshView();
   persist();
-  Render.showToast(`Score cleared for ${changes.length} items`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.scoreCleared', undefined, { n: changes.length }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -652,8 +652,8 @@ function handleBulkIncrement() {
   refreshView();
   Render.renderTabCounts();
   persist();
-  Render.showToast(`Advanced ${changes.length} episodes`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.advanced', undefined, { n: changes.length }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -681,8 +681,8 @@ function handleBulkDecrement() {
   refreshView();
   Render.renderTabCounts();
   persist();
-  Render.showToast(`Decreased ${changes.length} episodes`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.decreased', undefined, { n: changes.length }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -711,8 +711,8 @@ function handleBulkAddTag(tagId) {
   Render.clearSelection();
   refreshView();
   persist();
-  Render.showToast(`Added "${tagName}" to ${changed.length} items`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.tagAdded', undefined, { tag: tagName, n: changed.length }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -735,8 +735,8 @@ function handleBulkRemoveTag(tagId) {
   Render.clearSelection();
   refreshView();
   persist();
-  Render.showToast(`Removed "${tagName}" from ${changed.length} items`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.tagRemoved', undefined, { tag: tagName, n: changed.length }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -759,8 +759,8 @@ function handleBulkAddToList(listId) {
   Render.clearSelection();
   refreshView();
   persist();
-  Render.showToast(`Added ${changed.length} items to "${listName}"`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.bulk.addedToList', undefined, { n: changed.length, list: listName }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -808,9 +808,9 @@ function handleBulkMarkCompleted() {
   Render.renderTabCounts();
   if (changes.length > 0) Atmosphere.rewardFeather();
   persist();
-  const skippedNote = skipped.length > 0 ? ` Skipped ${skipped.length} (unknown episode count): ${skipped.map((e) => e.titleRomaji).join(', ')}.` : '';
-  Render.showToast(`Marked ${changes.length} completed.${skippedNote}`, {
-    actionLabel: changes.length > 0 ? 'Undo' : undefined,
+  const skippedNote = skipped.length > 0 ? copy('toast.bulk.skippedNote', undefined, { n: skipped.length, titles: skipped.map((e) => e.titleRomaji).join(', ') }) : '';
+  Render.showToast(copy('toast.bulk.markedCompleted', undefined, { n: changes.length, note: skippedNote }), {
+    actionLabel: changes.length > 0 ? copy('toast.undo') : undefined,
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -844,7 +844,7 @@ function exportSelection(format) {
     const blob = new Blob([csv], { type: 'text/csv' });
     triggerDownload(blob, `anime-tracker-selection-${stamp}.csv`);
   }
-  Render.showToast(`Exported ${entries.length} items as ${format.toUpperCase()}`);
+  Render.showToast(copy('toast.bulk.exported', undefined, { n: entries.length, format: format.toUpperCase() }));
 }
 
 function handleDelete(id) {
@@ -853,8 +853,8 @@ function handleDelete(id) {
   const removed = Store.removeEntry(id);
   refreshView();
   persist();
-  Render.showToast(`Removed "${entry.titleRomaji}"`, {
-    actionLabel: 'Undo',
+  Render.showToast(copy('toast.removed', undefined, { title: entry.titleRomaji }), {
+    actionLabel: copy('toast.undo'),
     duration: UNDO_TOAST_MS,
     onExpire: evaluateAchievementsAfterUndoWindow,
     onAction: () => {
@@ -1015,9 +1015,9 @@ export function bindBulkActionBar() {
     if (e.target.closest('[data-action="bulk-delete"]')) {
       const count = Render.getSelectedIds().length;
       confirmDialog({
-        title: `Remove ${count} titles from your library?`,
-        body: 'This can be undone right after, but not once you close or reload the tab.',
-        confirmLabel: 'Remove',
+        title: copy('bulk.dialog.removeTitle', undefined, { n: count }),
+        body: copy('dialog.undoUntilReload'),
+        confirmLabel: copy('bulk.remove'),
         onConfirm: () => handleBulkDelete(),
       });
       return;
@@ -1048,9 +1048,9 @@ export function bindBulkMoreMenu() {
       const score = Number(scoreBtn.dataset.score);
       closeAllOverlays();
       confirmDialog({
-        title: `Set score to ${score} for ${count} items?`,
-        body: 'Any existing score for these items is replaced.',
-        confirmLabel: 'Set score',
+        title: copy('bulk.dialog.setScoreTitle', undefined, { score, n: count }),
+        body: copy('bulk.dialog.setScoreBody'),
+        confirmLabel: copy('bulk.dialog.setScoreConfirm'),
         onConfirm: () => handleBulkSetScore(score),
       });
       return;
@@ -1058,9 +1058,9 @@ export function bindBulkMoreMenu() {
     if (e.target.closest('[data-action="bulk-clear-score"]')) {
       closeAllOverlays();
       confirmDialog({
-        title: `Clear score for ${count} items?`,
-        body: 'This can be undone right after, but not once you close or reload the tab.',
-        confirmLabel: 'Clear score',
+        title: copy('bulk.dialog.clearScoreTitle', undefined, { n: count }),
+        body: copy('dialog.undoUntilReload'),
+        confirmLabel: copy('bulk.clearScore'),
         onConfirm: () => handleBulkClearScore(),
       });
       return;
@@ -1068,9 +1068,9 @@ export function bindBulkMoreMenu() {
     if (e.target.closest('[data-action="bulk-increment"]')) {
       closeAllOverlays();
       confirmDialog({
-        title: `Advance ${count} items by one episode?`,
-        body: 'Items already at their last known episode are left unchanged.',
-        confirmLabel: 'Advance',
+        title: copy('bulk.dialog.advanceTitle', undefined, { n: count }),
+        body: copy('bulk.dialog.advanceBody'),
+        confirmLabel: copy('bulk.dialog.advanceConfirm'),
         onConfirm: () => handleBulkIncrement(),
       });
       return;
@@ -1078,9 +1078,9 @@ export function bindBulkMoreMenu() {
     if (e.target.closest('[data-action="bulk-decrement"]')) {
       closeAllOverlays();
       confirmDialog({
-        title: `Move ${count} items back by one episode?`,
-        body: 'Items already at 0 are left unchanged.',
-        confirmLabel: 'Move back',
+        title: copy('bulk.dialog.backTitle', undefined, { n: count }),
+        body: copy('bulk.dialog.backBody'),
+        confirmLabel: copy('bulk.dialog.backConfirm'),
         onConfirm: () => handleBulkDecrement(),
       });
       return;
@@ -1088,12 +1088,12 @@ export function bindBulkMoreMenu() {
     const addTagBtn = e.target.closest('[data-action="bulk-add-tag"]');
     if (addTagBtn) {
       const tagId = addTagBtn.dataset.tagId;
-      const tagName = Store.getTags().find((t) => t.id === tagId)?.name || 'this tag';
+      const tagName = Store.getTags().find((t) => t.id === tagId)?.name || copy('bulk.thisTag');
       closeAllOverlays();
       confirmDialog({
-        title: `Add "${tagName}" to ${count} items?`,
-        body: 'Items that already have this tag are left unchanged.',
-        confirmLabel: 'Add tag',
+        title: copy('bulk.dialog.addTagTitle', undefined, { tag: tagName, n: count }),
+        body: copy('bulk.dialog.addTagBody'),
+        confirmLabel: copy('bulk.dialog.addTagConfirm'),
         onConfirm: () => handleBulkAddTag(tagId),
       });
       return;
@@ -1101,12 +1101,12 @@ export function bindBulkMoreMenu() {
     const removeTagBtn = e.target.closest('[data-action="bulk-remove-tag"]');
     if (removeTagBtn) {
       const tagId = removeTagBtn.dataset.tagId;
-      const tagName = Store.getTags().find((t) => t.id === tagId)?.name || 'this tag';
+      const tagName = Store.getTags().find((t) => t.id === tagId)?.name || copy('bulk.thisTag');
       closeAllOverlays();
       confirmDialog({
-        title: `Remove "${tagName}" from ${count} items?`,
-        body: 'This can be undone right after, but not once you close or reload the tab.',
-        confirmLabel: 'Remove tag',
+        title: copy('bulk.dialog.removeTagTitle', undefined, { tag: tagName, n: count }),
+        body: copy('dialog.undoUntilReload'),
+        confirmLabel: copy('bulk.dialog.removeTagConfirm'),
         onConfirm: () => handleBulkRemoveTag(tagId),
       });
       return;
@@ -1114,12 +1114,12 @@ export function bindBulkMoreMenu() {
     const addListBtn = e.target.closest('[data-action="bulk-add-to-list"]');
     if (addListBtn) {
       const listId = addListBtn.dataset.listId;
-      const listName = Store.getCustomLists().find((l) => l.id === listId)?.name || 'this list';
+      const listName = Store.getCustomLists().find((l) => l.id === listId)?.name || copy('bulk.thisList');
       closeAllOverlays();
       confirmDialog({
-        title: `Add ${count} items to "${listName}"?`,
-        body: 'Items already on this list are left unchanged.',
-        confirmLabel: 'Add to list',
+        title: copy('bulk.dialog.addToListTitle', undefined, { n: count, list: listName }),
+        body: copy('bulk.dialog.addToListBody'),
+        confirmLabel: copy('bulk.dialog.addToListConfirm'),
         onConfirm: () => handleBulkAddToList(listId),
       });
       return;
@@ -1129,12 +1129,12 @@ export function bindBulkMoreMenu() {
       closeAllOverlays();
       const skippedBody =
         skipped.length > 0
-          ? ` ${skipped.length} item(s) with an unknown episode count are skipped and named in the result: ${skipped.map((e) => e.titleRomaji).join(', ')}.`
+          ? copy('bulk.dialog.completeSkipped', undefined, { n: skipped.length, titles: skipped.map((e) => e.titleRomaji).join(', ') })
           : '';
       confirmDialog({
-        title: `Mark ${eligible.length} items completed?`,
-        body: `Progress is set to the full episode count and a completion date is stamped.${skippedBody}`,
-        confirmLabel: 'Mark completed',
+        title: copy('bulk.dialog.completeTitle', undefined, { n: eligible.length }),
+        body: copy('bulk.dialog.completeBody', undefined, { note: skippedBody }),
+        confirmLabel: copy('bulk.markCompleted'),
         onConfirm: () => handleBulkMarkCompleted(),
       });
       return;
@@ -1162,7 +1162,7 @@ export function bindAiringStatus() {
     if (!e.target.closest('#airing-refresh-btn')) return;
     const btn = document.getElementById('airing-refresh-btn');
     btn.disabled = true;
-    btn.textContent = 'Refreshing…';
+    btn.textContent = copy('airing.refreshing');
     await Airing.refreshNow();
     // airing.js dispatches 'airing-updated' on success, which re-renders the
     // whole list (including this status line) — nothing else to do here.

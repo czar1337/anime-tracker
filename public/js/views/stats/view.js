@@ -14,16 +14,17 @@ import { posterHtml } from '../../ui/poster.js';
 import { formatEnumLabel } from '../shared/format.js';
 import { coverSrc } from '../library/view.js';
 
+// The tile icons; each tile's name is the list's own copy (list.*).
 const LIST_META = {
-  watching: { label: 'Watching', icon: '▶' },
-  watchlist: { label: 'Watchlist', icon: '☰' },
-  watched: { label: 'Completed', icon: '✓' },
-  dropped: { label: 'Dropped', icon: '✕' },
-  paused: { label: 'On hold', icon: '❚❚' },
+  watching: { icon: '▶' },
+  watchlist: { icon: '☰' },
+  watched: { icon: '✓' },
+  dropped: { icon: '✕' },
+  paused: { icon: '❚❚' },
 };
 
 export function barChartHtml(data, { formatValue = (v) => v } = {}) {
-  if (data.length === 0) return html`<p class="card-meta">Nothing to show yet.</p>`;
+  if (data.length === 0) return html`<p class="card-meta">${copy('stats.chartEmpty')}</p>`;
   const max = Math.max(...data.map((d) => d.value), 1);
   return data.map(
     (d) => html`
@@ -43,7 +44,7 @@ function miniListHtml(entries) {
       ${posterHtml({ url: coverSrc(e), title: e.titleEnglish || e.titleRomaji, size: 'xs', className: 'stat-mini-cover' })}
       <div class="stat-mini-info">
         <div class="stat-mini-title">${e.titleEnglish || e.titleRomaji}</div>
-        <div class="card-meta">${e.myScore != null ? `★ ${e.myScore}` : ''} ${e.episodesWatched ? `· ${e.episodesWatched} ep` : ''}</div>
+        <div class="card-meta">${e.myScore != null ? copy('card.myScore', undefined, { score: e.myScore }) : ''} ${e.episodesWatched ? `· ${copy('card.episodes', undefined, { n: e.episodesWatched })}` : ''}</div>
       </div>
     </div>`
   );
@@ -110,21 +111,21 @@ export function renderStatsPage(container) {
   container.innerHTML = String(html`
     <div class="home-hero stats-hero">
       <div>
-        <h2>Statistics</h2>
-        <p>Every number your library has to offer.</p>
+        <h2>${copy('stats.heading')}</h2>
+        <p>${copy('stats.subheading')}</p>
       </div>
-      <button class="text-btn primary" id="stats-share-trigger">Share stats</button>
+      <button class="text-btn primary" id="stats-share-trigger">${copy('stats.share')}</button>
     </div>
 
     <div class="home-stats">
-      ${statHtml(entries.length, 'Titles')}
-      ${statHtml(totalEpisodes, 'Episodes watched')}
-      ${statHtml(totalDays, `Days watched (${totalHours} h)`)}
-      ${statHtml(meanScore, 'Mean score')}
-      ${statHtml(completedThisYear.length, `Completed in ${thisYear}`)}
-      ${statHtml(episodesThisYear, `Episodes in ${thisYear}`)}
-      ${statHtml(`${dropRate}%`, 'Drop rate')}
-      ${statHtml(Store.allGenres().length, 'Genres explored')}
+      ${statHtml(entries.length, copy('stats.titles'))}
+      ${statHtml(totalEpisodes, copy('stats.episodesWatched'))}
+      ${statHtml(totalDays, copy('stats.daysWatched', undefined, { hours: totalHours }))}
+      ${statHtml(meanScore, copy('stats.meanScore'))}
+      ${statHtml(completedThisYear.length, copy('stats.completedInYear', undefined, { year: thisYear, list: copy('list.watched') }))}
+      ${statHtml(episodesThisYear, copy('stats.episodesInYear', undefined, { year: thisYear }))}
+      ${statHtml(`${dropRate}%`, copy('stats.dropRate'))}
+      ${statHtml(Store.allGenres().length, copy('stats.genresExplored'))}
       ${statHtml(streaks.current, copy('stats.streakCurrent'))}
       ${statHtml(streaks.longest, copy('stats.streakLongest'))}
       ${statHtml(recentSessions.length, copy('stats.sessions30'))}
@@ -144,30 +145,30 @@ export function renderStatsPage(container) {
 
     <div class="stats-grid-2col">
       <div class="stats-section stats-section--score">
-        <h3>Score distribution</h3>
+        <h3>${copy('stats.scoreDistribution')}</h3>
         ${barChartHtml(scoreDist)}
       </div>
       <div class="stats-section stats-section--format">
-        <h3>By format</h3>
+        <h3>${copy('stats.byFormat')}</h3>
         ${barChartHtml(formatData)}
       </div>
       <div class="stats-section stats-section--genre">
-        <h3>Top genres</h3>
+        <h3>${copy('stats.topGenres')}</h3>
         ${barChartHtml(genreData)}
       </div>
       <div class="stats-section stats-section--decade">
-        <h3>By decade</h3>
+        <h3>${copy('stats.byDecade')}</h3>
         ${barChartHtml(decadeData)}
       </div>
     </div>
 
     <div class="stats-grid-2col">
       <div class="stats-section">
-        <h3>Top rated</h3>
-        <div class="stat-mini-list">${topRated.length ? miniListHtml(topRated) : html`<p class="card-meta">Score something in Completed to see it here.</p>`}</div>
+        <h3>${copy('stats.topRated')}</h3>
+        <div class="stat-mini-list">${topRated.length ? miniListHtml(topRated) : html`<p class="card-meta">${copy('stats.topRatedEmpty', undefined, { list: copy('list.watched') })}</p>`}</div>
       </div>
       <div class="stats-section">
-        <h3>Most episodes watched</h3>
+        <h3>${copy('stats.mostEpisodes')}</h3>
         <div class="stat-mini-list">${miniListHtml(mostEpisodes)}</div>
       </div>
     </div>

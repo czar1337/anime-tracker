@@ -68,21 +68,21 @@ function weekStripHtml(week) {
         ({ date, items }, i) => html`
         <div class="${cls('schedule-day', isSameDay(date, today) && 'is-today')}" style="animation-delay:${staggerDelay(i)}">
           <div class="schedule-day-label">
-            <span class="schedule-day-name">${isSameDay(date, today) ? 'Today' : DAY_NAMES[date.getDay()]}</span>
+            <span class="schedule-day-name">${isSameDay(date, today) ? copy('schedule.today') : DAY_NAMES[date.getDay()]}</span>
             <span class="schedule-day-date">${date.getMonth() + 1}/${date.getDate()}</span>
           </div>
           <div class="schedule-day-items">
             ${items.length
               ? items.map(
                   (it) => html`
-              <button class="${cls('schedule-item', it.alreadyAired && 'already-aired', it.list !== 'watching' && 'waiting')}" data-action="show-detail" data-detail-id="${it.anilistId}" title="${it.title} — episode ${it.episode}${it.alreadyAired ? ', already aired' : ''}">
+              <button class="${cls('schedule-item', it.alreadyAired && 'already-aired', it.list !== 'watching' && 'waiting')}" data-action="show-detail" data-detail-id="${it.anilistId}" title="${copy('schedule.itemTip', undefined, { title: it.title, episode: it.episode, aired: it.alreadyAired })}">
                 <span class="schedule-item-title">${it.title}</span>
-                <span class="schedule-item-ep">${it.alreadyAired ? 'Already aired' : `Ep ${it.episode}`}</span>
+                <span class="schedule-item-ep">${it.alreadyAired ? copy('schedule.alreadyAired') : copy('schedule.ep', undefined, { episode: it.episode })}</span>
                 ${!it.alreadyAired && html`<span class="schedule-item-when"><time datetime="${new Date(it.airingAt * 1000).toISOString()}">${airingTime(it.airingAt)}</time>${countdownText(it.airingAt) && html` · ${countdownText(it.airingAt)}`}</span>`}
                 ${it.list && it.list !== 'watching' && html`<span class="schedule-item-tag">${it.episode === 1 ? copy('schedule.premiere') : copy(`list.${it.list}`)}</span>`}
               </button>`
                 )
-              : html`<p class="schedule-day-empty">Nothing airing</p>`}
+              : html`<p class="schedule-day-empty">${copy('schedule.nothingAiring')}</p>`}
           </div>
         </div>`
       )}
@@ -102,10 +102,10 @@ function scheduleCardHtml(item, index = 0) {
         <div class="card-meta">
           ${(m.genres || []).length ? html`<span>${m.genres.slice(0, 3).join(', ')}</span>` : ''}
         </div>
-        <p class="discover-because schedule-release-date">Releases ${formatReleaseDate(m.startDate)}</p>
+        <p class="discover-because schedule-release-date">${copy('schedule.releases', undefined, { date: formatReleaseDate(m.startDate) })}</p>
         <div class="discover-actions">
-          <button class="text-btn primary" data-action="schedule-add">Add to Watchlist</button>
-          <button class="text-btn" data-action="schedule-dismiss">Not interested</button>
+          <button class="text-btn primary" data-action="schedule-add">${copy('schedule.addTo', undefined, { list: copy('list.watchlist') })}</button>
+          <button class="text-btn" data-action="schedule-dismiss">${copy('schedule.notInterested')}</button>
         </div>
       </div>
     </article>`;
@@ -117,15 +117,15 @@ function mediaFilterBarHtml(prefix, filters, availableFormats, availableStudios,
   if (!availableFormats.length && !availableStudios.length) return '';
   return html`
     <div class="filter-group discover-media-filter">
-      <select id="${prefix}-format-filter" class="sel" aria-label="Filter by format">
-        <option value="">All formats</option>
+      <select id="${prefix}-format-filter" class="sel" aria-label="${copy('filter.byFormat')}">
+        <option value="">${copy('filter.allFormats')}</option>
         ${availableFormats.map((f) => html`<option value="${f}" ${filters.format === f && raw('selected')}>${formatEnumLabel(f)}</option>`)}
       </select>
-      <select id="${prefix}-studio-filter" class="sel" aria-label="Filter by studio">
-        <option value="">All studios</option>
+      <select id="${prefix}-studio-filter" class="sel" aria-label="${copy('filter.byStudio')}">
+        <option value="">${copy('filter.allStudios')}</option>
         ${availableStudios.map((s) => html`<option value="${s}" ${filters.studio === s && raw('selected')}>${s}</option>`)}
       </select>
-      ${showReset && html`<button class="text-btn" id="${prefix}-reset-filters">Reset filters</button>`}
+      ${showReset && html`<button class="text-btn" id="${prefix}-reset-filters">${copy('filter.reset')}</button>`}
     </div>`;
 }
 
@@ -136,12 +136,12 @@ export function renderSchedulePage(container, viewState) {
   const banner = html`
     <div class="discover-hero">
       <div class="home-hero">
-        <h2>Schedule</h2>
-        <p>When your shows air next, and what's coming up worth watching for.</p>
+        <h2>${copy('nav.schedule')}</h2>
+        <p>${copy('schedule.subheading')}</p>
       </div>
       <div class="discover-controls">
-        ${age && html`<span class="discover-age">${age}${offline ? ' · offline, showing cached results' : ''}</span>`}
-        <button class="text-btn primary" id="schedule-refresh-btn" ${status === 'loading' && raw('disabled')}>${status === 'loading' ? 'Refreshing…' : 'Refresh'}</button>
+        ${age && html`<span class="discover-age">${age}${offline ? copy('schedule.offlineCached') : ''}</span>`}
+        <button class="text-btn primary" id="schedule-refresh-btn" ${status === 'loading' && raw('disabled')}>${status === 'loading' ? copy('discover.refreshing') : copy('discover.refresh')}</button>
       </div>
     </div>
     ${mediaFilterBarHtml('schedule', filters, availableFormats, availableStudios, Boolean(filters.format || filters.studio))}`;
@@ -158,8 +158,8 @@ export function renderSchedulePage(container, viewState) {
     const loadMore =
       visibleCount < items.length &&
       html`<div class="discover-load-more-row">
-          <span class="discover-count">Showing ${visibleCount} of ${items.length}</span>
-          <button class="text-btn" id="schedule-load-more-btn">Load more</button>
+          <span class="discover-count">${copy('schedule.showing', undefined, { n: visibleCount, total: items.length })}</span>
+          <button class="text-btn" id="schedule-load-more-btn">${copy('schedule.loadMore')}</button>
         </div>`;
     comingSoonBody = html`<div class="card-grid discover-grid">${visibleItems.map((item, i) => scheduleCardHtml(item, i))}</div>${loadMore}`;
   }
@@ -167,13 +167,13 @@ export function renderSchedulePage(container, viewState) {
   container.innerHTML = String(html`
     ${banner}
     <div class="schedule-section">
-      <h3>This week</h3>
+      <h3>${copy('schedule.thisWeek')}</h3>
       <p class="schedule-tz">${copy('schedule.timeZone', undefined, timeZoneLabel())}</p>
       ${weekStripHtml(week)}
     </div>
     ${seasonChartHtml(viewState.season)}
     <div class="schedule-section">
-      <h3>Coming soon</h3>
+      <h3>${copy('schedule.comingSoon')}</h3>
       ${comingSoonBody}
     </div>
   `);

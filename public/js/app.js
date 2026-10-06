@@ -63,7 +63,7 @@ async function reloadAfterConflict() {
   // included — same reasoning as every other restore-type call site (P1.3).
   Preferences.syncFromLibrary(Store.state.preferences);
   refreshCurrentView();
-  setSaveIndicator('saved', 'Saved');
+  setSaveIndicator('saved', copy('save.indicator.saved'));
   Render.clearError();
 }
 
@@ -86,7 +86,7 @@ async function attemptSave(attempt = 0) {
   clearTimeout(retryTimer); // at most one pending retry, never alongside a send
   saveInFlight = true;
   dirtySinceSend = false;
-  setSaveIndicator('saving', 'Saving');
+  setSaveIndicator('saving', copy('save.indicator.saving'));
   // Events flush alongside every save, but through their OWN endpoint and
   // deliberately NOT awaited into this function's success path (P1.5). The two
   // are decoupled on purpose: /api/events carries no If-Match and cannot 409,
@@ -103,7 +103,7 @@ async function attemptSave(attempt = 0) {
     if (runQueuedSave()) return;
     if (dirtySinceSend) return; // persist()'s own debounce will send the rest
     hasUnsavedChanges = false;
-    setSaveIndicator('saved', 'Saved');
+    setSaveIndicator('saved', copy('save.indicator.saved'));
   } catch (err) {
     saveInFlight = false;
     if (err.conflict) {
@@ -130,16 +130,15 @@ async function attemptSave(attempt = 0) {
       );
       return;
     }
-    setSaveIndicator('failed', 'Not saved. Retrying.');
+    setSaveIndicator('failed', copy('save.indicator.retrying'));
     // P1.6: a 423 "another operation is in flight" gets its own registry copy —
     // it is the spec's "close other tabs to continue" surface, and until now the
     // user read the server's raw prose through the generic message below.
-    // Everything else keeps that generic message, which is pre-v2 copy and
-    // deliberately stays where it is.
+    // Everything else keeps that generic message.
     Render.showError(
       err.locked
         ? copy('save.locked')
-        : `Could not save: ${err.message}. Keep this tab open — your changes are kept here until the save succeeds.`
+        : copy('save.failedRetrying', undefined, { message: err.message })
     );
     // Keep retrying indefinitely (backing off to a steady 5s) rather than
     // ever silently giving up on data the user just entered. Covers both
@@ -165,7 +164,7 @@ async function attemptSave(attempt = 0) {
 function persist() {
   hasUnsavedChanges = true;
   dirtySinceSend = true;
-  setSaveIndicator('saving', 'Saving');
+  setSaveIndicator('saving', copy('save.indicator.saving'));
   clearTimeout(saveDebounceTimer);
   clearTimeout(retryTimer);
   saveDebounceTimer = setTimeout(requestSave, 300);
@@ -187,12 +186,12 @@ async function saveImportNow(importLabel, { apply, rollback }) {
   const pendingBefore = hasUnsavedChanges;
   dirtySinceSend = false;
   apply();
-  setSaveIndicator('saving', 'Saving');
+  setSaveIndicator('saving', copy('save.indicator.saving'));
   try {
     const result = await Api.saveLibrary(Store.toJSON(), Store.getEtag(), { kind: 'import', importLabel });
     Store.setEtag(result.etag);
     hasUnsavedChanges = dirtySinceSend;
-    setSaveIndicator('saved', 'Saved');
+    setSaveIndicator('saved', copy('save.indicator.saved'));
     return result;
   } catch (err) {
     rollback();
@@ -228,7 +227,7 @@ document.getElementById('recovery-backup-list').addEventListener('click', async 
     closeDialog(overlay, { restore: false });
     await boot();
   } catch (err) {
-    statusEl.textContent = `Restore failed: ${err.message}. Try a different backup, or check the data/backups folder directly.`;
+    statusEl.textContent = copy('error.recoveryRestoreFailed', undefined, { message: err.message });
     statusEl.hidden = false;
   }
 });
@@ -249,27 +248,27 @@ function showBlockedScreen(err) {
   const detail = document.getElementById('blocked-detail');
   const esc = Render.escapeHtml;
   if (err.dataConflict) {
-    document.getElementById('blocked-title').textContent = 'Two different data folders were found';
+    document.getElementById('blocked-title').textContent = copy('error.blocked.conflictTitle');
     // No series count/timestamp per folder here — that would need the
     // server to read and parse both library.json files just to describe
     // them, which is out of scope for a screen this rare. Path-only is
     // honest about what's actually known without guessing at the rest.
     detail.innerHTML = `
-      <p>There is a library in both the old and the new location. The app will not guess which one is right, and it will not touch either.</p>
+      <p>${esc(copy('error.blocked.conflictBody'))}</p>
       <div class="safety-boxes">
-        <div class="safety-box"><b>New location</b><span class="path">${esc(err.newDir)}</span></div>
-        <div class="safety-box"><b>Old location</b><span class="path">${esc(err.oldDir)}</span></div>
+        <div class="safety-box"><b>${esc(copy('error.blocked.newLocation'))}</b><span class="path">${esc(err.newDir)}</span></div>
+        <div class="safety-box"><b>${esc(copy('error.blocked.oldLocation'))}</b><span class="path">${esc(err.oldDir)}</span></div>
       </div>
-      <p>Move or rename the folder you do not want, then start the app again.</p>
+      <p>${esc(copy('error.blocked.conflictFix'))}</p>
     `;
   } else if (err.tooNew) {
-    document.getElementById('blocked-title').textContent = 'This library needs a newer app version';
+    document.getElementById('blocked-title').textContent = copy('error.blocked.tooNewTitle');
     detail.innerHTML = `
-      <p>Your data was saved by a newer version of Anime Tracker (schema ${esc(String(err.dataVersion))}); this copy of the app only understands up to schema ${esc(String(err.appVersion))}.</p>
-      <p>Nothing has been changed. Update Anime Tracker to the latest release and restart it.</p>
+      <p>${esc(copy('error.blocked.tooNewBody', undefined, { dataVersion: String(err.dataVersion), appVersion: String(err.appVersion) }))}</p>
+      <p>${esc(copy('error.blocked.tooNewFix'))}</p>
     `;
   } else {
-    document.getElementById('blocked-title').textContent = 'Anime Tracker cannot start';
+    document.getElementById('blocked-title').textContent = copy('error.blocked.cannotStart');
     detail.innerHTML = `<p>${esc(err.message)}</p>`;
   }
   openDialog(overlay);
@@ -279,7 +278,7 @@ async function showVersionBanner() {
   try {
     const info = await Api.getVersionInfo();
     const versionEl = document.getElementById('app-version');
-    versionEl.textContent = `v${info.current}`;
+    versionEl.textContent = copy('header.version', undefined, { version: info.current });
     // v3 run 2: the exact build, on hover and focus, and in Settings.
     setAppInfo(info);
     versionEl.dataset.tip = buildText(info);
@@ -291,7 +290,7 @@ async function showVersionBanner() {
     maybeShowWhatsNew(info);
     if (info.updateAvailable) {
       const banner = document.getElementById('update-banner');
-      banner.textContent = `Version ${info.remote} available`;
+      banner.textContent = copy('banner.updateAvailable', undefined, { version: info.remote });
       banner.href = info.releasesUrl;
       banner.hidden = false;
     }
@@ -332,7 +331,7 @@ async function loadLibraryOrRetry() {
       if (err.dataConflict || err.tooNew) throw err; // no retry — these need a human, not a retry
       if (err.corrupt) throw err;
       attempt += 1;
-      Render.showError(`Could not load your library: ${err.message}. Retrying…`);
+      Render.showError(copy('error.loadLibraryRetrying', undefined, { message: err.message }));
       await sleep(Math.min(2000 * attempt, 10000));
     }
   }
@@ -476,7 +475,7 @@ async function boot() {
       Store.setPreference(['discoverFilters'], parsedFilters);
       persist();
     } else {
-      Render.showToast('That filter link looks corrupted — nothing was changed.');
+      Render.showToast(copy('toast.filterLinkCorrupted'));
     }
     history.replaceState(null, '', location.pathname);
   }
@@ -549,7 +548,7 @@ async function boot() {
     persist();
   });
 
-  window.addEventListener('offline', () => Render.showToast('You are offline — search is unavailable, everything else still works.'));
+  window.addEventListener('offline', () => Render.showToast(copy('toast.offline')));
 }
 
 boot();

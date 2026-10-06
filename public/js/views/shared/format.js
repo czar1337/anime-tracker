@@ -2,6 +2,7 @@
 // render.js).
 
 import { html } from '../../core/html.js';
+import { copy } from '../../copy.js';
 import { posterHtml } from '../../ui/poster.js';
 
 // Entrance-animation delay for a list item, as a CSS value: 30ms per item
@@ -16,10 +17,9 @@ export function staggerDelay(index) {
 export function relativeAgeText(generatedAt) {
   if (!generatedAt) return null;
   const hours = (Date.now() - new Date(generatedAt).getTime()) / 3_600_000;
-  if (hours < 1) return 'Updated just now';
-  if (hours < 24) return `Updated ${Math.round(hours)}h ago`;
-  const days = Math.round(hours / 24);
-  return `Updated ${days} day${days === 1 ? '' : 's'} ago`;
+  if (hours < 1) return copy('airing.updatedJustNow');
+  if (hours < 24) return copy('airing.updatedHoursAgo', undefined, { n: Math.round(hours) });
+  return copy('airing.updatedDaysAgo', undefined, { n: Math.round(hours / 24) });
 }
 
 const FORMAT_ACRONYMS = { TV: 'TV', TV_SHORT: 'TV Short', OVA: 'OVA', ONA: 'ONA' };

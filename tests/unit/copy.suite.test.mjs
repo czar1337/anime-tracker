@@ -165,8 +165,8 @@ await test('check-copy-registry rejects an entry with an unexpected field', asyn
   assert.match(failures[0], /unexpected field/);
 });
 
-await test("the copy() boundary check passes on today's v2 files, and detects a raw literal when planted", () => {
-  assert.deepEqual(copyCheck.runBoundaryCheck(), [], 'no v2 file may pass a raw string to a user-facing sink');
+await test('the copy() boundary check passes on every file under public/js, and detects a raw literal when planted', () => {
+  assert.deepEqual(copyCheck.runBoundaryCheck(), [], 'no file under public/js may pass a raw string to a user-facing sink');
   // Positive control: the detector actually fires.
   assert.equal(copyCheck.findRawSinkLiterals("Render.showToast('raw');").length, 1);
   assert.equal(copyCheck.findRawSinkLiterals('Render.showError(`raw ${x}`);').length, 1);
@@ -174,4 +174,28 @@ await test("the copy() boundary check passes on today's v2 files, and detects a 
   // And does NOT fire on the correct forms.
   assert.equal(copyCheck.findRawSinkLiterals("Render.showToast(copy('k'));").length, 0);
   assert.equal(copyCheck.findRawSinkLiterals("setSaveIndicator('saved', copy('k'));").length, 0, 'the state name is a domain value, not copy');
+});
+
+await test('the app-wide boundary covers every sink, ternary branches, dialog text, attributes and text properties', () => {
+  const sinks = (s) => copyCheck.findRawSinkLiterals(s).length;
+  const attrs = (s) => copyCheck.findRawAttributeLiterals(s).length;
+  // (a) every named sink, bare or on Render.
+  for (const call of ["showToast('Raw')", "showError('Raw')", "toast('Raw')", "toastWithUndo('Raw')", "announce('Raw')", "Render.showToast('Raw')"]) {
+    assert.equal(sinks(call), 1, call);
+  }
+  assert.equal(sinks("showToast(n == null ? 'Score cleared' : copy('k'));"), 1, 'a prose ternary branch is caught');
+  assert.equal(sinks("showToast(s === 'watched' ? copy('a') : copy('b'));"), 0, 'a compared domain value is not copy');
+  assert.equal(sinks("toast(`${copy('a')} ${copy('b')}`);"), 0, 'a template that only joins copy() results is fine');
+  assert.equal(sinks("announce('×');"), 0, 'a lone symbol is not prose');
+  assert.equal(sinks("confirmDialog({ title: `Drop ${t}?`, body: copy('b'), confirmLabel: 'Drop', onConfirm: () => {} });"), 2, 'dialog title and button text');
+  assert.equal(sinks("confirmDialog({ title: copy('a'), body: copy('b'), confirmLabel: copy('c'), requireTypedPhrase: 'RESET' });"), 0);
+  // (b) literal text attributes.
+  assert.equal(attrs('<button aria-label="Close panel">'), 1);
+  assert.equal(attrs('<input placeholder="Any">'), 1);
+  assert.equal(attrs('<b title="${copy(\'k\')}" data-tip="5" alt="">'), 0);
+  // (c) text properties and setAttribute().
+  assert.equal(attrs("el.textContent = 'Saving'; el.setAttribute('aria-label', 'Close');"), 2);
+  assert.equal(attrs("el.textContent = ''; el.placeholder = copy('k');"), 0);
+  // Comments are not copy.
+  assert.equal(sinks(copyCheck.stripComments("// e.g. a toast('Moved to watched') shown earlier\nx();")), 0);
 });

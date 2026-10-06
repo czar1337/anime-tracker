@@ -259,7 +259,7 @@ export function renderPickForMePanel(container, { entries, filters = {}, picked 
   const titleEl = document.getElementById('pick-for-me-title');
   if (titleEl) titleEl.textContent = copy('discoverFeedback.pickForMeTitle');
   if (picked) {
-    const metaBits = [picked.year, formatEnumLabel(picked.format), picked.totalEpisodes ? `${picked.totalEpisodes} ep` : null].filter(Boolean);
+    const metaBits = [picked.year, formatEnumLabel(picked.format), picked.totalEpisodes ? copy('discover.episodes', undefined, { n: picked.totalEpisodes }) : null].filter(Boolean);
     container.innerHTML = `
       <div class="pick-for-me-result">
         <h4 data-action="show-detail" data-detail-id="${picked.anilistId}" style="cursor:pointer">${escapeHtml(picked.titleEnglish || picked.titleRomaji)}</h4>
@@ -276,14 +276,14 @@ export function renderPickForMePanel(container, { entries, filters = {}, picked 
   }
   const genres = pickForMeGenreOptions(entries);
   container.innerHTML = `
-    <div class="df-row"><label>${escapeHtml(copy('discoverFeedback.pickForMeMaxEpisodes'))}</label><input type="number" id="pick-for-me-max-episodes" class="df-num" value="${filters.maxEpisodes ?? ''}" placeholder="Any"></div>
+    <div class="df-row"><label>${escapeHtml(copy('discoverFeedback.pickForMeMaxEpisodes'))}</label><input type="number" id="pick-for-me-max-episodes" class="df-num" value="${filters.maxEpisodes ?? ''}" placeholder="${escapeHtml(copy('discover.filters.any'))}"></div>
     <div class="df-row"><label>${escapeHtml(copy('discoverFeedback.pickForMeGenre'))}</label>
       <select id="pick-for-me-genre" class="sel">
-        <option value="">Any</option>
+        <option value="">${escapeHtml(copy('discover.filters.any'))}</option>
         ${genres.map((g) => `<option value="${escapeHtml(g)}" ${filters.genre === g ? 'selected' : ''}>${escapeHtml(g)}</option>`).join('')}
       </select>
     </div>
-    <div class="df-row"><label>${escapeHtml(copy('discoverFeedback.pickForMeMinScore'))}</label><input type="number" id="pick-for-me-min-score" class="df-num" min="1" max="10" value="${filters.minScore ?? ''}" placeholder="Any"></div>
+    <div class="df-row"><label>${escapeHtml(copy('discoverFeedback.pickForMeMinScore'))}</label><input type="number" id="pick-for-me-min-score" class="df-num" min="1" max="10" value="${filters.minScore ?? ''}" placeholder="${escapeHtml(copy('discover.filters.any'))}"></div>
     ${picked === null ? `<p class="card-meta">${escapeHtml(copy('discoverFeedback.pickForMeEmpty'))}</p>` : ''}
     <div class="row" style="margin-top:var(--sp-4);justify-content:flex-end">
       <button class="btn btn-primary sm rip-host" id="pick-for-me-action">${escapeHtml(copy('discoverFeedback.pickForMeAction'))}</button>
@@ -293,16 +293,14 @@ export function renderPickForMePanel(container, { entries, filters = {}, picked 
 // P5B.2: "one-tap intents that reshape the page" — one button per
 // MOOD_REGISTRY entry (adding a mood is purely a data change there, so
 // this row never needs its own edit for a 9th mood), each labelled via
-// copy() per the spec's own explicit "Names are copy" instruction for
-// this surface specifically (every other Discover string above/below
-// this stays a plain literal, per that surface's own pre-existing
-// convention — moods are the one deliberate exception).
+// copy() per the spec's own explicit "Names are copy" instruction (since
+// v3 Phase 10 every other Discover string goes through copy() too).
 function moodButtonRowHtml(activeMoodId) {
   const buttons = MOOD_REGISTRY.map((mood) => {
     const active = mood.id === activeMoodId;
     return `<button class="mood-chip${active ? ' active' : ''}" data-action="discover-mood" data-mood-id="${escapeHtml(mood.id)}" aria-pressed="${active}">${escapeHtml(copy(mood.copyKey))}</button>`;
   }).join('');
-  return `<div class="discover-mood-row" role="group" aria-label="Discover moods">${buttons}</div>`;
+  return `<div class="discover-mood-row" role="group" aria-label="${escapeHtml(copy('discover.moodsLabel'))}">${buttons}</div>`;
 }
 
 // P5B.3's Advanced Filters. Chips/clear-all reuse the exact `.chip.on`/
@@ -315,21 +313,22 @@ function moodButtonRowHtml(activeMoodId) {
 export function discoverActiveFilterChips(filters) {
   const f = filters || {};
   const chips = [];
-  if (f.yearMin != null || f.yearMax != null) chips.push({ key: 'year', label: `Year: ${f.yearMin ?? '…'}–${f.yearMax ?? '…'}` });
-  if (f.episodeMin != null || f.episodeMax != null) chips.push({ key: 'episodes', label: `Episodes: ${f.episodeMin ?? '…'}–${f.episodeMax ?? '…'}` });
-  if (f.scoreMin != null || f.scoreMax != null) chips.push({ key: 'score', label: `Score: ${f.scoreMin ?? '…'}–${f.scoreMax ?? '…'}` });
-  if (f.memberMin != null || f.memberMax != null) chips.push({ key: 'members', label: `Members: ${f.memberMin ?? '…'}–${f.memberMax ?? '…'}` });
-  if (f.studio) chips.push({ key: 'studio', label: `Studio: ${f.studio}` });
-  if (f.source) chips.push({ key: 'source', label: `Source: ${formatEnumLabel(f.source)}` });
-  if (f.staffQuery) chips.push({ key: 'staffQuery', label: `Staff: "${f.staffQuery}"` });
-  if (f.format) chips.push({ key: 'format', label: `Format: ${formatEnumLabel(f.format)}` });
-  if (f.airingStatus) chips.push({ key: 'airingStatus', label: `Status: ${formatEnumLabel(f.airingStatus)}` });
+  const range = (min, max) => ({ min: min ?? '…', max: max ?? '…' });
+  if (f.yearMin != null || f.yearMax != null) chips.push({ key: 'year', label: copy('discover.chip.year', undefined, range(f.yearMin, f.yearMax)) });
+  if (f.episodeMin != null || f.episodeMax != null) chips.push({ key: 'episodes', label: copy('discover.chip.episodes', undefined, range(f.episodeMin, f.episodeMax)) });
+  if (f.scoreMin != null || f.scoreMax != null) chips.push({ key: 'score', label: copy('discover.chip.score', undefined, range(f.scoreMin, f.scoreMax)) });
+  if (f.memberMin != null || f.memberMax != null) chips.push({ key: 'members', label: copy('discover.chip.members', undefined, range(f.memberMin, f.memberMax)) });
+  if (f.studio) chips.push({ key: 'studio', label: copy('filter.chip.studio', undefined, { value: f.studio }) });
+  if (f.source) chips.push({ key: 'source', label: copy('discover.chip.source', undefined, { value: formatEnumLabel(f.source) }) });
+  if (f.staffQuery) chips.push({ key: 'staffQuery', label: copy('discover.chip.staff', undefined, { value: f.staffQuery }) });
+  if (f.format) chips.push({ key: 'format', label: copy('filter.chip.format', undefined, { value: formatEnumLabel(f.format) }) });
+  if (f.airingStatus) chips.push({ key: 'airingStatus', label: copy('filter.chip.status', undefined, { value: formatEnumLabel(f.airingStatus) }) });
   for (const g of f.genres || []) chips.push({ key: `genre:${g}`, label: copy('discover.chipGenre', undefined, { name: g }) });
   if (f.season) chips.push({ key: 'season', label: copy('discover.chipSeason', undefined, { name: copy(`season.${f.season}`) }) });
-  for (const t of f.includeTags || []) chips.push({ key: `includeTag:${t}`, label: `Tag: ${t}` });
-  for (const t of f.excludeTags || []) chips.push({ key: `excludeTag:${t}`, label: `Not: ${t}` });
-  if (f.maxLengthMinutes != null) chips.push({ key: 'maxLength', label: `Max length: ${(f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '')}h` });
-  if (f.hideDismissed === false) chips.push({ key: 'hideDismissed', label: 'Dismissed titles shown' });
+  for (const t of f.includeTags || []) chips.push({ key: `includeTag:${t}`, label: copy('discover.chip.tag', undefined, { value: t }) });
+  for (const t of f.excludeTags || []) chips.push({ key: `excludeTag:${t}`, label: copy('discover.chip.notTag', undefined, { value: t }) });
+  if (f.maxLengthMinutes != null) chips.push({ key: 'maxLength', label: copy('discover.chip.maxLength', undefined, { hours: (f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '') }) });
+  if (f.hideDismissed === false) chips.push({ key: 'hideDismissed', label: copy('discover.chip.dismissedShown') });
   return chips;
 }
 
@@ -338,9 +337,9 @@ function discoverFilterChipsRowHtml(filters) {
   if (!chips.length) return '';
   return `
     <div class="discover-filter-chips" id="discover-active-filter-chips">
-      <span class="lbl">Filtering by</span>
+      <span class="lbl">${escapeHtml(copy('discover.filters.filteringBy'))}</span>
       ${chips.map((c) => `<button class="chip on" data-chip="${escapeHtml(c.key)}">${escapeHtml(c.label)}</button>`).join('')}
-      <button class="clear" data-chip="__clear_all">Clear all</button>
+      <button class="clear" data-chip="__clear_all">${escapeHtml(copy('discover.filters.clearAll'))}</button>
     </div>`;
 }
 
@@ -412,7 +411,7 @@ function tagChipPickerHtml(corpusEntries, selected, { idPrefix, expanded, overfl
     <div class="discover-filter-tag-picker" id="${idPrefix}-tag-picker">
       ${visible.map(tagBtn).join('')}
       ${expanded ? overflow.map(tagBtn).join('') : ''}
-      ${overflow.length ? `<button class="sel" id="${overflowBtnId}">${expanded ? 'Show less' : 'All tags'} <span style="color:var(--faint)">${overflow.length}</span></button>` : ''}
+      ${overflow.length ? `<button class="sel" id="${overflowBtnId}">${escapeHtml(expanded ? copy('discover.filters.showLess') : copy('discover.filters.allTags'))} <span style="color:var(--faint)">${overflow.length}</span></button>` : ''}
     </div>`;
 }
 
@@ -425,31 +424,31 @@ function tagChipPickerHtml(corpusEntries, selected, { idPrefix, expanded, overfl
 // convention (e.g. the bulk-actions overlay's own inputs).
 function discoverFiltersPanelBodyHtml(corpusEntries, filters) {
   const f = filters || {};
-  const numField = (id, value) => `<input type="number" id="${id}" class="df-num" value="${value ?? ''}" placeholder="Any">`;
+  const numField = (id, value) => `<input type="number" id="${id}" class="df-num" value="${value ?? ''}" placeholder="${escapeHtml(copy('discover.filters.any'))}">`;
   const selectField = (id, options, current, allLabel) => `
     <select id="${id}" class="sel">
       <option value="">${escapeHtml(allLabel)}</option>
       ${options.map((o) => `<option value="${escapeHtml(o)}" ${current === o ? 'selected' : ''}>${escapeHtml(formatEnumLabel(o))}</option>`).join('')}
     </select>`;
   return `
-    <div class="df-row"><label>Year</label>${numField('df-year-min', f.yearMin)}<span>–</span>${numField('df-year-max', f.yearMax)}</div>
-    <div class="df-row"><label>Episodes</label>${numField('df-episode-min', f.episodeMin)}<span>–</span>${numField('df-episode-max', f.episodeMax)}</div>
-    <div class="df-row"><label>Score</label>${numField('df-score-min', f.scoreMin)}<span>–</span>${numField('df-score-max', f.scoreMax)}</div>
-    <div class="df-row"><label>Members</label>${numField('df-member-min', f.memberMin)}<span>–</span>${numField('df-member-max', f.memberMax)}</div>
-    <div class="df-row"><label>Studio</label>${selectField('df-studio', corpusFieldValues(corpusEntries, 'studio'), f.studio, 'Any studio')}</div>
-    <div class="df-row"><label>Source</label>${selectField('df-source', corpusFieldValues(corpusEntries, 'source'), f.source, 'Any source')}</div>
-    <div class="df-row"><label>Staff</label><input type="text" id="df-staff-query" value="${escapeHtml(f.staffQuery || '')}" placeholder="Name contains…"></div>
-    <div class="df-row"><label>Format</label>${selectField('df-format', corpusFieldValues(corpusEntries, 'format'), f.format, 'Any format')}</div>
-    <div class="df-row"><label>Airing status</label>${selectField('df-airing-status', corpusFieldValues(corpusEntries, 'status'), f.airingStatus, 'Any status')}</div>
-    <div class="df-row"><label>Max length (hours)</label>${numField('df-max-length-hours', f.maxLengthMinutes != null ? (f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '') : null)}</div>
-    <div class="df-row df-tags"><label>Include tags</label>${tagChipPickerHtml(corpusEntries, f.includeTags || [], { idPrefix: 'df-include', expanded: includeTagsExpanded, overflowBtnId: 'df-include-tags-overflow' })}</div>
-    <div class="df-row df-tags"><label>Exclude tags</label>${tagChipPickerHtml(corpusEntries, f.excludeTags || [], { idPrefix: 'df-exclude', expanded: excludeTagsExpanded, overflowBtnId: 'df-exclude-tags-overflow' })}</div>
-    <label class="discover-hide-owned-row"><input type="checkbox" id="df-hide-dismissed" ${f.hideDismissed !== false ? 'checked' : ''}>Hide dismissed titles</label>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.year'))}</label>${numField('df-year-min', f.yearMin)}<span>–</span>${numField('df-year-max', f.yearMax)}</div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.episodes'))}</label>${numField('df-episode-min', f.episodeMin)}<span>–</span>${numField('df-episode-max', f.episodeMax)}</div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.score'))}</label>${numField('df-score-min', f.scoreMin)}<span>–</span>${numField('df-score-max', f.scoreMax)}</div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.members'))}</label>${numField('df-member-min', f.memberMin)}<span>–</span>${numField('df-member-max', f.memberMax)}</div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.studio'))}</label>${selectField('df-studio', corpusFieldValues(corpusEntries, 'studio'), f.studio, copy('discover.filters.anyStudio'))}</div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.source'))}</label>${selectField('df-source', corpusFieldValues(corpusEntries, 'source'), f.source, copy('discover.filters.anySource'))}</div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.staff'))}</label><input type="text" id="df-staff-query" value="${escapeHtml(f.staffQuery || '')}" placeholder="${escapeHtml(copy('discover.filters.staffPlaceholder'))}"></div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.format'))}</label>${selectField('df-format', corpusFieldValues(corpusEntries, 'format'), f.format, copy('discover.filters.anyFormat'))}</div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.airingStatus'))}</label>${selectField('df-airing-status', corpusFieldValues(corpusEntries, 'status'), f.airingStatus, copy('filter.anyStatus'))}</div>
+    <div class="df-row"><label>${escapeHtml(copy('discover.filters.maxLength'))}</label>${numField('df-max-length-hours', f.maxLengthMinutes != null ? (f.maxLengthMinutes / 60).toFixed(1).replace(/\.0$/, '') : null)}</div>
+    <div class="df-row df-tags"><label>${escapeHtml(copy('discover.filters.includeTags'))}</label>${tagChipPickerHtml(corpusEntries, f.includeTags || [], { idPrefix: 'df-include', expanded: includeTagsExpanded, overflowBtnId: 'df-include-tags-overflow' })}</div>
+    <div class="df-row df-tags"><label>${escapeHtml(copy('discover.filters.excludeTags'))}</label>${tagChipPickerHtml(corpusEntries, f.excludeTags || [], { idPrefix: 'df-exclude', expanded: excludeTagsExpanded, overflowBtnId: 'df-exclude-tags-overflow' })}</div>
+    <label class="discover-hide-owned-row"><input type="checkbox" id="df-hide-dismissed" ${f.hideDismissed !== false ? 'checked' : ''}>${escapeHtml(copy('discover.filters.hideDismissed'))}</label>
     <div class="row" style="margin-top:var(--sp-4);justify-content:space-between">
-      <button class="btn btn-ghost sm" id="discover-filters-copy-link">Copy link</button>
+      <button class="btn btn-ghost sm" id="discover-filters-copy-link">${escapeHtml(copy('discover.filters.copyLink'))}</button>
       <div class="row" style="gap:var(--sp-2)">
-        <button class="btn btn-quiet sm" id="discover-filters-clear-all">Clear all</button>
-        <button class="btn btn-primary sm rip-host" id="discover-filters-apply">Apply filters</button>
+        <button class="btn btn-quiet sm" id="discover-filters-clear-all">${escapeHtml(copy('discover.filters.clearAll'))}</button>
+        <button class="btn btn-primary sm rip-host" id="discover-filters-apply">${escapeHtml(copy('discover.filters.apply'))}</button>
       </div>
     </div>`;
 }

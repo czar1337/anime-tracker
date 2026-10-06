@@ -350,7 +350,7 @@ export function initSchedule({ persistFn } = {}) {
       renderNow();
       Render.renderTabCounts();
       persist();
-      Render.showToast(`Added "${media.title.romaji}" to Watchlist`);
+      Render.showToast(copy('toast.addedTo', undefined, { title: media.title.romaji, list: copy('list.watchlist') }));
       Api.downloadCover(media.id, Api.bestCoverUrl(media))
         .then((file) => Store.updateEntry(media.id, { coverFile: file }))
         .then(() => persist())

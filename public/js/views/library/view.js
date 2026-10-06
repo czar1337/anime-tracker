@@ -57,7 +57,7 @@ function unseenPopClass(anilistId, unseen) {
 // bubble into, e.g. a franchise card's toggle).
 export function titleBlockHtml(item, anilistId) {
   const [primary, secondary] = titlesInOrder(item, Store.state.preferences.titleLanguage);
-  return html`<div class="card-title-block" data-action="show-detail" data-detail-id="${anilistId}" title="View details"><div class="card-title" title="${primary}">${primary}</div>${secondary && html`<div class="card-title-sub" title="${secondary}">${secondary}</div>`}</div>`;
+  return html`<div class="card-title-block" data-action="show-detail" data-detail-id="${anilistId}" title="${copy('card.viewDetails')}"><div class="card-title" title="${primary}">${primary}</div>${secondary && html`<div class="card-title-sub" title="${secondary}">${secondary}</div>`}</div>`;
 }
 
 // The library card (v3 Phase 4; v3 finish, Section 2): a 2:3 cover, the

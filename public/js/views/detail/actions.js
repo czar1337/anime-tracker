@@ -234,7 +234,7 @@ export function bindDetailActions(lib) {
       Render.renderTabCounts();
       refresh(id);
       lib.persist();
-      Render.showToast(`Marked "${media.title.romaji}" as watched`);
+      Render.showToast(copy('toast.markedWatched', undefined, { title: media.title.romaji }));
     }
     // Tag/list membership and the two inline create forms: each re-renders the
     // grid (so a chip appears there too) and the overlay in place, then saves.
