@@ -13,6 +13,8 @@
 .detail-jump-field:has(input:focus-visible),
 .title-filter:has(input:focus-visible) { outline: var(--focus-ring-width) solid var(--focus-ring-color); outline-offset: var(--focus-ring-offset); }
 .title-filter-input:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring-color); outline-offset: var(--focus-ring-offset); }
+/* A toggle chip's real checkbox is zero-sized: the chip shows its focus. */
+.togg:has(input:focus-visible) { outline: var(--focus-ring-width) solid var(--focus-ring-color); outline-offset: var(--focus-ring-offset); }
 
 /* --- Buttons ------------------------------------------------------------ */
 /* Variants: .btn-primary, .btn-secondary (= .btn-ghost), .btn-ghost,

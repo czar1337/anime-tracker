@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "baseline": {
+    "totalEpisodes": 1998,
+    "totalMinutes": 48779,
+    "totalCompleted": 90
+  },
+  "fromLog": {
+    "totalEpisodes": 0,
+    "totalMinutes": 0,
+    "totalCompleted": 0
+  },
+  "logCount": 0,
+  "lastEventId": null,
+  "logBytes": 0
+}

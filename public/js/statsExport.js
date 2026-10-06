@@ -9,6 +9,8 @@
 // openStatsShareOverlay), and "no decoration — header glow only, since
 // leaves/feathers compress badly in PNG and read as noise."
 
+import { copy } from './copy.js';
+
 const CARD_WIDTH = 800;
 const CARD_HEIGHT = 900;
 
@@ -103,19 +105,19 @@ export function drawStatsCard(canvas, stats) {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = colors.accent;
   ctx.font = "700 14px 'Schibsted Grotesk', sans-serif";
-  ctx.fillText('ANIME TRACKER', 48, 64);
+  ctx.fillText(copy('stats.card.brand'), 48, 64);
 
   ctx.fillStyle = colors.text;
   ctx.font = "700 44px 'Zen Old Mincho', Georgia, serif";
-  ctx.fillText(`My ${stats.year} in anime`, 48, 118);
+  ctx.fillText(copy('stats.card.heading', undefined, { year: stats.year }), 48, 118);
 
   const tiles = [
-    [String(stats.totalTitles), 'Titles in library'],
-    [String(stats.totalEpisodes), 'Episodes watched'],
-    [stats.totalDays.toFixed(1), 'Days watched'],
-    [stats.meanScore != null ? stats.meanScore.toFixed(2) : '—', 'Mean score'],
-    [String(stats.completedThisYear), `Completed in ${stats.year}`],
-    [`${Math.round(stats.dropRate)}%`, 'Drop rate'],
+    [String(stats.totalTitles), copy('stats.card.titlesInLibrary')],
+    [String(stats.totalEpisodes), copy('stats.episodesWatched')],
+    [stats.totalDays.toFixed(1), copy('stats.card.daysWatched')],
+    [stats.meanScore != null ? stats.meanScore.toFixed(2) : '—', copy('stats.meanScore')],
+    [String(stats.completedThisYear), copy('stats.completedInYear', undefined, { year: stats.year, list: copy('list.watched') })],
+    [`${Math.round(stats.dropRate)}%`, copy('stats.dropRate')],
   ];
   const gridTop = 160;
   const tileW = 336;
@@ -130,7 +132,7 @@ export function drawStatsCard(canvas, stats) {
   const genresLabelY = gridTop + 3 * (tileH + gap) + 30;
   ctx.fillStyle = colors.textFaint;
   ctx.font = "700 13px 'Schibsted Grotesk', sans-serif";
-  ctx.fillText('TOP GENRES', 48, genresLabelY);
+  ctx.fillText(copy('stats.card.topGenres'), 48, genresLabelY);
 
   const chipY = genresLabelY + 22;
   ctx.font = "600 16px 'Schibsted Grotesk', sans-serif";
@@ -154,7 +156,7 @@ export function drawStatsCard(canvas, stats) {
     const labelY = chipY + 90;
     ctx.fillStyle = colors.textFaint;
     ctx.font = "700 13px 'Schibsted Grotesk', sans-serif";
-    ctx.fillText('TOP RATED', 48, labelY);
+    ctx.fillText(copy('stats.card.topRated'), 48, labelY);
     ctx.fillStyle = colors.text;
     ctx.font = "600 20px 'Zen Old Mincho', Georgia, serif";
     ctx.fillText(truncateToWidth(ctx, stats.topRatedTitle, CARD_WIDTH - 96), 48, labelY + 32);
@@ -163,24 +165,24 @@ export function drawStatsCard(canvas, stats) {
   ctx.textAlign = 'center';
   ctx.fillStyle = colors.textFaint;
   ctx.font = "500 13px 'Schibsted Grotesk', sans-serif";
-  ctx.fillText('Made with Anime Tracker · a local, no-account anime list', CARD_WIDTH / 2, CARD_HEIGHT - 36);
+  ctx.fillText(copy('stats.card.footer'), CARD_WIDTH / 2, CARD_HEIGHT - 36);
 }
 
 export function buildStatsSummaryText(stats) {
   const lines = [
-    `My ${stats.year} in anime — Anime Tracker`,
-    `${stats.totalTitles} titles · ${stats.totalEpisodes} episodes watched · ${stats.totalDays.toFixed(1)} days watched`,
-    stats.meanScore != null ? `Mean score: ${stats.meanScore.toFixed(2)}` : null,
-    `Completed in ${stats.year}: ${stats.completedThisYear}`,
-    `Drop rate: ${Math.round(stats.dropRate)}%`,
-    stats.topGenres.length ? `Top genres: ${stats.topGenres.join(', ')}` : null,
-    stats.topRatedTitle ? `Top rated: ${stats.topRatedTitle}` : null,
+    copy('stats.text.heading', undefined, { year: stats.year }),
+    copy('stats.text.totals', undefined, { titles: stats.totalTitles, episodes: stats.totalEpisodes, days: stats.totalDays.toFixed(1) }),
+    stats.meanScore != null ? copy('stats.text.meanScore', undefined, { score: stats.meanScore.toFixed(2) }) : null,
+    copy('stats.text.completed', undefined, { year: stats.year, n: stats.completedThisYear, list: copy('list.watched') }),
+    copy('stats.text.dropRate', undefined, { pct: Math.round(stats.dropRate) }),
+    stats.topGenres.length ? copy('stats.text.topGenres', undefined, { genres: stats.topGenres.join(', ') }) : null,
+    stats.topRatedTitle ? copy('stats.text.topRated', undefined, { title: stats.topRatedTitle }) : null,
   ].filter(Boolean);
   return lines.join('\n');
 }
 
 export function canvasToPngBlob(canvas) {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not render image'))), 'image/png');
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(copy('stats.card.renderFailed')))), 'image/png');
   });
 }

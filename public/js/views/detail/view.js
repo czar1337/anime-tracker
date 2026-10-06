@@ -107,10 +107,10 @@ function episodesBlockHtml(entry) {
     return html`
       ${head}
       <div class="barfallback"><i style="--p:${pct / 100}"></i></div>
-      <div class="row eps detail-eps-tail">${tailSquares}<span class="detail-eps-tail-label">last ${watched - tailStart + 1} shown</span></div>
+      <div class="row eps detail-eps-tail">${tailSquares}<span class="detail-eps-tail-label">${copy('detail.lastShown', undefined, { n: watched - tailStart + 1 })}</span></div>
       <div class="row detail-jump-row">
         ${primary}
-        <span class="field detail-jump-field">Jump to episode<input type="number" min="0" ${total ? html`max="${total}"` : ''} data-action="detail-jump-episode" aria-label="Jump to episode"><kbd>↵</kbd></span>
+        <span class="field detail-jump-field">${copy('detail.jumpToEpisode')}<input type="number" min="0" ${total ? html`max="${total}"` : ''} data-action="detail-jump-episode" aria-label="${copy('detail.jumpToEpisode')}"><kbd>↵</kbd></span>
       </div>`;
   }
   const count = total || watched + 1;
@@ -180,7 +180,7 @@ function detailTrailerHtml(trailer) {
   const site = trailer.site === 'dailymotion' ? 'dailymotion' : 'youtube';
   const url = site === 'dailymotion' ? `https://www.dailymotion.com/video/${trailer.id}` : `https://www.youtube.com/watch?v=${trailer.id}`;
   return html`
-    <a class="detail-trailer" href="${url}" target="_blank" rel="noopener" aria-label="Watch trailer (opens in a new tab)">
+    <a class="detail-trailer" href="${url}" target="_blank" rel="noopener" aria-label="${copy('detail.watchTrailer')}">
       <img src="${trailer.thumbnail}" alt="" loading="lazy">
       <span class="detail-trailer-play" aria-hidden="true">▶</span>
     </a>`;
@@ -196,17 +196,17 @@ function detailTagsRowHtml(tags) {
     ? ''
     : detailState.spoilersRevealed
       ? spoilers.map((t) => html`<span class="detail-genre-chip spoiler">${t.name}</span>`)
-      : html`<button class="btn btn-quiet sm" data-action="detail-reveal-spoilers">Reveal spoiler tags (${spoilers.length})</button>`;
+      : html`<button class="btn btn-quiet sm" data-action="detail-reveal-spoilers">${copy('detail.revealSpoilers', undefined, { n: spoilers.length })}</button>`;
   return html`<div class="detail-genres detail-tags-row">${plainChips}${spoilerChips}</div>`;
 }
 
 function detailSynopsisHtml(description) {
-  if (!description) return html`<p class="card-meta">No synopsis available.</p>`;
+  if (!description) return html`<p class="card-meta">${copy('detail.noSynopsis')}</p>`;
   const { truncated, isTruncated } = truncateSynopsis(description, DETAIL_SYNOPSIS_COLLAPSE_LENGTH);
   if (!isTruncated || detailState.synopsisExpanded) {
-    return html`<div class="detail-description">${description}${isTruncated && html` <button class="text-btn" data-action="detail-toggle-synopsis">Show less</button>`}</div>`;
+    return html`<div class="detail-description">${description}${isTruncated && html` <button class="text-btn" data-action="detail-toggle-synopsis">${copy('detail.showLess')}</button>`}</div>`;
   }
-  return html`<div class="detail-description">${truncated}… <button class="text-btn" data-action="detail-toggle-synopsis">Show more</button></div>`;
+  return html`<div class="detail-description">${truncated}… <button class="text-btn" data-action="detail-toggle-synopsis">${copy('detail.showMore')}</button></div>`;
 }
 
 // P1.7's Tags section: every tag as a toggle chip (membership on THIS entry),
@@ -274,7 +274,7 @@ export function renderDetailOverlay(container, state) {
     return;
   }
   if (state.status === 'error') {
-    container.innerHTML = String(html`<div class="empty-state"><h2>Could not load details</h2><p>${state.error}</p></div>`);
+    container.innerHTML = String(html`<div class="empty-state"><h2>${copy('detail.loadFailed')}</h2><p>${state.error}</p></div>`);
     return;
   }
 
@@ -291,7 +291,7 @@ export function renderDetailOverlay(container, state) {
   // AniList's "plain text" description can still contain literal <br> tags
   // despite asHtml:false — turned into real line breaks before escaping.
   const description = m.description ? m.description.replace(/<br\s*\/?>/gi, '\n').replace(/\n{3,}/g, '\n\n').trim() : null;
-  const metaBits = [formatEnumLabel(m.format), formatEnumLabel(m.status), m.episodes ? `${m.episodes} ep` : null, m.duration ? `${m.duration} min/ep` : null].filter(Boolean);
+  const metaBits = [formatEnumLabel(m.format), formatEnumLabel(m.status), m.episodes ? copy('card.episodes', undefined, { n: m.episodes }) : null, m.duration ? copy('detail.minutesPerEpisode', undefined, { n: m.duration }) : null].filter(Boolean);
   const cover = Api.bestCoverUrl(m) || '';
   const listLabel = local ? QUICK_MOVE_LISTS.find((l) => l.key === local.listStatus)?.label || local.listStatus : null;
 
@@ -313,6 +313,7 @@ export function renderDetailOverlay(container, state) {
       </div>
     </header>
     <div class="detail-body">
+      ${state.offline && html`<p class="detail-offline-note" role="status">${copy('detail.offlineNote')}</p>`}
       ${local && html`
         <section class="detail-section detail-top">${episodesBlockHtml(local)}</section>
         <section class="detail-section">${ratingHtml(local)}</section>
@@ -327,14 +328,14 @@ export function renderDetailOverlay(container, state) {
       <section class="detail-section detail-about">
         <p class="detail-lbl">${copy('detail.about')}</p>
         <div class="detail-score-row">
-          ${m.averageScore ? html`<span>★ ${m.averageScore} AniList</span>` : ''}
-          ${m.popularity ? html`<span>${m.popularity.toLocaleString()} on lists</span>` : ''}
-          ${m.favourites ? html`<span>${m.favourites.toLocaleString()} favourites</span>` : ''}
+          ${m.averageScore ? html`<span>${copy('card.anilistScore', undefined, { score: m.averageScore })}</span>` : ''}
+          ${m.popularity ? html`<span>${copy('detail.onLists', undefined, { n: m.popularity.toLocaleString() })}</span>` : ''}
+          ${m.favourites ? html`<span>${copy('detail.favourites', undefined, { n: m.favourites.toLocaleString() })}</span>` : ''}
         </div>
         <div class="detail-meta-grid">
-          ${metaCell('Studio', studios)}
-          ${metaCell('Source', m.source ? formatEnumLabel(m.source) : null)}
-          ${metaCell('Aired', airedRange)}
+          ${metaCell(copy('detail.meta.studio'), studios)}
+          ${metaCell(copy('detail.meta.source'), m.source ? formatEnumLabel(m.source) : null)}
+          ${metaCell(copy('detail.meta.aired'), airedRange)}
         </div>
         ${(m.genres || []).length ? html`<div class="detail-genres">${m.genres.map((g) => html`<span class="detail-genre-chip">${g}</span>`)}</div>` : ''}
         ${detailTagsRowHtml(m.tags)}

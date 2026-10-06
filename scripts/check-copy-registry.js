@@ -17,9 +17,9 @@
 //   2. Keyword denylist over all three variants of every entry, covering
 //      P6.4's hard limits. Explicitly a BACKSTOP: the spec says the user's own
 //      read-through of every Madara variant before GATE-2.2 is the real gate.
-//   3. Boundary — no raw string literal may reach a user-facing sink from a
-//      v2-owned file, so the "new/changed v2 strings go through copy()" rule
-//      cannot erode silently.
+//   3. Boundary — no raw string literal may reach a user-facing sink, text
+//      attribute or text property from any file under public/js, so the
+//      "all user-facing copy goes through copy()" rule cannot erode silently.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -171,22 +171,151 @@ function checkDenylist(registry, tiers) {
 // ---------------------------------------------------------------------------
 // Check 3 — the copy() boundary
 //
-// SCOPING, deliberately narrow so the rule stays worth obeying. It covers the
-// four named client sinks in the files the v2 substeps own, and NOT
-// .innerHTML/.textContent — a sweep counted 88 of those app-wide, 43 of them
-// pre-v2 markup in render.js, and a rule that noisy gets ignored, which is
-// worse than no rule at all.
+// App-wide since v3 Phase 10: every file under public/js (recursively, except
+// copyRegistry.js itself and any vendor/ folder) is scanned, so a user-facing
+// string cannot bypass the registry anywhere in the client. Three rules:
 //
-// V2_OWNED_FILES are files created by P1.1-P1.6. Their user-facing strings must
-// all resolve through copy(). Pre-v2 files are deliberately absent: their copy
-// stays where it is until a future opt-in migration, one area per commit.
+//   (a) a raw string or template literal as the first argument of a sink that
+//       puts text in front of the user (toasts, errors, announcements, the
+//       save indicator's text, and confirmDialog's title/body/confirmLabel),
+//       including a prose literal in a top-level ternary or ||/?? branch;
+//   (b) a literal template attribute a person reads or hears — aria-label,
+//       data-tip, title, placeholder, alt — whose value starts with a letter
+//       and has no ${...} interpolation;
+//   (c) a literal assigned to .textContent/.placeholder/.title/.ariaLabel, or
+//       passed to setAttribute() for one of the attributes in (b).
+//
+// Literals with no letters outside their ${...} parts (a template that only
+// stitches copy() results together, a symbol such as "×") are not prose and
+// pass. Free text nodes inside HTML templates are not machine-checked — a
+// regex cannot tell markup from prose reliably — and stay a review rule.
+//
+// V2_OWNED_FILES is kept (and exported) as the historical list of the files
+// P1.1-P1.6 created; the scan no longer depends on it.
 // ---------------------------------------------------------------------------
 const V2_OWNED_FILES = ['backupClient.js', 'copy.js', 'copyRegistry.js', 'eventLog.js', 'eventTypes.js', 'eventCounters.js', 'settingsSchema.js'];
 
-// The four sinks through which a string reaches the user, per the sweep.
-const SINK_PATTERN = /(Render\.showToast|Render\.showError|setSaveIndicator|confirmDialog)\s*\(/g;
+// The sinks through which a string reaches the user. `Render.` is optional so
+// the bare helpers (render.js's own showToast, toastWithUndo, announce) count.
+const SINK_PATTERN = /(?<![\w$])(Render\.showToast|Render\.showError|showToast|showError|setSaveIndicator|confirmDialog|toastWithUndo|toast|announce)\s*\(/g;
+// confirmDialog({ ... }) properties whose value the user reads.
+const DIALOG_TEXT_PROPS = ['title', 'body', 'confirmLabel'];
+const TEXT_ATTRS = ['aria-label', 'data-tip', 'title', 'placeholder', 'alt'];
+const ATTR_PATTERN = new RegExp(`(?<![\\w-])(${TEXT_ATTRS.join('|')})=(?:"([^"\\n]*)"|'([^'\\n]*)')`, 'g');
+const PROP_PATTERN = /\.(textContent|placeholder|title|ariaLabel)\s*=\s*(['"`])/g;
+const SET_ATTR_PATTERN = new RegExp(`setAttribute\\(\\s*['"](${TEXT_ATTRS.join('|')})['"]\\s*,\\s*(['"\`])`, 'g');
 
-// A raw literal directly inside a sink call. Matches a quoted string or a
+function startsWithQuote(text) {
+  return text.startsWith("'") || text.startsWith('"') || text.startsWith('`');
+}
+
+// Reads the string/template literal that starts at text[0]; returns its body
+// (with ${...} parts blanked out) and its length. Good enough for scanning.
+function readLiteral(text) {
+  const quote = text[0];
+  let i = 1;
+  let body = '';
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '\\') {
+      body += text[i + 1] || '';
+      i += 2;
+      continue;
+    }
+    if (ch === quote) return { body, length: i + 1 };
+    if (quote === '`' && ch === '$' && text[i + 1] === '{') {
+      let depth = 1;
+      i += 2;
+      while (i < text.length && depth > 0) {
+        if (text[i] === '{') depth += 1;
+        else if (text[i] === '}') depth -= 1;
+        i += 1;
+      }
+      body += ' ';
+      continue;
+    }
+    body += ch;
+    i += 1;
+  }
+  return { body, length: text.length };
+}
+
+// Prose = the literal has a letter outside its ${...} parts.
+function isProse(literalText) {
+  return /[A-Za-z]/.test(readLiteral(literalText).body);
+}
+
+function lineAt(source, index) {
+  return source.slice(0, index).split('\n').length;
+}
+
+// The text of a balanced {...} starting at text[0] (string contents skipped).
+function objectLiteralText(text) {
+  let depth = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"' || ch === '`') {
+      i += readLiteral(text.slice(i)).length - 1;
+      continue;
+    }
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(0, i + 1);
+    }
+  }
+  return text;
+}
+
+// Top-level `prop: 'literal'` pairs of an object literal's source text.
+function topLevelLiteralProps(objText, props) {
+  const found = [];
+  let depth = 0;
+  for (let i = 0; i < objText.length; i += 1) {
+    const ch = objText[i];
+    if (ch === "'" || ch === '"' || ch === '`') {
+      i += readLiteral(objText.slice(i)).length - 1;
+      continue;
+    }
+    if (ch === '{' || ch === '(' || ch === '[') depth += 1;
+    else if (ch === '}' || ch === ')' || ch === ']') depth -= 1;
+    else if (depth === 1 && /\w/.test(ch) && !/[\w$.]/.test(objText[i - 1] || '')) {
+      const m = /^(\w+)\s*:\s*/.exec(objText.slice(i));
+      if (m && props.includes(m[1])) {
+        const value = objText.slice(i + m[0].length);
+        if (startsWithQuote(value) && isProse(value)) found.push({ prop: m[1], offset: i, snippet: value.slice(0, 70) });
+      }
+    }
+  }
+  return found;
+}
+
+// Prose literals at the top level of an expression (up to its first top-level
+// `,` or closing bracket): the branches of a ternary, the right side of ||/??.
+// A literal inside a call (copy('key')) or compared against (=== 'watched')
+// is a key or a domain value, not copy.
+function topLevelExpressionLiterals(text) {
+  const found = [];
+  let depth = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const { length } = readLiteral(text.slice(i));
+      const before = text.slice(0, i).trimEnd();
+      if (depth === 0 && !/[=!]==?$/.test(before) && isProse(text.slice(i))) found.push(text.slice(i, i + length));
+      i += length - 1;
+      continue;
+    }
+    if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+    else if (ch === ')' || ch === ']' || ch === '}') {
+      if (depth === 0) break;
+      depth -= 1;
+    } else if ((ch === ',' || ch === ';') && depth === 0) break;
+  }
+  return found;
+}
+
+// (a) A raw literal directly inside a sink call. Matches a quoted string or a
 // template literal as the argument, but not a copy(...) call.
 function findRawSinkLiterals(source) {
   const offenders = [];
@@ -194,34 +323,102 @@ function findRawSinkLiterals(source) {
   SINK_PATTERN.lastIndex = 0;
   while ((match = SINK_PATTERN.exec(source)) !== null) {
     const start = match.index + match[0].length;
-    // Look at the first ~200 chars of the argument list; enough to see whether
-    // the first argument is a literal or a copy()/variable expression.
-    const window = source.slice(start, start + 200);
-    const firstArg = window.trimStart();
-    const isLiteral = firstArg.startsWith("'") || firstArg.startsWith('"') || firstArg.startsWith('`');
-    if (!isLiteral) continue;
+    const rest = source.slice(start, start + 4000);
+    const firstArg = rest.trimStart();
+    const lead = rest.length - firstArg.length;
+    if (match[1] === 'confirmDialog' && firstArg.startsWith('{')) {
+      const obj = objectLiteralText(firstArg);
+      for (const p of topLevelLiteralProps(obj, DIALOG_TEXT_PROPS)) {
+        offenders.push({ line: lineAt(source, start + lead + p.offset), sink: `confirmDialog ${p.prop}`, snippet: p.snippet.replace(/\n/g, ' ') });
+      }
+      continue;
+    }
+    if (!startsWithQuote(firstArg)) {
+      // An expression such as `cond ? 'Text' : copy('k')`: a prose literal at
+      // the top level of the first argument reaches the user just the same.
+      if (match[1] !== 'setSaveIndicator') {
+        for (const lit of topLevelExpressionLiterals(firstArg)) {
+          offenders.push({ line: lineAt(source, match.index), sink: match[1], snippet: lit.slice(0, 70).replace(/\n/g, ' ') });
+        }
+      }
+      continue;
+    }
     // `setSaveIndicator('saving', ...)` takes a state name first, which is a
     // domain value rather than copy; its second argument is the visible text.
     if (match[1] === 'setSaveIndicator') {
-      const comma = window.indexOf(',');
-      if (comma === -1) continue;
-      const second = window.slice(comma + 1).trimStart();
-      if (!(second.startsWith("'") || second.startsWith('"') || second.startsWith('`'))) continue;
+      const afterFirst = firstArg.slice(readLiteral(firstArg).length).trimStart();
+      if (!afterFirst.startsWith(',')) continue;
+      const second = afterFirst.slice(1).trimStart();
+      if (!startsWithQuote(second) || !isProse(second)) continue;
+      offenders.push({ line: lineAt(source, match.index), sink: match[1], snippet: second.slice(0, 70).replace(/\n/g, ' ') });
+      continue;
     }
-    const line = source.slice(0, match.index).split('\n').length;
-    offenders.push({ line, sink: match[1], snippet: firstArg.slice(0, 70).replace(/\n/g, ' ') });
+    if (!isProse(firstArg)) continue;
+    offenders.push({ line: lineAt(source, match.index), sink: match[1], snippet: firstArg.slice(0, 70).replace(/\n/g, ' ') });
   }
   return offenders;
 }
 
+// (b) and (c): literal text attributes, property assignments and setAttribute().
+function findRawAttributeLiterals(source) {
+  const offenders = [];
+  let match;
+  ATTR_PATTERN.lastIndex = 0;
+  while ((match = ATTR_PATTERN.exec(source)) !== null) {
+    const value = match[2] ?? match[3];
+    if (!/^[A-Za-z]/.test(value) || value.includes('${')) continue;
+    offenders.push({ line: lineAt(source, match.index), sink: `${match[1]}=`, snippet: match[0].slice(0, 70) });
+  }
+  for (const pattern of [PROP_PATTERN, SET_ATTR_PATTERN]) {
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(source)) !== null) {
+      const literal = source.slice(match.index + match[0].length - 1, match.index + match[0].length + 400);
+      if (!isProse(literal)) continue;
+      const sink = pattern === PROP_PATTERN ? `.${match[1]} =` : `setAttribute('${match[1]}')`;
+      offenders.push({ line: lineAt(source, match.index), sink, snippet: literal.slice(0, 70).replace(/\n/g, ' ') });
+    }
+  }
+  return offenders;
+}
+
+// Every .js file under public/js except the registry itself and vendor code.
+function boundaryFiles(dir = PUBLIC_JS, rel = '') {
+  const out = [];
+  for (const dirent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const relPath = rel ? `${rel}/${dirent.name}` : dirent.name;
+    if (dirent.isDirectory()) {
+      if (dirent.name === 'vendor') continue;
+      out.push(...boundaryFiles(path.join(dir, dirent.name), relPath));
+    } else if (dirent.name.endsWith('.js') && relPath !== 'copyRegistry.js') {
+      out.push(relPath);
+    }
+  }
+  return out.sort();
+}
+
+// Comments are blanked out (keeping line numbers) so prose that merely
+// describes a toast or a label is not mistaken for one. Whole-line comments
+// and a trailing ` // ...` after code; good enough for this codebase's style.
+function stripComments(source) {
+  return source
+    .split('\n')
+    .map((line) => {
+      const t = line.trimStart();
+      if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('*')) return '';
+      return line.replace(/(^|[\s;,)}\]])\/\/\s.*$/, '$1');
+    })
+    .join('\n');
+}
+
 function checkBoundary() {
-  for (const name of V2_OWNED_FILES) {
-    const file = path.join(PUBLIC_JS, name);
-    if (!fs.existsSync(file)) continue;
+  for (const name of boundaryFiles()) {
     checked.files += 1;
-    const source = fs.readFileSync(file, 'utf8');
+    const source = stripComments(fs.readFileSync(path.join(PUBLIC_JS, name), 'utf8'));
     for (const o of findRawSinkLiterals(source)) {
-      fail(`public/js/${name}:${o.line}: raw string passed to ${o.sink}(...) — v2 files must resolve user-facing copy through copy(). Found: ${o.snippet}`);
+      fail(`public/js/${name}:${o.line}: raw string passed to ${o.sink}(...) — user-facing copy must resolve through copy(). Found: ${o.snippet}`);
+    }
+    for (const o of findRawAttributeLiterals(source)) {
+      fail(`public/js/${name}:${o.line}: literal ${o.sink} text — user-facing copy must resolve through copy(). Found: ${o.snippet}`);
     }
   }
 }
@@ -246,7 +443,7 @@ async function main() {
   }
   console.log(
     `check-copy-registry: OK — ${checked.entries} entries, ${checked.variants} variants, ` +
-      `${checked.files} v2 files scanned for raw sink literals.`
+      `${checked.files} files under public/js scanned for raw user-facing literals.`
   );
 }
 
@@ -276,6 +473,8 @@ module.exports = {
     return failures.slice();
   },
   findRawSinkLiterals,
+  findRawAttributeLiterals,
+  stripComments,
   V2_OWNED_FILES,
 };
 

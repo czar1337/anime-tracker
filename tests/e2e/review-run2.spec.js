@@ -24,6 +24,9 @@ async function startDiscover(prefs = {}) {
 }
 
 async function openDiscover(page, server) {
+  // Discover rotates its picks by the day: a fixed date keeps the page, and
+  // which card stays in view after an answer, the same on every run.
+  await page.clock.setFixedTime(new Date('2026-10-05T12:00:00Z'));
   await page.route('**/graphql.anilist.co/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{"Page":{"media":[]},"Media":null}}' }));
   await page.goto(server.url);
   await page.waitForSelector('#list-view .empty-state, #grid .card');
@@ -145,6 +148,27 @@ test('Triage: ↑ then Enter records Seen it with no rating, never the first sco
     await page.keyboard.press('Enter');
     await expect.poll(async () => (await library(server)).entries.find((e) => e.anilistId === id)?.listStatus).toBe('watched');
     expect((await library(server)).entries.find((e) => e.anilistId === id).myScore ?? null).toBe(null);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('offline, a series in the library still opens its details from the library, editable', async ({ page }) => {
+  const server = await startFixtureServer(path.join(__dirname, '..', 'fixtures', 'watching-entry-library.json'));
+  try {
+    await page.route('**/graphql.anilist.co/**', (route) => route.abort());
+    await page.goto(server.url);
+    const card = page.locator('#grid > .card').first();
+    await expect(card).toBeVisible();
+    await card.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.locator('#detail-overlay');
+    await expect(dialog.locator('.detail-offline-note')).toContainText('AniList could not be reached');
+    await expect(dialog.locator('.detail-title')).not.toBeEmpty();
+    // The person's own controls are there and work.
+    await dialog.locator('#detail-note-field').fill('Written offline');
+    await page.keyboard.press('Tab'); // the note saves when the field is left
+    await expect.poll(async () => (await library(server)).entries[0].notes).toBe('Written offline');
   } finally {
     await server.stop();
   }

@@ -17,7 +17,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { resolveDataDir } = require('../../datadir.js');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 function sha256File(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
@@ -56,7 +56,7 @@ test('the schemaVersion 4->CURRENT (P1.3-P1.7 chain) migration is a dry-run-safe
   const entryCountBefore = realLibraryBefore.entries.length;
 
   const before = fingerprintRealData(realDir);
-  const tempCopyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-p1_3-migration-copy-'));
+  const tempCopyDir = tempDir('p1_3-migration-copy');
   // The copy leaves out a running app's single-instance lock, which would otherwise
   // make the test server refuse to start against the copy.
   fs.cpSync(realDir, tempCopyDir, { recursive: true, filter: (src) => path.basename(src) !== ".lock" }); // read from realDir, write only to tempCopyDir

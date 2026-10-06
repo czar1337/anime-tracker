@@ -1,0 +1,311 @@
+{
+  "at": "2026-10-06T18:34:27.419Z",
+  "results": [
+    {
+      "scenario": "fresh",
+      "name": "the exe starts with no data folder at all",
+      "ok": true,
+      "detail": "http://localhost:52130"
+    },
+    {
+      "scenario": "fresh",
+      "name": "it creates its data folder",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "fresh",
+      "name": "an empty library",
+      "ok": true,
+      "detail": "HTTP 200, 0 entries, schema 17"
+    },
+    {
+      "scenario": "fresh",
+      "name": "What's new is not shown to a new user",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "fresh",
+      "name": "Library says how to start",
+      "ok": true,
+      "detail": "Nothing in progress Add a series, or import your list, and it starts here. Add a"
+    },
+    {
+      "scenario": "fresh",
+      "name": "Home has its empty states",
+      "ok": true,
+      "detail": "Continue watching Nothing in progress Start something from your Watchlist, or add a series. Add a seriesFind something in Discover Airing tonight Nothing you fo"
+    },
+    {
+      "scenario": "fresh",
+      "name": "schedule renders something useful",
+      "ok": true,
+      "detail": "Schedule When your shows air next, and what's coming up worth watching"
+    },
+    {
+      "scenario": "fresh",
+      "name": "discover renders something useful",
+      "ok": true,
+      "detail": "Discover Tune Swipe through Any genreAny genreActionAdventureComedyDra"
+    },
+    {
+      "scenario": "fresh",
+      "name": "stats renders something useful",
+      "ok": true,
+      "detail": "No stats yet Add a few series and your watching statistics appear here"
+    },
+    {
+      "scenario": "fresh",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "v2.3",
+      "name": "the exe starts and serves the library",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "migrated to schema 17",
+      "ok": true,
+      "detail": "schema 17"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "every entry kept",
+      "ok": true,
+      "detail": "140 -> 140"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "lists, progress, scores, notes, tags and custom lists the same",
+      "ok": true,
+      "detail": "98 rated"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "dismissed titles kept",
+      "ok": true,
+      "detail": "6 -> 6"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "tags and custom lists kept",
+      "ok": true,
+      "detail": "2 tags, 1 lists"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "a pinned, verified snapshot of the old library was taken first",
+      "ok": true,
+      "detail": "pre-migration-14-to-17"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "the old file is kept as a backup",
+      "ok": true,
+      "detail": "1 backups"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "What's new opens once for an upgraded library",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "v2.3",
+      "name": "the Library tabs count every list",
+      "ok": true,
+      "detail": "{\"watching\":12,\"new\":12,\"watchlist\":30,\"watched\":90,\"paused\":0,\"dropped\":8,\"all\":140}"
+    },
+    {
+      "scenario": "v2.3",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "v2.3",
+      "name": "a second start does not migrate again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "the exe starts and serves the library",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "migrated to schema 17",
+      "ok": true,
+      "detail": "schema 17"
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "every entry kept",
+      "ok": true,
+      "detail": "140 -> 140"
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "lists, progress, scores, notes, tags and custom lists the same",
+      "ok": true,
+      "detail": "98 rated"
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "dismissed titles kept",
+      "ok": true,
+      "detail": "6 -> 6"
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "a pinned, verified snapshot of the old library was taken first",
+      "ok": true,
+      "detail": "pre-migration-3-to-17"
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "the old file is kept as a backup",
+      "ok": true,
+      "detail": "1 backups"
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "What's new opens once for an upgraded library",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "the Library tabs count every list",
+      "ok": true,
+      "detail": "{\"watching\":12,\"new\":12,\"watchlist\":30,\"watched\":90,\"paused\":0,\"dropped\":8,\"all\":140}"
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "v1.2.2",
+      "name": "a second start does not migrate again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "real",
+      "name": "the library loads",
+      "ok": true,
+      "detail": "340 entries, schema 17"
+    },
+    {
+      "scenario": "real",
+      "name": "every entry unchanged",
+      "ok": true,
+      "detail": "170 rated"
+    },
+    {
+      "scenario": "real",
+      "name": "the event log loads",
+      "ok": true,
+      "detail": "426 events"
+    },
+    {
+      "scenario": "real",
+      "name": "the page shows the library",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "real",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "corrupt",
+      "name": "the exe starts instead of crashing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "corrupt",
+      "name": "the API says the file is corrupt and was not modified",
+      "ok": true,
+      "detail": "HTTP 409: library.json is corrupt and was not modified."
+    },
+    {
+      "scenario": "corrupt",
+      "name": "the backups are offered",
+      "ok": true,
+      "detail": "1 backups"
+    },
+    {
+      "scenario": "corrupt",
+      "name": "the page shows a clear recovery message",
+      "ok": true,
+      "detail": "Nothing has been changed Your library file could not be read The file exists but the contents are damaged, so the app ca"
+    },
+    {
+      "scenario": "corrupt",
+      "name": "no console errors besides the expected 409",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "corrupt",
+      "name": "a save is refused while the file is corrupt",
+      "ok": true,
+      "detail": "HTTP 409: library.json is corrupt on disk. Restore a backup before saving."
+    },
+    {
+      "scenario": "corrupt",
+      "name": "the corrupt file is left byte for byte as it was",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "corrupt",
+      "name": "the good backup is still there",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "scenario": "imports",
+      "name": "MyAnimeList: both titles added with list, progress and score",
+      "ok": true,
+      "detail": "[\"paused\",4,\"watched\",1]"
+    },
+    {
+      "scenario": "imports",
+      "name": "AniList: a new title added and an owned one merged",
+      "ok": true,
+      "detail": "[\"watchlist\",\"watched\",8]"
+    },
+    {
+      "scenario": "imports",
+      "name": "every import recorded with its pinned snapshot",
+      "ok": true,
+      "detail": "mal, anilist"
+    },
+    {
+      "scenario": "imports",
+      "name": "nothing else in the library changed",
+      "ok": true,
+      "detail": "140 -> 143"
+    },
+    {
+      "scenario": "imports",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

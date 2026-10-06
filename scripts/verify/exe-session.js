@@ -69,7 +69,8 @@ function prepareDataDir(backupDir, { corpus = true, mutate } = {}) {
     if (fs.existsSync(from('covers'))) fs.cpSync(from('covers'), path.join(dataDir, 'covers'), { recursive: true });
   } else {
     // Never another instance's lock.
-    fs.cpSync(backupDir, dataDir, { recursive: true, filter: (src) => path.basename(src) !== '.lock' });
+    // Never another instance's lock; the catalogue only when asked for.
+    fs.cpSync(backupDir, dataDir, { recursive: true, filter: (src) => path.basename(src) !== '.lock' && (corpus || path.basename(src) !== 'corpus-cache.json') });
   }
   return dataDir;
 }

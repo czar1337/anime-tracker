@@ -145,10 +145,10 @@ function renderWatchedStatsHeader(list) {
 
   statsHeader.hidden = false;
   statsHeader.innerHTML = `
-    <div class="stat"><span class="stat-value">${entries.length}</span><span class="stat-label">Titles</span></div>
-    <div class="stat"><span class="stat-value">${totalEpisodes}</span><span class="stat-label">Episodes</span></div>
-    <div class="stat"><span class="stat-value">${meanScore}</span><span class="stat-label">Mean score</span></div>
-    <div class="stat"><span class="stat-value">${episodesThisYear}</span><span class="stat-label">Episodes ${thisYear}</span></div>
+    <div class="stat"><span class="stat-value">${entries.length}</span><span class="stat-label">${escapeHtml(copy('library.stats.titles'))}</span></div>
+    <div class="stat"><span class="stat-value">${totalEpisodes}</span><span class="stat-label">${escapeHtml(copy('library.stats.episodes'))}</span></div>
+    <div class="stat"><span class="stat-value">${meanScore}</span><span class="stat-label">${escapeHtml(copy('library.stats.meanScore'))}</span></div>
+    <div class="stat"><span class="stat-value">${episodesThisYear}</span><span class="stat-label">${escapeHtml(copy('library.stats.episodesInYear', undefined, { year: thisYear }))}</span></div>
   `;
 }
 
@@ -159,16 +159,16 @@ function activeFilterChips(list) {
   const filters = Store.state.preferences.filters[list];
   const titleQuery = Store.getTitleFilter(list);
   const chips = [];
-  for (const g of filters.genres) chips.push({ key: `genre:${g}`, label: `Genre: ${g}` });
-  if (filters.format) chips.push({ key: 'format', label: `Format: ${formatEnumLabel(filters.format)}` });
-  if (filters.studio) chips.push({ key: 'studio', label: `Studio: ${filters.studio}` });
-  if (filters.airingStatus) chips.push({ key: 'airingStatus', label: `Status: ${formatEnumLabel(filters.airingStatus)}` });
+  for (const g of filters.genres) chips.push({ key: `genre:${g}`, label: copy('filter.chip.genre', undefined, { value: g }) });
+  if (filters.format) chips.push({ key: 'format', label: copy('filter.chip.format', undefined, { value: formatEnumLabel(filters.format) }) });
+  if (filters.studio) chips.push({ key: 'studio', label: copy('filter.chip.studio', undefined, { value: filters.studio }) });
+  if (filters.airingStatus) chips.push({ key: 'airingStatus', label: copy('filter.chip.status', undefined, { value: formatEnumLabel(filters.airingStatus) }) });
   if (filters.unratedOnly) {
-    chips.push({ key: 'unrated', label: 'Unrated only' });
+    chips.push({ key: 'unrated', label: copy('filter.chip.unratedOnly') });
   } else if (filters.myScoreMin != null) {
-    chips.push({ key: 'myscore', label: `Rating ${filters.myScoreMin}+` });
+    chips.push({ key: 'myscore', label: copy('filter.chip.ratingMin', undefined, { value: filters.myScoreMin }) });
   }
-  if (titleQuery) chips.push({ key: 'title', label: `Title: "${titleQuery}"` });
+  if (titleQuery) chips.push({ key: 'title', label: copy('filter.chip.title', undefined, { value: titleQuery }) });
   return chips;
 }
 
@@ -249,10 +249,10 @@ function renderFilterBar(list) {
   renderGenreFilter(list);
 
   const formats = Store.allFormats();
-  formatFilterEl.innerHTML = `<option value="">All formats</option>` + formats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(formatEnumLabel(f))}</option>`).join('');
+  formatFilterEl.innerHTML = `<option value="">${escapeHtml(copy('filter.allFormats'))}</option>` + formats.map((f) => `<option value="${escapeHtml(f)}" ${filters.format === f ? 'selected' : ''}>${escapeHtml(formatEnumLabel(f))}</option>`).join('');
 
   const studios = Store.allStudios();
-  studioFilterEl.innerHTML = `<option value="">All studios</option>` + studios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+  studioFilterEl.innerHTML = `<option value="">${escapeHtml(copy('filter.allStudios'))}</option>` + studios.map((s) => `<option value="${escapeHtml(s)}" ${filters.studio === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 
   // P4.1: a new filter dimension distinct from the tabs (which already ARE
   // the listStatus filter) — AniList's own airing-status enum, reusing
@@ -260,7 +260,7 @@ function renderFilterBar(list) {
   // handles status-shaped values, e.g. "RELEASING" -> "Releasing").
   const airingStatuses = Store.allAiringStatuses();
   airingStatusFilterEl.innerHTML =
-    `<option value="">Any status</option>` +
+    `<option value="">${escapeHtml(copy('filter.anyStatus'))}</option>` +
     airingStatuses.map((s) => `<option value="${escapeHtml(s)}" ${filters.airingStatus === s ? 'selected' : ''}>${escapeHtml(formatEnumLabel(s))}</option>`).join('');
 
   myScoreFilterEl.value = filters.myScoreMin || '';
@@ -297,9 +297,12 @@ function renderFilterBar(list) {
 // likely right after Ctrl/Cmd+A). Naming it explicitly only in that case
 // keeps the bar's wording quiet the rest of the time.
 function bulkBarCountText(selectedCount, visibleCount) {
+  // The count is wrapped in <b> here, around a number, so the registry text
+  // stays plain prose.
+  const n = `<b>${selectedCount}</b>`;
   return selectedCount > 0 && selectedCount === visibleCount
-    ? `All <b>${selectedCount}</b> shown selected`
-    : `<b>${selectedCount}</b> selected`;
+    ? copy('bulk.countAllShown', undefined, { n })
+    : copy('bulk.count', undefined, { n });
 }
 
 // The selection count is announced through the stable live region
@@ -321,11 +324,11 @@ function renderBulkActionBar(list) {
   bulkActionBarEl.innerHTML = `
     <span class="count">${bulkBarCountText(count, visibleCount)}</span>
     <span class="divider"></span>
-    ${QUICK_MOVE_LISTS.map((l) => `<button class="btn btn-ghost sm" data-action="bulk-move" data-status="${l.key}" title="Move selected to ${l.label}" ${disabled}>${l.label}</button>`).join('')}
-    <button class="btn btn-ghost sm" data-action="open-bulk-more" ${disabled}>More actions…</button>
+    ${QUICK_MOVE_LISTS.map((l) => `<button class="btn btn-ghost sm" data-action="bulk-move" data-status="${l.key}" title="${escapeHtml(copy('bulk.moveSelectedTo', undefined, { list: l.label }))}" ${disabled}>${l.label}</button>`).join('')}
+    <button class="btn btn-ghost sm" data-action="open-bulk-more" ${disabled}>${escapeHtml(copy('bulk.moreActions'))}</button>
     <span class="r">
-      <button class="btn btn-danger sm" data-action="bulk-delete" ${disabled}>Delete</button>
-      <button class="btn btn-quiet sm" data-action="bulk-cancel">Cancel</button>
+      <button class="btn btn-danger sm" data-action="bulk-delete" ${disabled}>${escapeHtml(copy('bulk.delete'))}</button>
+      <button class="btn btn-quiet sm" data-action="bulk-cancel">${escapeHtml(copy('bulk.cancel'))}</button>
     </span>
   `;
   if (announcedBulkCount !== count) {
@@ -345,7 +348,7 @@ function bulkMoreMenuHtml(list) {
   const showProgress = list === 'watching' || list === 'new';
 
   const scoreDots = Array.from({ length: 10 }, (_, i) => i + 1)
-    .map((i) => `<button class="score-dot" data-action="bulk-set-score" data-score="${i}" title="${i}" aria-label="Score ${i}">${i}</button>`)
+    .map((i) => `<button class="score-dot" data-action="bulk-set-score" data-score="${i}" title="${i}" aria-label="${escapeHtml(copy('bulk.scoreN', undefined, { n: i }))}">${i}</button>`)
     .join('');
 
   const tagsHtml = tags.length
@@ -355,12 +358,12 @@ function bulkMoreMenuHtml(list) {
           return `
             <div class="bulk-more-row">
               <span class="tag-chip-toggle" style="color:${hex}"><span class="sw" style="background:${hex}"></span>${escapeHtml(t.name)}</span>
-              <button class="btn btn-ghost sm" data-action="bulk-add-tag" data-tag-id="${t.id}">Add</button>
-              <button class="btn btn-quiet sm" data-action="bulk-remove-tag" data-tag-id="${t.id}">Remove</button>
+              <button class="btn btn-ghost sm" data-action="bulk-add-tag" data-tag-id="${t.id}">${escapeHtml(copy('bulk.add'))}</button>
+              <button class="btn btn-quiet sm" data-action="bulk-remove-tag" data-tag-id="${t.id}">${escapeHtml(copy('bulk.remove'))}</button>
             </div>`;
         })
         .join('')
-    : `<p class="detail-lbl">No tags yet — create one from a series' detail view first.</p>`;
+    : `<p class="detail-lbl">${escapeHtml(copy('bulk.noTags'))}</p>`;
 
   const listsHtml = lists.length
     ? lists
@@ -368,46 +371,46 @@ function bulkMoreMenuHtml(list) {
           (l) => `
             <div class="bulk-more-row">
               <span class="tag-chip-toggle">${escapeHtml(l.name)}</span>
-              <button class="btn btn-ghost sm" data-action="bulk-add-to-list" data-list-id="${l.id}">Add</button>
+              <button class="btn btn-ghost sm" data-action="bulk-add-to-list" data-list-id="${l.id}">${escapeHtml(copy('bulk.add'))}</button>
             </div>`
         )
         .join('')
-    : `<p class="detail-lbl">No lists yet — create one from a series' detail view first.</p>`;
+    : `<p class="detail-lbl">${escapeHtml(copy('bulk.noLists'))}</p>`;
 
   return `
     <section class="bulk-more-section">
-      <p class="detail-lbl">Score</p>
-      <div class="score-strip" role="group" aria-label="Set score for selection">${scoreDots}</div>
-      <button class="btn btn-quiet sm" data-action="bulk-clear-score">Clear score</button>
+      <p class="detail-lbl">${escapeHtml(copy('bulk.score'))}</p>
+      <div class="score-strip" role="group" aria-label="${escapeHtml(copy('bulk.setScoreGroup'))}">${scoreDots}</div>
+      <button class="btn btn-quiet sm" data-action="bulk-clear-score">${escapeHtml(copy('bulk.clearScore'))}</button>
     </section>
     ${
       showProgress
         ? `
     <section class="bulk-more-section">
-      <p class="detail-lbl">Progress</p>
+      <p class="detail-lbl">${escapeHtml(copy('bulk.progress'))}</p>
       <div class="row">
-        <button class="btn btn-ghost sm" data-action="bulk-increment">+1 episode</button>
-        <button class="btn btn-ghost sm" data-action="bulk-decrement">−1 episode</button>
+        <button class="btn btn-ghost sm" data-action="bulk-increment">${escapeHtml(copy('bulk.plusEpisode'))}</button>
+        <button class="btn btn-ghost sm" data-action="bulk-decrement">${escapeHtml(copy('bulk.minusEpisode'))}</button>
       </div>
     </section>`
         : ''
     }
     <section class="bulk-more-section">
-      <p class="detail-lbl">Tags</p>
+      <p class="detail-lbl">${escapeHtml(copy('bulk.tags'))}</p>
       ${tagsHtml}
     </section>
     <section class="bulk-more-section">
-      <p class="detail-lbl">Lists</p>
+      <p class="detail-lbl">${escapeHtml(copy('bulk.lists'))}</p>
       ${listsHtml}
     </section>
     <section class="bulk-more-section">
-      <button class="btn btn-primary sm rip-host" data-action="bulk-mark-completed">Mark completed</button>
+      <button class="btn btn-primary sm rip-host" data-action="bulk-mark-completed">${escapeHtml(copy('bulk.markCompleted'))}</button>
     </section>
     <section class="bulk-more-section">
-      <p class="detail-lbl">Export selection</p>
+      <p class="detail-lbl">${escapeHtml(copy('bulk.exportSelection'))}</p>
       <div class="row">
-        <button class="btn btn-ghost sm" data-action="bulk-export-json">Export as JSON</button>
-        <button class="btn btn-ghost sm" data-action="bulk-export-csv">Export as CSV</button>
+        <button class="btn btn-ghost sm" data-action="bulk-export-json">${escapeHtml(copy('bulk.exportJson'))}</button>
+        <button class="btn btn-ghost sm" data-action="bulk-export-csv">${escapeHtml(copy('bulk.exportCsv'))}</button>
       </div>
     </section>
   `;
@@ -431,8 +434,8 @@ function renderAiringStatus(list) {
   el.hidden = false;
   const age = relativeAgeText(Airing.getCacheState().generatedAt);
   el.innerHTML = `
-    <span class="airing-age">${age ? escapeHtml(age) : 'Episode data not loaded yet'}</span>
-    <button class="text-btn" id="airing-refresh-btn">Refresh episode data</button>
+    <span class="airing-age">${escapeHtml(age || copy('airing.notLoaded'))}</span>
+    <button class="text-btn" id="airing-refresh-btn">${escapeHtml(copy('airing.refresh'))}</button>
   `;
 }
 
@@ -464,13 +467,13 @@ function renderSearchResults(container, results, ownedIds, { replaceMode = false
         </div>
         <div class="search-result-actions">
           ${replaceMode
-            ? `<button class="btn btn-primary sm rip-host" data-use-match="1">Use this</button>`
+            ? `<button class="btn btn-primary sm rip-host" data-use-match="1">${escapeHtml(copy('search.useThis'))}</button>`
             : owned
-            ? `<span class="tag info">In your ${escapeHtml(owned)} list</span>`
+            ? `<span class="tag info">${escapeHtml(copy('search.inYourList', undefined, { list: copy(`list.${owned}`) }))}</span>`
             : `
-              <button class="btn btn-primary sm rip-host" data-add-status="watchlist">Add</button>
-              <button class="btn btn-quiet sm" data-add-status="watching">Watching</button>
-              <button class="btn btn-quiet sm" data-add-status="watched">Completed</button>
+              <button class="btn btn-primary sm rip-host" data-add-status="watchlist">${escapeHtml(copy('search.add'))}</button>
+              <button class="btn btn-quiet sm" data-add-status="watching">${escapeHtml(copy('list.watching'))}</button>
+              <button class="btn btn-quiet sm" data-add-status="watched">${escapeHtml(copy('list.watched'))}</button>
             `}
         </div>
       </div>`;
@@ -499,9 +502,9 @@ function renderSearchLoading(container) {
 function renderSearchEmpty(container, query, reason) {
   container.innerHTML = `
     <div class="search-empty">
-      <b>${reason ? 'Could not search' : `No results for "${escapeHtml(query)}"`}</b>
-      <p>${reason ? escapeHtml(reason) : 'Check the spelling, or search the Japanese title.'}</p>
-      <div class="row"><button class="btn btn-ghost sm" data-action="search-retry">Try again</button></div>
+      <b>${escapeHtml(reason ? copy('search.couldNotSearch') : copy('search.noResults', undefined, { query }))}</b>
+      <p>${escapeHtml(reason || copy('search.noResultsHint'))}</p>
+      <div class="row"><button class="btn btn-ghost sm" data-action="search-retry">${escapeHtml(copy('empty.tryAgain'))}</button></div>
     </div>
   `;
 }
@@ -512,15 +515,19 @@ function formatRelativeBackupTime(filename) {
   const m = filename.match(/^library-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
   if (!m) return filename;
   const [, y, mo, d, h, mi, s] = m.map(Number);
-  const date = new Date(y, mo - 1, d, h, mi, s);
+  return relativeTimeText(new Date(y, mo - 1, d, h, mi, s));
+}
+
+// "just now", "5 min ago", "2 hours ago", "yesterday", "3 days ago", or the date.
+function relativeTimeText(date) {
   const diffMin = Math.round((Date.now() - date.getTime()) / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin} min ago`;
+  if (diffMin < 1) return copy('time.justNow');
+  if (diffMin < 60) return copy('time.minutesAgo', undefined, { n: diffMin });
   const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+  if (diffHr < 24) return copy('time.hoursAgo', undefined, { n: diffHr });
   const diffDay = Math.round(diffHr / 24);
-  if (diffDay === 1) return 'yesterday';
-  if (diffDay < 7) return `${diffDay} days ago`;
+  if (diffDay === 1) return copy('time.yesterday');
+  if (diffDay < 7) return copy('time.daysAgo', undefined, { n: diffDay });
   return date.toLocaleDateString();
 }
 
@@ -528,17 +535,8 @@ function formatRelativeBackupTime(filename) {
 // which encode it), so this formats directly from that rather than parsing
 // the filename.
 function formatRelativeIsoTime(iso) {
-  if (!iso) return 'unknown time';
-  const date = new Date(iso);
-  const diffMin = Math.round((Date.now() - date.getTime()) / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin} min ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
-  const diffDay = Math.round(diffHr / 24);
-  if (diffDay === 1) return 'yesterday';
-  if (diffDay < 7) return `${diffDay} days ago`;
-  return date.toLocaleDateString();
+  if (!iso) return copy('time.unknown');
+  return relativeTimeText(new Date(iso));
 }
 
 // P1.1's verified Class C snapshots — a separate list from renderBackupList's
@@ -571,7 +569,7 @@ function renderSnapshotList(container, snapshots) {
 // since the time/file spans inside it are valid click targets too.
 function renderBackupList(container, backups) {
   if (!backups || backups.length === 0) {
-    container.innerHTML = `<li class="backup-empty">No backups yet.</li>`;
+    container.innerHTML = `<li class="backup-empty">${escapeHtml(copy('backup.empty'))}</li>`;
     return;
   }
   container.innerHTML = backups

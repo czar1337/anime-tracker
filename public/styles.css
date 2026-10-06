@@ -3108,6 +3108,7 @@ html:active-view-transition-type(back)::view-transition-new(view) { animation-na
    preference (default: detail view only — see Preferences.getOriginalTitlesMode). */
 .detail-native { font-family: var(--display); font-style: italic; font-size: var(--fs-body); color: var(--dim); margin: 0 0 var(--sp-2); }
 .detail-meta-row { font: var(--t-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: var(--sp-1) 0 var(--sp-2); }
+.detail-offline-note { margin: 0 0 var(--sp-3); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sm); font: var(--t-meta); color: var(--dim); }
 .detail-owned-badge {
   font: var(--t-nano);
   letter-spacing: .08em;

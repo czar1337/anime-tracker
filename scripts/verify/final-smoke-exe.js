@@ -41,7 +41,8 @@ async function closeDialogs(page) {
 
 (async () => {
   const t0 = Date.now();
-  let s = await startExe({ backupDir });
+  // What's new is allowed to open by itself, as for a person updating.
+  let s = await startExe({ backupDir, env: { ANIME_TRACKER_QUIET_INTRO: '0' } });
   const dataDir = s.dataDir;
   const browser = await chromium.launch();
   const errors = [];
@@ -63,6 +64,27 @@ async function closeDialogs(page) {
     check('cold start to the first cards', true, `${Date.now() - t0} ms including the exe start`);
     const lib0 = await (await fetch(`${s.url}/api/library`)).json();
 
+    // What's new opens once for a library that was there before 3.0.
+    await page.waitForFunction(() => document.documentElement.dataset.season, null, { timeout: 15000 });
+    await page.waitForTimeout(600);
+    const whatsNew = page.locator('#whats-new-overlay[open]');
+    const whatsNewShown = (await whatsNew.count()) === 1;
+    check("What's new opens by itself after the update", whatsNewShown || lib0.preferences?.whatsNewSeen === 'v3', whatsNewShown ? `${await whatsNew.locator('li').count()} items` : 'already seen in this library');
+    if (whatsNewShown) {
+      await page.screenshot({ path: path.join(outDir, 'whats-new.png') });
+      await whatsNew.getByRole('button', { name: 'Got it' }).click();
+      await page.waitForTimeout(300);
+    }
+
+    // ? lists every shortcut.
+    await page.locator('body').click({ position: { x: 5, y: 600 } });
+    await page.keyboard.press('?');
+    await page.locator('#shortcuts-overlay[open]').waitFor({ timeout: 5000 });
+    const groups = await page.locator('#shortcuts-overlay .keys-heading').count();
+    check('? opens every keyboard shortcut', groups >= 6, `${groups} groups`);
+    await page.screenshot({ path: path.join(outDir, 'shortcuts.png') });
+    await closeDialogs(page);
+
     // Home.
     await page.click('#tab-home');
     await page.waitForSelector('#home-view .continue-card, #home-view .empty-state');
@@ -75,8 +97,12 @@ async function closeDialogs(page) {
       await page.click(`#list-tab-${tab}`);
       await page.waitForFunction((t) => document.getElementById(`list-tab-${t}`).getAttribute('aria-selected') === 'true', tab);
       await page.waitForTimeout(150);
-      const cards = await page.locator('#grid > .card, #grid .empty-state, #list-view .empty-state').count();
-      check(`Library tab ${tab} shows its cards or an empty state`, cards > 0, `${await page.locator('#grid > .card').count()} cards`);
+      // Only what is on screen: an empty tab hides the grid and shows its empty state.
+      const shown = await page.evaluate(() => ({
+        cards: [...document.querySelectorAll('#grid > .card')].filter((c) => c.offsetParent).length,
+        empty: [...document.querySelectorAll('#list-view .empty-state')].filter((e) => e.offsetParent).map((e) => e.querySelector('h2, h3, b')?.textContent.trim() || 'empty state')[0] || null,
+      }));
+      check(`Library tab ${tab} shows its cards or an empty state`, shown.cards > 0 || Boolean(shown.empty), shown.cards ? `${shown.cards} cards` : `"${shown.empty}"`);
     }
     await page.click('#list-tab-watching');
     await page.click('#filters-toggle');
@@ -120,10 +146,40 @@ async function closeDialogs(page) {
     await page.screenshot({ path: path.join(outDir, 'search.png') });
     await closeDialogs(page);
 
+    // Discover: tooltips with the key, and an answer with Undo.
+    await page.click('#tab-discover');
+    await page.waitForSelector('#discover-view .dc-portrait', { timeout: 30000 });
+    const seenBtn = page.locator('#discover-view .shelf .dc-portrait [data-action="discover-seen"]').first();
+    await seenBtn.hover();
+    await page.waitForTimeout(700);
+    const tip = (await page.locator('#ui-tooltip:not([hidden])').textContent().catch(() => '')) || '';
+    check('Discover icon buttons show a tooltip with the key', /Seen it.*\(S\)/.test(tip), tip);
+    const dcard = page.locator('#discover-view .shelf .dc-portrait').first();
+    const did = Number(await dcard.getAttribute('data-anilist-id'));
+    await dcard.locator('[data-action="discover-want"]').click();
+    const owns = async () => (await (await fetch(`${s.url}/api/library`)).json()).entries.some((e) => e.anilistId === did);
+    let added = false;
+    for (let i = 0; i < 30 && !added; i++) {
+      await page.waitForTimeout(100);
+      added = await owns();
+    }
+    check('Discover: Want to watch adds the title', added);
+    await page.screenshot({ path: path.join(outDir, 'discover.png') });
+    await page.locator('.toast').getByRole('button', { name: 'Undo' }).last().click();
+    let gone = false;
+    for (let i = 0; i < 30 && !gone; i++) {
+      await page.waitForTimeout(100);
+      gone = !(await owns());
+    }
+    check('Discover: Undo takes it back', gone);
+
     // Schedule and Stats.
     await page.click('#tab-schedule');
     await page.waitForSelector('#schedule-view .schedule-tz');
-    check('Schedule names the time zone', /Times in your time zone: /.test(await page.locator('#schedule-view .schedule-tz').first().textContent()));
+    const tz = await page.locator('#schedule-view .schedule-tz').first().textContent();
+    const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+    check('Schedule names the time zone', tz.includes(`Times in your time zone: ${zone}`), tz.trim());
+    await page.screenshot({ path: path.join(outDir, 'schedule.png') });
     await page.click('#tab-stats');
     await page.waitForSelector('#stats-view .stat-value');
     check('Stats shows its numbers', await page.locator('#stats-view .stat-value').count() > 0, `${await page.locator('#stats-view .stat-value').count()} numbers`);
@@ -133,7 +189,9 @@ async function closeDialogs(page) {
       await openSettings(page, section);
       check(`Settings > ${section}`, await page.locator(`#settings-panel-${section} .settings-row, #settings-panel-${section} button`).count() > 0);
     }
-    check('Settings > Help shows the version', /3\.0\.0/.test(await page.locator('#settings-build-info').textContent()));
+    const buildInfo = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'dist', 'build-info.json'), 'utf8'));
+    const helpText = await page.locator('#settings-build-info').textContent();
+    check('Settings > Help shows 3.0.0, the build date and the commit', /3\.0\.0/.test(helpText) && helpText.includes(buildInfo.commit) && /\d{4}|\d{1,2} \w{3}/.test(helpText), helpText.trim());
     await openSettings(page, 'data');
     check('Settings > Data names the data folder in use', (await page.locator('#settings-data-folder').textContent()).includes(path.basename(dataDir)));
     await closeDialogs(page);

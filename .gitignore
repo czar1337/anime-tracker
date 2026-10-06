@@ -20,3 +20,39 @@ playwright-report/
 # OS/editor junk
 .DS_Store
 Thumbs.db
+
+# Logs and temp output: never source (v3.0.0 release hygiene).
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+.cache/
+
+# Library data and backups that may be someone's real data: a backup or
+# export is never committed (test fixtures live in tests/fixtures/).
+backups/
+*-backup*.json
+anime-tracker-backup*.json
+library-*.json
+events-*.json
+snapshot-*.json
+poster-cache/
+covers/
+!tests/fixtures/**
+
+# Secrets and local config
+.env
+.env.*
+*.pem
+*.key
+cookies*.txt
+
+# Claude Code worktrees and per-machine state
+.claude/worktrees/
+
+# Verify-script output that may show a real library (use demo data for docs)
+verify-out/
+
+# Local working notes, never part of the repository
+Claude outputs/

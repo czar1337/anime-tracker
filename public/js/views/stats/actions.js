@@ -6,6 +6,7 @@ import { EventHistory } from '../../eventHistory.js';
 import { computeLibraryStats } from '../../statsLogic.js';
 import { drawStatsCard, buildStatsSummaryText, canvasToPngBlob } from '../../statsExport.js';
 import { openDialog } from '../../core/dialog.js';
+import { copy } from '../../copy.js';
 import { renderStatsPage, showMoreDiary } from './view.js';
 
 function currentStats() {
@@ -51,36 +52,36 @@ export function bindStatsActions() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setStatus(`Could not create image: ${err.message}`);
+      setStatus(copy('stats.share.imageFailed', undefined, { message: err.message }));
     }
   });
 
   document.getElementById('stats-share-copy-image-btn').addEventListener('click', async () => {
     const canvas = document.getElementById('stats-share-canvas');
     if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
-      setStatus('Your browser does not support copying images — use "Download image" instead.');
+      setStatus(copy('stats.share.noImageCopy'));
       return;
     }
     try {
       const blob = await canvasToPngBlob(canvas);
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      setStatus('Image copied to clipboard.');
+      setStatus(copy('stats.share.imageCopied'));
     } catch (err) {
-      setStatus(`Could not copy image: ${err.message}`);
+      setStatus(copy('stats.share.imageCopyFailed', undefined, { message: err.message }));
     }
   });
 
   document.getElementById('stats-share-copy-text-btn').addEventListener('click', async () => {
     const text = buildStatsSummaryText(currentStats());
     if (!navigator.clipboard) {
-      setStatus('Your browser does not support copying text.');
+      setStatus(copy('stats.share.noTextCopy'));
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      setStatus('Text copied to clipboard.');
+      setStatus(copy('stats.share.textCopied'));
     } catch (err) {
-      setStatus(`Could not copy text: ${err.message}`);
+      setStatus(copy('stats.share.textCopyFailed', undefined, { message: err.message }));
     }
   });
 }

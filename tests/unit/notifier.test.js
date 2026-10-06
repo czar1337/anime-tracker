@@ -10,6 +10,7 @@ const path = require('node:path');
 // The notifier reads config.js, which resolves the data folder: point it at a
 // throwaway one so this test never touches the real data directory.
 process.env.ANIME_TRACKER_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'notifier-test-'));
+process.on('exit', () => fs.rmSync(process.env.ANIME_TRACKER_DATA_DIR, { recursive: true, force: true }));
 const { decide, inQuietHours, latestAiredEpisode, toasts } = require('../../src/services/notifier.js');
 
 const entry = (anilistId, episodesWatched, title = `T${anilistId}`) => ({ anilistId, episodesWatched, titleEnglish: title });

@@ -15,7 +15,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { chromium } = require('playwright-core');
-const { startFixtureServer } = require('../tests/e2e/harness.js');
+const { startFixtureServer, tempDir } = require('../tests/e2e/harness.js');
 const { library, corpus } = require('./capture-evidence.js');
 
 const version = process.argv[2];
@@ -150,7 +150,7 @@ async function main() {
       const first = lib.entries.find((e) => e.listStatus === 'watching');
       first.episodesWatched = first.totalEpisodes - 1; // one +1 finishes it
       lib.preferences = { ...lib.preferences, activeTab: 'watching' };
-      const fixturePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'click-count-')), 'library.json');
+      const fixturePath = path.join(tempDir('click-count'), 'library.json');
       fs.writeFileSync(fixturePath, JSON.stringify(lib));
       const server = await startFixtureServer(fixturePath);
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });

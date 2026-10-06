@@ -7,7 +7,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 const BASE = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'bulk-actions-library.json'), 'utf8'));
 
@@ -19,7 +19,7 @@ function fixture() {
     e(503, { titleRomaji: 'Magi: Adventure of Sinbad', listStatus: 'watchlist', episodesWatched: 0, totalEpisodes: 13 }),
     e(504, { titleRomaji: 'Something Else', listStatus: 'watching', episodesWatched: 1, totalEpisodes: 12 }),
   ];
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'palette-v3-')), 'library.json');
+  const file = path.join(tempDir('palette-v3'), 'library.json');
   fs.writeFileSync(file, JSON.stringify({ ...BASE, entries }));
   return file;
 }

@@ -10,7 +10,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 const BASE = path.join(__dirname, '..', 'fixtures', 'bulk-actions-library.json');
 
@@ -19,7 +19,7 @@ function fixtureOneFromEnd() {
   const lib = JSON.parse(fs.readFileSync(BASE, 'utf8'));
   lib.entries.find((e) => e.anilistId === 401).episodesWatched = 11;
   lib.entries.find((e) => e.anilistId === 401).myScore = null;
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'progress-moments-')), 'library.json');
+  const file = path.join(tempDir('progress-moments'), 'library.json');
   fs.writeFileSync(file, JSON.stringify(lib));
   return file;
 }
@@ -226,7 +226,7 @@ test('the focus handoff skips franchise groups: it lands on the card that took t
   lib.entries.push({ ...base, anilistId: 501, titleRomaji: 'AAA Saga', titleEnglish: 'AAA Saga', relatedIds: [502] });
   lib.entries.push({ ...base, anilistId: 502, titleRomaji: 'AAA Saga Part 2', titleEnglish: 'AAA Saga Part 2', relatedIds: [501] });
   lib.preferences = { ...lib.preferences, sort: { ...(lib.preferences?.sort || {}), watching: 'title' }, sortDir: { ...(lib.preferences?.sortDir || {}), watching: 'asc' } };
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'progress-moments-')), 'library.json');
+  const file = path.join(tempDir('progress-moments'), 'library.json');
   fs.writeFileSync(file, JSON.stringify(lib));
   const server = await startFixtureServer(file);
   try {

@@ -13,3 +13,7 @@ docs/archive/ export-ignore
 .github/ export-ignore
 .gitattributes export-ignore
 .gitignore export-ignore
+
+# The upgrade fixtures are byte-for-byte what an old version wrote (a v2.3.0
+# snapshot carries a checksum): never convert their line endings.
+tests/fixtures/upgrade/** -text

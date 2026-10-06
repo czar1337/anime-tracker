@@ -9,7 +9,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 const BASE = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'bulk-actions-library.json'), 'utf8'));
 const LONG = 'The Ancient Magus’ Bride Season 2 Part 2: The Chapter of the Long Winter';
@@ -27,7 +27,7 @@ function fixture() {
   entries[1] = { ...entries[1], titleRomaji: 'BLACK TORCH', episodesWatched: 8, totalEpisodes: null, airingStatus: 'RELEASING' };
   for (let i = 0; i < 6; i++) entries.push(entry(2000 + i, { listStatus: 'watched', episodesWatched: 12, myScore: 8, completedAt: '2025-03-01T00:00:00.000Z' }));
   for (let i = 0; i < 2; i++) entries.push(entry(3000 + i, { listStatus: 'watchlist', episodesWatched: 0, myScore: null }));
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'library-v3-')), 'library.json');
+  const file = path.join(tempDir('library-v3'), 'library.json');
   fs.writeFileSync(file, JSON.stringify({ ...BASE, entries }));
   return file;
 }

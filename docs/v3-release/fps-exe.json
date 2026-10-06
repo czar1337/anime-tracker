@@ -1,0 +1,150 @@
+{
+  "at": "2026-10-06T18:41:20.380Z",
+  "seconds": 6,
+  "results": [
+    {
+      "viewport": "1440x900",
+      "theme": "dark",
+      "level": "off",
+      "fps": 60,
+      "p95FrameMs": 16.8,
+      "slowFrames": 1,
+      "frames": 360,
+      "atmosphere": {
+        "fps": 0,
+        "particles": 0,
+        "scale": 1,
+        "frames": 0,
+        "level": "off",
+        "kind": "leaf",
+        "budget": 1
+      }
+    },
+    {
+      "viewport": "1440x900",
+      "theme": "dark",
+      "level": "low",
+      "fps": 60,
+      "p95FrameMs": 16.8,
+      "slowFrames": 0,
+      "frames": 361,
+      "atmosphere": {
+        "fps": 60,
+        "particles": 7,
+        "scale": 1,
+        "frames": 410,
+        "level": "low",
+        "kind": "leaf",
+        "budget": 7
+      }
+    },
+    {
+      "viewport": "1440x900",
+      "theme": "dark",
+      "level": "full",
+      "fps": 60,
+      "p95FrameMs": 16.7,
+      "slowFrames": 0,
+      "frames": 361,
+      "atmosphere": {
+        "fps": 60,
+        "particles": 16,
+        "scale": 1,
+        "frames": 820,
+        "level": "full",
+        "kind": "leaf",
+        "budget": 16
+      }
+    },
+    {
+      "viewport": "1440x900",
+      "theme": "dark",
+      "level": "insane",
+      "fps": 60,
+      "p95FrameMs": 16.8,
+      "slowFrames": 0,
+      "frames": 361,
+      "atmosphere": {
+        "fps": 60,
+        "particles": 136,
+        "scale": 1,
+        "frames": 1233,
+        "level": "insane",
+        "kind": "leaf",
+        "budget": 110
+      }
+    },
+    {
+      "viewport": "390x844",
+      "theme": "dark",
+      "level": "off",
+      "fps": 60,
+      "p95FrameMs": 16.8,
+      "slowFrames": 0,
+      "frames": 361,
+      "atmosphere": {
+        "fps": 0,
+        "particles": 0,
+        "scale": 1,
+        "frames": 2,
+        "level": "off",
+        "kind": "leaf",
+        "budget": 1
+      }
+    },
+    {
+      "viewport": "390x844",
+      "theme": "dark",
+      "level": "low",
+      "fps": 60,
+      "p95FrameMs": 16.7,
+      "slowFrames": 0,
+      "frames": 361,
+      "atmosphere": {
+        "fps": 60,
+        "particles": 7,
+        "scale": 1,
+        "frames": 411,
+        "level": "low",
+        "kind": "leaf",
+        "budget": 7
+      }
+    },
+    {
+      "viewport": "390x844",
+      "theme": "dark",
+      "level": "full",
+      "fps": 60,
+      "p95FrameMs": 16.7,
+      "slowFrames": 0,
+      "frames": 361,
+      "atmosphere": {
+        "fps": 60,
+        "particles": 16,
+        "scale": 1,
+        "frames": 821,
+        "level": "full",
+        "kind": "leaf",
+        "budget": 16
+      }
+    },
+    {
+      "viewport": "390x844",
+      "theme": "dark",
+      "level": "insane",
+      "fps": 60,
+      "p95FrameMs": 16.7,
+      "slowFrames": 0,
+      "frames": 361,
+      "atmosphere": {
+        "fps": 60,
+        "particles": 136,
+        "scale": 1,
+        "frames": 1231,
+        "level": "insane",
+        "kind": "leaf",
+        "budget": 110
+      }
+    }
+  ]
+}

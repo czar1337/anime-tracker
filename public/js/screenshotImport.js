@@ -2,6 +2,7 @@ import { Store } from './state.js';
 import { Api } from './api.js';
 import { Render } from './render.js';
 import { EventLog } from './eventLog.js';
+import { copy } from './copy.js';
 import { openDialog, closeDialog, onDialogClose } from './core/dialog.js';
 import { cleanLines, titleSimilarity, MATCH_THRESHOLD } from './screenshotLogic.js';
 
@@ -15,7 +16,7 @@ function loadTesseractScript() {
     const script = document.createElement('script');
     script.src = '/vendor/tesseract/tesseract.min.js';
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Could not load the local OCR engine.'));
+    script.onerror = () => reject(new Error(copy('screenshot.ocrLoadFailed')));
     document.head.appendChild(script);
   });
   return tesseractLoadPromise;
@@ -39,10 +40,10 @@ async function getWorker(onProgress) {
 }
 
 async function recognizeImages(files, onProgress) {
-  const w = await getWorker((m) => onProgress?.(`OCR: ${m.status} ${Math.round((m.progress || 0) * 100)}%`));
+  const w = await getWorker((m) => onProgress?.(copy('screenshot.ocrProgress', undefined, { status: m.status, percent: Math.round((m.progress || 0) * 100) })));
   const allLines = [];
   for (let i = 0; i < files.length; i++) {
-    onProgress?.(`Reading image ${i + 1}/${files.length}…`);
+    onProgress?.(copy('screenshot.readingImage', undefined, { n: i + 1, total: files.length }));
     const { data } = await w.recognize(files[i]);
     allLines.push(...cleanLines(data.text));
   }
@@ -57,7 +58,7 @@ function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 async function matchLines(lines, onProgress) {
   const results = [];
   for (let i = 0; i < lines.length; i++) {
-    onProgress?.(`Matching "${lines[i]}" against AniList… (${i + 1}/${lines.length})`);
+    onProgress?.(copy('screenshot.matchingLine', undefined, { line: lines[i], n: i + 1, total: lines.length }));
     try {
       const candidates = await Api.searchAniList(lines[i]);
       const best = candidates
@@ -90,20 +91,20 @@ function reviewRowHtml(result, idx, included) {
   const esc = Render.escapeHtml;
   return `
     <div class="rw ${media && included ? 'on' : ''} ${!media ? 'unmatched' : ''} ${removed ? 'row-removed' : ''}" data-idx="${idx}">
-      ${media ? `<button class="ck ${included ? 'on' : ''}" data-action="toggle-row" aria-label="Include this row">✓</button>` : '<span></span>'}
+      ${media ? `<button class="ck ${included ? 'on' : ''}" data-action="toggle-row" aria-label="${esc(copy('screenshot.includeRow'))}">✓</button>` : '<span></span>'}
       <span class="src">"${esc(result.line)}"</span>
-      <span class="mt" ${!media ? 'style="color:var(--faint)"' : ''}>${media ? esc(title) : 'Not a title'}<span>${media ? `${esc(String(media.format || ''))} · ${media.seasonYear || '?'}` : 'Skipped automatically'}</span></span>
+      <span class="mt" ${!media ? 'style="color:var(--faint)"' : ''}>${esc(media ? title : copy('screenshot.notATitle'))}<span>${media ? `${esc(String(media.format || ''))} · ${media.seasonYear || '?'}` : esc(copy('screenshot.skipped'))}</span></span>
       <span class="conf ${media ? confidenceClass(result.confidence) : 'lo'}">${media ? `${Math.round(result.confidence * 100)}%` : '—'}</span>
       <span>
         ${media
-          ? `<select class="filter-select screenshot-status-select" data-idx="${idx}"><option value="watchlist" selected>Watchlist</option><option value="watching">Watching</option><option value="watched">Completed</option><option value="dropped">Dropped</option></select>`
-          : `<button class="fix" data-action="manual-match" data-idx="${idx}">Search</button>`}
+          ? `<select class="filter-select screenshot-status-select" data-idx="${idx}"><option value="watchlist" selected>${esc(copy('list.watchlist'))}</option><option value="watching">${esc(copy('list.watching'))}</option><option value="watched">${esc(copy('list.watched'))}</option><option value="dropped">${esc(copy('list.dropped'))}</option></select>`
+          : `<button class="fix" data-action="manual-match" data-idx="${idx}">${esc(copy('import.search'))}</button>`}
       </span>
     </div>
   `;
 }
 
-const SCREENSHOT_STEP_LABELS = ['Paste or upload', 'Check matches'];
+const screenshotStepLabels = () => [copy('screenshot.step.upload'), copy('screenshot.step.check')];
 
 // The OCR worker exactly as the import uses it (the CSP e2e test runs it).
 export { getWorker as getOcrWorker };
@@ -126,7 +127,7 @@ export function initScreenshotImport() {
   let generation = 0; // bumped on every reset/cancel so stale async runs become no-ops
 
   function showStep(step) {
-    stepsEl.innerHTML = Render.stepsHtml(step, SCREENSHOT_STEP_LABELS);
+    stepsEl.innerHTML = Render.stepsHtml(step, screenshotStepLabels());
     uploadStep.hidden = step !== 1;
     reviewStep.hidden = step !== 2;
   }
@@ -144,7 +145,7 @@ export function initScreenshotImport() {
   function renderReview() {
     const matched = results.filter((r, i) => r.media && included.has(i));
     const unmatched = results.filter((r) => !r.media);
-    summaryEl.innerHTML = `<span><b>${matched.length}</b> ready to add</span><span><b>${unmatched.length}</b> need manual matching</span>`;
+    summaryEl.innerHTML = `<span><b>${matched.length}</b> ${Render.escapeHtml(copy('screenshot.readyToAdd'))}</span><span><b>${unmatched.length}</b> ${Render.escapeHtml(copy('screenshot.needManual'))}</span>`;
     reviewListEl.innerHTML = results.map((r, i) => reviewRowHtml(r, i, included.has(i))).join('');
   }
 
@@ -153,10 +154,10 @@ export function initScreenshotImport() {
     const myGeneration = generation;
     const isStale = () => myGeneration !== generation;
     try {
-      uploadStatus.textContent = 'Loading local OCR engine…';
+      uploadStatus.textContent = copy('screenshot.loadingOcr');
       const lines = await recognizeImages(files, (msg) => { if (!isStale()) uploadStatus.textContent = msg; });
       if (isStale()) return; // overlay was cancelled/reset while OCR was running
-      if (lines.length === 0) throw new Error('No readable text found in the image(s). Try a clearer screenshot.');
+      if (lines.length === 0) throw new Error(copy('screenshot.noText'));
 
       const matched = await matchLines(lines, (msg) => { if (!isStale()) uploadStatus.textContent = msg; });
       if (isStale()) return; // overlay was cancelled/reset while matching was running
@@ -165,7 +166,7 @@ export function initScreenshotImport() {
       showStep(2);
       renderReview();
     } catch (err) {
-      if (!isStale()) uploadStatus.textContent = `Error: ${err.message}`;
+      if (!isStale()) uploadStatus.textContent = copy('screenshot.error', undefined, { message: err.message });
     }
   }
 
@@ -213,16 +214,16 @@ export function initScreenshotImport() {
     const manualBtn = e.target.closest('[data-action="manual-match"]');
     if (manualBtn) {
       const idx = Number(manualBtn.dataset.idx);
-      const query = prompt(`Search AniList for a match for "${results[idx].line}":`, results[idx].line);
+      const query = prompt(copy('screenshot.manualPrompt', undefined, { line: results[idx].line }), results[idx].line);
       if (!query) return;
       try {
         const found = await Api.searchAniList(query);
         if (found.length === 0) {
-          alert('No results found.');
+          alert(copy('import.manual.none'));
           return;
         }
         const options = found.slice(0, 8).map((m, i) => `${i + 1}. ${m.title.english || m.title.romaji} (${m.seasonYear || '?'})`).join('\n');
-        const choice = prompt(`Choose a match:\n${options}`, '1');
+        const choice = prompt(copy('import.manual.choose', undefined, { options }), '1');
         const picked = found[Number(choice) - 1];
         if (!picked) return;
         results[idx].media = picked;
@@ -230,7 +231,7 @@ export function initScreenshotImport() {
         included.add(idx);
         renderReview();
       } catch (err) {
-        alert(`Search failed: ${err.message}`);
+        alert(copy('import.manual.failed', undefined, { message: err.message }));
       }
     }
   });

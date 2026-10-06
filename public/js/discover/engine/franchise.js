@@ -76,11 +76,3 @@ export function resolveEntryPoint(memberIds, corpusById, { ownedIds = new Set(),
     .sort((a, b) => startKey(a) - startKey(b) || a.anilistId - b.anilistId);
   return candidates.find((c) => ENTRY_FORMATS.has(c.format)) || candidates[0] || null;
 }
-
-// Owned franchise keys: any member in your library makes the whole franchise
-// yours ("Continue a franchise", never a taste rail).
-export function ownedFranchiseKeys(index, ownedIds) {
-  const keys = new Set();
-  for (const id of ownedIds) keys.add(index.groupOf(id));
-  return keys;
-}

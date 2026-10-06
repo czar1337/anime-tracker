@@ -9,7 +9,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 function fixture() {
   const now = Date.now();
@@ -27,7 +27,7 @@ function fixture() {
       entry(4, 'Queued Later', 0, 12, 'watchlist'),
     ],
   };
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'home-tonight-')), 'library.json');
+  const file = path.join(tempDir('home-tonight'), 'library.json');
   fs.writeFileSync(file, JSON.stringify(lib));
   return file;
 }
