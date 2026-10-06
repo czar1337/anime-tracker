@@ -1595,6 +1595,7 @@ export const COPY_REGISTRY = {
   'detail.showMore': same('Show more'),
   'detail.showLess': same('Show less'),
   'detail.loadFailed': same('Could not load details'),
+  'detail.offlineNote': same('AniList could not be reached, so this shows what your library knows. Changes you make here are saved as usual.'),
   'detail.minutesPerEpisode': same((p) => `${p.n} min/ep`),
   'detail.onLists': same((p) => `${p.n} on lists`),
   'detail.favourites': same((p) => `${p.n} favourites`),

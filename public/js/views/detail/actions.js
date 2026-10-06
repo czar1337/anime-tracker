@@ -15,6 +15,7 @@ import { runCommand } from '../../core/commands.js';
 import { runViewTransition, movementAllowed } from '../../core/motion.js';
 import { bindRovingTablist } from '../../core/focus.js';
 import { renderDetailOverlay, dateInputToIso } from './view.js';
+import { coverSrc } from '../library/view.js';
 import { detailState, resetDetailState, showNewTagForm } from './model.js';
 
 const cache = new Map(); // anilistId -> AniList Media detail object
@@ -52,6 +53,31 @@ function visible(el) {
 }
 function detailCover() {
   return document.querySelector('#detail-content .detail-cover');
+}
+
+// A series in the library while AniList cannot be reached (offline, rate
+// limited): the details open from what the library knows, so its progress,
+// score, list, note, tags and history can still be read and changed. Not
+// cached: the next open asks AniList again.
+function mediaFromEntry(e) {
+  return {
+    id: e.anilistId,
+    title: { romaji: e.titleRomaji || e.titleEnglish || '', english: e.titleEnglish || null, native: e.titleNative || null },
+    coverImage: { large: coverSrc(e) || null },
+    bannerImage: null,
+    format: e.format || null,
+    status: e.airingStatus || null,
+    episodes: e.totalEpisodes || null,
+    duration: e.duration || null,
+    genres: e.genres || [],
+    averageScore: e.averageScore ?? null,
+    startDate: e.year ? { year: e.year } : null,
+    studios: { nodes: e.studio ? [{ name: e.studio }] : [] },
+    tags: [],
+    relations: { edges: [] },
+    externalLinks: [],
+    streamingEpisodes: [],
+  };
 }
 
 export async function showDetail(anilistId, { origin } = {}) {
@@ -107,7 +133,9 @@ export async function showDetail(anilistId, { origin } = {}) {
     }
   } catch (err) {
     if (myGeneration !== generation) return;
-    renderNow({ status: 'error', error: err.message });
+    const local = Store.getEntry(anilistId);
+    if (local) renderNow({ status: 'ready', media: mediaFromEntry(local), localEntry: local, offline: true });
+    else renderNow({ status: 'error', error: err.message });
   }
 }
 

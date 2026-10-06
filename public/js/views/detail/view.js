@@ -313,6 +313,7 @@ export function renderDetailOverlay(container, state) {
       </div>
     </header>
     <div class="detail-body">
+      ${state.offline && html`<p class="detail-offline-note" role="status">${copy('detail.offlineNote')}</p>`}
       ${local && html`
         <section class="detail-section detail-top">${episodesBlockHtml(local)}</section>
         <section class="detail-section">${ratingHtml(local)}</section>

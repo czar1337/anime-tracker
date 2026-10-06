@@ -152,3 +152,24 @@ test('Triage: ↑ then Enter records Seen it with no rating, never the first sco
     await server.stop();
   }
 });
+
+test('offline, a series in the library still opens its details from the library, editable', async ({ page }) => {
+  const server = await startFixtureServer(path.join(__dirname, '..', 'fixtures', 'watching-entry-library.json'));
+  try {
+    await page.route('**/graphql.anilist.co/**', (route) => route.abort());
+    await page.goto(server.url);
+    const card = page.locator('#grid > .card').first();
+    await expect(card).toBeVisible();
+    await card.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.locator('#detail-overlay');
+    await expect(dialog.locator('.detail-offline-note')).toContainText('AniList could not be reached');
+    await expect(dialog.locator('.detail-title')).not.toBeEmpty();
+    // The person's own controls are there and work.
+    await dialog.locator('#detail-note-field').fill('Written offline');
+    await page.keyboard.press('Tab'); // the note saves when the field is left
+    await expect.poll(async () => (await library(server)).entries[0].notes).toBe('Written offline');
+  } finally {
+    await server.stop();
+  }
+});
