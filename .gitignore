@@ -53,3 +53,6 @@ cookies*.txt
 
 # Verify-script output that may show a real library (use demo data for docs)
 verify-out/
+
+# Local working notes, never part of the repository
+Claude outputs/
