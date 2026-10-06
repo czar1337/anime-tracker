@@ -59,9 +59,9 @@ async function focused(page) {
         return false;
       })(),
       // Controls where Tab staying put is the platform's own behaviour: a
-      // time field steps through its hour and minute parts, and the palette
+      // time or date field steps through its own parts, and the palette
       // is a combobox whose results are picked with the arrow keys.
-      ownsTab: el.type === 'time' || el.id === 'palette-input',
+      ownsTab: el.type === 'time' || el.type === 'date' || el.id === 'palette-input',
       // A visually hidden checkbox whose chip draws the focus ring instead.
       ringOnLabel: (() => {
         const chip = el.closest('label');

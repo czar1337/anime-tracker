@@ -1,0 +1,225 @@
+{
+  "at": "2026-10-06T18:40:18.290Z",
+  "results": [
+    {
+      "name": "cold start to the first cards",
+      "ok": true,
+      "detail": "645 ms including the exe start"
+    },
+    {
+      "name": "What's new opens by itself after the update",
+      "ok": true,
+      "detail": "6 items"
+    },
+    {
+      "name": "? opens every keyboard shortcut",
+      "ok": true,
+      "detail": "6 groups"
+    },
+    {
+      "name": "Home shows Continue watching",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Library tab watching shows its cards or an empty state",
+      "ok": true,
+      "detail": "12 cards"
+    },
+    {
+      "name": "Library tab new shows its cards or an empty state",
+      "ok": true,
+      "detail": "12 cards"
+    },
+    {
+      "name": "Library tab watchlist shows its cards or an empty state",
+      "ok": true,
+      "detail": "30 cards"
+    },
+    {
+      "name": "Library tab watched shows its cards or an empty state",
+      "ok": true,
+      "detail": "90 cards"
+    },
+    {
+      "name": "Library tab paused shows its cards or an empty state",
+      "ok": true,
+      "detail": "\"Nothing on hold\""
+    },
+    {
+      "name": "Library tab dropped shows its cards or an empty state",
+      "ok": true,
+      "detail": "8 cards"
+    },
+    {
+      "name": "Library tab all shows its cards or an empty state",
+      "ok": true,
+      "detail": "140 cards"
+    },
+    {
+      "name": "Filters panel opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "layout compact",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "layout list",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "layout grid",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "+1 marks the next episode",
+      "ok": true,
+      "detail": "4 -> 5"
+    },
+    {
+      "name": "Undo takes the episode back",
+      "ok": true,
+      "detail": "5 -> 4"
+    },
+    {
+      "name": "Search finds the series with a poster",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Search offers \"+1 episode on …\"",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Discover icon buttons show a tooltip with the key",
+      "ok": true,
+      "detail": "Seen it (S)"
+    },
+    {
+      "name": "Discover: Want to watch adds the title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Discover: Undo takes it back",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Schedule names the time zone",
+      "ok": true,
+      "detail": "Times in your time zone: Europe/Stockholm (GMT+2)"
+    },
+    {
+      "name": "Stats shows its numbers",
+      "ok": true,
+      "detail": "12 numbers"
+    },
+    {
+      "name": "Settings > appearance",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Settings > library",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Settings > recommendations",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Settings > notifications",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Settings > data",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Settings > help",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Settings > Help shows 3.0.0, the build date and the commit",
+      "ok": true,
+      "detail": "Anime Tracker 3.0.0, built Oct 6, 2026, 08:30 PM (969d3ab)"
+    },
+    {
+      "name": "Settings > Data names the data folder in use",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dark theme, decoration off",
+      "ok": true,
+      "detail": "data-decor off, particles 0, canvas pixels 0"
+    },
+    {
+      "name": "dark theme, decoration low",
+      "ok": true,
+      "detail": "data-decor half, particles 7, canvas pixels 244"
+    },
+    {
+      "name": "dark theme, decoration full",
+      "ok": true,
+      "detail": "data-decor on, particles 16, canvas pixels 273"
+    },
+    {
+      "name": "dark theme, decoration insane",
+      "ok": true,
+      "detail": "data-decor insane, particles 136, canvas pixels 2099"
+    },
+    {
+      "name": "light theme, decoration off",
+      "ok": true,
+      "detail": "data-decor off, particles 0, canvas pixels 0"
+    },
+    {
+      "name": "light theme, decoration low",
+      "ok": true,
+      "detail": "data-decor half, particles 0, canvas pixels 0"
+    },
+    {
+      "name": "light theme, decoration full",
+      "ok": true,
+      "detail": "data-decor on, particles 0, canvas pixels 0"
+    },
+    {
+      "name": "light theme, decoration insane",
+      "ok": true,
+      "detail": "data-decor insane, particles 0, canvas pixels 0"
+    },
+    {
+      "name": "after reopening: decoration, season and theme kept",
+      "ok": true,
+      "detail": "{\"decor\":\"insane\",\"season\":\"winter\",\"scheme\":\"dark\"}"
+    },
+    {
+      "name": "after reopening: the library is the same",
+      "ok": true,
+      "detail": "140 entries"
+    },
+    {
+      "name": "after reopening: the episode taken back by Undo stays taken back",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -97,8 +97,12 @@ async function closeDialogs(page) {
       await page.click(`#list-tab-${tab}`);
       await page.waitForFunction((t) => document.getElementById(`list-tab-${t}`).getAttribute('aria-selected') === 'true', tab);
       await page.waitForTimeout(150);
-      const cards = await page.locator('#grid > .card, #grid .empty-state, #list-view .empty-state').count();
-      check(`Library tab ${tab} shows its cards or an empty state`, cards > 0, `${await page.locator('#grid > .card').count()} cards`);
+      // Only what is on screen: an empty tab hides the grid and shows its empty state.
+      const shown = await page.evaluate(() => ({
+        cards: [...document.querySelectorAll('#grid > .card')].filter((c) => c.offsetParent).length,
+        empty: [...document.querySelectorAll('#list-view .empty-state')].filter((e) => e.offsetParent).map((e) => e.querySelector('h2, h3, b')?.textContent.trim() || 'empty state')[0] || null,
+      }));
+      check(`Library tab ${tab} shows its cards or an empty state`, shown.cards > 0 || Boolean(shown.empty), shown.cards ? `${shown.cards} cards` : `"${shown.empty}"`);
     }
     await page.click('#list-tab-watching');
     await page.click('#filters-toggle');

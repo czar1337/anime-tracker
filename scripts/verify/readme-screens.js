@@ -48,6 +48,15 @@ fs.mkdirSync(OUT, { recursive: true });
       await page.screenshot({ path: path.join(OUT, `${name}.png`) });
       console.log(`wrote ${name}.png`);
     };
+    // A little use first, so This year shows this year's episodes.
+    await page.click('#tab-home');
+    await page.waitForSelector('#home-view .continue-card');
+    for (let i = 0; i < 3; i++) {
+      await page.locator('#home-view .continue-plus').nth(i).click();
+      await page.waitForTimeout(400);
+    }
+    await page.waitForTimeout(6500); // the Undo messages go
+    await page.click('#tab-library');
     await page.click('#tab-home');
     await page.waitForSelector('#home-view .continue-card');
     await shot('home');
@@ -59,6 +68,8 @@ fs.mkdirSync(OUT, { recursive: true });
     await shot('discover');
     await page.keyboard.press('t');
     await page.locator('#triage-overlay .triage-card').first().waitFor({ timeout: 30000 });
+    await page.evaluate(() => document.activeElement?.blur()); // no focus ring or tooltip in the picture
+    await page.mouse.move(1430, 890);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: path.join(OUT, 'swipe-through.png') });
     console.log('wrote swipe-through.png');
