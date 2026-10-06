@@ -8,14 +8,14 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 const ID = 101922;
 
 function fixture() {
   const base = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'watching-entry-library.json'), 'utf8'));
   base.entries[0].coverFile = "covers/x');background-color:red;x:url('y.jpg";
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'home-view-')), 'library.json');
+  const file = path.join(tempDir('home-view'), 'library.json');
   fs.writeFileSync(file, JSON.stringify(base));
   return file;
 }

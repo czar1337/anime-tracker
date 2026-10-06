@@ -42,6 +42,7 @@ test('the server rebuilds the taste cache debounced, as a fold, outside the requ
   const fs = require('node:fs');
   const os = require('node:os');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'taste-fold-'));
+  process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
   process.env.ANIME_TRACKER_DATA_DIR = dir;
   const lines = [
     { id: 'a', schemaVersion: 1, type: 'recommendation_dismissed', ts: 1, tzOffset: 0, localDay: '2026-10-04', sessionId: 's', animeId: '3', meta: { reason: 'artStyle' } },

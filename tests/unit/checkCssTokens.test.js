@@ -9,8 +9,15 @@ const { spawnSync } = require('node:child_process');
 
 const SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'check-css-tokens.js');
 
+const made = [];
+process.on('exit', () => {
+  for (const dir of made) fs.rmSync(dir, { recursive: true, force: true });
+});
+
 function check(css, ...flags) {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'css-tokens-')), 'x.css');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'css-tokens-'));
+  made.push(dir);
+  const file = path.join(dir, 'x.css');
   fs.writeFileSync(file, css);
   const r = spawnSync(process.execPath, [SCRIPT, ...flags, file], { encoding: 'utf8' });
   return { code: r.status, out: r.stdout + r.stderr };

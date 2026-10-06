@@ -10,7 +10,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 const SERVER_PATH = path.join(__dirname, '..', '..', 'server.js');
 const OLD_FIXTURE = path.join(__dirname, '..', 'fixtures', 'schema-v12-library.json');
@@ -38,7 +38,7 @@ test('an old-schema library gets a verified, pinned snapshot at its own version 
 });
 
 test('if the pre-migration snapshot cannot be verified, nothing is migrated and the app refuses to start', async () => {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-e2e-'));
+  const dataDir = tempDir('e2e');
   try {
     fs.copyFileSync(OLD_FIXTURE, path.join(dataDir, 'library.json'));
     const before = fs.readFileSync(path.join(dataDir, 'library.json'));

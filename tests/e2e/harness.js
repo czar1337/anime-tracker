@@ -12,6 +12,28 @@ const os = require('node:os');
 const path = require('node:path');
 
 const SERVER_PATH = path.join(__dirname, '..', '..', 'server.js');
+
+// Every temp folder a test makes (data folders, fixture copies) goes through
+// tempDir() and is removed when the worker process exits, a failed or
+// timed-out test included. stop() removes a server's folder at once; one
+// Windows still holds a file in is left for the exit sweep.
+const tempDirs = new Set();
+function tempDir(prefix = 'e2e') {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `anime-tracker-${prefix}-`));
+  tempDirs.add(dir);
+  return dir;
+}
+function removeTempDir(dir) {
+  try {
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    tempDirs.delete(dir);
+  } catch {
+    tempDirs.add(dir); // the exit sweep tries again
+  }
+}
+process.on('exit', () => {
+  for (const dir of [...tempDirs]) removeTempDir(dir);
+});
 const STOP_GRACE_MS = 5000;
 const WRITE_TOKEN_HEADER = 'x-anime-tracker-token';
 
@@ -87,7 +109,7 @@ function delay(ms) {
 // server.js) without needing a second, bespoke spawn helper.
 async function startFixtureServer(fixtureLibraryPath, opts = {}) {
   const reusingDataDir = Boolean(opts.dataDir);
-  const dataDir = opts.dataDir || fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-e2e-'));
+  const dataDir = opts.dataDir || tempDir('e2e');
   fs.mkdirSync(path.join(dataDir, 'covers'), { recursive: true });
   fs.mkdirSync(path.join(dataDir, 'backups'), { recursive: true });
   if (fixtureLibraryPath && !reusingDataDir) {
@@ -179,13 +201,7 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
           await Promise.race([exitPromise, delay(STOP_GRACE_MS)]);
         }
       }
-      if (!keepDataDir) {
-        try {
-          fs.rmSync(dataDir, { recursive: true, force: true });
-        } catch {
-          // best-effort cleanup only
-        }
-      }
+      if (!keepDataDir) removeTempDir(dataDir);
     })();
     return stopPromise;
   }
@@ -222,7 +238,7 @@ async function startFixtureServer(fixtureLibraryPath, opts = {}) {
 // Always cleans up (kills the process if it's somehow still alive, removes
 // the temp dir) before returning or throwing.
 async function startProcessExpectingExit(fixtureLibraryPath, envOverrides = {}, { timeoutMs = 8000 } = {}) {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-e2e-'));
+  const dataDir = tempDir('e2e');
   fs.mkdirSync(path.join(dataDir, 'covers'), { recursive: true });
   fs.mkdirSync(path.join(dataDir, 'backups'), { recursive: true });
   if (fixtureLibraryPath) {
@@ -265,12 +281,8 @@ async function startProcessExpectingExit(fixtureLibraryPath, envOverrides = {}, 
     } catch {
       // already gone
     }
-    try {
-      fs.rmSync(dataDir, { recursive: true, force: true });
-    } catch {
-      // best-effort cleanup only
-    }
+    removeTempDir(dataDir);
   }
 }
 
-module.exports = { startFixtureServer, startProcessExpectingExit };
+module.exports = { startFixtureServer, startProcessExpectingExit, tempDir };

@@ -43,6 +43,14 @@ async function waitFor(url, ms) {
 
 (async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-smoke-'));
+  // Gone when the check ends, pass or fail (the exe has stopped by then).
+  process.on('exit', () => {
+    try {
+      fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // the OS temp cleanup has it
+    }
+  });
   const port = await freePort();
   const child = spawn(exe, [], {
     env: { ...process.env, ANIME_TRACKER_DATA_DIR: dataDir, ANIME_TRACKER_PORT: String(port), ANIME_TRACKER_TEST_NO_BROWSER: '1', ANIME_TRACKER_TEST_NO_TRAY: '1' },

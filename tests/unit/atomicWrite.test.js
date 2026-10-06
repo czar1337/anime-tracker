@@ -7,9 +7,15 @@ const os = require('node:os');
 const path = require('node:path');
 const { writeJsonAtomic } = require('../../src/storage/atomic.js');
 
+const made = [];
 function tempDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'atomic-write-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'atomic-write-'));
+  made.push(dir);
+  return dir;
 }
+process.on('exit', () => {
+  for (const dir of made) fs.rmSync(dir, { recursive: true, force: true });
+});
 
 test('writes the whole file and leaves no .tmp behind', () => {
   const dir = tempDir();

@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'watching-entry-library.json');
 const ID = 101922; // watching, episode 5 of 12
@@ -44,7 +44,7 @@ const readLog = (file) => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8').t
 
 test('with no tab open, a newly aired, unwatched episode raises one notification, once', async () => {
   const anilist = await stubAniList();
-  const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'notify-log-')), 'toasts.jsonl');
+  const log = path.join(tempDir('notify-log'), 'toasts.jsonl');
   const server = await startFixtureServer(FIXTURE, { env: { ANIME_TRACKER_ANILIST_URL: anilist.url, ANIME_TRACKER_NOTIFY_LOG: log, ANIME_TRACKER_NOTIFY_INTERVAL_MS: '400' } });
   try {
     await enableNotifications(server);

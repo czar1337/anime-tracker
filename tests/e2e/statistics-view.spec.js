@@ -7,11 +7,11 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 function fixtureWith(entries) {
   const base = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'watching-entry-library.json'), 'utf8'));
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stats-view-')), 'library.json');
+  const file = path.join(tempDir('stats-view'), 'library.json');
   fs.writeFileSync(file, JSON.stringify({ ...base, entries: [...base.entries, ...entries] }));
   return file;
 }

@@ -11,7 +11,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'airing-countdown-library.json');
 
@@ -122,7 +122,7 @@ test('rendering a warm 50-card Watching list issues zero AniList/GraphQL request
     updatedAt: '2025-01-02T00:00:00.000Z',
     completedAt: null,
   }));
-  const tempFixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'anime-tracker-p4_2-')), 'library.json');
+  const tempFixture = path.join(tempDir('p4_2'), 'library.json');
   fs.writeFileSync(
     tempFixture,
     JSON.stringify({

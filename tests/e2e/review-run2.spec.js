@@ -24,6 +24,9 @@ async function startDiscover(prefs = {}) {
 }
 
 async function openDiscover(page, server) {
+  // Discover rotates its picks by the day: a fixed date keeps the page, and
+  // which card stays in view after an answer, the same on every run.
+  await page.clock.setFixedTime(new Date('2026-10-05T12:00:00Z'));
   await page.route('**/graphql.anilist.co/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{"Page":{"media":[]},"Media":null}}' }));
   await page.goto(server.url);
   await page.waitForSelector('#list-view .empty-state, #grid .card');

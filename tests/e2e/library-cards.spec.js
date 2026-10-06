@@ -10,13 +10,13 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { startFixtureServer } = require('./harness.js');
+const { startFixtureServer, tempDir } = require('./harness.js');
 const { library } = require('../../scripts/capture-evidence.js');
 
 const BULK = path.join(__dirname, '..', 'fixtures', 'bulk-actions-library.json');
 
 function syntheticFixture() {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'library-cards-')), 'library.json');
+  const file = path.join(tempDir('library-cards'), 'library.json');
   fs.writeFileSync(file, JSON.stringify(library()));
   return file;
 }
