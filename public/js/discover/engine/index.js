@@ -356,10 +356,9 @@ export function buildDiscover(input) {
     return Explain.qualityReason(genreOf(c.entry));
   }
 
-  // Computed once per card: the chip labels and the same features with kinds.
+  // Computed once per card: the features it shares with the profile, with kinds.
   function whyOf(vector, entry) {
-    const why = Explain.whyFeaturesFor(vector, taste.positive, entry);
-    return { chips: why.map((f) => f.label), why };
+    return { why: Explain.whyFeaturesFor(vector, taste.positive, entry) };
   }
 
   function card(c, reason) {

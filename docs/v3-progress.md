@@ -289,7 +289,7 @@ entry in it is hidden, and a hit is any member in the top 20. v2 had no "Top pic
 its personal "Because you liked..." shelf at 20 cards stands in. Its unseeded
 serendipity is seeded per day so the run repeats.
 
-**Baseline, v2.3.0 engine, corpus v1** (`evidence/6/eval-v2-baseline.json`):
+**Baseline, v2.3.0 engine, corpus v1** (per-title results kept private: they list the real library):
 
 | run | HitRate@20 | MRR | diversity | franchises | genres | coverage | median bayes | sanity | max anchor share | engine ms |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -299,7 +299,7 @@ Sanity breakdown: top 20 has 1 unreleased (Kagurabachi), 2 from owned franchises
 under the quality floor (Super Dragon Ball Heroes at 5.49 adjusted); the rails show 6
 unreleased and 16 owned-franchise cards; 16 franchises appear twice on the page; with
 "Year: 2015+" 15 cards are older (Kingdom 2012 among them). "Because you liked" cites
-Attack on Titan or JUJUTSU KAISEN on 67% of its cards, "From the studio" one anchor on
+the same two rated titles on 67% of its cards, "From the studio" one anchor on
 100%.
 
 **Corpus v2, measured** (`scripts/build-eval-corpus.js`, the app's own queries and passes,
@@ -331,19 +331,10 @@ features, not the anchor, which the rail title already names.
 the result does not hinge on the weights. Chosen: **alpha 0.6, beta 0.3, gamma 0.35,
 lambdaNeg 0.5, m 3000**, mmrLambda first 0.7: the best HitRate@20 (0.579, tied with five runs), with the best MRR among them. After MMR switched to scaling by the best score (plan, "Decisions made autonomously"), mmrLambda was re-swept (0.5–1.0): **0.8** keeps HitRate@20 0.579 and MRR 0.370, and turning MMR off (1.0) drops diversity to 0.864.
 
-**Top picks for the real library, after** (all twenty cite a different rated title; no
-spoiler tag, no unreleased title, nothing under the 6.9 floor):
-1 A Silent Voice (Fans of The Fragrant Flower Blooms With Dignity, 9) · 2 The Promised
-Neverland (Attack on Titan, 10) · 3 You and I Are Polar Opposites (The Fragrant Flower…, 9)
-· 4 To Be Hero X (My Hero Academia, 10) · 5 Secrets of the Silent Witch (Wistoria S2, 9) ·
-6 Inazuma Eleven (BLUE LOCK, 9) · 7 Tomorrow's Joe (BAKI, 9) · 8 Kemono Jihen (JUJUTSU
-KAISEN, 10) · 9 Cyberpunk: Edgerunners (Akame ga Kill!, 9) · 10 Sword of the Stranger
-(Dororo, 9) · 11 World Trigger (Demon Slayer, 10) · 12 REBORN! (My Hero Academia, 10) ·
-13 Blue Box (The Fragrant Flower…, 9) · 14 Reincarnated as a Sword (Slime S2, 9) · 15 SANDA
-(Chainsaw Man, 9) · 16 Gate (Sword Art Online, 9) · 17 AJIN (Tokyo Ghoul, 9) · 18 Saint
-Seiya: Knights of the Zodiac (Dragon Ball Z, 9) · 19 Princess Mononoke (Demon Slayer, 10) ·
-20 Viral Hit (The God of High School, 10). Every reason reads "Fans of X rate this highly
-(you gave it N)": with the graph present, collab is the largest part for all twenty.
+**Top picks for the real library, after**: all twenty cite a different rated title; no
+spoiler tag, no unreleased title, nothing under the 6.9 floor. Every reason reads "Fans of
+X rate this highly (you gave it N)": with the graph present, collab is the largest part for
+all twenty. (The titles themselves are left out of this public document.)
 
 **Regression tests** (`tests/unit/discoverRegressions.test.js`): every failure in spec
 section 1 runs on both engines; each passes on v3 and is asserted to fail on v2.3.0 (16
@@ -378,7 +369,7 @@ side stories, and the eval itself).
   1. Eval before → after (table above): HitRate@20 0.105 → 0.579, MRR 0.021 → 0.370,
      sanity 61 → 0, diversity 0.841 → 0.874, coverage 0.026 (baseline on the same corpus
      0.016). Floors hold.
-  2. Real library page (`evidence/6/real-library-page-check.json`): 138 cards, at most
+  2. Real library page (kept private): 138 cards, at most
      one per franchise, no unreleased title on a taste rail, every anchored reason names
      its rated title, highest anchor share 0.25 (none over 40%).
   3. Every failure in spec section 1 has a test that passes on v3 and is asserted to fail

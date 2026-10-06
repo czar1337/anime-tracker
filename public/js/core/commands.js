@@ -25,10 +25,6 @@ export function runCommand(id, arg) {
   return true;
 }
 
-export function hasCommand(id) {
-  return commands.has(id);
-}
-
 // A provider returns commands that exist only while something is true (one
 // per theme, say); they are listed like registered ones but not stored.
 const providers = [];

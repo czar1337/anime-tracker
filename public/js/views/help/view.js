@@ -15,7 +15,6 @@ let helpTab = 'basics';
 export function setHelpTab(tab) {
   helpTab = tab;
 }
-export const getHelpTab = () => helpTab;
 
 function bodyHtml() {
   if (helpTab === 'keyboard') {

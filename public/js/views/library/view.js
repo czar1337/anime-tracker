@@ -406,8 +406,3 @@ export function renderLayoutToggle() {
   grid?.classList.toggle('list-layout', layout === 'list');
   grid?.classList.toggle('compact-layout', layout === 'compact');
 }
-
-// For tests and the list switch in events.js: forget which list the grid shows.
-export function resetGridList() {
-  renderedList = null;
-}

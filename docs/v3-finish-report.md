@@ -47,10 +47,10 @@ The user-facing version is in `CHANGELOG.md`, under "Unreleased".
 
 - **Filters crowded the page.** About 15 genre chips, 4 dropdowns and a checkbox were always visible, on two to three rows, before a single card.
 - **Hero.** The big Watching hero pushed the grid below the fold at 1440 px, and almost entirely off screen on a phone.
-- **Titles cut to one line** ("The Ancient Magus' …", "Daemons of the Sha…").
+- **Titles cut to one line** (long titles lost their second half).
 - **Hard-to-read card numbers.**
   - "0/24" sat right next to a "24 new" pill, which read like one number.
-  - BLACK TORCH showed a bare "8".
+  - One series showed a bare "8".
   - "Next episode in 3d 1…" was cut off.
 - **Two numbers that didn't match.** The Library tab badge (12, series with new episodes) and "14 of 14 series" counted different things, with nothing saying so.
 - **Hard to reach.** The list tabs had no New episodes or All tab. The detail view had to be found through the title.
