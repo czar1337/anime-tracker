@@ -12,7 +12,7 @@ v3 is finished. The release run (`v3/10-release`) cleaned the repository for goi
   - unit 608/608; e2e 323 passed (1 skipped); perf budgets pass; `eval:discover --assert` passes;
   - in the exe: smoke 13/13, upgrades and first-run safety 51/51, click-through 44/44, Swipe through 3 runs plus the end of the queue, 60 fps on every level;
   - tab order: 58 walks, 0 issues.
-- **Your steps:** `docs/v3-release-report.md` §6. Push the branches and `main`, push the tag, then `gh release create` with the exe and `docs/release-notes-3.0.0.md`.
+- **Publishing:** pushed at your request; CI builds, smoke-tests and publishes the release from the tag (`docs/v3-release-report.md` §6).
 
 ## Status
 

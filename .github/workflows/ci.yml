@@ -1,7 +1,8 @@
 # v3 Phase 7. Unit tests on Ubuntu and Windows, e2e on Ubuntu, a check that the
 # generated files are up to date, and on a `v*` tag the release: version check,
 # exe build, exe smoke test, and a GitHub release made with the workflow's own
-# GITHUB_TOKEN, with the notes from CHANGELOG.md. No credential is ever read or
+# GITHUB_TOKEN, with docs/release-notes-<version>.md (checksum filled from the
+# exe it built) or else the CHANGELOG section. No credential is ever read or
 # extracted.
 name: CI
 
@@ -108,7 +109,7 @@ jobs:
         run: node scripts/check-version.js "$TAG"
       - run: node scripts/build-exe.js
       - run: node scripts/smoke-exe.js
-      - name: Release notes from CHANGELOG.md
+      - name: Release notes (docs/release-notes-<version>.md, or CHANGELOG.md)
         shell: bash
         run: node scripts/release-notes.js "$TAG" > release-notes.md
       # A release published by hand for this tag (with the tested local exe and
