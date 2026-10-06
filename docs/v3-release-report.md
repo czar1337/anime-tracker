@@ -1,6 +1,6 @@
 # v3.0.0 release run
 
-The final run before publishing 3.0.0: fix, clean, verify and package, no new features. Branch `v3/10-release`, merged into `main` with `--no-ff` and tagged `v3.0.0` locally. **Nothing is pushed and no GitHub Release exists yet.** Earlier reports: `docs/v3-finish-report.md` (run 1) and `docs/v3-run2-report.md` (run 2).
+The final run before publishing 3.0.0: fix, clean, verify and package, no new features. Branch `v3/10-release`, merged into `main` with `--no-ff` and tagged `v3.0.0` locally. Published to GitHub at your request after this report was first written (§6). Earlier reports: `docs/v3-finish-report.md` (run 1) and `docs/v3-run2-report.md` (run 2).
 
 **Safety first.** No copy of the app was running. A timestamped backup of the real data folder was taken before any change, next to the earlier ones. The Claude desktop app redirects `%APPDATA%` for anything started from it, and through that view the library is the stale August copy (222 entries). So the real folder was read through the admin share, which shows the true files (340 entries, schema 17). The backup is identical to the source (library.json hash compared). Every check that used real data ran on a copy of that backup, never on the live folder.
 
@@ -89,12 +89,15 @@ The current files no longer contain any of this. Removing it from history would 
 
 ## 4. The final exe
 
+**Locally tested exe:**
 - **Path:** `dist\AnimeTracker.exe`, in the repository folder (the only exe in `dist`).
 - **Size:** 103,057,920 bytes (98.3 MB).
 - **SHA-256:** `4FED1BFAFEB04BA17A6952C344A29E1AFA944363FF14AE9099DFBA8EB9B81AFF`
-- **Built from:** commit `969d3ab`, after a clean-tree check (nothing modified or untracked) and a fresh `npm ci`. Settings → Help → Version shows "3.0.0, built Oct 6, 2026 (969d3ab)".
+- **Built from:** commit `969d3ab`, after a clean-tree check (nothing modified or untracked) and a fresh `npm ci`.
 
-The `v3.0.0` tag sits on the final commit. That commit sits after `969d3ab` and adds only this report, the release notes with the checksum, the README screenshots, the evidence and small changes to the verify scripts. No app code changed after the build. An exe always names the commit it was built from, and its checksum can only be written down after it is built, so the tag can't point at that exact commit.
+Every check in §2 and §3 ran on this file.
+
+**Published exe.** The release is published by CI from the `v3.0.0` tag: it builds the exe from the tagged commit, smoke-tests it and attaches it. That makes it a twin of the local one. No app code changed after `969d3ab`; the commits since then touch only docs, evidence, verify scripts and the release-notes script. Its checksum differs, because every build embeds its own commit and time. The release page shows the checksum, size and commit of the file actually attached: `scripts/release-notes.js` fills them into `docs/release-notes-3.0.0.md` in CI.
 
 ## 5. What could not be fixed, and why
 
@@ -103,32 +106,17 @@ The `v3.0.0` tag sits on the final commit. That commit sits after `969d3ab` and 
 - **Tab inside the command palette stays in the search field.** That is how a combobox works; results are chosen with the arrow keys.
 - **Offline, a series' details show only what the library stores:** no synopsis, studio links or trailer until AniList can be reached again.
 - **The exe is not code-signed**, so SmartScreen warns on first run. Signing needs a certificate.
-- **CI builds its own exe from the tag.** It should be functionally the same, but its checksum will differ from this one. The published asset is the one you upload with `gh release create`.
-- **The GitHub CLI (`gh`) is not installed on this computer.** Install it first (below).
+- **The release is not made with `gh` from this computer.** The GitHub CLI is not installed, and publishing through the API would need your GitHub credentials, which are never read. The workflow publishes it instead, with its own token.
 
-## 6. Commands, in order
+## 6. Publishing
 
-From the repository folder.
+Done after your go-ahead, in this order:
 
-1. Push the release branch, the run 2 branch and `main`:
-   ```bash
-   git push origin v3/10-release v3/9-run2 main
-   ```
-2. Push the tag. This starts CI. Its release job only builds and smoke-tests the tagged commit, and leaves an existing release alone:
-   ```bash
-   git push origin v3.0.0
-   ```
-3. Create the GitHub Release with the tested exe and the notes. Run it right after step 2, while CI is still running its tests. If `gh` is missing, install it first with `winget install --id GitHub.cli`, then run `gh auth login`.
-   ```bash
-   gh release create v3.0.0 dist/AnimeTracker.exe --title "Anime Tracker 3.0.0" --notes-file docs/release-notes-3.0.0.md --verify-tag
-   ```
+1. `git push origin v3/10-release v3/9-run2 main`
+2. `git push origin v3.0.0`. CI then runs the unit tests (Ubuntu and Windows), the end-to-end tests and the generated-files check. Its release job then builds and smoke-tests the exe and publishes the release with `docs/release-notes-3.0.0.md`.
 
-If CI is faster and its release already exists, replace its exe and notes with these instead:
+If you ever want to replace the attached exe with the locally tested one, you need the GitHub CLI. Note that the release page's checksum then has to be edited to `4FED1BFA…81AFF`.
 
 ```bash
 gh release upload v3.0.0 dist/AnimeTracker.exe --clobber
-```
-
-```bash
-gh release edit v3.0.0 --title "Anime Tracker 3.0.0" --notes-file docs/release-notes-3.0.0.md
 ```

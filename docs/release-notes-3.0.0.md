@@ -25,10 +25,11 @@ To update from an earlier version, quit the old app from its tray icon and run t
 
 ## Checksum
 
+<!-- CI fills the {{…}} values from the exe it builds and attaches (scripts/release-notes.js). -->
 To check that your download is this file, run `Get-FileHash .\AnimeTracker.exe -Algorithm SHA256` in PowerShell and compare:
 
 ```
-AnimeTracker.exe  SHA-256  4FED1BFAFEB04BA17A6952C344A29E1AFA944363FF14AE9099DFBA8EB9B81AFF
+AnimeTracker.exe  SHA-256  {{SHA256}}
 ```
 
-Size: 103,057,920 bytes. In the app, Settings → Help → Version shows "3.0.0, built Oct 6, 2026 (969d3ab)".
+Size: {{SIZE}} bytes. In the app, Settings → Help → Version shows "3.0.0, built {{BUILT}} ({{COMMIT}})".
